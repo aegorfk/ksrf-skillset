@@ -1,0 +1,4372 @@
+{
+  "generated_at": "2026-06-05T08:02:27",
+  "nodes": [
+    {
+      "id": "pattern:practice-split",
+      "kind": "pattern",
+      "label": "Разнобой и неоднозначность правоприменения",
+      "primary_when": "Норма допускает несовместимые судебные подходы в юридически сходных ситуациях."
+    },
+    {
+      "id": "article:ст. 19",
+      "kind": "constitutional_article",
+      "label": "ст. 19"
+    },
+    {
+      "id": "article:ст. 46",
+      "kind": "constitutional_article",
+      "label": "ст. 46"
+    },
+    {
+      "id": "article:ст. 55",
+      "kind": "constitutional_article",
+      "label": "ст. 55"
+    },
+    {
+      "id": "norm:оценочная норма",
+      "kind": "norm_type",
+      "label": "оценочная норма"
+    },
+    {
+      "id": "norm:процессуальный фильтр",
+      "kind": "norm_type",
+      "label": "процессуальный фильтр"
+    },
+    {
+      "id": "norm:санкция",
+      "kind": "norm_type",
+      "label": "санкция"
+    },
+    {
+      "id": "norm:статусное последствие",
+      "kind": "norm_type",
+      "label": "статусное последствие"
+    },
+    {
+      "id": "harm:непредсказуемость исхода",
+      "kind": "harm_type",
+      "label": "непредсказуемость исхода"
+    },
+    {
+      "id": "harm:разные правовые режимы",
+      "kind": "harm_type",
+      "label": "разные правовые режимы"
+    },
+    {
+      "id": "harm:риск произвола",
+      "kind": "harm_type",
+      "label": "риск произвола"
+    },
+    {
+      "id": "tool:lower-court practice split finder",
+      "kind": "automation_hook",
+      "label": "lower-court practice split finder"
+    },
+    {
+      "id": "tool:holding clustering",
+      "kind": "automation_hook",
+      "label": "holding clustering"
+    },
+    {
+      "id": "tool:quote-window extractor",
+      "kind": "automation_hook",
+      "label": "quote-window extractor"
+    },
+    {
+      "id": "decision:2-П/1995",
+      "kind": "ksrf_decision",
+      "label": "2-П/1995"
+    },
+    {
+      "id": "decision:3-П/1996",
+      "kind": "ksrf_decision",
+      "label": "3-П/1996"
+    },
+    {
+      "id": "decision:17-П/1997",
+      "kind": "ksrf_decision",
+      "label": "17-П/1997"
+    },
+    {
+      "id": "decision:24-П/1998",
+      "kind": "ksrf_decision",
+      "label": "24-П/1998"
+    },
+    {
+      "id": "decision:2-П/2026",
+      "kind": "ksrf_decision",
+      "label": "2-П/2026"
+    },
+    {
+      "id": "decision:20-П/2026",
+      "kind": "ksrf_decision",
+      "label": "20-П/2026"
+    },
+    {
+      "id": "decision:30-П/2026",
+      "kind": "ksrf_decision",
+      "label": "30-П/2026"
+    },
+    {
+      "id": "decision:35-П/2026",
+      "kind": "ksrf_decision",
+      "label": "35-П/2026"
+    },
+    {
+      "id": "pattern:legal-certainty",
+      "kind": "pattern",
+      "label": "Правовая определенность и предсказуемость",
+      "primary_when": "Адресат не может разумно понять критерии, пределы обязанности или последствия."
+    },
+    {
+      "id": "article:ст. 1",
+      "kind": "constitutional_article",
+      "label": "ст. 1"
+    },
+    {
+      "id": "article:ст. 15",
+      "kind": "constitutional_article",
+      "label": "ст. 15"
+    },
+    {
+      "id": "norm:срок",
+      "kind": "norm_type",
+      "label": "срок"
+    },
+    {
+      "id": "norm:процедура",
+      "kind": "norm_type",
+      "label": "процедура"
+    },
+    {
+      "id": "norm:обязанность",
+      "kind": "norm_type",
+      "label": "обязанность"
+    },
+    {
+      "id": "harm:невозможность предвидеть последствия",
+      "kind": "harm_type",
+      "label": "невозможность предвидеть последствия"
+    },
+    {
+      "id": "harm:произвольное усмотрение",
+      "kind": "harm_type",
+      "label": "произвольное усмотрение"
+    },
+    {
+      "id": "harm:хаотичное применение",
+      "kind": "harm_type",
+      "label": "хаотичное применение"
+    },
+    {
+      "id": "tool:norm ambiguity detector",
+      "kind": "automation_hook",
+      "label": "norm ambiguity detector"
+    },
+    {
+      "id": "tool:criteria extractor",
+      "kind": "automation_hook",
+      "label": "criteria extractor"
+    },
+    {
+      "id": "tool:predictability memo generator",
+      "kind": "automation_hook",
+      "label": "predictability memo generator"
+    },
+    {
+      "id": "decision:12-П/1999",
+      "kind": "ksrf_decision",
+      "label": "12-П/1999"
+    },
+    {
+      "id": "decision:5-П/2000",
+      "kind": "ksrf_decision",
+      "label": "5-П/2000"
+    },
+    {
+      "id": "decision:13-П/2001",
+      "kind": "ksrf_decision",
+      "label": "13-П/2001"
+    },
+    {
+      "id": "decision:3-П/2001",
+      "kind": "ksrf_decision",
+      "label": "3-П/2001"
+    },
+    {
+      "id": "decision:36-П/2026",
+      "kind": "ksrf_decision",
+      "label": "36-П/2026"
+    },
+    {
+      "id": "decision:6-П/2026",
+      "kind": "ksrf_decision",
+      "label": "6-П/2026"
+    },
+    {
+      "id": "decision:8-П/2026",
+      "kind": "ksrf_decision",
+      "label": "8-П/2026"
+    },
+    {
+      "id": "pattern:constitutional-meaning",
+      "kind": "pattern",
+      "label": "Конституционно-сообразное толкование / выявление смысла",
+      "primary_when": "Норму можно сохранить, если исключить неконституционный смысл, приданный судами."
+    },
+    {
+      "id": "article:ст. 18",
+      "kind": "constitutional_article",
+      "label": "ст. 18"
+    },
+    {
+      "id": "norm:любая примененная норма",
+      "kind": "norm_type",
+      "label": "любая примененная норма"
+    },
+    {
+      "id": "norm:система норм",
+      "kind": "norm_type",
+      "label": "система норм"
+    },
+    {
+      "id": "norm:переходное положение",
+      "kind": "norm_type",
+      "label": "переходное положение"
+    },
+    {
+      "id": "harm:неконституционный смысл в практике",
+      "kind": "harm_type",
+      "label": "неконституционный смысл в практике"
+    },
+    {
+      "id": "harm:невозможность защиты права без обязательного толкования",
+      "kind": "harm_type",
+      "label": "невозможность защиты права без обязательного толкования"
+    },
+    {
+      "id": "tool:constitutional meaning mapper",
+      "kind": "automation_hook",
+      "label": "constitutional meaning mapper"
+    },
+    {
+      "id": "tool:KSRF position retriever",
+      "kind": "automation_hook",
+      "label": "KSRF position retriever"
+    },
+    {
+      "id": "tool:demand formula drafter",
+      "kind": "automation_hook",
+      "label": "demand formula drafter"
+    },
+    {
+      "id": "decision:5-П/1997",
+      "kind": "ksrf_decision",
+      "label": "5-П/1997"
+    },
+    {
+      "id": "decision:4-П/1999",
+      "kind": "ksrf_decision",
+      "label": "4-П/1999"
+    },
+    {
+      "id": "decision:1-П/2001",
+      "kind": "ksrf_decision",
+      "label": "1-П/2001"
+    },
+    {
+      "id": "decision:16-П/2003",
+      "kind": "ksrf_decision",
+      "label": "16-П/2003"
+    },
+    {
+      "id": "decision:4-П/2026",
+      "kind": "ksrf_decision",
+      "label": "4-П/2026"
+    },
+    {
+      "id": "decision:7-П/2026",
+      "kind": "ksrf_decision",
+      "label": "7-П/2026"
+    },
+    {
+      "id": "decision:9-П/2026",
+      "kind": "ksrf_decision",
+      "label": "9-П/2026"
+    },
+    {
+      "id": "pattern:proportionality",
+      "kind": "pattern",
+      "label": "Соразмерность ограничения",
+      "primary_when": "Публичная цель есть, но мера чрезмерна для заявителя или категории лиц."
+    },
+    {
+      "id": "article:ст. 17",
+      "kind": "constitutional_article",
+      "label": "ст. 17"
+    },
+    {
+      "id": "norm:запрет",
+      "kind": "norm_type",
+      "label": "запрет"
+    },
+    {
+      "id": "norm:барьер доступа",
+      "kind": "norm_type",
+      "label": "барьер доступа"
+    },
+    {
+      "id": "norm:автоматическое последствие",
+      "kind": "norm_type",
+      "label": "автоматическое последствие"
+    },
+    {
+      "id": "harm:чрезмерное бремя",
+      "kind": "harm_type",
+      "label": "чрезмерное бремя"
+    },
+    {
+      "id": "harm:затрагивание существа права",
+      "kind": "harm_type",
+      "label": "затрагивание существа права"
+    },
+    {
+      "id": "harm:отсутствие менее обременительной альтернативы",
+      "kind": "harm_type",
+      "label": "отсутствие менее обременительной альтернативы"
+    },
+    {
+      "id": "tool:proportionality worksheet",
+      "kind": "automation_hook",
+      "label": "proportionality worksheet"
+    },
+    {
+      "id": "tool:burden inventory",
+      "kind": "automation_hook",
+      "label": "burden inventory"
+    },
+    {
+      "id": "tool:less restrictive alternatives finder",
+      "kind": "automation_hook",
+      "label": "less restrictive alternatives finder"
+    },
+    {
+      "id": "decision:1-П/1996",
+      "kind": "ksrf_decision",
+      "label": "1-П/1996"
+    },
+    {
+      "id": "decision:14-П/1996",
+      "kind": "ksrf_decision",
+      "label": "14-П/1996"
+    },
+    {
+      "id": "decision:6-П/1996",
+      "kind": "ksrf_decision",
+      "label": "6-П/1996"
+    },
+    {
+      "id": "decision:8-П/1996",
+      "kind": "ksrf_decision",
+      "label": "8-П/1996"
+    },
+    {
+      "id": "pattern:interest-balance",
+      "kind": "pattern",
+      "label": "Баланс частных и публичных интересов",
+      "primary_when": "Регулирование смещает баланс интересов без гарантий, компенсации или судебного контроля."
+    },
+    {
+      "id": "article:ст. 35",
+      "kind": "constitutional_article",
+      "label": "ст. 35"
+    },
+    {
+      "id": "norm:имущественный режим",
+      "kind": "norm_type",
+      "label": "имущественный режим"
+    },
+    {
+      "id": "norm:конфликт прав",
+      "kind": "norm_type",
+      "label": "конфликт прав"
+    },
+    {
+      "id": "norm:публичное ограничение",
+      "kind": "norm_type",
+      "label": "публичное ограничение"
+    },
+    {
+      "id": "harm:перекос бремени",
+      "kind": "harm_type",
+      "label": "перекос бремени"
+    },
+    {
+      "id": "harm:отсутствие компенсации",
+      "kind": "harm_type",
+      "label": "отсутствие компенсации"
+    },
+    {
+      "id": "harm:доминирование сильной стороны",
+      "kind": "harm_type",
+      "label": "доминирование сильной стороны"
+    },
+    {
+      "id": "tool:balance worksheet",
+      "kind": "automation_hook",
+      "label": "balance worksheet"
+    },
+    {
+      "id": "tool:compensation checker",
+      "kind": "automation_hook",
+      "label": "compensation checker"
+    },
+    {
+      "id": "tool:burden distribution table",
+      "kind": "automation_hook",
+      "label": "burden distribution table"
+    },
+    {
+      "id": "decision:15-П/1993",
+      "kind": "ksrf_decision",
+      "label": "15-П/1993"
+    },
+    {
+      "id": "decision:8-П/1993",
+      "kind": "ksrf_decision",
+      "label": "8-П/1993"
+    },
+    {
+      "id": "decision:5-П/1995",
+      "kind": "ksrf_decision",
+      "label": "5-П/1995"
+    },
+    {
+      "id": "decision:34-П/2026",
+      "kind": "ksrf_decision",
+      "label": "34-П/2026"
+    },
+    {
+      "id": "pattern:effective-remedy",
+      "kind": "pattern",
+      "label": "Эффективная судебная защита",
+      "primary_when": "Формальное средство есть, но оно не дает реального восстановления нарушенного права."
+    },
+    {
+      "id": "article:ст. 45",
+      "kind": "constitutional_article",
+      "label": "ст. 45"
+    },
+    {
+      "id": "article:ст. 52",
+      "kind": "constitutional_article",
+      "label": "ст. 52"
+    },
+    {
+      "id": "article:ст. 53",
+      "kind": "constitutional_article",
+      "label": "ст. 53"
+    },
+    {
+      "id": "norm:подведомственность",
+      "kind": "norm_type",
+      "label": "подведомственность"
+    },
+    {
+      "id": "norm:средство пересмотра",
+      "kind": "norm_type",
+      "label": "средство пересмотра"
+    },
+    {
+      "id": "norm:исполнение",
+      "kind": "norm_type",
+      "label": "исполнение"
+    },
+    {
+      "id": "harm:иллюзорная защита",
+      "kind": "harm_type",
+      "label": "иллюзорная защита"
+    },
+    {
+      "id": "harm:доступ заблокирован",
+      "kind": "harm_type",
+      "label": "доступ заблокирован"
+    },
+    {
+      "id": "harm:право не восстановлено",
+      "kind": "harm_type",
+      "label": "право не восстановлено"
+    },
+    {
+      "id": "tool:ignored-dovod checker",
+      "kind": "automation_hook",
+      "label": "ignored-dovod checker"
+    },
+    {
+      "id": "tool:remedy route mapper",
+      "kind": "automation_hook",
+      "label": "remedy route mapper"
+    },
+    {
+      "id": "tool:access-to-court barrier detector",
+      "kind": "automation_hook",
+      "label": "access-to-court barrier detector"
+    },
+    {
+      "id": "decision:8-П/1992",
+      "kind": "ksrf_decision",
+      "label": "8-П/1992"
+    },
+    {
+      "id": "decision:9-П/1992",
+      "kind": "ksrf_decision",
+      "label": "9-П/1992"
+    },
+    {
+      "id": "decision:1-П/1993",
+      "kind": "ksrf_decision",
+      "label": "1-П/1993"
+    },
+    {
+      "id": "decision:10-П/1993",
+      "kind": "ksrf_decision",
+      "label": "10-П/1993"
+    },
+    {
+      "id": "pattern:procedural-guarantees",
+      "kind": "pattern",
+      "label": "Процессуальные гарантии",
+      "primary_when": "Процедура устроена так, что конституционно значимый довод или участие становятся фиктивными."
+    },
+    {
+      "id": "article:ст. 123",
+      "kind": "constitutional_article",
+      "label": "ст. 123"
+    },
+    {
+      "id": "norm:процессуальная норма",
+      "kind": "norm_type",
+      "label": "процессуальная норма"
+    },
+    {
+      "id": "norm:доказательственный режим",
+      "kind": "norm_type",
+      "label": "доказательственный режим"
+    },
+    {
+      "id": "norm:обжалование",
+      "kind": "norm_type",
+      "label": "обжалование"
+    },
+    {
+      "id": "harm:сторона не услышана",
+      "kind": "harm_type",
+      "label": "сторона не услышана"
+    },
+    {
+      "id": "harm:довод не рассмотрен",
+      "kind": "harm_type",
+      "label": "довод не рассмотрен"
+    },
+    {
+      "id": "harm:нарушена состязательность",
+      "kind": "harm_type",
+      "label": "нарушена состязательность"
+    },
+    {
+      "id": "tool:argument-response aligner",
+      "kind": "automation_hook",
+      "label": "argument-response aligner"
+    },
+    {
+      "id": "tool:procedural timeline checker",
+      "kind": "automation_hook",
+      "label": "procedural timeline checker"
+    },
+    {
+      "id": "decision:19-П/1996",
+      "kind": "ksrf_decision",
+      "label": "19-П/1996"
+    },
+    {
+      "id": "decision:21-П/1996",
+      "kind": "ksrf_decision",
+      "label": "21-П/1996"
+    },
+    {
+      "id": "decision:17-П/2026",
+      "kind": "ksrf_decision",
+      "label": "17-П/2026"
+    },
+    {
+      "id": "decision:22-П/2026",
+      "kind": "ksrf_decision",
+      "label": "22-П/2026"
+    },
+    {
+      "id": "pattern:equality-differentiation",
+      "kind": "pattern",
+      "label": "Равенство и необоснованная дифференциация",
+      "primary_when": "Сопоставимые лица различаются или разные лица уравнены без объективного и разумного основания."
+    },
+    {
+      "id": "norm:статусная норма",
+      "kind": "norm_type",
+      "label": "статусная норма"
+    },
+    {
+      "id": "norm:льгота",
+      "kind": "norm_type",
+      "label": "льгота"
+    },
+    {
+      "id": "norm:социальная выплата",
+      "kind": "norm_type",
+      "label": "социальная выплата"
+    },
+    {
+      "id": "norm:процессуальный режим",
+      "kind": "norm_type",
+      "label": "процессуальный режим"
+    },
+    {
+      "id": "harm:необоснованное различие",
+      "kind": "harm_type",
+      "label": "необоснованное различие"
+    },
+    {
+      "id": "harm:искусственное уравнивание",
+      "kind": "harm_type",
+      "label": "искусственное уравнивание"
+    },
+    {
+      "id": "harm:дискриминационный критерий",
+      "kind": "harm_type",
+      "label": "дискриминационный критерий"
+    },
+    {
+      "id": "tool:comparison group builder",
+      "kind": "automation_hook",
+      "label": "comparison group builder"
+    },
+    {
+      "id": "tool:differentiation table",
+      "kind": "automation_hook",
+      "label": "differentiation table"
+    },
+    {
+      "id": "tool:similarly situated cases finder",
+      "kind": "automation_hook",
+      "label": "similarly situated cases finder"
+    },
+    {
+      "id": "decision:17-П/1993",
+      "kind": "ksrf_decision",
+      "label": "17-П/1993"
+    },
+    {
+      "id": "decision:3-П/1993",
+      "kind": "ksrf_decision",
+      "label": "3-П/1993"
+    },
+    {
+      "id": "pattern:legitimate-expectations",
+      "kind": "pattern",
+      "label": "Доверие к праву и законные ожидания",
+      "primary_when": "Лицо разумно полагалось на прежнее право, но правило изменилось без переходной защиты."
+    },
+    {
+      "id": "norm:переходное регулирование",
+      "kind": "norm_type",
+      "label": "переходное регулирование"
+    },
+    {
+      "id": "norm:статус",
+      "kind": "norm_type",
+      "label": "статус"
+    },
+    {
+      "id": "norm:имущественное право",
+      "kind": "norm_type",
+      "label": "имущественное право"
+    },
+    {
+      "id": "harm:подрыв приобретенного положения",
+      "kind": "harm_type",
+      "label": "подрыв приобретенного положения"
+    },
+    {
+      "id": "harm:непредвидимое ухудшение",
+      "kind": "harm_type",
+      "label": "непредвидимое ухудшение"
+    },
+    {
+      "id": "harm:отсутствие переходного механизма",
+      "kind": "harm_type",
+      "label": "отсутствие переходного механизма"
+    },
+    {
+      "id": "tool:timeline checker",
+      "kind": "automation_hook",
+      "label": "timeline checker"
+    },
+    {
+      "id": "tool:transition-rule detector",
+      "kind": "automation_hook",
+      "label": "transition-rule detector"
+    },
+    {
+      "id": "tool:foreseeability memo generator",
+      "kind": "automation_hook",
+      "label": "foreseeability memo generator"
+    },
+    {
+      "id": "decision:11-П/2004",
+      "kind": "ksrf_decision",
+      "label": "11-П/2004"
+    },
+    {
+      "id": "decision:2-П/2004",
+      "kind": "ksrf_decision",
+      "label": "2-П/2004"
+    },
+    {
+      "id": "decision:9-П/2004",
+      "kind": "ksrf_decision",
+      "label": "9-П/2004"
+    },
+    {
+      "id": "decision:14-П/2007",
+      "kind": "ksrf_decision",
+      "label": "14-П/2007"
+    },
+    {
+      "id": "pattern:retroactivity",
+      "kind": "pattern",
+      "label": "Обратная сила и ухудшение положения",
+      "primary_when": "Новая норма или новое толкование применены к прошлым фактам и ухудшили положение."
+    },
+    {
+      "id": "article:ст. 54",
+      "kind": "constitutional_article",
+      "label": "ст. 54"
+    },
+    {
+      "id": "article:ст. 57",
+      "kind": "constitutional_article",
+      "label": "ст. 57"
+    },
+    {
+      "id": "norm:ответственность",
+      "kind": "norm_type",
+      "label": "ответственность"
+    },
+    {
+      "id": "norm:налог",
+      "kind": "norm_type",
+      "label": "налог"
+    },
+    {
+      "id": "norm:новое толкование",
+      "kind": "norm_type",
+      "label": "новое толкование"
+    },
+    {
+      "id": "harm:ухудшение прошлого положения",
+      "kind": "harm_type",
+      "label": "ухудшение прошлого положения"
+    },
+    {
+      "id": "harm:ретроспективное бремя",
+      "kind": "harm_type",
+      "label": "ретроспективное бремя"
+    },
+    {
+      "id": "harm:наказание за прошлое поведение",
+      "kind": "harm_type",
+      "label": "наказание за прошлое поведение"
+    },
+    {
+      "id": "tool:retroactivity timeline checker",
+      "kind": "automation_hook",
+      "label": "retroactivity timeline checker"
+    },
+    {
+      "id": "tool:versioned-law comparator",
+      "kind": "automation_hook",
+      "label": "versioned-law comparator"
+    },
+    {
+      "id": "decision:14-П/1993",
+      "kind": "ksrf_decision",
+      "label": "14-П/1993"
+    },
+    {
+      "id": "decision:10-П/1996",
+      "kind": "ksrf_decision",
+      "label": "10-П/1996"
+    },
+    {
+      "id": "decision:24-П/2026",
+      "kind": "ksrf_decision",
+      "label": "24-П/2026"
+    },
+    {
+      "id": "decision:29-П/2026",
+      "kind": "ksrf_decision",
+      "label": "29-П/2026"
+    },
+    {
+      "id": "pattern:non-mechanical-application",
+      "kind": "pattern",
+      "label": "Запрет механического применения",
+      "primary_when": "Правило применено автоматически, хотя Конституция требует учета значимых обстоятельств."
+    },
+    {
+      "id": "norm:отказ",
+      "kind": "norm_type",
+      "label": "отказ"
+    },
+    {
+      "id": "harm:автоматизм",
+      "kind": "harm_type",
+      "label": "автоматизм"
+    },
+    {
+      "id": "harm:игнорирование значимых обстоятельств",
+      "kind": "harm_type",
+      "label": "игнорирование значимых обстоятельств"
+    },
+    {
+      "id": "harm:индивидуальная несправедливость",
+      "kind": "harm_type",
+      "label": "индивидуальная несправедливость"
+    },
+    {
+      "id": "tool:individualization checker",
+      "kind": "automation_hook",
+      "label": "individualization checker"
+    },
+    {
+      "id": "tool:circumstance extractor",
+      "kind": "automation_hook",
+      "label": "circumstance extractor"
+    },
+    {
+      "id": "tool:reasoning gap detector",
+      "kind": "automation_hook",
+      "label": "reasoning gap detector"
+    },
+    {
+      "id": "decision:2-П/1996",
+      "kind": "ksrf_decision",
+      "label": "2-П/1996"
+    },
+    {
+      "id": "decision:14-П/1998",
+      "kind": "ksrf_decision",
+      "label": "14-П/1998"
+    },
+    {
+      "id": "decision:22-П/1998",
+      "kind": "ksrf_decision",
+      "label": "22-П/1998"
+    },
+    {
+      "id": "decision:11-П/1999",
+      "kind": "ksrf_decision",
+      "label": "11-П/1999"
+    },
+    {
+      "id": "decision:28-П/2025",
+      "kind": "ksrf_decision",
+      "label": "28-П/2025"
+    },
+    {
+      "id": "decision:4-П/2025",
+      "kind": "ksrf_decision",
+      "label": "4-П/2025"
+    },
+    {
+      "id": "decision:9-П/2025",
+      "kind": "ksrf_decision",
+      "label": "9-П/2025"
+    },
+    {
+      "id": "pattern:liability-fairness",
+      "kind": "pattern",
+      "label": "Справедливость ответственности, вина, индивидуализация",
+      "primary_when": "Ответственность не связана с виной, тяжестью, вредом или возможностью индивидуализации."
+    },
+    {
+      "id": "article:ст. 49",
+      "kind": "constitutional_article",
+      "label": "ст. 49"
+    },
+    {
+      "id": "article:ст. 50",
+      "kind": "constitutional_article",
+      "label": "ст. 50"
+    },
+    {
+      "id": "norm:уголовная санкция",
+      "kind": "norm_type",
+      "label": "уголовная санкция"
+    },
+    {
+      "id": "norm:административная санкция",
+      "kind": "norm_type",
+      "label": "административная санкция"
+    },
+    {
+      "id": "norm:штраф",
+      "kind": "norm_type",
+      "label": "штраф"
+    },
+    {
+      "id": "norm:конфискация",
+      "kind": "norm_type",
+      "label": "конфискация"
+    },
+    {
+      "id": "norm:публичная ответственность",
+      "kind": "norm_type",
+      "label": "публичная ответственность"
+    },
+    {
+      "id": "harm:ответственность без вины",
+      "kind": "harm_type",
+      "label": "ответственность без вины"
+    },
+    {
+      "id": "harm:несоразмерная санкция",
+      "kind": "harm_type",
+      "label": "несоразмерная санкция"
+    },
+    {
+      "id": "harm:нет индивидуализации",
+      "kind": "harm_type",
+      "label": "нет индивидуализации"
+    },
+    {
+      "id": "tool:sanction individualization checker",
+      "kind": "automation_hook",
+      "label": "sanction individualization checker"
+    },
+    {
+      "id": "tool:mens rea mapper",
+      "kind": "automation_hook",
+      "label": "mens rea mapper"
+    },
+    {
+      "id": "tool:penalty proportionality worksheet",
+      "kind": "automation_hook",
+      "label": "penalty proportionality worksheet"
+    },
+    {
+      "id": "decision:6-П/1993",
+      "kind": "ksrf_decision",
+      "label": "6-П/1993"
+    },
+    {
+      "id": "decision:17-П/1995",
+      "kind": "ksrf_decision",
+      "label": "17-П/1995"
+    },
+    {
+      "id": "decision:20-П/1996",
+      "kind": "ksrf_decision",
+      "label": "20-П/1996"
+    },
+    {
+      "id": "decision:19-П/1997",
+      "kind": "ksrf_decision",
+      "label": "19-П/1997"
+    },
+    {
+      "id": "decision:51-П/2025",
+      "kind": "ksrf_decision",
+      "label": "51-П/2025"
+    },
+    {
+      "id": "decision:8-П/2025",
+      "kind": "ksrf_decision",
+      "label": "8-П/2025"
+    },
+    {
+      "id": "decision:11-П/2026",
+      "kind": "ksrf_decision",
+      "label": "11-П/2026"
+    },
+    {
+      "id": "pattern:property-compensation",
+      "kind": "pattern",
+      "label": "Собственность, лишение имущества и компенсация",
+      "primary_when": "Имущественное право затронуто без справедливой компенсации, процедуры или учета добросовестности."
+    },
+    {
+      "id": "norm:изъятие",
+      "kind": "norm_type",
+      "label": "изъятие"
+    },
+    {
+      "id": "norm:взыскание",
+      "kind": "norm_type",
+      "label": "взыскание"
+    },
+    {
+      "id": "norm:компенсация",
+      "kind": "norm_type",
+      "label": "компенсация"
+    },
+    {
+      "id": "norm:имущественная льгота",
+      "kind": "norm_type",
+      "label": "имущественная льгота"
+    },
+    {
+      "id": "harm:лишение имущества",
+      "kind": "harm_type",
+      "label": "лишение имущества"
+    },
+    {
+      "id": "harm:неполная компенсация",
+      "kind": "harm_type",
+      "label": "неполная компенсация"
+    },
+    {
+      "id": "harm:бремя публичной цели на одном лице",
+      "kind": "harm_type",
+      "label": "бремя публичной цели на одном лице"
+    },
+    {
+      "id": "tool:deprivation/compensation checker",
+      "kind": "automation_hook",
+      "label": "deprivation/compensation checker"
+    },
+    {
+      "id": "tool:good-faith evidence collector",
+      "kind": "automation_hook",
+      "label": "good-faith evidence collector"
+    },
+    {
+      "id": "tool:valuation gap detector",
+      "kind": "automation_hook",
+      "label": "valuation gap detector"
+    },
+    {
+      "id": "decision:2-П/1993",
+      "kind": "ksrf_decision",
+      "label": "2-П/1993"
+    },
+    {
+      "id": "decision:6-П/1995",
+      "kind": "ksrf_decision",
+      "label": "6-П/1995"
+    },
+    {
+      "id": "decision:5-П/2026",
+      "kind": "ksrf_decision",
+      "label": "5-П/2026"
+    },
+    {
+      "id": "pattern:social-state-positive-obligation",
+      "kind": "pattern",
+      "label": "Социальное государство и позитивные обязанности",
+      "primary_when": "Государство не создало работающий механизм защиты социального права или уязвимой группы."
+    },
+    {
+      "id": "article:ст. 7",
+      "kind": "constitutional_article",
+      "label": "ст. 7"
+    },
+    {
+      "id": "article:ст. 39",
+      "kind": "constitutional_article",
+      "label": "ст. 39"
+    },
+    {
+      "id": "article:ст. 41",
+      "kind": "constitutional_article",
+      "label": "ст. 41"
+    },
+    {
+      "id": "norm:медицина",
+      "kind": "norm_type",
+      "label": "медицина"
+    },
+    {
+      "id": "norm:пенсия",
+      "kind": "norm_type",
+      "label": "пенсия"
+    },
+    {
+      "id": "norm:защита уязвимой группы",
+      "kind": "norm_type",
+      "label": "защита уязвимой группы"
+    },
+    {
+      "id": "harm:провал гарантии",
+      "kind": "harm_type",
+      "label": "провал гарантии"
+    },
+    {
+      "id": "harm:исключение уязвимой группы",
+      "kind": "harm_type",
+      "label": "исключение уязвимой группы"
+    },
+    {
+      "id": "harm:иллюзорное социальное право",
+      "kind": "harm_type",
+      "label": "иллюзорное социальное право"
+    },
+    {
+      "id": "tool:benefit eligibility checker",
+      "kind": "automation_hook",
+      "label": "benefit eligibility checker"
+    },
+    {
+      "id": "tool:vulnerable status mapper",
+      "kind": "automation_hook",
+      "label": "vulnerable status mapper"
+    },
+    {
+      "id": "tool:positive-obligation evidence checklist",
+      "kind": "automation_hook",
+      "label": "positive-obligation evidence checklist"
+    },
+    {
+      "id": "decision:5-П/1993",
+      "kind": "ksrf_decision",
+      "label": "5-П/1993"
+    },
+    {
+      "id": "decision:11-П/1995",
+      "kind": "ksrf_decision",
+      "label": "11-П/1995"
+    },
+    {
+      "id": "decision:7-П/1995",
+      "kind": "ksrf_decision",
+      "label": "7-П/1995"
+    },
+    {
+      "id": "decision:33-П/2026",
+      "kind": "ksrf_decision",
+      "label": "33-П/2026"
+    },
+    {
+      "id": "decision:37-П/2026",
+      "kind": "ksrf_decision",
+      "label": "37-П/2026"
+    },
+    {
+      "id": "pattern:federalism-competence",
+      "kind": "pattern",
+      "label": "Компетенция, федерализм, разграничение полномочий",
+      "primary_when": "Нарушение прав возникает из-за неправильного распределения полномочий или конфликта актов."
+    },
+    {
+      "id": "article:ст. 5",
+      "kind": "constitutional_article",
+      "label": "ст. 5"
+    },
+    {
+      "id": "article:ст. 71",
+      "kind": "constitutional_article",
+      "label": "ст. 71"
+    },
+    {
+      "id": "article:ст. 72",
+      "kind": "constitutional_article",
+      "label": "ст. 72"
+    },
+    {
+      "id": "article:ст. 76",
+      "kind": "constitutional_article",
+      "label": "ст. 76"
+    },
+    {
+      "id": "article:ст. 130",
+      "kind": "constitutional_article",
+      "label": "ст. 130"
+    },
+    {
+      "id": "norm:акт субъекта",
+      "kind": "norm_type",
+      "label": "акт субъекта"
+    },
+    {
+      "id": "norm:муниципальный акт",
+      "kind": "norm_type",
+      "label": "муниципальный акт"
+    },
+    {
+      "id": "norm:ведомственная компетенция",
+      "kind": "norm_type",
+      "label": "ведомственная компетенция"
+    },
+    {
+      "id": "norm:публичное полномочие",
+      "kind": "norm_type",
+      "label": "публичное полномочие"
+    },
+    {
+      "id": "harm:конфликт полномочий",
+      "kind": "harm_type",
+      "label": "конфликт полномочий"
+    },
+    {
+      "id": "harm:выход за пределы компетенции",
+      "kind": "harm_type",
+      "label": "выход за пределы компетенции"
+    },
+    {
+      "id": "harm:права зависят от уровня власти",
+      "kind": "harm_type",
+      "label": "права зависят от уровня власти"
+    },
+    {
+      "id": "tool:competence map builder",
+      "kind": "automation_hook",
+      "label": "competence map builder"
+    },
+    {
+      "id": "tool:act hierarchy comparator",
+      "kind": "automation_hook",
+      "label": "act hierarchy comparator"
+    },
+    {
+      "id": "tool:federalism conflict detector",
+      "kind": "automation_hook",
+      "label": "federalism conflict detector"
+    },
+    {
+      "id": "decision:5-П/1992",
+      "kind": "ksrf_decision",
+      "label": "5-П/1992"
+    },
+    {
+      "id": "decision:6-П/1992",
+      "kind": "ksrf_decision",
+      "label": "6-П/1992"
+    },
+    {
+      "id": "decision:32-П/2026",
+      "kind": "ksrf_decision",
+      "label": "32-П/2026"
+    },
+    {
+      "id": "pattern:legislative-gap",
+      "kind": "pattern",
+      "label": "Пробел, дефект регулирования, необходимость законодателя",
+      "primary_when": "Отсутствие правила само блокирует право и не устраняется обычным толкованием."
+    },
+    {
+      "id": "norm:отсутствующая процедура",
+      "kind": "norm_type",
+      "label": "отсутствующая процедура"
+    },
+    {
+      "id": "norm:переходный механизм",
+      "kind": "norm_type",
+      "label": "переходный механизм"
+    },
+    {
+      "id": "norm:способ защиты",
+      "kind": "norm_type",
+      "label": "способ защиты"
+    },
+    {
+      "id": "harm:право невозможно реализовать",
+      "kind": "harm_type",
+      "label": "право невозможно реализовать"
+    },
+    {
+      "id": "harm:суд не может восполнить механизм",
+      "kind": "harm_type",
+      "label": "суд не может восполнить механизм"
+    },
+    {
+      "id": "harm:зависимость от усмотрения",
+      "kind": "harm_type",
+      "label": "зависимость от усмотрения"
+    },
+    {
+      "id": "tool:gap detector",
+      "kind": "automation_hook",
+      "label": "gap detector"
+    },
+    {
+      "id": "tool:procedure model comparator",
+      "kind": "automation_hook",
+      "label": "procedure model comparator"
+    },
+    {
+      "id": "tool:legislative-duty formula drafter",
+      "kind": "automation_hook",
+      "label": "legislative-duty formula drafter"
+    },
+    {
+      "id": "decision:11-П/1993",
+      "kind": "ksrf_decision",
+      "label": "11-П/1993"
+    },
+    {
+      "id": "decision:13-П/1993",
+      "kind": "ksrf_decision",
+      "label": "13-П/1993"
+    },
+    {
+      "id": "pattern:good-faith-abuse",
+      "kind": "pattern",
+      "label": "Добросовестность, злоупотребление, доверие оборота",
+      "primary_when": "Норма не различает добросовестное и недобросовестное поведение или перекладывает риск на добросовестного."
+    },
+    {
+      "id": "article:ст. 34",
+      "kind": "constitutional_article",
+      "label": "ст. 34"
+    },
+    {
+      "id": "norm:гражданско-правовой режим",
+      "kind": "norm_type",
+      "label": "гражданско-правовой режим"
+    },
+    {
+      "id": "norm:имущественное взыскание",
+      "kind": "norm_type",
+      "label": "имущественное взыскание"
+    },
+    {
+      "id": "norm:регистрация",
+      "kind": "norm_type",
+      "label": "регистрация"
+    },
+    {
+      "id": "norm:банкротство",
+      "kind": "norm_type",
+      "label": "банкротство"
+    },
+    {
+      "id": "harm:добросовестный несет чужой риск",
+      "kind": "harm_type",
+      "label": "добросовестный несет чужой риск"
+    },
+    {
+      "id": "harm:злоупотребление не пресечено",
+      "kind": "harm_type",
+      "label": "злоупотребление не пресечено"
+    },
+    {
+      "id": "harm:оборот непредсказуем",
+      "kind": "harm_type",
+      "label": "оборот непредсказуем"
+    },
+    {
+      "id": "tool:good-faith fact extractor",
+      "kind": "automation_hook",
+      "label": "good-faith fact extractor"
+    },
+    {
+      "id": "tool:risk allocation table",
+      "kind": "automation_hook",
+      "label": "risk allocation table"
+    },
+    {
+      "id": "tool:abuse-of-right detector",
+      "kind": "automation_hook",
+      "label": "abuse-of-right detector"
+    },
+    {
+      "id": "decision:7-П/1993",
+      "kind": "ksrf_decision",
+      "label": "7-П/1993"
+    },
+    {
+      "id": "pattern:constitutional-identity-human-dignity",
+      "kind": "pattern",
+      "label": "Достоинство, личность, конституционная идентичность",
+      "primary_when": "Норма затрагивает ядро человеческого достоинства, автономии или частной/семейной жизни."
+    },
+    {
+      "id": "article:ст. 2",
+      "kind": "constitutional_article",
+      "label": "ст. 2"
+    },
+    {
+      "id": "article:ст. 21",
+      "kind": "constitutional_article",
+      "label": "ст. 21"
+    },
+    {
+      "id": "article:ст. 23",
+      "kind": "constitutional_article",
+      "label": "ст. 23"
+    },
+    {
+      "id": "article:ст. 24",
+      "kind": "constitutional_article",
+      "label": "ст. 24"
+    },
+    {
+      "id": "norm:статус личности",
+      "kind": "norm_type",
+      "label": "статус личности"
+    },
+    {
+      "id": "norm:частная жизнь",
+      "kind": "norm_type",
+      "label": "частная жизнь"
+    },
+    {
+      "id": "norm:семейная жизнь",
+      "kind": "norm_type",
+      "label": "семейная жизнь"
+    },
+    {
+      "id": "norm:медицинская информация",
+      "kind": "norm_type",
+      "label": "медицинская информация"
+    },
+    {
+      "id": "norm:личная автономия",
+      "kind": "norm_type",
+      "label": "личная автономия"
+    },
+    {
+      "id": "harm:унижение достоинства",
+      "kind": "harm_type",
+      "label": "унижение достоинства"
+    },
+    {
+      "id": "harm:исключение автономии",
+      "kind": "harm_type",
+      "label": "исключение автономии"
+    },
+    {
+      "id": "harm:необратимое вмешательство в личную сферу",
+      "kind": "harm_type",
+      "label": "необратимое вмешательство в личную сферу"
+    },
+    {
+      "id": "tool:dignity impact checklist",
+      "kind": "automation_hook",
+      "label": "dignity impact checklist"
+    },
+    {
+      "id": "tool:consent/notification procedure checker",
+      "kind": "automation_hook",
+      "label": "consent/notification procedure checker"
+    },
+    {
+      "id": "tool:irreversibility mapper",
+      "kind": "automation_hook",
+      "label": "irreversibility mapper"
+    },
+    {
+      "id": "decision:10-П/1995",
+      "kind": "ksrf_decision",
+      "label": "10-П/1995"
+    },
+    {
+      "id": "decision:4-П/1995",
+      "kind": "ksrf_decision",
+      "label": "4-П/1995"
+    },
+    {
+      "id": "decision:12-П/1996",
+      "kind": "ksrf_decision",
+      "label": "12-П/1996"
+    },
+    {
+      "id": "pattern:international-standards",
+      "kind": "pattern",
+      "label": "Международные и сравнительные стандарты как функциональная модель",
+      "primary_when": "Международный или сравнительный материал показывает не украшение, а работающую модель гарантии."
+    },
+    {
+      "id": "norm:гарантия",
+      "kind": "norm_type",
+      "label": "гарантия"
+    },
+    {
+      "id": "norm:минимальный стандарт",
+      "kind": "norm_type",
+      "label": "минимальный стандарт"
+    },
+    {
+      "id": "norm:средство защиты",
+      "kind": "norm_type",
+      "label": "средство защиты"
+    },
+    {
+      "id": "norm:баланс интересов",
+      "kind": "norm_type",
+      "label": "баланс интересов"
+    },
+    {
+      "id": "harm:отсутствие минимальной гарантии",
+      "kind": "harm_type",
+      "label": "отсутствие минимальной гарантии"
+    },
+    {
+      "id": "harm:избыточная российская модель",
+      "kind": "harm_type",
+      "label": "избыточная российская модель"
+    },
+    {
+      "id": "harm:нет функционального аналога защиты",
+      "kind": "harm_type",
+      "label": "нет функционального аналога защиты"
+    },
+    {
+      "id": "tool:functional standard mapper",
+      "kind": "automation_hook",
+      "label": "functional standard mapper"
+    },
+    {
+      "id": "tool:comparative model table",
+      "kind": "automation_hook",
+      "label": "comparative model table"
+    },
+    {
+      "id": "tool:source-to-test linker",
+      "kind": "automation_hook",
+      "label": "source-to-test linker"
+    },
+    {
+      "id": "decision:40-П/2025",
+      "kind": "ksrf_decision",
+      "label": "40-П/2025"
+    },
+    {
+      "id": "decision:13-П/2026",
+      "kind": "ksrf_decision",
+      "label": "13-П/2026"
+    },
+    {
+      "id": "decision:28-П/2026",
+      "kind": "ksrf_decision",
+      "label": "28-П/2026"
+    },
+    {
+      "id": "pattern:reconsideration-execution",
+      "kind": "pattern",
+      "label": "Исполнение, пересмотр и последствия постановления КС РФ",
+      "primary_when": "Проблема в переводе правовой позиции КС в пересмотр, исполнение или аналогичные дела."
+    },
+    {
+      "id": "article:ст. 79",
+      "kind": "constitutional_article",
+      "label": "ст. 79"
+    },
+    {
+      "id": "article:ст. 80",
+      "kind": "constitutional_article",
+      "label": "ст. 80"
+    },
+    {
+      "id": "norm:пересмотр",
+      "kind": "norm_type",
+      "label": "пересмотр"
+    },
+    {
+      "id": "norm:аналогичные дела",
+      "kind": "norm_type",
+      "label": "аналогичные дела"
+    },
+    {
+      "id": "norm:новое обстоятельство",
+      "kind": "norm_type",
+      "label": "новое обстоятельство"
+    },
+    {
+      "id": "norm:правовые последствия акта КС",
+      "kind": "norm_type",
+      "label": "правовые последствия акта КС"
+    },
+    {
+      "id": "harm:постановление КС не исполнено",
+      "kind": "harm_type",
+      "label": "постановление КС не исполнено"
+    },
+    {
+      "id": "harm:нет пересмотра",
+      "kind": "harm_type",
+      "label": "нет пересмотра"
+    },
+    {
+      "id": "harm:аналогичное дело лишено эффекта",
+      "kind": "harm_type",
+      "label": "аналогичное дело лишено эффекта"
+    },
+    {
+      "id": "tool:KSRF aftermath planner",
+      "kind": "automation_hook",
+      "label": "KSRF aftermath planner"
+    },
+    {
+      "id": "tool:analogy classifier",
+      "kind": "automation_hook",
+      "label": "analogy classifier"
+    },
+    {
+      "id": "tool:reconsideration route generator",
+      "kind": "automation_hook",
+      "label": "reconsideration route generator"
+    },
+    {
+      "id": "decision:14-П/1995",
+      "kind": "ksrf_decision",
+      "label": "14-П/1995"
+    }
+  ],
+  "edges": [
+    {
+      "from": "pattern:practice-split",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:оценочная норма",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процессуальный фильтр",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:санкция",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:статусное последствие",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:непредсказуемость исхода",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:разные правовые режимы",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:риск произвола",
+      "to": "pattern:practice-split",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "tool:lower-court practice split finder",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "tool:holding clustering",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "tool:quote-window extractor",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:2-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:3-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:17-П/1997",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:24-П/1998",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:2-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:20-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:30-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "decision:35-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "pattern:equality-differentiation",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:practice-split",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "article:ст. 1",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:оценочная норма",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:срок",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процедура",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:обязанность",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:санкция",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:невозможность предвидеть последствия",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:произвольное усмотрение",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:хаотичное применение",
+      "to": "pattern:legal-certainty",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "tool:norm ambiguity detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "tool:criteria extractor",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "tool:predictability memo generator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:12-П/1999",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:5-П/2000",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:13-П/2001",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:3-П/2001",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:35-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:36-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "pattern:practice-split",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:legal-certainty",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:любая примененная норма",
+      "to": "pattern:constitutional-meaning",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:система норм",
+      "to": "pattern:constitutional-meaning",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:переходное положение",
+      "to": "pattern:constitutional-meaning",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:неконституционный смысл в практике",
+      "to": "pattern:constitutional-meaning",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:невозможность защиты права без обязательного толкования",
+      "to": "pattern:constitutional-meaning",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "tool:constitutional meaning mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "tool:KSRF position retriever",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "tool:demand formula drafter",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:5-П/1997",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:4-П/1999",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:1-П/2001",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:16-П/2003",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:4-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "pattern:practice-split",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "pattern:non-mechanical-application",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:constitutional-meaning",
+      "to": "pattern:reconsideration-execution",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:запрет",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:обязанность",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:санкция",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:барьер доступа",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:автоматическое последствие",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:чрезмерное бремя",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:затрагивание существа права",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:отсутствие менее обременительной альтернативы",
+      "to": "pattern:proportionality",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "tool:proportionality worksheet",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "tool:burden inventory",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "tool:less restrictive alternatives finder",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:1-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:14-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:6-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:8-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "pattern:interest-balance",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "pattern:liability-fairness",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "pattern:non-mechanical-application",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:proportionality",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "article:ст. 35",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:имущественный режим",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процедура",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:конфликт прав",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:публичное ограничение",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:перекос бремени",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:отсутствие компенсации",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:доминирование сильной стороны",
+      "to": "pattern:interest-balance",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "tool:balance worksheet",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "tool:compensation checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "tool:burden distribution table",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:15-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:8-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:5-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:14-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:34-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:35-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:4-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "pattern:property-compensation",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:interest-balance",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "article:ст. 45",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "article:ст. 52",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "article:ст. 53",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:процессуальный фильтр",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:срок",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:подведомственность",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:средство пересмотра",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:исполнение",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:иллюзорная защита",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:доступ заблокирован",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:право не восстановлено",
+      "to": "pattern:effective-remedy",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "tool:ignored-dovod checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "tool:remedy route mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "tool:access-to-court barrier detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:8-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:1-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:10-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:36-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:effective-remedy",
+      "to": "pattern:reconsideration-execution",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "article:ст. 45",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "article:ст. 123",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:процессуальная норма",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:доказательственный режим",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:срок",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:обжалование",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:сторона не услышана",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:довод не рассмотрен",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:нарушена состязательность",
+      "to": "pattern:procedural-guarantees",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "tool:ignored-dovod checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "tool:argument-response aligner",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "tool:procedural timeline checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:15-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:14-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:19-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:21-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:17-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:22-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "pattern:non-mechanical-application",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:procedural-guarantees",
+      "to": "pattern:reconsideration-execution",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:статусная норма",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:льгота",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:санкция",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:социальная выплата",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процессуальный режим",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:необоснованное различие",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:искусственное уравнивание",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:дискриминационный критерий",
+      "to": "pattern:equality-differentiation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "tool:comparison group builder",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "tool:differentiation table",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "tool:similarly situated cases finder",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:15-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:17-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:3-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:4-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "pattern:practice-split",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:equality-differentiation",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "article:ст. 1",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:переходное регулирование",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:льгота",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:статус",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:имущественное право",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процедура",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:подрыв приобретенного положения",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:непредвидимое ухудшение",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:отсутствие переходного механизма",
+      "to": "pattern:legitimate-expectations",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "tool:timeline checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "tool:transition-rule detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "tool:foreseeability memo generator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:11-П/2004",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:2-П/2004",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:9-П/2004",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:14-П/2007",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:35-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:36-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "pattern:retroactivity",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:legitimate-expectations",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "article:ст. 54",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "article:ст. 57",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:ответственность",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:налог",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:срок",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:переходное положение",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:новое толкование",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:ухудшение прошлого положения",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:ретроспективное бремя",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:наказание за прошлое поведение",
+      "to": "pattern:retroactivity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "tool:retroactivity timeline checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "tool:versioned-law comparator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "tool:transition-rule detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:8-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:14-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:10-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:17-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:22-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:24-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "decision:29-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "pattern:legitimate-expectations",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:retroactivity",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:санкция",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:отказ",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:льгота",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:статусное последствие",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:процессуальный фильтр",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:автоматизм",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:игнорирование значимых обстоятельств",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:индивидуальная несправедливость",
+      "to": "pattern:non-mechanical-application",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "tool:individualization checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "tool:circumstance extractor",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "tool:reasoning gap detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:2-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:14-П/1998",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:22-П/1998",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:11-П/1999",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:28-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:4-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:9-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "decision:17-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "pattern:liability-fairness",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:non-mechanical-application",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "article:ст. 49",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "article:ст. 50",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "article:ст. 54",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:уголовная санкция",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:административная санкция",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:штраф",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:конфискация",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:публичная ответственность",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:ответственность без вины",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:несоразмерная санкция",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:нет индивидуализации",
+      "to": "pattern:liability-fairness",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "tool:sanction individualization checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "tool:mens rea mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "tool:penalty proportionality worksheet",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:6-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:17-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:20-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:19-П/1997",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:51-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:8-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:11-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "pattern:non-mechanical-application",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:liability-fairness",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "article:ст. 35",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:изъятие",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:взыскание",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:компенсация",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:имущественная льгота",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:исполнение",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:лишение имущества",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:неполная компенсация",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:бремя публичной цели на одном лице",
+      "to": "pattern:property-compensation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "tool:deprivation/compensation checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "tool:good-faith evidence collector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "tool:valuation gap detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:2-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:6-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:6-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:4-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:5-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "pattern:interest-balance",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "pattern:good-faith-abuse",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:property-compensation",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 7",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 19",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 39",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 41",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:социальная выплата",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:медицина",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:пенсия",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:льгота",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:защита уязвимой группы",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:провал гарантии",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:исключение уязвимой группы",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:иллюзорное социальное право",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "tool:benefit eligibility checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "tool:vulnerable status mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "tool:positive-obligation evidence checklist",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:5-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:11-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:7-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:2-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:33-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:36-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:37-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "decision:5-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "pattern:equality-differentiation",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "pattern:legislative-gap",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:social-state-positive-obligation",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "article:ст. 5",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "article:ст. 71",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "article:ст. 72",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "article:ст. 76",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "article:ст. 130",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:акт субъекта",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:муниципальный акт",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:ведомственная компетенция",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:публичное полномочие",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:конфликт полномочий",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:выход за пределы компетенции",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:права зависят от уровня власти",
+      "to": "pattern:federalism-competence",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "tool:competence map builder",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "tool:act hierarchy comparator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "tool:federalism conflict detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:5-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:6-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:10-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:20-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:32-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:33-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "decision:36-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:federalism-competence",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "article:ст. 45",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:отсутствующая процедура",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:переходный механизм",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:срок",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:компенсация",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:способ защиты",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:право невозможно реализовать",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:суд не может восполнить механизм",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:зависимость от усмотрения",
+      "to": "pattern:legislative-gap",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "tool:gap detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "tool:procedure model comparator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "tool:legislative-duty formula drafter",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:5-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:11-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:13-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:4-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:5-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "pattern:social-state-positive-obligation",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:legislative-gap",
+      "to": "pattern:reconsideration-execution",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "article:ст. 34",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "article:ст. 35",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:гражданско-правовой режим",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:имущественное взыскание",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:регистрация",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:банкротство",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:исполнение",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:добросовестный несет чужой риск",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:злоупотребление не пресечено",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:оборот непредсказуем",
+      "to": "pattern:good-faith-abuse",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "tool:good-faith fact extractor",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "tool:risk allocation table",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "tool:abuse-of-right detector",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:6-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:1-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:7-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:7-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "pattern:property-compensation",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "pattern:interest-balance",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "pattern:legal-certainty",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:good-faith-abuse",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 2",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 21",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 23",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "article:ст. 24",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:статус личности",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:частная жизнь",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:семейная жизнь",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:медицинская информация",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:личная автономия",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:унижение достоинства",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:исключение автономии",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:необратимое вмешательство в личную сферу",
+      "to": "pattern:constitutional-identity-human-dignity",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "tool:dignity impact checklist",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "tool:consent/notification procedure checker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "tool:irreversibility mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:10-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:4-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:12-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:21-П/1996",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:32-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:35-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "decision:9-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:constitutional-identity-human-dignity",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "article:ст. 17",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "article:ст. 18",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "article:ст. 55",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:процедура",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:гарантия",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:минимальный стандарт",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:средство защиты",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:баланс интересов",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:отсутствие минимальной гарантии",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:избыточная российская модель",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:нет функционального аналога защиты",
+      "to": "pattern:international-standards",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "tool:functional standard mapper",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "tool:comparative model table",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "tool:source-to-test linker",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:9-П/1992",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:17-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:10-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:5-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:40-П/2025",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:13-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:28-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "decision:5-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "pattern:proportionality",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:international-standards",
+      "to": "pattern:effective-remedy",
+      "type": "remedy_with"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "article:ст. 15",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "article:ст. 46",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "article:ст. 79",
+      "type": "uses_article"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "article:ст. 80",
+      "type": "uses_article"
+    },
+    {
+      "from": "norm:пересмотр",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:исполнение",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:аналогичные дела",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:новое обстоятельство",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "norm:правовые последствия акта КС",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:постановление КС не исполнено",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:нет пересмотра",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "harm:аналогичное дело лишено эффекта",
+      "to": "pattern:reconsideration-execution",
+      "type": "may_trigger"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "tool:KSRF aftermath planner",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "tool:analogy classifier",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "tool:reconsideration route generator",
+      "type": "supported_by"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:1-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:2-П/1993",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:14-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:17-П/1995",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:2-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:29-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:6-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "decision:8-П/2026",
+      "type": "has_anchor"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "pattern:effective-remedy",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "pattern:procedural-guarantees",
+      "type": "reinforces_with"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "pattern:constitutional-meaning",
+      "type": "can_be_saved_by"
+    },
+    {
+      "from": "pattern:reconsideration-execution",
+      "to": "pattern:reconsideration-execution",
+      "type": "remedy_with"
+    }
+  ]
+}

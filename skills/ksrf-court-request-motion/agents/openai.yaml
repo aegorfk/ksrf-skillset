@@ -1,0 +1,4 @@
+interface:
+  display_name: "КС РФ: запрос суда"
+  short_description: "Подготовить ходатайство о запросе в КС РФ"
+  default_prompt: "Используй $ksrf-court-request-motion, чтобы подготовить ходатайство о запросе обычного суда в Конституционный Суд РФ."

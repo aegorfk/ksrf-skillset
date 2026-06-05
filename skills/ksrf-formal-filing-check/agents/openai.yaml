@@ -1,0 +1,4 @@
+interface:
+  display_name: "КС РФ: формальная подача"
+  short_description: "Проверить пакет жалобы перед подачей"
+  default_prompt: "Используй $ksrf-formal-filing-check, чтобы проверить формальный пакет жалобы в КС РФ перед подачей."

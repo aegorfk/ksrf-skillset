@@ -1,0 +1,4 @@
+interface:
+  display_name: "КС РФ: исчерпание"
+  short_description: "Проверить применение нормы, исчерпание и срок"
+  default_prompt: "Используй $ksrf-exhaustion-planner, чтобы проверить исчерпание, применение нормы и срок для жалобы в КС РФ."

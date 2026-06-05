@@ -1,0 +1,4 @@
+interface:
+  display_name: "КС РФ: факты и требования"
+  short_description: "Собрать факты, вопрос и просительную часть"
+  default_prompt: "Используй $ksrf-complaint-facts-demands, чтобы подготовить факты и просительную часть жалобы в КС РФ."
