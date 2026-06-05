@@ -1,34 +1,33 @@
-# Extract KSRF Argument Pattern Skills
+# Извлечение скиллов паттернов аргументации КС РФ
 
-## Why
+## Зачем
 
-The project now has a local corpus of 997 KSRF Постановления. We need to turn that corpus into reusable drafting and diagnostic workflows for new constitutional complaints and court requests.
+В проекте есть локальный корпус из 997 Постановлений КС РФ. Нужно превратить этот корпус в переиспользуемые workflow для подготовки и диагностики новых жалоб в КС РФ и ходатайств о запросе в КС РФ.
 
-The key product need is not a citation dump. The system should identify admissible constitutional-law argument patterns, show where those patterns appear in KSRF rulings, and tell the user what facts, lower-court acts, and automation checks are needed to support the argument in a new case.
+Ключевая продуктовая потребность - не свалка цитат. Система должна выявлять допустимые паттерны конституционно-правовой аргументации, показывать, где эти паттерны встречаются в постановлениях КС РФ, и объяснять пользователю, какие факты, акты нижестоящих судов и автоматические проверки нужны для поддержки аргумента в новом деле.
 
-## What Changes
+## Что меняется
 
-- Add a corpus extraction script that reads all local KSRF ruling PDFs and produces text/index artifacts.
-- Add a Codex skill `ksrf-argument-patterns` with:
-  - a concise workflow;
-  - a matrix of admissible constitutional-law argument families;
-  - an index of KSRF Постановления where each pattern appears;
-  - an automation backlog for tools that can support each pattern on new cases.
-- Preserve generated corpus artifacts in `analysis_results/ksrf_argument_patterns` for review and iteration.
+- Добавить скрипт извлечения корпуса, который читает локальные PDF постановлений КС РФ и создает текстовые/индексные артефакты.
+- Добавить Codex-скилл `ksrf-argument-patterns`, который содержит:
+  - короткий порядок работы;
+  - матрицу допустимых семейств конституционно-правовой аргументации;
+  - индекс Постановлений КС РФ, где встречается каждый паттерн;
+  - бэклог автоматизации для инструментов, которые поддерживают паттерны в новых делах.
+- Сохранять сгенерированные артефакты корпуса в `analysis_results/ksrf_argument_patterns` для проверки и итераций.
 
-## Scope
+## Рамки
 
-In scope:
+Входит в объем:
 
-- corpus pass over local PDFs;
-- drafting-oriented taxonomy;
-- skill and references;
-- automation ideas/spec.
+- проход по локальным PDF;
+- таксономия, ориентированная на подготовку текста;
+- скилл и справочники;
+- идеи и спека автоматизации.
 
-Out of scope for this change:
+Не входит в объем этого изменения:
 
-- production lower-court practice crawler for every pattern;
-- database schema changes;
-- UI integration;
-- LLM benchmark/evaluation pipeline.
-
+- production crawler практики нижестоящих судов для каждого паттерна;
+- изменения схемы базы данных;
+- интеграция UI;
+- benchmark/evaluation pipeline для LLM.

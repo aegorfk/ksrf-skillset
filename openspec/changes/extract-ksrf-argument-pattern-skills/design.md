@@ -1,33 +1,33 @@
-# Design
+# Дизайн
 
-## Corpus Pass
+## Проход по корпусу
 
-The corpus pass is intentionally deterministic and local-first:
+Проход по корпусу намеренно сделан детерминированным и локальным:
 
-- source: `ТЗ/Постановления КС РФ`;
-- script: `scripts/extract_ksrf_argument_patterns.py`;
-- output: `analysis_results/ksrf_argument_patterns`;
-- PDF text extraction: PyPDF2 first, pdfplumber fallback;
-- ordering: old to new by year and ruling number.
+- источник: `ТЗ/Постановления КС РФ`;
+- скрипт: `scripts/extract_ksrf_argument_patterns.py`;
+- выход: `analysis_results/ksrf_argument_patterns`;
+- извлечение текста из PDF: сначала PyPDF2, затем fallback на pdfplumber;
+- порядок: от старых к новым по году и номеру постановления.
 
-The first pass uses marker families rather than LLM classification. This makes the output reproducible and cheap, while still giving a corpus-grounded map for later human/legal review.
+Первый проход использует семейства маркеров, а не LLM-классификацию. Это делает результат воспроизводимым и дешевым, но все равно дает корпусную карту для последующей человеческой и юридической проверки.
 
-## Skill Shape
+## Форма скилла
 
-One primary skill is used initially:
+Изначально используется один основной скилл:
 
 - `ksrf-argument-patterns`
 
-This keeps the workflow coherent while taxonomy is still under discussion. The references are separated so the skill can later be split into narrower skills, for example:
+Это сохраняет workflow цельным, пока таксономия еще обсуждается. Справочники отделены, поэтому позже скилл можно разбить на более узкие, например:
 
 - practice-split-finder;
 - proportionality-builder;
 - effective-remedy-checker;
 - constitutional-meaning-drafter.
 
-## Pattern Registry
+## Реестр паттернов
 
-The current registry contains 20 families:
+Текущий реестр содержит 20 семейств:
 
 - practice-split;
 - legal-certainty;
@@ -50,24 +50,24 @@ The current registry contains 20 families:
 - international-standards;
 - reconsideration-execution.
 
-## Automation Direction
+## Направление автоматизации
 
-Each pattern should eventually expose a case-supporting tool, not just a drafting instruction. Examples:
+Каждый паттерн в итоге должен давать инструмент поддержки дела, а не только инструкцию для текста. Примеры:
 
-- lower-court practice split finder for `practice-split`;
-- norm ambiguity detector for `legal-certainty`;
-- ignored-dovod checker for `effective-remedy` and `procedural-guarantees`;
-- timeline checker for `legitimate-expectations` and `retroactivity`;
-- individualization checker for `non-mechanical-application` and `liability-fairness`.
+- поиск разнобоя нижестоящей практики для `practice-split`;
+- детектор неопределенности нормы для `legal-certainty`;
+- проверка проигнорированных доводов для `effective-remedy` и `procedural-guarantees`;
+- проверка таймлайна для `legitimate-expectations` и `retroactivity`;
+- проверка индивидуализации для `non-mechanical-application` и `liability-fairness`.
 
-## Enrichment Layer
+## Слой обогащения
 
-The enrichment layer turns the pattern registry into drafting infrastructure:
+Слой обогащения превращает реестр паттернов в инфраструктуру подготовки текста:
 
-- argument packages: primary, reinforcing, saving, and remedial pattern combinations;
-- Secretariat counterarguments: predictable admissibility objections and safer fallback framings;
-- evidence maps: required facts, documents, court-act checks, falsifiers, and automation hooks per pattern;
-- language formulas: reusable KSRF-style demand and constitutional-meaning formulas extracted from corpus text by deterministic regex markers;
-- constitutional graph: a portable JSON/Markdown graph connecting patterns, constitutional articles, norm types, harm types, decisions, evidence maps, automation hooks, and formula families.
+- пакеты аргументов: комбинации основного, усиливающего, сохраняющего и remedial-паттерна;
+- контраргументы Секретариата: предсказуемые возражения о допустимости и более безопасные запасные рамки;
+- доказательственные карты: необходимые факты, документы, проверки судебных актов, опровергающие обстоятельства и automation hooks по каждому паттерну;
+- формулы языка: переиспользуемые формулы требований и конституционно-правового смысла в стиле КС РФ, извлеченные из корпуса детерминированными regex-маркерами;
+- конституционный граф: переносимый JSON/Markdown-граф, связывающий паттерны, статьи Конституции, типы норм, типы вреда, постановления, доказательственные карты, automation hooks и семейства формул.
 
-The first implementation uses plain JSON and Markdown rather than an external graph database. This keeps the system local-first, reviewable, and easy to import into Neo4j, SQLite, NetworkX, or another graph layer later.
+Первая реализация использует обычные JSON и Markdown, а не внешнюю графовую базу. Это сохраняет систему локальной, проверяемой и удобной для последующего импорта в Neo4j, SQLite, NetworkX или другой графовый слой.

@@ -1,91 +1,91 @@
-# ksrf-argument-patterns Specification
+# Спецификация ksrf-argument-patterns
 
 ## ADDED Requirements
 
-### Requirement: Corpus-Grounded Argument Pattern Registry
+### Requirement: Корпусный реестр аргументативных паттернов
 
-The system SHALL maintain a reusable registry of constitutional-law argument patterns extracted from the local KSRF Постановления corpus.
+Система SHALL поддерживать переиспользуемый реестр конституционно-правовых аргументативных паттернов, извлеченных из локального корпуса Постановлений КС РФ.
 
-#### Scenario: Pattern references include decisions
+#### Scenario: Ссылки на паттерн включают постановления
 
-- **WHEN** an agent uses an argument pattern
-- **THEN** the skill references SHALL show KSRF Постановления where that pattern appears in the corpus
-- **AND** the agent SHALL treat those decisions as retrieval anchors requiring quote-level review before final legal use.
+- **КОГДА** агент использует аргументативный паттерн
+- **ТОГДА** справочники скилла SHALL показывать Постановления КС РФ, где этот паттерн встречается в корпусе
+- **И** агент SHALL рассматривать эти постановления как поисковые опоры, требующие проверки на уровне точной цитаты перед финальным юридическим использованием.
 
-#### Scenario: New case diagnosis
+#### Scenario: Диагностика нового дела
 
-- **WHEN** a user asks to analyze a new case for a constitutional complaint or court request
-- **THEN** the agent SHALL select all plausible patterns, not only the strongest pattern
-- **AND** for each selected pattern state what facts, documents, lower-court practice, or procedural acts are needed.
+- **КОГДА** пользователь просит проанализировать новое дело для жалобы в КС РФ или ходатайства о запросе
+- **ТОГДА** агент SHALL выбрать все правдоподобные паттерны, а не только самый сильный
+- **И** по каждому выбранному паттерну указать, какие факты, документы, практика нижестоящих судов или процессуальные акты нужны.
 
-### Requirement: Automation Backlog Per Pattern
+### Requirement: Бэклог автоматизации по каждому паттерну
 
-The system SHALL keep automation ideas tied to specific argument patterns.
+Система SHALL хранить идеи автоматизации, привязанные к конкретным аргументативным паттернам.
 
-#### Scenario: User asks what tools to build
+#### Scenario: Пользователь спрашивает, какие инструменты строить
 
-- **WHEN** the user asks how to implement a pattern for new cases
-- **THEN** the agent SHALL consult the automation backlog reference
-- **AND** propose tool ideas scoped to the selected pattern.
+- **КОГДА** пользователь спрашивает, как реализовать паттерн для новых дел
+- **ТОГДА** агент SHALL обратиться к справочнику бэклога автоматизации
+- **И** предложить идеи инструментов, привязанные к выбранному паттерну.
 
-### Requirement: Local Corpus Artifacts
+### Requirement: Локальные артефакты корпуса
 
-The system SHALL preserve corpus pass artifacts for review and iteration.
+Система SHALL сохранять артефакты прохода по корпусу для проверки и итераций.
 
-#### Scenario: Rebuilding the registry
+#### Scenario: Пересборка реестра
 
-- **WHEN** the ruling corpus changes or the taxonomy is updated
-- **THEN** `scripts/extract_ksrf_argument_patterns.py` SHALL be runnable locally
-- **AND** produce summary, corpus index, pattern hits, failures, and pattern summary artifacts.
+- **КОГДА** корпус постановлений меняется или обновляется таксономия
+- **ТОГДА** `scripts/extract_ksrf_argument_patterns.py` SHALL запускаться локально
+- **И** создавать summary, corpus index, pattern hits, failures и pattern summary артефакты.
 
-### Requirement: Argument Package Builder
+### Requirement: Сборщик пакета аргументов
 
-The system SHALL describe constitutional-law argument as a package of primary, reinforcing, saving, and remedial patterns rather than a single isolated pattern.
+Система SHALL описывать конституционно-правовой аргумент как пакет из основного, усиливающего, сохраняющего и remedial-паттернов, а не как один изолированный паттерн.
 
-#### Scenario: Drafting a new complaint argument
+#### Scenario: Подготовка нового аргумента жалобы
 
-- **WHEN** an agent selects a constitutional-law pattern for a new case
-- **THEN** the skill references SHALL require the agent to identify the primary pattern
-- **AND** identify plausible reinforcing, saving, and remedial patterns
-- **AND** state how the patterns interact without overclaiming the case.
+- **КОГДА** агент выбирает конституционно-правовой паттерн для нового дела
+- **ТОГДА** справочники скилла SHALL требовать от агента определить основной паттерн
+- **И** определить возможные усиливающие, сохраняющие и remedial-паттерны
+- **И** объяснить, как паттерны взаимодействуют без чрезмерного обобщения дела.
 
-### Requirement: Secretariat Counterargument Playbook
+### Requirement: Playbook контраргументов Секретариата
 
-The system SHALL preserve a reusable counterargument checklist for common admissibility and Secretariat objections.
+Система SHALL сохранять переиспользуемый чек-лист контраргументов для типовых возражений о допустимости и возражений Секретариата.
 
-#### Scenario: Checking a draft argument
+#### Scenario: Проверка проекта аргумента
 
-- **WHEN** an agent reviews or drafts a KSRF complaint argument
-- **THEN** it SHALL check whether the project answers ordinary-court-error, fact-reassessment, abstract-review, already-resolved, and no-normative-defect objections
-- **AND** produce a safer fallback framing when an objection is strong.
+- **КОГДА** агент проверяет или готовит аргумент для жалобы в КС РФ
+- **ТОГДА** он SHALL проверить, отвечает ли проект на возражения: обычная судебная ошибка, переоценка фактов, абстрактная проверка, вопрос уже решен, нет нормативного дефекта
+- **И** предложить более безопасную запасную рамку, если возражение сильное.
 
-### Requirement: Evidence Maps Per Pattern
+### Requirement: Доказательственные карты по паттернам
 
-The system SHALL maintain evidence maps that convert each argument pattern into documents, facts, court-act checks, and lower-court practice searches.
+Система SHALL поддерживать доказательственные карты, которые превращают каждый паттерн в документы, факты, проверки судебных актов и поиск практики нижестоящих судов.
 
-#### Scenario: Preparing materials for a pattern
+#### Scenario: Подготовка материалов под паттерн
 
-- **WHEN** an agent proposes a pattern for a new case
-- **THEN** it SHALL list the evidence needed to prove that pattern
-- **AND** list materials that would weaken or falsify the pattern
-- **AND** identify automation hooks where lower-court practice or court-act parsing can support the argument.
+- **КОГДА** агент предлагает паттерн для нового дела
+- **ТОГДА** он SHALL перечислить доказательства, необходимые для подтверждения паттерна
+- **И** перечислить материалы, которые ослабляют или опровергают паттерн
+- **И** определить automation hooks, через которые нижестоящая практика или парсинг судебных актов могут поддержать аргумент.
 
-### Requirement: KSRF Language Formula Bank
+### Requirement: Банк формул языка КС РФ
 
-The system SHALL extract and preserve reusable KSRF-style language formulas from the local ruling corpus.
+Система SHALL извлекать и сохранять переиспользуемые формулы языка КС РФ из локального корпуса постановлений.
 
-#### Scenario: Drafting the requested constitutional meaning
+#### Scenario: Подготовка запрашиваемого конституционно-правового смысла
 
-- **WHEN** an agent drafts the question, demand, or constitutional-law meaning
-- **THEN** it SHALL consult the language formula bank
-- **AND** adapt formulas such as `в той мере, в какой`, `по смыслу, придаваемому практикой`, `не предполагает`, `не исключает`, and legislature-duty formulas to the concrete norm.
+- **КОГДА** агент формулирует вопрос, требование или конституционно-правовой смысл
+- **ТОГДА** он SHALL обратиться к банку формул языка
+- **И** адаптировать к конкретной норме формулы вроде `в той мере, в какой`, `по смыслу, придаваемому практикой`, `не предполагает`, `не исключает` и формулы обязанности законодателя.
 
-### Requirement: Constitutional Argument Graph
+### Requirement: Граф конституционно-правовой аргументации
 
-The system SHALL maintain a portable constitutional argument graph linking patterns, constitutional articles, norm types, harm types, KSRF decision anchors, evidence maps, automation hooks, and demand formulas.
+Система SHALL поддерживать переносимый граф конституционно-правовой аргументации, связывающий паттерны, статьи Конституции, типы норм, типы вреда, постановления-опоры КС РФ, доказательственные карты, automation hooks и формулы требований.
 
-#### Scenario: Navigating from case facts to argument structure
+#### Scenario: Переход от фактов дела к структуре аргумента
 
-- **WHEN** a new case is analyzed
-- **THEN** the agent SHALL use the graph to connect facts and norm defects to candidate patterns
-- **AND** use graph edges to identify articles of the Constitution, proof tasks, decision anchors, and output formulas.
+- **КОГДА** анализируется новое дело
+- **ТОГДА** агент SHALL использовать граф, чтобы связать факты и дефекты нормы с кандидатными паттернами
+- **И** использовать связи графа для определения статей Конституции, задач доказывания, постановлений-опор и выходных формул.

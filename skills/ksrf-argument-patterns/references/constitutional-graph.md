@@ -1,8 +1,8 @@
-# Constitutional Argument Graph
+# Граф конституционно-правовой аргументации
 
-Portable JSON graph for navigating from facts and norm defects to constitutional articles, patterns, evidence and tools.
+Переносимый JSON-граф для перехода от фактов и дефектов нормы к статьям Конституции, паттернам, доказательствам и инструментам.
 
-## Node Counts
+## Количество узлов
 
 - `automation_hook`: 58
 - `constitutional_article`: 31
@@ -11,7 +11,7 @@ Portable JSON graph for navigating from facts and norm defects to constitutional
 - `norm_type`: 69
 - `pattern`: 20
 
-## Edge Counts
+## Количество связей
 
 - `can_be_saved_by`: 20
 - `has_anchor`: 160
@@ -21,8 +21,8 @@ Portable JSON graph for navigating from facts and norm defects to constitutional
 - `supported_by`: 60
 - `uses_article`: 87
 
-## How To Use
+## Как использовать
 
-- Start from `norm:*` or `harm:*` nodes when facts are known.
-- Move to `pattern:*` nodes to select argument families.
-- Follow `uses_article`, `has_anchor`, `supported_by`, and package edges to build the complaint section.
+- Начинай с узлов `norm:*` или `harm:*`, когда факты уже известны.
+- Переходи к узлам `pattern:*`, чтобы выбрать семейства аргументов.
+- Иди по связям `uses_article`, `has_anchor`, `supported_by` и пакетным связям, чтобы собрать раздел жалобы.

@@ -1,29 +1,29 @@
-# KSRF Codex Skills
+# Скиллы Codex для жалоб в КС РФ
 
-Private repository with Codex skills for preparing, checking, and enriching Russian Constitutional Court complaint work.
+Приватный репозиторий со скиллами Codex для подготовки, проверки и обогащения работы по жалобам и запросам в Конституционный Суд РФ.
 
-## Contents
+## Состав
 
-- `skills/ksrf-argument-patterns` - corpus-grounded constitutional-law argument patterns extracted from KSRF Постановления.
-- `skills/ksrf-*` - global KSRF complaint workflow skills integrated with the argument-pattern layer.
-- `tools/` - local scripts for extracting and enriching the KSRF argument-pattern corpus.
-- `openspec/changes/extract-ksrf-argument-pattern-skills` - OpenSpec change documenting the requirements and design.
+- `skills/ksrf-argument-patterns` - корпусные паттерны конституционно-правовой аргументации, извлеченные из Постановлений КС РФ.
+- `skills/ksrf-*` - глобальные KSRF-скиллы для цикла жалобы, интегрированные с корпусным слоем паттернов.
+- `tools/` - локальные скрипты для извлечения и обогащения корпуса аргументативных паттернов КС РФ.
+- `openspec/changes/extract-ksrf-argument-pattern-skills` - OpenSpec-изменение с требованиями и дизайном.
 
-The repository intentionally does not include the downloaded PDF corpus or extracted text cache. The current local corpus path is:
+Репозиторий намеренно не включает скачанный PDF-корпус и кеш извлеченных текстов. Текущий локальный путь к корпусу:
 
 `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ`
 
-## Install Locally
+## Локальная установка
 
 ```bash
 ./install.sh
 ```
 
-This copies `skills/ksrf-*` into `~/.codex/skills`.
+Команда копирует `skills/ksrf-*` в `~/.codex/skills`.
 
-## Regenerate Enrichment References
+## Перегенерация справочников обогащения
 
-From the source project that contains `analysis_results/ksrf_argument_patterns`:
+Из исходного проекта, где есть `analysis_results/ksrf_argument_patterns`:
 
 ```bash
 python3 tools/enrich_ksrf_argument_patterns.py \
@@ -31,11 +31,11 @@ python3 tools/enrich_ksrf_argument_patterns.py \
   --skill ./skills/ksrf-argument-patterns
 ```
 
-## Notes
+## Заметки
 
-The constitutional argument graph is stored as portable JSON/Markdown under:
+Граф конституционно-правовой аргументации хранится в переносимом JSON/Markdown:
 
 - `skills/ksrf-argument-patterns/references/constitutional_graph.json`
 - `skills/ksrf-argument-patterns/references/constitutional-graph.md`
 
-No separate graph database is required for the current workflow.
+Для текущего workflow отдельная графовая база не нужна.

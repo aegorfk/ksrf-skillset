@@ -1,6 +1,6 @@
-# KSRF Decision Index By Argument Pattern
+# Индекс Постановлений КС РФ по паттернам аргументации
 
-Each section lists all corpus decisions where the marker pass found this argument family. Use as a retrieval index, not as a final citation list: open the decision text before relying on a specific quote.
+В каждом разделе перечислены все постановления корпуса, где маркерный проход нашел соответствующее семейство аргументов. Используй это как индекс для поиска, а не как финальный список цитат: перед опорой на конкретную цитату открывай текст постановления.
 
 ## practice-split: Разнобой и неоднозначность правоприменения
 

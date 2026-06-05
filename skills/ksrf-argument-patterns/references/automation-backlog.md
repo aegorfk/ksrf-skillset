@@ -1,87 +1,87 @@
-# Automation Backlog For KSRF Argument Patterns
+# Бэклог автоматизации для паттернов аргументации КС РФ
 
-These are implementation ideas to support pattern use on new cases.
+Это идеи реализации, которые помогают применять паттерны в новых делах.
 
 ## practice-split
 
-Build a lower-court practice split finder:
+Сделать поиск разнобоя в практике нижестоящих судов:
 
-- input: target norm, issue phrase, party role, time window, court system;
-- fetch: cassation and appeal acts;
-- extract holdings on the norm;
-- cluster holdings into compatible/incompatible approaches;
-- output: split table with citations, court/date/case number, and quote windows.
+- вход: целевая норма, формулировка вопроса, роль стороны, период, судебная система;
+- сбор: кассационные и апелляционные акты;
+- извлечение правовых выводов по норме;
+- кластеризация выводов на совместимые и несовместимые подходы;
+- выход: таблица разнобоя с цитатами, судом, датой, номером дела и окнами цитирования.
 
 ## legal-certainty
 
-Build a norm ambiguity detector:
+Сделать детектор неопределенности нормы:
 
-- detect undefined evaluative terms;
-- compare statutory text with judicial criteria actually used;
-- flag competing tests and missing thresholds;
-- produce "predictability risk" memo.
+- находить неопределенные оценочные понятия;
+- сравнивать текст закона с критериями, которые реально применяют суды;
+- отмечать конкурирующие тесты и отсутствующие пороги;
+- готовить мемо о риске непредсказуемости.
 
 ## constitutional-meaning
 
-Build a constitutional meaning mapper:
+Сделать карту конституционно-правового смысла:
 
-- input ordinary-court interpretation;
-- retrieve KSRF positions on the norm or adjacent institutions;
-- propose constitutional-compatible interpretation variants;
-- mark which variants save the norm and which imply unconstitutionality.
+- принимать на вход толкование обычного суда;
+- находить позиции КС РФ по норме или смежным институтам;
+- предлагать варианты конституционно совместимого толкования;
+- отмечать, какие варианты сохраняют норму, а какие ведут к неконституционности.
 
 ## proportionality and interest-balance
 
-Build a proportionality worksheet:
+Сделать таблицу проверки соразмерности:
 
-- right affected;
-- public aim;
-- measure;
-- suitability;
-- necessity / less restrictive alternatives;
-- burden distribution;
-- compensation and procedural safeguards.
+- затронутое право;
+- публичная цель;
+- мера;
+- пригодность;
+- необходимость / менее ограничительные альтернативы;
+- распределение бремени;
+- компенсация и процессуальные гарантии.
 
 ## effective-remedy and procedural-guarantees
 
-Build an ignored-dovod checker:
+Сделать проверку проигнорированных доводов:
 
-- parse the complaint/appeal/cassation arguments;
-- parse court acts;
-- align each argument to a court response;
-- flag omitted, circular, or purely formal responses.
+- разобрать доводы жалобы, апелляции или кассации;
+- разобрать судебные акты;
+- сопоставить каждый довод с ответом суда;
+- отметить пропущенные, круговые или чисто формальные ответы.
 
 ## legitimate-expectations and retroactivity
 
-Build a timeline checker:
+Сделать проверку таймлайна:
 
-- event creating right/obligation;
-- law or interpretation changes;
-- court act applying new rule;
-- whether the person could foresee consequences;
-- whether transition rules existed.
+- событие, создавшее право или обязанность;
+- изменения закона или толкования;
+- судебный акт, применивший новое правило;
+- могло ли лицо предвидеть последствия;
+- были ли переходные правила.
 
 ## non-mechanical-application and liability-fairness
 
-Build an individualization checker:
+Сделать проверку индивидуализации:
 
-- extract factual circumstances relevant to sanction, liability, access, status, or benefit;
-- compare them with the court's reasoning;
-- flag automatic application, missing proportionality, and ignored mitigating factors.
+- извлечь фактические обстоятельства, значимые для санкции, ответственности, доступа, статуса или льготы;
+- сравнить их с мотивировкой суда;
+- отметить автоматическое применение, отсутствие соразмерности и проигнорированные смягчающие факторы.
 
 ## property-compensation
 
-Build a deprivation/compensation checker:
+Сделать проверку лишения имущества и компенсации:
 
-- identify property interest;
-- classify interference: deprivation, restriction, non-payment, recovery, expropriation;
-- check public aim, procedure, compensation, good faith, limitation period.
+- определить имущественный интерес;
+- классифицировать вмешательство: лишение, ограничение, невыплата, взыскание, изъятие;
+- проверить публичную цель, процедуру, компенсацию, добросовестность, срок давности.
 
 ## reconsideration-execution
 
-Build a KSRF aftermath planner:
+Сделать планировщик последствий постановления КС РФ:
 
-- decide whether KSRF ruling creates a route to reconsideration;
-- identify affected cases beyond named applicants;
-- generate procedural route and evidence list.
+- определить, создает ли постановление КС РФ маршрут к пересмотру;
+- определить затронутые дела помимо заявителей;
+- сформировать процессуальный маршрут и список доказательств.
 

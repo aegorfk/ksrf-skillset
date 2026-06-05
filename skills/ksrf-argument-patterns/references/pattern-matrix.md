@@ -1,6 +1,6 @@
-# KSRF Argument Pattern Matrix
+# Матрица паттернов аргументации КС РФ
 
-Taxonomy generated from corpus pass over 997 KSRF Постановления and manually normalized into admissible drafting patterns.
+Таксономия построена по результатам прохода по 997 Постановлениям КС РФ и вручную нормализована в допустимые паттерны для подготовки текста.
 
 ## practice-split: Разнобой и неоднозначность правоприменения
 

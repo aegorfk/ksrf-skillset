@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate enrichment references for KSRF constitutional argument patterns."""
+"""Сгенерировать справочники обогащения для паттернов аргументации КС РФ."""
 
 from __future__ import annotations
 
@@ -551,7 +551,7 @@ def md_list(values: List[str]) -> str:
 
 def write_argument_packages(refs: Path) -> None:
     lines = [
-        "# Argument Package Builder",
+        "# Сборщик пакета аргументов",
         "",
         "Используй этот справочник, чтобы собирать не один довод, а пакет конституционно-правовой аргументации.",
         "",
@@ -607,7 +607,7 @@ def write_counterarguments(refs: Path) -> None:
 
 def write_evidence_maps(refs: Path, registry: Dict[str, List[dict]]) -> None:
     lines = [
-        "# Evidence Maps Per Pattern",
+        "# Доказательственные карты по паттернам",
         "",
         "Каждый паттерн должен превращаться в проверяемую карту материалов, а не только в тезис.",
         "",
@@ -649,7 +649,7 @@ def write_evidence_maps(refs: Path, registry: Dict[str, List[dict]]) -> None:
 
 def write_language_formulas(refs: Path, formulas: Dict[str, dict]) -> None:
     lines = [
-        "# KSRF Language Formula Bank",
+        "# Банк формул языка КС РФ",
         "",
         "Формулы извлечены регулярными маркерами из локальных текстов Постановлений КС РФ. Перед финальным цитированием проверяй полный текст постановления.",
         "",
@@ -672,19 +672,19 @@ def write_graph(refs: Path, graph: dict) -> None:
         edge_counts[edge["type"]] += 1
 
     lines = [
-        "# Constitutional Argument Graph",
+        "# Граф конституционно-правовой аргументации",
         "",
-        "Portable JSON graph for navigating from facts and norm defects to constitutional articles, patterns, evidence and tools.",
+        "Переносимый JSON-граф для перехода от фактов и дефектов нормы к статьям Конституции, паттернам, доказательствам и инструментам.",
         "",
-        "## Node Counts",
+        "## Количество узлов",
         "",
     ]
     for kind, count in sorted(by_kind.items()):
         lines.append(f"- `{kind}`: {count}")
-    lines.extend(["", "## Edge Counts", ""])
+    lines.extend(["", "## Количество связей", ""])
     for kind, count in sorted(edge_counts.items()):
         lines.append(f"- `{kind}`: {count}")
-    lines.extend(["", "## How To Use", "", "- Start from `norm:*` or `harm:*` nodes when facts are known.", "- Move to `pattern:*` nodes to select argument families.", "- Follow `uses_article`, `has_anchor`, `supported_by`, and package edges to build the complaint section.", ""])
+    lines.extend(["", "## Как использовать", "", "- Начинай с узлов `norm:*` или `harm:*`, когда факты уже известны.", "- Переходи к узлам `pattern:*`, чтобы выбрать семейства аргументов.", "- Иди по связям `uses_article`, `has_anchor`, `supported_by` и пакетным связям, чтобы собрать раздел жалобы.", ""])
     (refs / "constitutional-graph.md").write_text("\n".join(lines), encoding="utf-8")
     (refs / "constitutional_graph.json").write_text(json.dumps(graph, ensure_ascii=False, indent=2), encoding="utf-8")
 

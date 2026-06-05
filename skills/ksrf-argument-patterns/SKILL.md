@@ -1,55 +1,55 @@
 ---
 name: ksrf-argument-patterns
-description: Use when analyzing, checking, or drafting constitutional-law arguments for a Russian Constitutional Court complaint or court request using patterns extracted from KSRF Постановления; also use when deciding what lower-court practice, facts, timelines, or evidence to collect to support a new constitutional argument.
+description: Используй при анализе, проверке или подготовке конституционно-правовой аргументации для жалобы в КС РФ или ходатайства о запросе в КС РФ на основе паттернов, извлеченных из Постановлений КС РФ; также используй, когда нужно понять, какую практику нижестоящих судов, факты, таймлайны или доказательства собрать для поддержки нового конституционного аргумента.
 metadata:
-  short-description: Build KSRF-style constitutional arguments
+  short-description: Собирать аргументы в стиле КС РФ
 ---
 
-# KSRF Argument Patterns
+# Паттерны аргументации КС РФ
 
-This skill turns a new case into constitutional-law argument hypotheses grounded in the corpus of KSRF Постановления.
+Этот скилл превращает новое дело в гипотезы конституционно-правовой аргументации, опирающиеся на корпус Постановлений КС РФ.
 
-## Corpus
+## Корпус
 
-Source corpus: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ`
+Исходный корпус: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ`
 
-Corpus pass artifacts:
+Артефакты прохода по корпусу:
 
 - `/Users/aegorfk/Documents/ks_parser_lower_court_marker/analysis_results/ksrf_argument_patterns/summary.json`
 - `/Users/aegorfk/Documents/ks_parser_lower_court_marker/analysis_results/ksrf_argument_patterns/expanded_pattern_registry.json`
 - `/Users/aegorfk/Documents/ks_parser_lower_court_marker/analysis_results/ksrf_argument_patterns/pattern_hits.json`
 
-The corpus pass processed 997 PDFs, extracted text from 997, and had 0 text failures.
+Проход по корпусу обработал 997 PDF, извлек текст из 997 и не получил ошибок извлечения текста.
 
-## Required Workflow
+## Обязательный порядок работы
 
-1. Identify the target norm, rights, factual harm, procedural posture, and what the ordinary courts did.
-2. Read `references/pattern-matrix.md` to select all plausible argument patterns, not only the strongest one.
-3. For selected patterns, read `references/decision-index.md` and cite the KSRF Постановления listed for that pattern as corpus anchors.
-4. Read `references/argument-package-builder.md` and turn the selected patterns into a package:
-   - primary pattern;
-   - reinforcing pattern;
-   - saving / constitutional-meaning pattern;
-   - remedy pattern.
-5. Read `references/evidence-maps.md` to convert each selected pattern into a case-specific check:
-   - what must be true in the new case;
-   - what documents or court acts must be collected;
-   - what would falsify or weaken the pattern;
-   - what lower-court automation could support it.
-6. Read `references/counterargument-playbook.md` and answer the likely Secretariat objections before drafting final text.
-7. Read `references/language-formulas.md` when drafting the question, demand, or requested constitutional-law meaning.
-8. Use `references/constitutional-graph.md` and `references/constitutional_graph.json` when facts are known but the best pattern package is unclear.
-9. Draft argument blocks in this order:
-   - constitutional principle;
-   - how KSRF has accepted/used this reasoning pattern;
-   - how the new case matches the pattern;
-   - evidence still needed;
-   - answer to admissibility/counterargument risks;
-   - requested constitutional meaning or remedy.
+1. Определи оспариваемую норму, права, фактический вред, процессуальную стадию и то, что сделали обычные суды.
+2. Прочитай `references/pattern-matrix.md`, чтобы выбрать все применимые паттерны аргументации, а не только самый сильный.
+3. Для выбранных паттернов прочитай `references/decision-index.md` и используй перечисленные Постановления КС РФ как корпусные опоры.
+4. Прочитай `references/argument-package-builder.md` и собери из выбранных паттернов пакет:
+   - основной паттерн;
+   - усиливающий паттерн;
+   - сохраняющий паттерн / паттерн конституционно-правового смысла;
+   - remedy-паттерн.
+5. Прочитай `references/evidence-maps.md`, чтобы превратить каждый выбранный паттерн в проверку по конкретному делу:
+   - что должно быть верно в новом деле;
+   - какие документы или судебные акты нужно собрать;
+   - что опровергает или ослабляет паттерн;
+   - какая автоматизация по нижестоящей практике может его поддержать.
+6. Прочитай `references/counterargument-playbook.md` и ответь на вероятные возражения Секретариата до финального текста.
+7. Прочитай `references/language-formulas.md`, когда формулируешь вопрос, просительную часть или запрашиваемый конституционно-правовой смысл.
+8. Используй `references/constitutional-graph.md` и `references/constitutional_graph.json`, когда факты известны, но лучший пакет паттернов неочевиден.
+9. Пиши блоки аргументации в таком порядке:
+   - конституционный принцип;
+   - как КС РФ принимал или использовал этот паттерн рассуждения;
+   - как новое дело совпадает с паттерном;
+   - какие доказательства еще нужны;
+   - ответ на риски допустимости и контраргументы;
+   - запрашиваемый конституционно-правовой смысл или средство защиты.
 
-## Pattern Families
+## Семейства паттернов
 
-The current taxonomy has 20 admissible argument families:
+Текущая таксономия содержит 20 допустимых семейств аргументов:
 
 - practice-split
 - legal-certainty
@@ -72,30 +72,30 @@ The current taxonomy has 20 admissible argument families:
 - international-standards
 - reconsideration-execution
 
-## Automation Ideas
+## Идеи автоматизации
 
-When the user asks what tools to build, read `references/automation-backlog.md`.
+Когда пользователь спрашивает, какие инструменты строить, читай `references/automation-backlog.md`.
 
-Typical useful tools:
+Типовые полезные инструменты:
 
-- lower-court practice split finder;
-- norm ambiguity detector;
-- proportionality worksheet;
-- ignored-dovod checker;
-- timeline and retroactivity checker;
-- КС remedy / post-decision reconsideration planner.
+- поиск разнобоя в практике нижестоящих судов;
+- детектор неопределенности нормы;
+- таблица проверки соразмерности;
+- проверка проигнорированных доводов;
+- проверка таймлайна и обратной силы;
+- планировщик remedy КС РФ и пересмотра после постановления.
 
-## Enrichment References
+## Справочники обогащения
 
-- Read `references/argument-package-builder.md` to avoid one-pattern arguments and assemble primary/reinforcing/saving/remedy packages.
-- Read `references/counterargument-playbook.md` before QA or final drafting.
-- Read `references/evidence-maps.md` when deciding what facts, court acts, lower-court practice, or expert materials to collect.
-- Read `references/language-formulas.md` when drafting the question, demand, or constitutional-law meaning.
-- Read `references/constitutional-graph.md` for the portable graph overview and `references/constitutional_graph.json` when structured traversal is useful.
+- Читай `references/argument-package-builder.md`, чтобы не строить аргумент на одном паттерне и собирать пакеты основной/усиливающий/сохраняющий/remedy.
+- Читай `references/counterargument-playbook.md` перед QA или финальной редактурой.
+- Читай `references/evidence-maps.md`, когда решаешь, какие факты, судебные акты, нижестоящую практику или экспертные материалы собрать.
+- Читай `references/language-formulas.md`, когда формулируешь вопрос, требование или конституционно-правовой смысл.
+- Читай `references/constitutional-graph.md` для обзора переносимого графа и `references/constitutional_graph.json`, когда полезен структурированный обход.
 
-## Output Shape
+## Форма вывода
 
-For discussion with the user, prefer this concise shape:
+Для обсуждения с пользователем предпочитай короткую форму:
 
 ```markdown
 **Паттерн:** ...
@@ -109,4 +109,4 @@ For discussion with the user, prefer this concise shape:
 **Риск/слабое место:** ...
 ```
 
-Do not present the registry as exhaustive legal advice. Treat it as a drafting and diagnostic map that still needs lawyer review.
+Не представляй реестр как исчерпывающее юридическое заключение. Используй его как карту для черновика и диагностики, которая все равно требует проверки юристом.

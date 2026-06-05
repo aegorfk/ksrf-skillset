@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract constitutional-law argument pattern evidence from KSRF rulings PDFs."""
+"""Извлечь признаки конституционно-правовых паттернов из PDF Постановлений КС РФ."""
 
 from __future__ import annotations
 
@@ -208,24 +208,24 @@ def decision_meta(path: Path) -> Dict[str, object]:
 
 def build_report(summary: Dict[str, object], pattern_hits: Dict[str, List[Dict[str, object]]]) -> str:
     lines = [
-        "# KSRF Argument Pattern Corpus Pass",
+        "# Проход по корпусу паттернов аргументации КС РФ",
         "",
-        f"Generated: {summary['generated_at']}",
-        f"PDFs processed: {summary['processed_pdf_count']}",
-        f"PDFs with extracted text: {summary['text_pdf_count']}",
+        f"Сгенерировано: {summary['generated_at']}",
+        f"PDF обработано: {summary['processed_pdf_count']}",
+        f"PDF с извлеченным текстом: {summary['text_pdf_count']}",
         "",
-        "## Pattern Counts",
+        "## Количество по паттернам",
         "",
     ]
     for pattern in PATTERNS:
         stats = summary["patterns"][pattern.code]
-        lines.append(f"- **{pattern.title}** (`{pattern.code}`): {stats['hit_count']} hits in {stats['decision_count']} decisions")
-    lines.extend(["", "## Early/Recent Samples", ""])
+        lines.append(f"- **{pattern.title}** (`{pattern.code}`): {stats['hit_count']} попаданий в {stats['decision_count']} постановлениях")
+    lines.extend(["", "## Ранние и свежие примеры", ""])
     for pattern in PATTERNS:
         hits = pattern_hits.get(pattern.code, [])
         lines.append(f"### {pattern.title}")
         lines.append("")
-        lines.append(f"Automation idea: {pattern.automation_idea}")
+        lines.append(f"Идея автоматизации: {pattern.automation_idea}")
         lines.append("")
         for hit in (hits[:2] + hits[-2:] if len(hits) > 4 else hits[:4]):
             snippet = str(hit["snippet"])
@@ -264,7 +264,7 @@ def main() -> int:
         meta = decision_meta(pdf_path)
         text = extract_text(pdf_path)
         if not text:
-            failures.append({"file": str(pdf_path), "error": "text extraction failed"})
+            failures.append({"file": str(pdf_path), "error": "не удалось извлечь текст"})
             continue
 
         text_count += 1
