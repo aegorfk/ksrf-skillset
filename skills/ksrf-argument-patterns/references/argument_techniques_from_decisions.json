@@ -1,0 +1,117 @@
+{
+  "source_corpus": "/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ",
+  "processed_decisions": 997,
+  "generated_from_marker_pass": true,
+  "techniques": [
+    {
+      "code": "constitutional-meaning-in-practice",
+      "title": "Проверка смысла, приданного правоприменительной практикой",
+      "marker_hits": 1897,
+      "decision_count": 664,
+      "use_when": "Закон выглядит нейтрально, но суды придают ему вредный устойчивый смысл.",
+      "complaint_formula": "по своему буквальному смыслу и по смыслу, придаваемому правоприменительной практикой",
+      "early_supports": ["15-П/1993", "8-П/1993", "10-П/1995", "13-П/1995", "14-П/1995", "17-П/1995"],
+      "recent_supports": ["32-П/2026", "34-П/2026", "35-П/2026", "36-П/2026", "37-П/2026", "5-П/2026", "6-П/2026", "7-П/2026"],
+      "pairs_with": ["saving-negative-formula", "effective-remedy-route", "measure-limitation"]
+    },
+    {
+      "code": "saving-negative-formula",
+      "title": "Сохранение нормы через исключение неконституционного смысла",
+      "marker_hits": 1803,
+      "decision_count": 740,
+      "use_when": "Нужно запретить конкретное толкование без полного удаления нормы.",
+      "complaint_formula": "не предполагает; не может служить основанием для",
+      "early_supports": ["6-П/1992", "9-П/1992", "1-П/1993", "15-П/1993", "18-П/1993", "4-П/1993"],
+      "recent_supports": ["35-П/2026", "37-П/2026", "4-П/2026", "5-П/2026", "6-П/2026", "7-П/2026", "8-П/2026", "9-П/2026"],
+      "pairs_with": ["constitutional-meaning-in-practice", "measure-limitation", "legislator-and-interim-remedy"]
+    },
+    {
+      "code": "measure-limitation",
+      "title": "Ограничение предмета проверки формулой меры",
+      "marker_hits": 2022,
+      "decision_count": 786,
+      "use_when": "Нужно сузить жалобу до конкретного неконституционного эффекта.",
+      "complaint_formula": "в той мере, в какой; постольку, поскольку",
+      "early_supports": ["8-П/1992", "9-П/1992", "10-П/1993", "17-П/1993", "3-П/1993", "5-П/1993"],
+      "recent_supports": ["35-П/2026", "36-П/2026", "37-П/2026", "4-П/2026", "5-П/2026", "6-П/2026", "7-П/2026", "9-П/2026"],
+      "pairs_with": ["proportionality-balance", "saving-negative-formula", "effective-remedy-route"]
+    },
+    {
+      "code": "systemic-reading",
+      "title": "Системное чтение нормы во взаимосвязи",
+      "marker_hits": 2801,
+      "decision_count": 797,
+      "use_when": "Нарушение возникает из связки норм, процедур или переходных положений.",
+      "complaint_formula": "во взаимосвязи с",
+      "early_supports": ["14-П/1993", "6-П/1993", "1-П/1997", "15-П/1997", "19-П/1997", "1-П/1998"],
+      "recent_supports": ["33-П/2026", "34-П/2026", "35-П/2026", "36-П/2026", "4-П/2026", "7-П/2026", "8-П/2026", "9-П/2026"],
+      "pairs_with": ["legislator-and-interim-remedy", "effective-remedy-route", "constitutional-meaning-in-practice"]
+    },
+    {
+      "code": "proportionality-balance",
+      "title": "Соразмерность и баланс интересов",
+      "marker_hits": 2695,
+      "decision_count": 715,
+      "use_when": "Публичная цель есть, но средство чрезмерно или без гарантий.",
+      "complaint_formula": "справедливый баланс конституционно значимых интересов; чрезмерное бремя",
+      "early_supports": ["15-П/1993", "8-П/1993", "10-П/1995", "1-П/1996", "14-П/1996", "16-П/1996"],
+      "recent_supports": ["34-П/2026", "35-П/2026", "36-П/2026", "4-П/2026", "6-П/2026", "7-П/2026", "8-П/2026", "9-П/2026"],
+      "pairs_with": ["anti-mechanical-individualization", "measure-limitation", "equality-comparator-test"]
+    },
+    {
+      "code": "anti-mechanical-individualization",
+      "title": "Запрет механического применения и требование индивидуализации",
+      "marker_hits": 297,
+      "decision_count": 129,
+      "use_when": "Суды применили норму как автоматический триггер без учета значимых обстоятельств.",
+      "complaint_formula": "без учета конкретных обстоятельств, имеющих конституционное значение",
+      "early_supports": ["2-П/1996", "14-П/1998", "22-П/1998", "11-П/1999", "15-П/2000", "1-П/2001"],
+      "recent_supports": ["4-П/2025", "51-П/2025", "6-П/2025", "9-П/2025", "13-П/2026", "17-П/2026", "27-П/2026", "4-П/2026"],
+      "pairs_with": ["proportionality-balance", "effective-remedy-route", "saving-negative-formula"]
+    },
+    {
+      "code": "effective-remedy-route",
+      "title": "Иллюзорность средства защиты",
+      "marker_hits": 3026,
+      "decision_count": 551,
+      "use_when": "Процедура формально есть, но не восстанавливает нарушенное право.",
+      "complaint_formula": "формальное наличие способа защиты не обеспечивает реального восстановления нарушенного права",
+      "early_supports": ["8-П/1992", "9-П/1992", "1-П/1993", "10-П/1993", "2-П/1993", "3-П/1993"],
+      "recent_supports": ["32-П/2026", "33-П/2026", "34-П/2026", "35-П/2026", "36-П/2026", "6-П/2026", "8-П/2026", "9-П/2026"],
+      "pairs_with": ["measure-limitation", "constitutional-meaning-in-practice", "legislator-and-interim-remedy"]
+    },
+    {
+      "code": "legislator-and-interim-remedy",
+      "title": "Законодательный и временный механизм защиты",
+      "marker_hits": 1033,
+      "decision_count": 448,
+      "use_when": "Дефект требует законодательного уточнения или временного порядка применения.",
+      "complaint_formula": "впредь до внесения необходимых изменений правоприменитель обязан исходить из",
+      "early_supports": ["10-П/1995", "6-П/1995", "1-П/1996", "2-П/1996", "7-П/1996", "9-П/1996"],
+      "recent_supports": ["32-П/2026", "34-П/2026", "36-П/2026", "4-П/2026", "5-П/2026", "6-П/2026", "7-П/2026", "8-П/2026"],
+      "pairs_with": ["systemic-reading", "effective-remedy-route", "saving-negative-formula"]
+    },
+    {
+      "code": "temporal-trust-timeline",
+      "title": "Таймлайн доверия к праву и запрета ухудшения назад",
+      "marker_hits": 566,
+      "decision_count": 160,
+      "use_when": "Норма или новое толкование ухудшили положение по уже возникшим отношениям.",
+      "complaint_formula": "подрывает доверие к праву и ухудшает положение применительно к отношениям, возникшим до",
+      "early_supports": ["8-П/1992", "9-П/1992", "14-П/1993", "10-П/1996", "17-П/1996", "13-П/1997"],
+      "recent_supports": ["17-П/2026", "22-П/2026", "24-П/2026", "26-П/2026", "29-П/2026", "36-П/2026", "6-П/2026", "9-П/2026"],
+      "pairs_with": ["measure-limitation", "systemic-reading", "effective-remedy-route"]
+    },
+    {
+      "code": "equality-comparator-test",
+      "title": "Тест групп сравнения для равенства",
+      "marker_hits": 257,
+      "decision_count": 196,
+      "use_when": "Сходные лица различаются или разные лица уравнены без разумного основания.",
+      "complaint_formula": "необоснованная дифференциация между лицами, находящимися в сопоставимом положении",
+      "early_supports": ["4-П/1995", "21-П/1996", "18-П/1997", "12-П/1998", "25-П/1998", "26-П/1998"],
+      "recent_supports": ["11-П/2026", "16-П/2026", "18-П/2026", "19-П/2026", "21-П/2026", "3-П/2026", "6-П/2026", "9-П/2026"],
+      "pairs_with": ["proportionality-balance", "constitutional-meaning-in-practice", "measure-limitation"]
+    }
+  ]
+}

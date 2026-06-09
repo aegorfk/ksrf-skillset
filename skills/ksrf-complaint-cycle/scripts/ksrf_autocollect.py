@@ -128,7 +128,7 @@ DOCUMENT_TYPE_PATTERNS = [
     ("post_decision_review_motion", re.compile(r"пересмотр.*(?:дела|решени|судебн)", re.IGNORECASE | re.DOTALL)),
     ("request_supplement", re.compile(r"дополнени[ея].{0,180}(?:запрос|Конституционн\w+\s+Суд)", re.IGNORECASE | re.DOTALL)),
     ("court_request_motion", re.compile(r"ходатайств.*(?:запрос|Конституционн\w+\s+Суд)", re.IGNORECASE | re.DOTALL)),
-    ("deputy_or_authorized_body_request", re.compile(r"запрос.{0,180}(?:депутат|Государственн\w+\s+Дум|Совет\w+\s+Федераци|Президент|Правительств|законодательн\w+\s+орган)", re.IGNORECASE | re.DOTALL)),
+    ("deputy_or_authorized_body_request", re.compile(r"(?:запрос.{0,1200}(?:депутат|Государственн\w+\s+Дум|Совет\w+\s+Федераци|Президент|Правительств|законодательн\w+\s+орган)|(?:депутат|Государственн\w+\s+Дум|Совет\w+\s+Федераци|Президент|Правительств).{0,1200}запрос|ч\.\s*2\s+ст\.\s*125.{0,1200}запрос)", re.IGNORECASE | re.DOTALL)),
     ("court_request_by_court", re.compile(r"(?:запросом|запрос)\s+.*Конституционн\w+\s+Суд|Запрос_ВС", re.IGNORECASE | re.DOTALL)),
     ("institutional_position_or_amicus", re.compile(r"(?:позици[яи]|мнение|заключени[ея]).{0,160}(?:ТПП|торгово-промышленн|международн\w+\s+коммерческ|amicus|инициативн\w+\s+научн)", re.IGNORECASE | re.DOTALL)),
     ("amicus_or_expert_conclusion", re.compile(r"amicus|заключени[ея].{0,120}(?:Конституционн\w+\s+Суд|стандарт|сравнительн)", re.IGNORECASE | re.DOTALL)),
