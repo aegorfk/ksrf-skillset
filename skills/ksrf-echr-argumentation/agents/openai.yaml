@@ -1,0 +1,4 @@
+interface:
+  display_name: "КСРФ — ЕСПЧ: аргументация"
+  short_description: "Практика ЕСПЧ для конституционных жалоб"
+  default_prompt: "Use $ksrf-echr-argumentation to turn ECHR materials into constitutional and Strasbourg argument maps."
