@@ -28,8 +28,10 @@ description: Проверить проект жалобы в КС РФ на не
 7. Проверь роль международных, сравнительных, научных, статистических, законодательных и состязательных материалов. Они могут поддерживать, ограничивать или порождать гипотезу, но не выдаются за российскую правовую норму. Для доктрины сверь автора и работу с `../ksrf-argument-patterns/references/constitutionalist-authority-corpus.json`: статус `discovery_only` не годится как авторитет, а карточка `method_integrated` должна использоваться вместе с её guardrail и точным locator первичной работы.
 8. Для доводов о доказывании найди нормативный носитель: презумпцию, распределение риска, закрытый перечень, недостижимый стандарт, запрет оценки обстоятельства или устойчивый автоматизм.
 9. Смоделируй сильнейший отказ Секретариата и более узкое чтение нормы. Для каждой причины дай: подтверждение, ответ, требуемую правку и признак неустранимости.
-10. Сравни активные гипотезы по измерениям из `../ksrf-explore-arguments/references/evaluation-and-promotion.md`. Не сворачивай проверку в разрешающий scalar score.
-11. Выдай verdict и section-level rewrite plan. `готово` означает только переход к `ksrf-formal-filing-check` после явного решения человека.
+10. Проведи `precedent-externality review`: смоделируй общий смысл не только удовлетворения, но и отказа; оцени последствия для заявителя и иных лиц; проверь более узкую формулу.
+11. Не ставь `готово`, пока для principal и reserve не указан юридически допустимый результат и проверяемый маршрут его реализации после решения.
+12. Сравни активные гипотезы по измерениям из `../ksrf-explore-arguments/references/evaluation-and-promotion.md`. Не сворачивай проверку в разрешающий scalar score.
+13. Выдай verdict и section-level rewrite plan. `готово` означает только переход к `ksrf-formal-filing-check` после явного решения человека.
 
 ## Вердикты
 
@@ -48,6 +50,7 @@ description: Проверить проект жалобы в КС РФ на не
 - `Обычная апелляционная логика`;
 - `Source/quote traceability`;
 - `Refusal model`;
+- `Precedent-externality review`;
 - `Remedy fit`;
 - `Dimension comparison`;
 - `Fix list и следующий скилл`.
@@ -62,6 +65,7 @@ description: Проверить проект жалобы в КС РФ на не
 ## Справочники
 
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная refusal-модель и финальный контроль полного цикла.
+- `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — проверка фактического применения, внешнего эффекта решения и исполнимости результата.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и источники.
 - `references/workflow-reference.md` — подробный checklist и rewrite map.
 - `../ksrf-explore-arguments/references/artifact-contracts.md` и `evaluation-and-promotion.md` — portfolio/critic contracts.
