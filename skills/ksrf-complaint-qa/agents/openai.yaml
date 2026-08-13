@@ -1,4 +1,4 @@
 interface:
   display_name: "КС РФ: проверка жалобы"
-  short_description: "Проверить жалобу на допустимость и качество"
-  default_prompt: "Используй $ksrf-complaint-qa, чтобы проверить мой проект жалобы в КС РФ перед формальной подачей."
+  short_description: "Проверить hard gates и портфель аргументов"
+  default_prompt: "Используй $ksrf-complaint-qa, чтобы проверить hard gates, principal и reserve аргументы моего проекта перед формальной подачей."

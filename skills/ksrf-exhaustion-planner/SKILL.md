@@ -49,6 +49,7 @@ description: Спланировать и проверить исчерпание
 
 ## Справочники
 
+- Читай `../ksrf-complaint-cycle/references/offline-practice-core.md` для автономной цепочки hard gates, `final relevant act` и сохранения конституционного вопроса.
 - Сначала сверь процессуальный маршрут, субъект и иерархию источников по `../ksrf-complaint-cycle/references/source-authority-and-route.md`.
 - Читай `references/workflow-reference.md` для аудита исчерпания, теста применения нормы, стратегии сохранения аргумента и шаблона таймлайна.
 - Читай `../ksrf-complaint-cycle/references/ksrf-embedded-guides.md` для встроенных правил конкретного дела, применения нормы, исчерпания, срока и сохранения конституционного аргумента.

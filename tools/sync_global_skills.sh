@@ -14,7 +14,21 @@ mkdir -p "$target_dir"
 
 for skill_dir in "$source_dir"/ksrf-*; do
   [[ -d "$skill_dir" ]] || continue
-  rsync -a --delete "$skill_dir/" "$target_dir/$(basename "$skill_dir")/"
+  rsync -a --delete --delete-excluded \
+    --exclude='.DS_Store' \
+    --exclude='__pycache__/' \
+    --exclude='*.pyc' \
+    "$skill_dir/" "$target_dir/$(basename "$skill_dir")/"
+done
+
+argument_scripts="$source_dir/ksrf-argument-patterns/scripts"
+for tool_name in \
+  build_constitutionalist_authority_corpus.py \
+  enrich_ksrf_argument_patterns.py \
+  extract_ksrf_argument_patterns.py; do
+  if [[ -f "$argument_scripts/$tool_name" ]]; then
+    cp "$argument_scripts/$tool_name" "$repo_dir/tools/$tool_name"
+  fi
 done
 
 echo "Synced global KSRF skills into $target_dir"

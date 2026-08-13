@@ -1,0 +1,6 @@
+interface:
+  display_name: "Исследовать аргументы для КС РФ"
+  short_description: "Сравнивать конкурирующие правовые гипотезы"
+  default_prompt: "Используй $ksrf-explore-arguments, чтобы построить и проверить портфель конкурирующих аргументов для моего дела."
+policy:
+  allow_implicit_invocation: true

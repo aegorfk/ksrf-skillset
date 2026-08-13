@@ -84,6 +84,7 @@ description: Определить юридические последствия 
 
 ## Справочники
 
+- Читай `../ksrf-complaint-cycle/references/offline-practice-core.md` для автономной типологии исходов, post-decision map и аудита фактического исполнения.
 - Сначала сверь вид исходного обращения, статус пользователя и иерархию источников по `../ksrf-complaint-cycle/references/source-authority-and-route.md`.
 - Читай `references/workflow-reference.md` для матрицы последствий, алгоритма пересмотра, нормативного исполнения, разъяснения, исправления и официальных источников.
 - Читай `../ksrf-complaint-cycle/references/ksrf-embedded-guides.md` для общих правил видов актов и применения позиции в аналогичных делах.

@@ -66,6 +66,7 @@ description: Подготовить или оценить ходатайство
 
 ## Справочники
 
+- Читай `../ksrf-complaint-cycle/references/offline-practice-core.md` как автономную методику ходатайства и запроса без доступа к учебным каналам или образцам.
 - Сначала сверь вид обращения, субъект и иерархию источников по `../ksrf-complaint-cycle/references/source-authority-and-route.md`.
 - Читай `references/workflow-reference.md` для маршрутной матрицы, структуры ходатайства и судебного запроса, теста применимости, формул и источников.
 - Читай `../ksrf-complaint-cycle/references/ksrf-embedded-guides.md` для общих правил применения нормы и сохранения конституционного вопроса.

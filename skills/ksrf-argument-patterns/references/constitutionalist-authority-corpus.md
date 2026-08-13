@@ -1,0 +1,1864 @@
+# Корпус авторитетов по конституционному праву и правосудию
+
+Срез на `2026-08-09`. Реестр охватывает **1652** нормализованных записей и **4163** привязок к работам.
+
+Это карта поиска и извлечения методологии, а не рейтинг учёных и не самостоятельный источник права. Конституция РФ, официальный акт КС РФ, применённая норма и материалы дела всегда имеют приоритет. Запись уровня `discovery_only` нельзя называть авторитетом без проверки личности, публикации и тезиса.
+
+## Как пользоваться
+
+1. Определи исследовательский маршрут по проблеме жалобы.
+2. Сначала открой записи `method_integrated`, затем `full_text_available` и `triangulated_academic`.
+3. Для выбранного автора открой работу из JSON, извлеки точный тезис и зафиксируй страницу/раздел.
+4. Отдельно проверь, что тезис переносим в российский нормативный контекст и не подменяет официальную позицию КС РФ.
+5. Сохрани контраргумент и предел метода; в финальный текст включай только источник, меняющий анализ.
+
+## Уровни готовности
+
+| Статус | Число | Значение |
+| --- | ---: | --- |
+| `method_integrated` | 13 | метод извлечён и встроен |
+| `full_text_available` | 0 | полный текст доступен; метод ожидает извлечения |
+| `triangulated_academic` | 121 | автор подтверждён несколькими академическими слоями |
+| `academic_indexed` | 1052 | автор найден в официальном академическом указателе |
+| `bibliographic_lead` | 215 | библиографический след у Блохина |
+| `discovery_only` | 251 | разведочный кандидат; авторитетность не подтверждена |
+
+## Уже внедрённые методологи
+
+| Автор | Роль | Рабочие методы | Предохранитель |
+| --- | --- | --- | --- |
+| Mark van Hoecke | коммуникативная теория права | право как коммуникация | теория объясняет механизм, но не заменяет российский нормативный якорь |
+| Алдар Мункожаргалович Чирнинов | конституционное доказывание и аргументация | паспорт конституционного доказательства; аргумент к последствиям | не подменять нормативный дефект повторной оценкой индивидуальных фактов дела; отделять доказанные последствия от гипотез и избегать недоказанного скользкого склона |
+| Алексей Владимирович Асосков | логика нормативных коллизий | карта нормативной коллизии | использовать узко; частноправовая коллизионная доктрина не является конституционным тестом |
+| Алексей Вячеславович Должиков | соразмерность в конституционном правосудии | структурированный тест соразмерности | каждая ступень требует фактического или нормативного крючка; баланс не является арифметикой |
+| Арина Викторовна Дмитриева | эмпирика отбора дел и юридическое письмо | модель секретариатского фильтра; проверка читаемости формулы | эмпирическое наблюдение не является процессуальной нормой и не гарантирует принятие жалобы; простота письма не лечит отсутствие допустимости или нормативного якоря |
+| Гадис Абдуллаевич Гаджиев | конституционная онтология и правовая определённость | различение текста, правового концепта и правовой реальности | не смешивать юридический, эмпирический и экономический уровни без явного перехода |
+| Дмитрий Геннадьевич Шустров | принципы конституционного толкования | чек-лист результата толкования | предлагаемый смысл должен оставаться в допустимых пределах текста и институциональной роли суда |
+| Дмитрий Дмитриевич Коновалов | конституционная ответственность государства | ответственность как обязанность и accountability | до цитирования сверять точный тезис с авторефератом |
+| Ольга Николаевна Кряжкова | правовые позиции и amicus curiae | тест полезности amicus/expert material | amicus не нейтрален по умолчанию, не гарантирует влияние и не заменяет первичный источник |
+| Павел Дмитриевич Блохин | российская методология конституционного нормоконтроля | лестница выбора метода контроля; карточка и перенос правовой позиции | метод не заменяет допустимость и точную проверку официальной позиции КС РФ; не переносить общий тезис без совпадения нормативного механизма и remedy |
+| Светлана Юрьевна Филиппова | коммуникативный и инструментальный подход | проверка поведенческого эффекта нормы | инструментальный эффект должен подтверждаться, а не предполагаться |
+| Сергей Анатольевич Манжосов | конституционный прецедент | трёхосевой анализ прецедента | повторяемость исхода ещё не доказывает устойчивость юридического правила |
+| Сергей Сергеевич Заикин | граница КС РФ и сверхинстанционности | анти-сверхинстанционный фильтр | жалоба должна показывать устойчивый нормативный смысл, а не ошибку применения в одном деле |
+
+## Следующая широкая волна извлечения
+
+Эти авторы уже присутствуют в академических слоях корпуса, но их методы ещё не считаются встроенными. Очередь задаёт предмет извлечения, а не автоматический приоритет цитирования.
+
+| Автор | Текущий статус | Что извлекать | Работ в корпусе |
+| --- | --- | --- | ---: |
+| Николай Семёнович Бондарь | `triangulated_academic` | конституционное правосудие, достоинство, социальное государство и средства защиты | 16 |
+| Тамара Морщакова | `triangulated_academic` | доступ к конституционному правосудию и интеграция международных стандартов | 14 |
+| Сергей Князев | `triangulated_academic` | процесс, письменное производство, прецедент и пределы контроля | 8 |
+| Николай Васильевич Витрук | `triangulated_academic` | общая теория конституционного правосудия и процесса | 9 |
+| Олег Брежнев | `triangulated_academic` | методология, компетенция и модели судебного конституционного контроля | 6 |
+| Константин Арановский | `triangulated_academic` | прецедент, письменное правосудие и институциональные пределы | 7 |
+| Наталия Владимировна Варламова | `triangulated_academic` | теория прав человека, толкование и пределы ограничений | 21 |
+| Валентина Лапаева | `triangulated_academic` | достоинство, формальное равенство и критерии правового закона | 4 |
+| Армен Джагарян | `triangulated_academic` | ценностная аргументация, конституционная корректировка и remedy | 42 |
+| Александра Алексеевна Троицкая | `triangulated_academic` | пропорциональность и сравнительная техника конституционной аргументации | 20 |
+| Владимир Алексеевич Кряжков | `triangulated_academic` | правовые позиции, их действие и институциональная практика КС РФ | 8 |
+| Талия Ярулловна Хабриева | `bibliographic_lead` | взаимодействие правовых систем и конституционная методология | 5 |
+| Михаил Митюков | `triangulated_academic` | история, процедура и институциональная эволюция конституционного контроля | 9 |
+| Елена Владимировна Гриценко | `triangulated_academic` | доступ к правосудию, сравнительный контроль и публичная власть | 21 |
+| Александр Кокотов | `triangulated_academic` | правовые позиции и российская теория конституционного правосудия | 4 |
+| Александр Постников | `triangulated_academic` | конституционный контроль, демократия и публично-правовые институты | 3 |
+| Евгений Всеволодович Тарибо | `bibliographic_lead` | эволюция нормоконтроля, решения и последствия конституционного контроля | 2 |
+| Григорий Викторович Вайпан | `triangulated_academic` | права человека, международные стандарты и практическая аргументация | 9 |
+| Роберт Алекси | `triangulated_academic` | структура принципов, пропорциональность и рациональность балансирования | 5 |
+| Гертруда Люббе-Вольф | `triangulated_academic` | пропорциональность в практике ФКС Германии и институциональные предохранители | 7 |
+| Кай Мёллер | `triangulated_academic` | модель прав в эпоху пропорциональности и критика балансирования | 4 |
+| Маттиас Кумм | `triangulated_academic` | достоинство, пропорциональность и деонтический плюрализм | 2 |
+| Рональд Дворкин | `bibliographic_lead` | права как принципы, целостность и пределы усмотрения | 2 |
+| Frederick F Schauer | `bibliographic_lead` | прецедент, аналогия и дисциплина юридического рассуждения | 1 |
+| Касс Санстейн | `triangulated_academic` | судебный минимализм, последствия и институциональная осторожность | 13 |
+| Вики С. Джексон | `triangulated_academic` | сравнительное конституционное рассуждение и перенос иностранных источников | 3 |
+| Андраш Шайо | `triangulated_academic` | конституционализм, права и институциональные риски | 28 |
+| Лех Гарлицкий | `triangulated_academic` | взаимодействие конституционных судов и европейских стандартов | 18 |
+| Antonin Scalia | `bibliographic_lead` | текстуализм и каноны толкования как контрметод | 1 |
+| Jürgen Habermas | `bibliographic_lead` | демократическая легитимность, дискурс и конституционное государство | 1 |
+| Ганс Кельзен | `bibliographic_lead` | модель конституционного суда и нормативная иерархия | 3 |
+| Аарон Барак | `academic_indexed` | судья в демократии, purposive interpretation и пропорциональность | 1 |
+
+## Маршруты исследования
+
+| Маршрут | Что искать | Авторов с совпадением |
+| --- | --- | ---: |
+| `admissibility_and_route` | допустимость, доступ к КС РФ и граница сверхинстанционности | 63 |
+| `interpretation_and_positions` | толкование, правовые позиции, прецедент и перенос правила | 108 |
+| `proportionality_equality_dignity` | соразмерность, равенство, достоинство и интенсивность контроля | 71 |
+| `evidence_empirics_consequences` | доказывание, законодательные факты, эмпирика и последствия | 81 |
+| `remedy_execution_review` | средство защиты, исполнение, пересмотр и действие решения | 52 |
+| `institutional_design_and_legitimacy` | институциональный дизайн, компетенция и легитимность контроля | 116 |
+| `comparative_and_international` | сравнительное право и международные стандарты прав человека | 512 |
+| `certainty_communication_writing` | правовая определённость, аргументация, коммуникация и письмо | 59 |
+| `identity_sovereignty_systems` | конституционная идентичность, суверенитет и взаимодействие систем | 78 |
+| `social_economic_and_property_rights` | социальные, трудовые, налоговые и имущественные права | 128 |
+| `democracy_federalism_public_power` | демократия, федерализм и организация публичной власти | 242 |
+| `bioethics_privacy_technology` | биоэтика, частная жизнь, данные и технологии | 29 |
+
+## Правила доверия
+
+- `method_integrated` означает, что из полного текста извлечена операционная карточка с предохранителем; это не обещание принятия жалобы.
+- `full_text_available` требует отдельного извлечения метода перед внедрением.
+- `triangulated_academic` подтверждает устойчивый академический след, но не конкретный тезис.
+- `academic_indexed` и `bibliographic_lead` служат маршрутом к публикации.
+- `discovery_only` — только lead из блога/дискуссии. Его нельзя цитировать как доктрину без внешней проверки.
+- Автоматическая нормализация по фамилии и первой букве имени может склеить однофамильцев или оставить транслитерационные дубли; записи с флагом `needs_identity_or_method_review` требуют ручной сверки.
+
+## Полный алфавитный реестр
+
+Детальные работы, URL, алиасы, счётчики источников и методические карточки находятся в `constitutionalist-authority-corpus.json`.
+
+### A
+
+- **Alec D Walen** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **Aleksandr Ganzer** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Alexander M Bickel** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Andreas Götz** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Andreas Voßkule** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Andrey Samoilov** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **András Jakab** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Angelika Nussberger** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Anne van Aaken** — `bibliographic_lead`; certainty_communication_writing, evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Antonin Scalia** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Artem Chumakov** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Arthur Dyevre** — `bibliographic_lead`; certainty_communication_writing, comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **A. W. Heringa** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+### B
+
+- **Bodo Pieroth** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Brannon P Denning** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Brian G Slocum** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Bryan A Garner** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+### C
+
+- **Caleb Nelson** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Carmen L Brun** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Christian Calliess** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Christoph Bezemek** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Christopher J Peters** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Christoph Möllers** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+### D
+
+- **Donald P. Kommers** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+### E
+
+- **Edward H Levi** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Eirik Bjorge** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Elena Corcione** — `bibliographic_lead`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Emily L Sherwin** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Eric S Fish** — `bibliographic_lead`; interpretation_and_positions, remedy_execution_review; источники: blokhin_bibliography; работ: 1.
+### F
+
+- **Frank Müller-Langer** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Frederick F Schauer** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **F. Stroink** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+### G
+
+- **George Letsas** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **George Wright** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Giulia Vasino** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Grant Lamond** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Greg Taylor** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 2.
+### H
+
+- **Hans-Bernd Schäfer** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Hans D. Jarass** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Hans-Jürgen Papier** — `bibliographic_lead`; institutional_design_and_legitimacy, remedy_execution_review; источники: blokhin_bibliography; работ: 1.
+- **Hans M Heinig** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 2.
+### I
+
+- **Isaac Ehrlich** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+### J
+
+- **Jan Sieckmann** — `bibliographic_lead`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **Joel Alicea** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **John D Ohlendorf** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Jürgen Habermas** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Jud Mathews** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+### K
+
+- **Keith Kendall** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Kenneth G Dau-Schmidt** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+### L
+
+- **Larry A Alexander** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Lars Noah** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Lee Squires** — `bibliographic_lead`; institutional_design_and_legitimacy, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **Lloyd Weinreb** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Lon L Fuller** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Lothar Determann** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Louis D Brandeis** — `bibliographic_lead`; bioethics_privacy_technology; источники: blokhin_bibliography; работ: 1.
+- **Lourens du Plessis** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Lyubov Krekhaleva** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+### M
+
+- **Marion Eckertz-Höfer** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Mario Patrono** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Markus Heintzen** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Mark van Hoecke** — `method_integrated`; certainty_communication_writing, interpretation_and_positions; источники: curated_method, local_full_text; работ: 1.
+- **Mathias Hong** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Maxwell Stearns** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Mher Arshakyan** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Michael B Kent** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Michael D Gilbert** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 2.
+- **Michael J Gerhardt** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Michel Rosenfeld** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Mona Costelloe** — `bibliographic_lead`; institutional_design_and_legitimacy, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+### O
+
+- **Oliver Sauer** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+### P
+
+- **Patricia M Wald** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+### R
+
+- **Raimo Siltala** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Ralph Dreier** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Randall R Kelso** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **R. Bakker** — `bibliographic_lead`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Rebecca Lefler** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Reiner Arnold** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Richard A Posner** — `bibliographic_lead`; comparative_and_international, evidence_empirics_consequences, interpretation_and_positions; источники: blokhin_bibliography; работ: 4.
+- **Richard Fallon** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Richard L Hasen** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Richard M Re** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Robert D Cooter** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Roger Pilon** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Rosalind Dixon** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Russell A. Miller** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Russel M Galloway** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ruth Strickland** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+### S
+
+- **Samuel D Warren** — `bibliographic_lead`; bioethics_privacy_technology; источники: blokhin_bibliography; работ: 1.
+- **Scott Johnson** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Stephen R Alton** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+### T
+
+- **Tania Groppi** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Tanner Love** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Thomas J Fosko** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Thomas Lundmark** — `bibliographic_lead`; certainty_communication_writing, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Tom Ginsburg** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+### V
+
+- **Verica Trstenjak** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Vladimir Nizov** — `discovery_only`; democracy_federalism_public_power, identity_sovereignty_systems; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+### W
+
+- **Wolfgang Heyde** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+### X
+
+- **Xin Dai** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+### Y
+
+- **Yavar Bathaee** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Yun-chien Chang** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+### А
+
+- **А. А Клишас** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 2.
+- **А. А Краевский** — `bibliographic_lead`; certainty_communication_writing, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **А. А Ливеровский** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **А. А Малюшин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Аарон Барак** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **А. А Тилле** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Абрама Чейса** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Авизер Такер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **А. В Мазуров** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **А. Г Карапетов** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences; источники: blokhin_bibliography, zakon_discovery; работ: 5.
+- **Агнеш Николаи** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Адам Боднар** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Адам Бондар** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Адам Михник** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Адам Мухажирович Нальгиев** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Адель Ильсиярович Абдуллин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Адриан Тано** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **А. Е Герасимова** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Аждар Куртов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Аждар Кутров** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Азар Качалия** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Азиз Исматов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Аида Гргич** — `academic_indexed`; remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Аинар Кубрава** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Айбек Ахмедов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Айгуль Арсланова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Айдар Рустэмович Султанов** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, interpretation_and_positions, remedy_execution_review; источники: mp_index, sko_index, zakon_discovery; работ: 14.
+- **Айман Салимовна Смагулова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Айшегюль Узун-Маринкович** — `academic_indexed`; remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алайос Дорнбач** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алана Рудольфовна Сиукаева** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Аласдэр Робертс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Албена Азманова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алдар Мункожаргалович Чирнинов** — `method_integrated`; certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 15.
+- **Александра Алексеевна Троицкая** — `triangulated_academic`; admissibility_and_route, bioethics_privacy_technology, certainty_communication_writing, comparative_and_international; источники: blokhin_bibliography, mp_index, sko_index; работ: 20.
+- **Александра Бутко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александра Григорьевна Ивлиева** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 3.
+- **Александра Евгеньевна Конева** — `academic_indexed`; identity_sovereignty_systems; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Акимов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Александра Левоновна Асланян** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Александрович Зенин** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Алексеев Костин** — `academic_indexed`; evidence_empirics_consequences; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александра Лушникова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александра Николаевна Бровко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александра Николаевна Попова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Арбузкин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александра Сергеевна Касаткина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александра Урошлева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Александра Штромберг** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Баляткеев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Белоус** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Бланкенагель** — `triangulated_academic`; comparative_and_international, identity_sovereignty_systems, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 27.
+- **Александр Бланкенгаль** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Вашкевич** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Александр Верещагин** — `triangulated_academic`; маршрут ещё не размечен; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 9.
+- **Александр Гамильтон** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Александр Глейх** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Александр Деменьтьев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Домрин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Дорошенко** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Евдокимов** — `discovery_only`; identity_sovereignty_systems; источники: zakon_discovery; работ: 5; нужна ручная сверка.
+- **Александр Зазекало** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Зеленцов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Иванович Мигунов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Александр Игоревич Рыбин** — `academic_indexed`; admissibility_and_route, bioethics_privacy_technology, democracy_federalism_public_power; источники: mp_index, zakon_discovery; работ: 4; нужна ручная сверка.
+- **Александр Игоревич Черкасов** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Александр Кальва** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Кислых** — `discovery_only`; certainty_communication_writing; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Александр Ковалев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Ковальчук** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Козырин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Александр Кокотов** — `triangulated_academic`; маршрут ещё не размечен; источники: blokhin_bibliography, sko_index; работ: 4.
+- **Александр Кондаков** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Кульнев** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Александр Кынев** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Александр Ларичев** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Александр Латыев** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Александр Лукашук** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Александр Маслов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Меркуленко** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Михайлович Солнцев** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, social_economic_and_property_rights; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Александр Морозов** — `triangulated_academic`; comparative_and_international, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Александр Муранов** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Александр Оболонский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Овчинников** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Осин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Петрович Евсеев** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: blokhin_bibliography, mp_index, sko_index; работ: 29.
+- **Александр Постников** — `triangulated_academic`; democracy_federalism_public_power; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Александр Саленко** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Александр Сафонов** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Сергеевич Боргояков** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Сергунин** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Смирнов** — `triangulated_academic`; interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Александр Смоланов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Собянин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Сунгуров** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Александр Третьяков** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Александр Трунк** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Александр Чертков** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Александр Яковлевич Нурик** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Алексей Александрович Артемьев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Алексей Алюшин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алексей Артюх** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Алексей Бруслик** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Васильевич Вялков** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Алексей Владимирович Асосков** — `method_integrated`; identity_sovereignty_systems, interpretation_and_positions; источники: curated_method, local_full_text; работ: 1.
+- **Алексей Владимирович Петренко** — `academic_indexed`; admissibility_and_route; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Алексей Владимирович Шиянов** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алексей Волос** — `discovery_only`; remedy_execution_review; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Алексей Вячеславович Должиков** — `method_integrated`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography, curated_method, local_full_text, mp_index, sko_index; работ: 18.
+- **Алексей Голенко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Алексей Грибанов** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Алексей Гринько** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алексей Громыко** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Евгеньевич Долгушин** — `academic_indexed`; evidence_empirics_consequences; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алексей Елаев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Алексей Измайлов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Карцов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Кожевников** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алексей Лавров** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Малиновский** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Нечаев** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Алексей Николаевич Лаптев** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: mp_index, sko_index; работ: 2.
+- **Алексей Павлушкин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Петров** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy, interpretation_and_positions; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 13.
+- **Алексей Пушков** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Рыбочкин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Алексей Сергеев** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Сергеевич Кудинов** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алексей Сергеевич Никитин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алексей Слащилин** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Станиславович Автономов** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 11.
+- **Алексей Станиславович Исполинов** — `triangulated_academic`; admissibility_and_route, comparative_and_international, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: mp_index, sko_index, zakon_discovery; работ: 21.
+- **Алексей Старовойтов** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Алексей Тихонов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алексей Трошев** — `academic_indexed`; remedy_execution_review; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алексей Чеченин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Алексей Чинахов** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Алексей Чумаков** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алёна Игоревна Геращенко** — `academic_indexed`; bioethics_privacy_technology; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Алёна Сергеевна Борисова** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 2.
+- **Алёна Сергеевна Денисова** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алесь Юрьевич Клюня** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Алим Ульбашев** — `triangulated_academic`; evidence_empirics_consequences; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Алина Мунгиу-Пиппиди** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Алина Мунджиу-Пиппиди** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алина Шенфельд** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Алла Верещагина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Алмаз Кучембаев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **А Мавчич** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Амбарцумов Андрей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Анаит Манасян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Анаит Сергеевна Смбатян** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Анастасия Алексеевна Рогозина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анастасия Бергер** — `triangulated_academic`; admissibility_and_route, comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Анастасия Владимировна Шаталова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анастасия Дронова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Анастасия Исаева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Анастасия Михайловна Отрашевская** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, social_economic_and_property_rights; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Анастасия Шатилина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анастасия Шашкова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анастасия Ямшанова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анатолий Елсаков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Анатолий Зазулин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Анатолий Иванович Ковлер** — `triangulated_academic`; admissibility_and_route, comparative_and_international, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: blokhin_bibliography, mp_index, sko_index; работ: 18.
+- **Анатолий Кононов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анатолий Красиков** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Анатолий Семенов** — `discovery_only`; evidence_empirics_consequences; источники: zakon_discovery; работ: 7; нужна ручная сверка.
+- **Анвар Гаджиев** — `academic_indexed`; admissibility_and_route; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анвар Фарукшин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ангелика Нуссбергер** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, identity_sovereignty_systems, social_economic_and_property_rights; источники: blokhin_bibliography, mp_index, sko_index; работ: 19.
+- **Андерс Ослунд** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анджей Жеплинский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Андо Лепс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андраш Божоки** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андраш Брагьова** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андраш Минк** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Андраш Никодем** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андраш Пап** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андраш Шайо** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems; источники: blokhin_bibliography, mp_index, sko_index; работ: 28.
+- **Андреас Ауэр** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андреас Фоскуле** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андреас Фосскуле** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 6.
+- **Андрей Алексеевич Лунёв** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Андрей Ауэрспергер-Матич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Вершинин** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Андрей Винницкий** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Владимирович Ильин** — `triangulated_academic`; evidence_empirics_consequences, remedy_execution_review, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 6.
+- **Андрей Георгиевич Румянцев** — `triangulated_academic`; bioethics_privacy_technology, comparative_and_international, democracy_federalism_public_power, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 36.
+- **Андрей Дахин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Андрей Дмитриевич Савельев** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Андрей Елинский** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 4.
+- **Андрей Захаров** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power, interpretation_and_positions; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Андрей Игоревич Щукин** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Андрей Кондрашев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Андрей Кортунов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Кричкович** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Кузнецов** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Андрей Макарычев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Андрей Максимов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Медушеский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Андрей Михайлович Николаев** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Андрей Николаевич Антонов** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 10.
+- **Андрей Николаевич Медушевский** — `triangulated_academic`; bioethics_privacy_technology, comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems; источники: mp_index, sko_index; работ: 55.
+- **Андрей Парамонов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Плесу** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Рябов** — `academic_indexed`; evidence_empirics_consequences, institutional_design_and_legitimacy, social_economic_and_property_rights; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Андрей Титов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Фурсов** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Андрей Щербович** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ани Арутюнян** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power; источники: mp_index, sko_index; работ: 4.
+- **Анита Карловна Соболева** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 6.
+- **Анита Ушацка** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 5.
+- **Анна Александровна Швец** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анна-Беттина Кайзер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анна Валентиновна Деменева** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, remedy_execution_review; источники: mp_index, sko_index; работ: 4.
+- **Анна Васильева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Анна Захарова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Анна Игоревна Матвеева** — `academic_indexed`; certainty_communication_writing, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анна Малышева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Анна Михайловна Воробьева** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анна Михайловна Козьякова** — `academic_indexed`; comparative_and_international, proportionality_equality_dignity; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Анна Мрозек** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анна Никитина** — `triangulated_academic`; маршрут ещё не размечен; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Анна Следзинская-Симон** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Анна Следзиньска-Симон** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems, proportionality_equality_dignity; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Анна Хованская** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Анри Сольвейг** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Антон Бурков** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антон Еропкин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антон Зуйков** — `academic_indexed`; democracy_federalism_public_power, institutional_design_and_legitimacy; источники: sko_index; работ: 10; нужна ручная сверка.
+- **Антони Абат-и-Нинет** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Антон Иванов** — `discovery_only`; bioethics_privacy_technology, comparative_and_international, identity_sovereignty_systems, remedy_execution_review; источники: zakon_discovery; работ: 16; нужна ручная сверка.
+- **Антони Гиденс** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антонии Хэндлер Чэйс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антонина Желязкова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антонина Орлова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Антон Лебедев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Антон Постильга** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Антон Просвирин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Антон Тарло** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Антон Юрьевич Алаторцев** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power; источники: mp_index, sko_index; работ: 2.
+- **Антье Химмельрайх** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **А Петерс** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **Арбахан Магомедов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Арина Викторовна Дмитриева** — `method_integrated`; admissibility_and_route, certainty_communication_writing, institutional_design_and_legitimacy; источники: curated_method, local_full_text, sko_index; работ: 2.
+- **Арина Макарова** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Арина Сергеевна Андросова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ариста Мария Циртаутас** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Аркадий Брызгалин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Аркадий Любарев** — `academic_indexed`; democracy_federalism_public_power, evidence_empirics_consequences; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Арманас Абрамавичус** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Арманас Абрамавичюс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Армен Джагарян** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, identity_sovereignty_systems; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 42.
+- **Армен Джарагян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Армен Мазманян** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Армен Сарварян** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Армин фон Богданди** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Арсений Томилин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Арсен Каммаев** — `discovery_only`; proportionality_equality_dignity; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Артём Андреевич Бредихин** — `academic_indexed`; comparative_and_international, interpretation_and_positions, social_economic_and_property_rights; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Артем Глищенко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Артем Маркин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Артем Русакович** — `discovery_only`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy; источники: zakon_discovery; работ: 21; нужна ручная сверка.
+- **Артём Хуснутдинов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Артем Четвериков** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Артур Гамбарян** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Артур Мочалов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Артур Сергеевич Гуласарян** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Аурелиан Краюту** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Аурелия Казаклиу** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **А. Ф Черданцев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **А Шмагин** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **А. Ю Саломатин** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **А. Я Курбатов** — `bibliographic_lead`; identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography, zakon_discovery; работ: 8.
+### Б
+
+- **Бассам Тиби** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Беатэ Рудольф** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Белоусова Вера** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Бенджамин Шонталь** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Бенедикт Пиркер** — `academic_indexed`; evidence_empirics_consequences; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Бернард Шлинк** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Бернд Визер** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Бесарион Зоидзе** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Беттина Тебен** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Бил Бауринг** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences; источники: mp_index, sko_index; работ: 8.
+- **Б. И Осминин** — `bibliographic_lead`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems; источники: blokhin_bibliography; работ: 1.
+- **Б Кардозо** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Богдан Лесив** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Богдан Фьюти** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Богдан Янку** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Борис Верин** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 17; нужна ручная сверка.
+- **Борис Иванович Нефедов** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Борис Иванович Федоров** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Борис Крылов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Борис Луцет** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Борис Николаевич Топорнин** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Борис Страшун** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Борис Юрченко** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Бранко Смердель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Бритта Вагнер** — `academic_indexed`; institutional_design_and_legitimacy, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Б. С Эбзеев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Булгаков Андрей** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index, zakon_discovery; работ: 2; нужна ручная сверка.
+- **Бухмин Сергей** — `academic_indexed`; admissibility_and_route, comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems; источники: sko_index, zakon_discovery; работ: 52; нужна ручная сверка.
+### В
+
+- **В. А Айрих** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **В. А Витушкин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Вадим Бородкин** — `discovery_only`; proportionality_equality_dignity; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Вадим Валентинович Войников** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Вадим Виноградов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Вадим Владимирович Балытников** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 3.
+- **Вадим Габриелов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вадим Даньшов** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Вадим Зарипов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Вадим Инсаров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Вадим Корольков** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Вадим Лютенков** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Вадим Пак** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Вадим Собакин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Валентина Ивановна Чехарина** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Валентина Лапаева** — `triangulated_academic`; democracy_federalism_public_power, identity_sovereignty_systems; источники: blokhin_bibliography, sko_index; работ: 4.
+- **Валентин Анатольевич Кошкин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Валентина Сергеевна Ржевская** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Валентина Смольная** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Валентин Куклин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Валери Банс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Валерий Андреев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Валерий Андрианов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Валерий Васильевич Лазарев** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 4.
+- **Валерий Зорькин** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, identity_sovereignty_systems; источники: blokhin_bibliography, sko_index; работ: 18.
+- **Валерий Кравченко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Валерия Андреевна Бутырина** — `academic_indexed`; institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Валерия Долгополова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ван Босинь** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Варвара Александровна Абатурова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Василий Ильясович Загретдинов** — `triangulated_academic`; comparative_and_international, identity_sovereignty_systems; источники: mp_index, sko_index; работ: 3.
+- **Василий Лукашевич** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Василиса Олеговна Нешатаева** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **В. Б Петров** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **В. В Кровельщикова** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Велло Петтай** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Велько Вуячич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Венелин Ганев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Вера Анишина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вера Николаевна Русинова** — `academic_indexed`; admissibility_and_route, comparative_and_international, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: mp_index; работ: 10; нужна ручная сверка.
+- **Вера Оскар Пара** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Вера Оскар Парра** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 7; нужна ручная сверка.
+- **Верица Трстеньяк** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Вероника Михеева** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вероника Сергеевна Черенкова** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Вероника Усачева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Видар Штрёмме** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Визар Морина** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вики С. Джексон** — `triangulated_academic`; democracy_federalism_public_power, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Виктор Балакаев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Виктор Демидов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виктор Жуйков** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виктория Вискулова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виктория Егоровна Ерохина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Виктория Паршенко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виктория Смирнова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Виктория Шакина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Виктор Красников** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Виктор Мещеринов** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Виктор Монахов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Виктор Осипович Лучин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Виктор Осятыньский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 13; нужна ручная сверка.
+- **Виктор Павлючук** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Виктор Руденко** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Виктор Суховольский** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виктор Ферререс Комелла** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Виктор Чаплыгин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Виктор Черепанов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Вилдер Тейлер** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вильфрид Вагнер** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виолета Беширевич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виолетта Королькова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Виргис Валентинавичус** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вирджиния Куллудон** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виталий Буркин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Виталий Елизаров** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Виталий Иванов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Виталий Меркушев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир May** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Абрамов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Владимир Аверин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Владимир Алексеевич Кряжков** — `triangulated_academic`; admissibility_and_route, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 8.
+- **Владимир Багаев** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 7; нужна ручная сверка.
+- **Владимир Бояркин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Владимир Бриксов** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Васильевич Маклаков** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Владимир Вольфсон** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 6; нужна ручная сверка.
+- **Владимир Гельман** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Горбачев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Владимир Дмитриевич Трофимчук** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Владимир Домнин** — `discovery_only`; democracy_federalism_public_power, evidence_empirics_consequences, interpretation_and_positions; источники: zakon_discovery; работ: 37; нужна ручная сверка.
+- **Владимир Завьялов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Владимир Кампо** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Коростелев** — `discovery_only`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences; источники: zakon_discovery; работ: 10; нужна ручная сверка.
+- **Владимир Крусс** — `triangulated_academic`; маршрут ещё не размечен; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Владимир Кузнецов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Владимир Ларичев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Владимир Лафитский** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Мазаев** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Владимир Мау** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Мокрый** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Низов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Окмянский** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Владимир Павлович Кохановский** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Владимир Пастухов** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 15; нужна ручная сверка.
+- **Владимир Попов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Пржиленский** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Радченко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Разуваев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Реут** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Владимир Рыбаков** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Владимир Сивицкий** — `triangulated_academic`; proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 9.
+- **Владимир Тисманяну** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владимир Туманов** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Владимир Четвернин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Владислав Валерьевич Старженецкий** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: mp_index; работ: 7; нужна ручная сверка.
+- **Владислав Гарегинович Донаканян** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Владислав Застрожников** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Владислав Леонидович Толстых** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 16.
+- **Владислав Радов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Владислав Филипов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **В. М Розин** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 1.
+- **В. М Сырых** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 1.
+- **В. Н Дурденевский** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **В. Н Порус** — `bibliographic_lead`; interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **В. О Бернштейн** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 1.
+- **Войин Димитриевич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Войцех Садурский** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Войцех Цепл** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Воробьев Андрей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Всеволод Кабанов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **В. С Швырѐв** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 2.
+- **Вылцан Сергей** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вячеслав Вячеславович Гаврилов** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Вячеслав Гришин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вячеслав Евдокимов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Вячеслав Зикеев** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 6; нужна ручная сверка.
+### Г
+
+- **Габор Халмаи** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Гадис Абдуллаевич Гаджиев** — `method_integrated`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences; источники: blokhin_bibliography, curated_method, local_full_text, sko_index, zakon_discovery; работ: 27.
+- **Галина Александровна Нелаева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Галина Андреева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Галина Георгиевна Шинкарецкая** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Галина Ковалева** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Галина Садовникова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ганс Кельзен** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 3.
+- **Ганс Мейер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Г Верманн** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Г. Д. Тамаш** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Геза Теньи** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Гейл Клигман** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Геннадий Александрович Есаков** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Георгий Александрович Суворов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Георгий Ганев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Георгий Масленников** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Георгий Поштов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Георгий Ситников** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Георгий Сусаренко** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Георгий Тенгизович Мжаванадзе** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Геращенко Алёна** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Герберт Кюппер** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Герберт Шамбек** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Герман Шварц** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Гертруда Люббе-Вольф** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 7.
+- **Глеб Ильич Богуш** — `triangulated_academic`; comparative_and_international, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 13.
+- **Глеб Станиславович Ляшко** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Г. М Вельяминов** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Горбачёв М** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гордейчик Алексей** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Гордон Хан** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Григорий Абуков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Григорий Викторович Вайпан** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, institutional_design_and_legitimacy, proportionality_equality_dignity; источники: blokhin_bibliography, mp_index, sko_index, zakon_discovery; работ: 9.
+- **Григорий Диков** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Григорий Ермошин** — `academic_indexed`; democracy_federalism_public_power, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Григорий Машанов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Григорий Немиря** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Григорий Шустов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Громов Сергей** — `discovery_only`; certainty_communication_writing; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Грэг Тэйлор** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гульнара Искакова** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Гульнара Исмагилова** — `discovery_only`; identity_sovereignty_systems; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Гульнара Шахинян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гульшат Аминова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Густаво Загребельский** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гэри Джеффри Якобсон** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гюнтер Тойбнер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гюнтер Франкеберг** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Гюнтер Франкенберг** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 2; нужна ручная сверка.
+### Д
+
+- **Давид Ильич Кобахидзе** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Давид Элгуджаевич Кицмаришвили** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Д. А Керимов** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 1.
+- **Дамир Сафаргалеев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Даниель Смилов** — `academic_indexed`; democracy_federalism_public_power, institutional_design_and_legitimacy, proportionality_equality_dignity, social_economic_and_property_rights; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Даниил Казимиров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Даниил Кириллович Мошников** — `academic_indexed`; identity_sovereignty_systems; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Даниил Сергеевич Сечин** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Данил Мамаев** — `academic_indexed`; certainty_communication_writing, comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Даниэль Акматов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Даниэль Ботвинник** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Даниэль Леви-Пюэш** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Д. А Пашенцев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Дарина Малова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Дарья Владимировна Тренина** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Дарья Заграничная** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дарья Заграничнова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дарья Калиш** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дарья Кобзарева** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Дарья Кудрявцева** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Дарья Куманькова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дарья Сергеевна Боклан** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review; источники: mp_index, sko_index; работ: 9.
+- **Дарья Чуева** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Даунис Ауэрс** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Даце Шулмане** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Денис Андреевич Печегин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Денис Козырев** — `discovery_only`; admissibility_and_route, certainty_communication_writing, democracy_federalism_public_power, remedy_execution_review; источники: zakon_discovery; работ: 23; нужна ручная сверка.
+- **Денис Примаков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Денис Тютин** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Денис Шедов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Джанлуиджи Паломбелла** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Джевад Карахасан** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джеймс A. Гарднер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Джеймс Макадамс** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джеймс Мэдисон** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Джейсон Морган-Фостер** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Джек Тзен-Та Ли** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дженнифер Недельски** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джералд Кнаус** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джереми Макбрайд** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Джереми Смит** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джеффри Глейзнер** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джеффри Стоун** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джозеф Миддлтон** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Джолин Шуккинг** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джонатан Клаарен** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джон Джей** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Джон Ле Карре** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джон Монтгомери** — `bibliographic_lead`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Джон Пол Джонс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джон Стюарт Милль** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Джон Хьюко** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джон Элстер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джордж Шер** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джордж Шиавон** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джоэл Хеллман** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Джулиан Дж. Уоллер** — `academic_indexed`; certainty_communication_writing, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Димитр Димитров** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Димитрий Медников** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Димитрина Петрова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дин Шпильман** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Дин Шпильманн** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Абубакиров** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Дмитрий Александрович Кузнецов** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 3.
+- **Дмитрий Афанасьев** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Валерьевич Кайсин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Васильевич Скрынька** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Владимирович Красиков** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Дмитрий Вячеславович Галушко** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Геннадиевич Бартенев** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 3.
+- **Дмитрий Геннадьевич Шустров** — `method_integrated`; certainty_communication_writing, comparative_and_international, interpretation_and_positions, proportionality_equality_dignity; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 14.
+- **Дмитрий Глинский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Голованов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дмитрий Григорьев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Дмитрий Гурин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Далевский** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Дмитрий Дедов** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, interpretation_and_positions, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 6.
+- **Дмитрий Дмитриевич Коновалов** — `method_integrated`; institutional_design_and_legitimacy, remedy_execution_review; источники: curated_method, local_full_text; работ: 1.
+- **Дмитрий Киреев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дмитрий Леонидович Давыденко** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index, zakon_discovery; работ: 2; нужна ручная сверка.
+- **Дмитрий Мальбин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Дмитрий Морев** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Дмитрий Нестеренко** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Дмитрий Полдников** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дмитрий Смольников** — `discovery_only`; democracy_federalism_public_power, remedy_execution_review; источники: zakon_discovery; работ: 12; нужна ручная сверка.
+- **Дмитрий Соловьев** — `academic_indexed`; democracy_federalism_public_power, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дмитрий Степанов** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Д. Н Салмин** — `bibliographic_lead`; certainty_communication_writing, interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Доминика Бычавска-Синярска** — `academic_indexed`; remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Доминик Арель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дональд Йенсен** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Доната Маччелли** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Донец Сергей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Дрен Доли** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дринко Гойкович** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дуайт Семлер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дъердь Конрад** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дэвид Вудрафф** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дэвид Карри** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дэвид Коэн** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дэвид Лайтин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Дэвид Олсон** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Дэвид Франклин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+### Е
+
+- **Е. Б Хохлов** — `bibliographic_lead`; comparative_and_international, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **Ева Летовска** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ева Поплавская** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Е. В Васьковский** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Евгений Анатольевич Фокин** — `triangulated_academic`; admissibility_and_route, comparative_and_international, remedy_execution_review; источники: blokhin_bibliography, mp_index, sko_index; работ: 6.
+- **Евгений Витальевич Булатов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Евгений Всеволодович Тарибо** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 2.
+- **Евгений Евгеньевич Евсеев** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Евгений Жаров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Евгений Комлев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Евгений Кузьминский** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Евгений Лагодич** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Евгений Соломатин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Евгений Суворов** — `discovery_only`; bioethics_privacy_technology; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Евгений Суханов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Евгений Танчев** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems, social_economic_and_property_rights; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Евгений Тимофеев** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Евгений Трунов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Евгения Герасимова** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Евгения Кузнецова** — `discovery_only`; admissibility_and_route, institutional_design_and_legitimacy; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Евгения Нефедьева** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Европейский Союз** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Егор Лысенко** — `discovery_only`; evidence_empirics_consequences; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Егор Олегович Бадыра** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Егор Сергеевич Фёдоров** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Егор Серов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ежи Виатр** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ежи Мачкув** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Екатерина Александровна Близнецкая** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Екатерина Алексеевна Копылова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Екатерина Бабелюк** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Екатерина Борисовна Дьяченко** — `academic_indexed`; admissibility_and_route, certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Екатерина Владимировна Балюк** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Екатерина Григорьевна Маларёва** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Екатерина Дриго** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Екатерина Заковряшина** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Екатерина Марковна Быховская** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Екатерина Нечаева** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Екатерина Сергеевна Алисиевич** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 5; нужна ручная сверка.
+- **Екатерина Сидорова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Екатерина Степанова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Екатерина Тарасова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Екатерина Ульянова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Екатерина Шехурдина** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Александровна Сорокина** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 5.
+- **Елена Анатольевна Хабарова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Елена Андреевна Мурашко** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Б. Абросимова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 12; нужна ручная сверка.
+- **Елена Барихновская** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Борисовна Кучер** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Бурдина** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Викторовна Мохова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Владимировна Биллебру** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Владимировна Гриценко** — `triangulated_academic`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography, sko_index; работ: 21.
+- **Елена Владимировна Тимошина** — `bibliographic_lead`; certainty_communication_writing, interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Елена Вячеславовна Сыченко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Гладун** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Евгеньева Рафалюк** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Евгеньевна Юркина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Егорова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Коврякова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Елена Королева** — `discovery_only`; bioethics_privacy_technology; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Елена Лукьянова** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Маркова** — `academic_indexed`; comparative_and_international; источники: sko_index, zakon_discovery; работ: 2; нужна ручная сверка.
+- **Елена Николаевна Трикоз** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Елена Новоселова-Чурсина** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Павловна Войтович** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Елена Перепелица** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Пешкова** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Елена Соколова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Стефои** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Елена Стефои-Сава** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Елена Хочунская** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Елена Яцунская** — `academic_indexed`; bioethics_privacy_technology, comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Елизавета Ильинична Рачкова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Елизавета Манжосова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Е. Н Лисанюк** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Е. Н Яркова** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 2.
+- **Е. С Аничкин** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **Е. Ю Терюкова** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+### Ж
+
+- **Жак Бертран** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Жак Рупник** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Жаля Гаджиева** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Жанна Казанцева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Жанна Овсепян** — `triangulated_academic`; democracy_federalism_public_power, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 4.
+- **Жан-Поль Коста** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ж Ведель** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Женис Мухтарович Кембаев** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Жиль Фаварель-Гаррриг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Жово Николов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Жюли Мостов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+### З
+
+- **Залимгери Ашхотов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **З. А Резцова** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Зденек Кюн** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Здзислав Чешейко-Сохацки** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Здравка Калайджиева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Золтан Сенте** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Зоран Кусовац** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Зофия А. Гарлицкая** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Зофия Силадьи** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Зуфар Тагиров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+### И
+
+- **И. А Алешкова** — `bibliographic_lead`; bioethics_privacy_technology; источники: blokhin_bibliography; работ: 2.
+- **И. А Умнова-Конюхова** — `bibliographic_lead`; bioethics_privacy_technology; источники: blokhin_bibliography; работ: 2.
+- **И. А Щирова** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 1.
+- **Ивана Хрдличкова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Иван Баранов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Иван Брикульский** — `academic_indexed`; admissibility_and_route, certainty_communication_writing, democracy_federalism_public_power, evidence_empirics_consequences; источники: sko_index, zakon_discovery; работ: 54; нужна ручная сверка.
+- **Иван Деркач** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Иван Иванов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Иван Клепицкий** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Иван Крастев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Иван Лексин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Иван Павлов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Иван Панкевич** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Иван Рассохин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Иван Советников** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Иван Чернышев** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Иван Яголович** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Иво Банац** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **И. Г Аллахвердиев** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography, zakon_discovery; работ: 2.
+- **Игаль Мерсель** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Игорь Викторович Зенкин** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Игорь Гулаков** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Игорь Егоров** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Игорь Ирхин** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Игорь Кравец** — `triangulated_academic`; bioethics_privacy_technology, comparative_and_international, democracy_federalism_public_power, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 16.
+- **Игорь Краев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Игорь Кузнецов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Игорь Магновский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Игорь Пибаев** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Игорь Рабинович** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Игорь Саначев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Игорь Слабых** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Игорь Шурпик** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Иддо Порат** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Илзе Скултане** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Илиан Кашу** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ильсур Зиганшин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Илья Борисович Микиртумов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Илья Витальевич Рачков** — `academic_indexed`; admissibility_and_route, comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review; источники: mp_index; работ: 20; нужна ручная сверка.
+- **Илья Власов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Илья Георгиевич Шаблинский** — `triangulated_academic`; admissibility_and_route, bioethics_privacy_technology, comparative_and_international, democracy_federalism_public_power; источники: mp_index, sko_index; работ: 19.
+- **Илья Горфинкель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Илья Левин** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Илья Михайлович Лифшиц** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 4; нужна ручная сверка.
+- **Илья Радченко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Илья Рузанов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ильяс Евлоев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Илья Сушильников** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Илья Шарон** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **И Меллер** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **И. Н Барциц** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Инга Михайловская** — `academic_indexed`; democracy_federalism_public_power, evidence_empirics_consequences, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: sko_index; работ: 16; нужна ручная сверка.
+- **Ингер Вийг** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Инна Владиславовна Апурина** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Инна Юрьевна Пешина** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Иоанна Гомула** — `academic_indexed`; evidence_empirics_consequences, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Иоанна Щесна** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирена Грудзинска-Гросс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Иржи Пеге** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Алебастрова** — `academic_indexed`; democracy_federalism_public_power, evidence_empirics_consequences, proportionality_equality_dignity; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Ирина Александровна Михайленко** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ирина Андреевна Богатыренко** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ирина Бусыгина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Викторовна Гетьман-Павлова** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Ирина Владимировна Артамонова** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Ирина Гаврилова** — `academic_indexed`; certainty_communication_writing; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Галяева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ирина Длин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Дмитриевна Сергеева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ирина Дудко** — `triangulated_academic`; remedy_execution_review; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Ирина Калинина** — `academic_indexed`; democracy_federalism_public_power, remedy_execution_review; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Ирина Карасёва** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Ирина Кененова** — `academic_indexed`; certainty_communication_writing, comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Ирина Кизько** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ирина Кириченко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Ирина Котелевская** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Османкина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Ирина Сергеевна Кузнецова** — `academic_indexed`; democracy_federalism_public_power, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ирина Сиклова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ирина Смирнова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Ирина Умнова** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Хужокова** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ирина Шмарко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Ирина Яценко** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Исанов Сергей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **И. С Григорьев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Иштван Баги** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Иштван Сикингер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+### Й
+
+- **Йилли Ванесса Пачеко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Йозеф ван Брабант** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Йолиен Схуккинг** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Йонас Прапиестис** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Йорг Арнольд** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+### К
+
+- **Кайл Дэвис** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кай Мёллер** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 4.
+- **К. А Коваленко** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Камерон Росс** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Карен Джонсон** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карин Беше-Головко** — `academic_indexed`; democracy_federalism_public_power, identity_sovereignty_systems; источники: sko_index; работ: 10; нужна ручная сверка.
+- **Карл Иоахим Фридрих** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карло Гуарньери** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карло Сантулли** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Карлос Берналь** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карлос Месия Рамирес** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карл Экштайн** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Кармен Приор** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кармен Шмидт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Каролина Галль** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Карэн Агамиров** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Касс Санстейн** — `triangulated_academic`; evidence_empirics_consequences; источники: blokhin_bibliography, sko_index; работ: 13.
+- **Катарина Пистор** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Катарина Тити** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Катерина Коробкова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Катерина Сергеевна Дронова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **К. В Карпенко** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **К Грехениг** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Кейт Юнг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кен Джауитт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кент Роч** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ким Лейн Шеппели** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Ким Лэйн Шеппель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Кира Трунтаева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кирилл Бегор** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кирилл Владимирович Энтин** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: mp_index, sko_index; работ: 10.
+- **Кирилл Жаринов** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy, interpretation_and_positions; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кирилл Зюбанов** — `academic_indexed`; bioethics_privacy_technology; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Кирилл Масталиев** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Кирилл Молодыко** — `discovery_only`; remedy_execution_review; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Кирилл Николаевич Белогубец** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Кирилл Николаевич Коротеев** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, remedy_execution_review; источники: mp_index, sko_index, zakon_discovery; работ: 12.
+- **Кирилл Рыбак** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Кирилл Суханов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Кирилл Черновол** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кирилл Чернышёв** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Клара Скриванкова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Клаус Кресс** — `academic_indexed`; institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Клаус Оффе** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Клэр Райан** — `academic_indexed`; certainty_communication_writing, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **К Мѐллер** — `bibliographic_lead`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
+- **Колбун Андрей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Константин Арановский** — `triangulated_academic`; comparative_and_international, interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 7.
+- **Константин Бондаренко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Константин Дождев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 12; нужна ручная сверка.
+- **Константин Иванович Дегтярёв** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 6; нужна ручная сверка.
+- **Константин Катанян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Константин Киктенко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Константин Краулин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Константин Лаврушин** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Константин Леонтьевич Чайка** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Константинос Хадзиафанасиу** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Константин Сасов** — `academic_indexed`; democracy_federalism_public_power, evidence_empirics_consequences, remedy_execution_review, social_economic_and_property_rights; источники: sko_index, zakon_discovery; работ: 11; нужна ручная сверка.
+- **Константин Сибаров** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Константин Шарловский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Константы Геберт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Кортни Джанг** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кравцов Алексей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Красен Станчев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кренар Лолочи** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кристер Пурсиайнен** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кристиан Вальдхофф** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кристиан Лаки** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Кристиан Марксен** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кристина Борисовна Русских** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Кристина Морваи** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кристина Отаровна Кебурия** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Кристина Хосс** — `academic_indexed`; comparative_and_international, proportionality_equality_dignity; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Кристоф Мёллерс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ксения Агафонова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ксения Амдур** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Ксения Аристова** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Ксения Дмитриевна Шестакова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Ксения Евгеньевна Алферьева** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ксения Кириченко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кыргызская Республика** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Кэтлин Имхольц** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Кэтрин А. Маккиннон** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Кэтрин Хендли** — `academic_indexed`; remedy_execution_review; источники: sko_index; работ: 4; нужна ручная сверка.
+### Л
+
+- **Лариса Владимировна Зайцева** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Лариса Ивановна Захарова** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Ласло Немени** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лаури Малксоо** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Л. В Андриченко** — `bibliographic_lead`; social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **Л. В Максимов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Лев Иванов** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Левков Сергей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Левон Григорян** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Леокадия Дробижева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Леонид Берлявский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Леонид Витальевич Головко** — `triangulated_academic`; interpretation_and_positions; источники: blokhin_bibliography, mp_index; работ: 2.
+- **Леонид Лазарев** — `triangulated_academic`; interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Леонид Львович Кофанов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Леонид Мамут** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Леонид Никитинский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Леонид Поликарпов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Леонид Сюкияйнен** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems; источники: sko_index, zakon_discovery; работ: 6; нужна ручная сверка.
+- **Лех Галицкий** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лех Гарлиций** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лех Гарлицкий** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, interpretation_and_positions, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 18.
+- **Лиана Мунтян** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Лидия Алексеева** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лидия Туманова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лидия Эссен** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Лиза Куюс** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лимонова Алина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лисиния Симан** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лолита Файзуллина** — `discovery_only`; bioethics_privacy_technology, comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Лорен Паремур** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Лоренс Бюргорг-Ларсен** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Лоренс Лессиг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Лоренцо Казини** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ло Чанг-фа** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Л Сицилианос** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Луиджи Мелика** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Луиз Шелли** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Луис Скайнер** — `academic_indexed`; certainty_communication_writing, democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Лэй Сун** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Любовь Болтенкова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Любовь Маркина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Людвиг Карапетян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Людмила Лаптева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Людмила Пчелинцева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Людмила Ревенко** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Людмила Шадрина** — `discovery_only`; democracy_federalism_public_power, proportionality_equality_dignity; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Люк Тремблей** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Люциус Вильдхабер** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+### М
+
+- **Мадхав Косла** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Майкл Берджесс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Майкл Дж. Перри** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Майкл Пэрис** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Майкл Розенфельд** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Максим Александрович Кудрявцев** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Максим Александрович Лихачев** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Максим Белоковыльский** — `academic_indexed`; admissibility_and_route, evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Максим Васильевич Арзамасцев** — `academic_indexed`; comparative_and_international, proportionality_equality_dignity; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Максим Гребнев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Максим Дмитриевич Ючковский** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Максим Доценко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Максим Максимов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Максим Марутенков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Максим Пенизев** — `discovery_only`; certainty_communication_writing, democracy_federalism_public_power; источники: zakon_discovery; работ: 19; нужна ручная сверка.
+- **Максим Смурков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Максим Сорокин** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Максим Тимофеевич Тимофеев** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: mp_index; работ: 7; нужна ручная сверка.
+- **Максим Шаварин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Максим Юзвак** — `discovery_only`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power, social_economic_and_property_rights; источники: zakon_discovery; работ: 75; нужна ручная сверка.
+- **Марат Альбертович Фаттахов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Марат Саликов** — `triangulated_academic`; evidence_empirics_consequences, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Маргарита Павлова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марек Зубик** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марианна Кочубей** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мари Давитовна Давтян** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Марико Кавано** — `academic_indexed`; institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Мари-Кристин Майнингер** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мари Мендрас** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Марина Агальцова** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Марина Александровна Медведева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Марина Володина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Марина Котегова** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марина Либоракина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марина Немытина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марина Павловна Трунк-Фёдорова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Марина Рожкова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марина Штатина** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Мариус ван Штаден** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мария Александровна Исаева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Мария Анатольевна Филатова** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, interpretation_and_positions; источники: mp_index, sko_index; работ: 8.
+- **Мария Андреевна Сучкова** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Мария Вадимовна Шауберт** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Мария Ерохова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Мария Попова** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Мария Посадкова** — `triangulated_academic`; bioethics_privacy_technology; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Мария Проскурякова** — `academic_indexed`; bioethics_privacy_technology, comparative_and_international, interpretation_and_positions; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Мария Ракель Фрейре** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мария Рудольфовна Воскобитова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Мария Хомкалова** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Мария Шабалина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Мария Эминова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Мария Юрьевна Козлова** — `triangulated_academic`; маршрут ещё не размечен; источники: mp_index, sko_index; работ: 2.
+- **Марк Бжезинский** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марк Жиллис** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Марк Львович Энтин** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 4.
+- **Марк Ташнет** — `academic_indexed`; interpretation_and_positions; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Марк Эллиотт** — `academic_indexed`; democracy_federalism_public_power, identity_sovereignty_systems; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Марта Брилл Олкотт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марта Дерлатка** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Марта Миклушакова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мартин Горский** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мартин Кригер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Мартин Николсон** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Матвеев Сергей** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Матвей Вячеславович Тарасов** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Матей Авбель** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Матиас Мальманн** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Маттиас Кёттер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Маттиас Кумм** — `triangulated_academic`; proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **М. Б Туровский** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **М. В Антонов** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **М. В Залоило** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **М. В Пресняков** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **М Гелтер** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Мелингхофф Рудольф** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мехрдад Паяндех** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **М. И Блум** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Мидхат Фарукшин** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Микеле де Сальвиа** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **М. И Клеандров** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **Миколай Петшак** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Милада Анна Вахудова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Милана Даова** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Милан Зной** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Милош Калда** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Миндаугас Статкявичюс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мирза Чирагов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Митчелл Оренстейн** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Михаил Афанасьев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Михаил Венедиктов** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Виноградов** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Михаил Владимирофф** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Михаил Воробьёв** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Дмитриев** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Жужжалов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Михаил Зельдин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Карташов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Ковалевский** — `academic_indexed`; democracy_federalism_public_power, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Михаил Кораблев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Краснов** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 14.
+- **Михаил Лобов** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, remedy_execution_review, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Михаил Львович Гальперин** — `triangulated_academic`; admissibility_and_route, comparative_and_international, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 6.
+- **Михаил Матинов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Михаил Митюков** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 9.
+- **Михаил Пастухов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Михаил Самойлов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Михаил Сафронов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Михаил Федотов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Михаил Юрьевич Петербургский** — `triangulated_academic`; маршрут ещё не размечен; источники: mp_index, sko_index; работ: 2.
+- **Михал Бобек** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Мишель Тропер** — `triangulated_academic`; comparative_and_international, identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 4.
+- **М Ларо** — `bibliographic_lead`; comparative_and_international, identity_sovereignty_systems, interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **М. Н Марченко** — `bibliographic_lead`; institutional_design_and_legitimacy; источники: blokhin_bibliography; работ: 1.
+- **М. Н Семякин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Моника Маковеи** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Моника Маковей** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Монро Прайс** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Морган Аляркон Андрея дель Кармен** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Мосер Патрисия Тарре** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 4; нужна ручная сверка.
+- **Мохаммед Шериф Бассиуни** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Моше Коэн-Элия** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **М Фуко** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Мюррей Вессон** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **М. Ю Федорова** — `bibliographic_lead`; social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+### Н
+
+- **Н. А Вересова** — `bibliographic_lead`; democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Н. А Власенко** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Надежда Викторовна Ермолаева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Надежда Николаевна Липкина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Надежда Салищева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Н. А Игумнов** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Н. А Марокко** — `bibliographic_lead`; admissibility_and_route; источники: blokhin_bibliography; работ: 1.
+- **Наталия Бутусова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталия Владимировна Варламова** — `triangulated_academic`; admissibility_and_route, certainty_communication_writing, comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography, sko_index; работ: 21.
+- **Наталия Петухова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталия Юрьевна Ерпылева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Наталья Алёнкина** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Наталья Бобракова** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Наталья Богданова** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Наталья Брэйди** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Бунина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Наталья Вячеславовна Кравчук** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 5; нужна ручная сверка.
+- **Наталья Вячеславовна Сидорова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Наталья Данилова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Джагарян** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 13.
+- **Наталья Джеломанова** — `discovery_only`; admissibility_and_route, institutional_design_and_legitimacy; источники: zakon_discovery; работ: 5; нужна ручная сверка.
+- **Наталья Королева** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Наталья Котикова** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Наталья Михайлова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Николаевна Воробьёва** — `triangulated_academic`; comparative_and_international, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 2.
+- **Наталья Николаевна Кислякова** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, mp_index; работ: 2.
+- **Наталья Носникова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Тюрина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Наталья Филиппова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Шевелёва** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Наталья Шевченко** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Натан Дж. Браун** — `academic_indexed`; certainty_communication_writing, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Н. А Тарабан** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Наташа ДеРок** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Наташа Кандич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Н Веш** — `bibliographic_lead`; admissibility_and_route, comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Н. В Зайцева** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ненад Чанак** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Н. Е Таева** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Нехад Ассаф Алаа** — `academic_indexed`; identity_sovereignty_systems; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Низами Сафаров** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Никита Вячеславович Синицин** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Никита Кашин** — `discovery_only`; remedy_execution_review; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Никита Кулебякин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Никита Москаленко** — `discovery_only`; evidence_empirics_consequences; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Никита Прокопенко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Никита Федотов** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Николай Басманов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Николай Бобринский** — `academic_indexed`; comparative_and_international; источники: sko_index, zakon_discovery; работ: 5; нужна ручная сверка.
+- **Николай Васильевич Витрук** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 9.
+- **Николай Кипнис** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Николай Ковалев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Николай Колмаков** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Николай Миронов** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, proportionality_equality_dignity; источники: sko_index; работ: 11; нужна ручная сверка.
+- **Николай Михайлович Казанцев** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Николай Николаевич Гнатовский** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Николай Семёнович Бондарь** — `triangulated_academic`; comparative_and_international, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 16.
+- **Николай Соков** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Нильс Петерсен** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Нина Вайич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Нина Воронова** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Нойманн Альфредо Кросато** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Норикадзу Кавагиси** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Н. С Малютин** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+### О
+
+- **Объединённые Арабские Эмираты** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Овагим Арутюнян** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **О. И Кирсанов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Оксана Ковальчук** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Оксана Пименова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Олег Барабанов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Олег Белокуров** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Олег Белослудцев** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Олег Болдырев** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Олег Бородин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Олег Брежнев** — `triangulated_academic`; certainty_communication_writing, institutional_design_and_legitimacy, interpretation_and_positions, remedy_execution_review; источники: blokhin_bibliography, sko_index; работ: 6.
+- **Олег Бунин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Олег Зазнаев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Олег Мозго** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Олег Одоев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Олег Памфилов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Олег Румянцев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Олег Северюхин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Олег Снежко** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Олег Тарасов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Олег Тиунов** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Олеся Мильчакова** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Олеся Цахоева** — `discovery_only`; evidence_empirics_consequences; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Оливье Рой** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Оливье Руа** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ольга Алексеевна Ганина** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ольга Анатольевна Гнездилова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ольга Бенедская** — `triangulated_academic`; identity_sovereignty_systems, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Ольга Валентиновна Батура** — `academic_indexed`; certainty_communication_writing; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ольга Валуева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ольга Владимировна Кадышева** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, remedy_execution_review; источники: mp_index, sko_index; работ: 7.
+- **Ольга Гаврилова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Ольга Германовна Подоплелова** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 7.
+- **Ольга Гулина** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ольга Ерёмина** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ольга Киселёва** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ольга Комшукова** — `academic_indexed`; certainty_communication_writing; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ольга Кузнецова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Ольга Николаевна Кряжкова** — `method_integrated`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, institutional_design_and_legitimacy; источники: blokhin_bibliography, curated_method, local_full_text, sko_index, zakon_discovery; работ: 23.
+- **Ольга Плешанова** — `discovery_only`; comparative_and_international, democracy_federalism_public_power, remedy_execution_review; источники: zakon_discovery; работ: 19; нужна ручная сверка.
+- **Ольга Сергеевна Боклан** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Ольга Сергеевна Магомедова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Ольга Сергеевна Чернышова** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 8.
+- **Ольга Сергеевна Шепелева** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Ольга Соколова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ольга Феликсовна Кудинова** — `academic_indexed`; social_economic_and_property_rights; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ольга Хазова** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ольга Хохрякова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ольга Шварц** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Ольга Шевченко** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **О Лютерхандт** — `bibliographic_lead`; comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography; работ: 1.
+- **Оскар Парра Вера** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Отто Депенхойер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Отто Люхтерхандт** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Отто Пферсмаанн** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Отто Пферсманн** — `triangulated_academic`; admissibility_and_route, comparative_and_international, institutional_design_and_legitimacy, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 7.
+### П
+
+- **Павел Астафичев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Павел Владимирович Прокофьев** — `academic_indexed`; remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Павел Дмитриевич Блохин** — `method_integrated`; admissibility_and_route, certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: blokhin_bibliography, curated_method, local_full_text, mp_index, sko_index; работ: 32.
+- **Павел Дробышев** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Павел Дуксин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Павел Кандель** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Павел Лаптев** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, interpretation_and_positions; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Павел Ларионов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Павел Осик** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Павел Петрович Мысливский** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Павел Спивак** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Павел Ултургашев** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Павел Хлюстов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Павел Шефас** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Павел Шитов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Павел Шищенко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Павол Хёлландер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **П. А Петрова** — `bibliographic_lead`; evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **Парра Вера Оскар** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Пауль Калиниченко** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Педро Маурисио Галарза** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Перес Эдвард Хусус** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Петер Надаш** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Петер Смук** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Петер Хеберле** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Петра Штыков** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Петр Дуткевич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Петр Игоревич Чувахин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Пётр Кочергин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Петр Петкилёв** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Петр Скобликов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 12; нужна ручная сверка.
+- **Питер Г. Соломон-мл** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Питер Лейланд** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Питер Нурландер** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Питер Рудик** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Питер Соломон** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 9; нужна ручная сверка.
+- **Питер Эхин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Пихоя Рудольф** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Подгайная Алёна** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Полевода Сергей** — `discovery_only`; proportionality_equality_dignity, social_economic_and_property_rights; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Полина Сергеевна Тонких** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Полина Сергеевна Ятаева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Полина Шевчук** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Пол Чейсти** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Поль Драгос Алиджика** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+### Р
+
+- **Радим Марада** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Раймонд Янгс** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Райнер Арнольд** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Ракель Алдана** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Р. А Курбанов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ралица Пеева** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рамис Гибатдинов** — `discovery_only`; interpretation_and_positions; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Рафаа Бен Ашур** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рафаэль Доминго** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рафаэль Хакимов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Регина Расимовна Бикмаметова** — `academic_indexed`; interpretation_and_positions; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Рената Уитц** — `academic_indexed`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems; источники: sko_index; работ: 14; нужна ручная сверка.
+- **Рене Давид** — `bibliographic_lead`; identity_sovereignty_systems; источники: blokhin_bibliography; работ: 1.
+- **Р Иеринг** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ринчен Дасел Нгаванговна Муксунова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Рифад Газаль** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Ричард Альберт** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Ричард Познер** — `triangulated_academic`; evidence_empirics_consequences; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Ричард Роуз** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Ричард Саква** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems; источники: sko_index; работ: 11; нужна ручная сверка.
+- **Р Кросс** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 1.
+- **Роберт Алекси** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, interpretation_and_positions, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Роберт Брюс Уэр** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роберто Тониатти** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роберт Пост** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Роберт Спано** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Роберт Хайден** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 5; нужна ручная сверка.
+- **Роберт Шарлет** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Робин Брукс** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роже Эррера** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роже Эрьер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Розалинд Диксон** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Розмари Вилл** — `triangulated_academic`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Розмари Вилль** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роман Анатольевич Колодкин** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 3; нужна ручная сверка.
+- **Роман Бевзенко** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 5; нужна ручная сверка.
+- **Роман Гараев** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Роман Иванов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Роман Морозов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Роман Роза** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Роман Рувинский** — `academic_indexed`; identity_sovereignty_systems, social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Роман Сергеевич Мороз** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Роман Тамаев** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 6; нужна ручная сверка.
+- **Роман Тараданов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Роман Юрьевич Колобов** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ромул Петру Воника** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рональд Дворкин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 2.
+- **Роушин Пиллей** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Р. Р Исмаилов** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Рудольф Меллингхофф** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рудольф фон Иеринг** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Румяна Коларова** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Руслан Алексеевич Кантур** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 5; нужна ручная сверка.
+- **Руслан Стефанчук** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Руслан Чермит** — `discovery_only`; admissibility_and_route, remedy_execution_review; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Руслан Шавкатович Гарипов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Руслан Шульга** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Русмир Махмутчехаич** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рустам Альбертович Касьянов** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Рустам Бикметов** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Рустам Мартикович Халафян** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Рустам Махмадиев** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Рути Тейтел** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рути Тейтель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рут Рубио-Марин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Рыбаков Сергей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+### С
+
+- **Сабина Грабовская** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Саглар Борисовна Очирова** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 2; нужна ручная сверка.
+- **С. А Курочкин** — `bibliographic_lead`; certainty_communication_writing, evidence_empirics_consequences; источники: blokhin_bibliography; работ: 1.
+- **С. А Лебедев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **С. А Мосин** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Сана Бен Ашур** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сандра Фредман** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Саудовская Аравия** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **С. В Воробьѐва** — `bibliographic_lead`; interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography; работ: 1.
+- **Светлана Алексина** — `discovery_only`; admissibility_and_route; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Светлана Беньяминова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Светлана Васильева** — `academic_indexed`; bioethics_privacy_technology, democracy_federalism_public_power; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Светлана Володина** — `academic_indexed`; evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Светлана Игоревна Крупко** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Светлана Колесникова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Светлана Миролюбова** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: sko_index, zakon_discovery; работ: 5; нужна ручная сверка.
+- **Светлана Несмеянова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Светлана Слюсарева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Светлана Тюлькина** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Светлана Юрьевна Филиппова** — `method_integrated`; certainty_communication_writing, evidence_empirics_consequences; источники: curated_method, local_full_text; работ: 1.
+- **С. В Нарутто** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 2.
+- **Святослав Иванов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Святослав Игоревич Коваленко** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Седрик Марти** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Семён Бусыгин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Сергей Александрович Белов** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy; источники: blokhin_bibliography, mp_index, sko_index, zakon_discovery; работ: 14.
+- **Сергей Александрович Голубок** — `triangulated_academic`; comparative_and_international; источники: mp_index, sko_index; работ: 11.
+- **Сергей Альфер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Анатольевич Манжосов** — `method_integrated`; comparative_and_international, institutional_design_and_legitimacy, interpretation_and_positions, proportionality_equality_dignity; источники: blokhin_bibliography, curated_method, local_full_text, mp_index, sko_index, zakon_discovery; работ: 10.
+- **Сергей Афанасьев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Сергей Викторович Гландин** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index, zakon_discovery; работ: 6; нужна ручная сверка.
+- **Сергей Владимирович Тымма** — `academic_indexed`; interpretation_and_positions; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Сергей Владимирович Усоскин** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: mp_index; работ: 5; нужна ручная сверка.
+- **Сергей Вячеславович Саяпин** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Сергей Заславский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Сергей Зенкин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Кабышев** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Кашкин** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Князев** — `triangulated_academic`; comparative_and_international, identity_sovereignty_systems, interpretation_and_positions, social_economic_and_property_rights; источники: blokhin_bibliography, sko_index; работ: 8.
+- **Сергей Ковальчук** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Сергей Королев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Кузнецов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Михайлович Пунжин** — `academic_indexed`; admissibility_and_route, comparative_and_international, interpretation_and_positions, remedy_execution_review; источники: mp_index; работ: 15; нужна ручная сверка.
+- **Сергей Павлович Сушков** — `academic_indexed`; admissibility_and_route, comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Сергей Патракеев** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Сергей Пашин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Сергей Пчелинцев** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 4.
+- **Сергей Рипинский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Романенко** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Сергеевич Заикин** — `method_integrated`; admissibility_and_route, bioethics_privacy_technology, institutional_design_and_legitimacy, interpretation_and_positions; источники: curated_method, local_full_text, sko_index; работ: 8.
+- **Сергей Туркин** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Фуфаев** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 6; нужна ручная сверка.
+- **Сергей Черепанов** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Сергей Чижков** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сергей Юрьевич Марочкин** — `triangulated_academic`; comparative_and_international, identity_sovereignty_systems; источники: mp_index, sko_index; работ: 2.
+- **Сергей Ягодин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Серджио Бартоле** — `triangulated_academic`; comparative_and_international, remedy_execution_review; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Сийм Каллас** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Слободан Антонич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **С. М Казанцев** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 2.
+- **Снежана Симонова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Соколов Андрей** — `discovery_only`; admissibility_and_route, democracy_federalism_public_power; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Сол Пичотто** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сорин Ионица** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **София Афанасьева** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Софья Дмитриевна Пименова** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Софья Симонян** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Спартак Ефремов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Спенсер Зифкак** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Спиридонов Сергей** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **С. П Маврин** — `bibliographic_lead`; identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
+- **Срджан Дарманович** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ставрос Цакиракис** — `triangulated_academic`; comparative_and_international, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Станислав Гаранжа** — `discovery_only`; certainty_communication_writing, evidence_empirics_consequences; источники: zakon_discovery; работ: 5; нужна ручная сверка.
+- **Станислав Егоркин** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Станислав Станских** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Станислав Шевердяев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Станислав Шеверядев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стасис Стачёкас** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стенли Бах** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Степан Хухарев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Стефан Попов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стефан Хедлунд** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Вермиль** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Коткин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен П. Фрайот** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy, social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Стивен Солник** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Стивен Тейман** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Тиерней** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Уильямс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Фиш** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Стивен Хенделман** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стивен Холмс** — `academic_indexed`; comparative_and_international, interpretation_and_positions, social_economic_and_property_rights; источники: sko_index; работ: 22; нужна ручная сверка.
+- **Стивен Шулхофер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стойко Стойков** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стоян Церович** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Стратис Георгилас** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Стюарт Эйзенстат** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сузанна Бэр** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сурен Адибекович Авакьян** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Сурен Золян** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Сьюзан Бенда** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+### Т
+
+- **Талия Ярулловна Хабриева** — `bibliographic_lead`; certainty_communication_writing, comparative_and_international; источники: blokhin_bibliography; работ: 5.
+- **Тамара Морщакова** — `triangulated_academic`; comparative_and_international; источники: blokhin_bibliography, sko_index; работ: 14.
+- **Тамилла Иманова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Таня Смит** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Андреева** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Братко** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Ваксберг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Татьяна Васильева** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 22.
+- **Татьяна Васильевна** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Васильевна Новикова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Татьяна Виноградова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Татьяна Левченко** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Львовна Тропина** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Татьяна Михайловна Сырунина** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 7.
+- **Татьяна Михайловна Храмова** — `triangulated_academic`; admissibility_and_route, comparative_and_international, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: blokhin_bibliography, mp_index, sko_index; работ: 10.
+- **Татьяна Михеева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Татьяна Нерони** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Татьяна Николаевна Нешатаева** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 14.
+- **Татьяна Пряхина** — `academic_indexed`; certainty_communication_writing; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Терри Перетти** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Тибор Варади** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Тигран Бекназар-Юзбашев** — `discovery_only`; admissibility_and_route, certainty_communication_writing, comparative_and_international, democracy_federalism_public_power; источники: zakon_discovery; работ: 13; нужна ручная сверка.
+- **Тигран Давидович Оганесян** — `academic_indexed`; admissibility_and_route, comparative_and_international, interpretation_and_positions, proportionality_equality_dignity; источники: mp_index; работ: 8; нужна ручная сверка.
+- **Тигран Торосян** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Тимоти Фрай** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Тимофей Виноградов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Тимофей Евсеев** — `discovery_only`; democracy_federalism_public_power; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Тим Потиер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Тимур Газдаров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Тодд Фоглесонг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Томас Грэм** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Томас Каротерс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Томас Ф. Ремингтон** — `academic_indexed`; democracy_federalism_public_power, identity_sovereignty_systems, institutional_design_and_legitimacy, proportionality_equality_dignity; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Туяна Эдуардовна Молохоева** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Тэнасе Александру** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+### У
+
+- **У Бернам** — `bibliographic_lead`; comparative_and_international, identity_sovereignty_systems; источники: blokhin_bibliography; работ: 1.
+- **Уве Кишель** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Удо Штайнер** — `academic_indexed`; comparative_and_international, social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Уилл Кимличка** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Уильям Партлетт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Уильям Шабас** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ульрика Деви** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ульрих Пройс** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Уно Лыхмус** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Урош Комленович** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Уэйд Джэкоби** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences; источники: sko_index; работ: 1; нужна ручная сверка.
+### Ф
+
+- **Ф Быдлински** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ф Бэкон** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Федор Вениславский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Федор Воскресенский** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Фёдор Долгих** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Феликс Белльман** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Филип Лич** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Филипп Мусатов** — `discovery_only`; democracy_federalism_public_power, remedy_execution_review; источники: zakon_discovery; работ: 4; нужна ручная сверка.
+- **Филиппо Фонтанелли** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Филипп Тасалов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Филип Хэнсон** — `academic_indexed`; democracy_federalism_public_power, proportionality_equality_dignity, social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Фиона де Лондрас** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Фисник Кореница** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Флоранс Зауи** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Ф. Н Голдберг** — `bibliographic_lead`; certainty_communication_writing; источники: blokhin_bibliography; работ: 2.
+- **Франк Бёнкер** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Франс Грэсс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Франсиско Урбина** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Франсиско Хавьер Гарридо Каррильо** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Франсуаза Тюлькенс** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Франческа Фьеккони** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+### Х
+
+- **Халатов Сергей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Ханлар Иршадович Гаджиев** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 3.
+- **Ханна Биркенкёттер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ханнеке Сенден** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ханс Майер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ханс-Юрген Папир** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хартмут Бауэр** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хейко Зауэр** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хелен Келлер** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
+- **Хельмут Шульце-Филиц** — `academic_indexed`; comparative_and_international, proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хенк Люббердинк** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хесус Перес Эдвард** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Хиил Шейнин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Хорст Риссе** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Христо Комаров** — `discovery_only`; institutional_design_and_legitimacy; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Хулио Пинель** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+### Ц
+
+- **Целибеев Алексей** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+### Ч
+
+- **Чарльз Кинг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Черил Сондерс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Чингиз Аптинеев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+### Ш
+
+- **Шанталь Курильски-Ожвэн** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Шафранов Андрей** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Шесьцило Давид** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Шломо Авинери** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+### Э
+
+- **Эва Бремс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эвелина Тылец** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Эгидьюс Курис** — `academic_indexed`; admissibility_and_route, democracy_federalism_public_power, institutional_design_and_legitimacy, social_economic_and_property_rights; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Эдвард Уокер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
+- **Эдвард Хусус Перес** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Эди Спахо** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эдуард Галицкий** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Эдуард Либерман** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эдуард Цыганков** — `discovery_only`; social_economic_and_property_rights; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Эктор Лопес Бофилль** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Элби Сакс** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Элиза Барончини** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Элизабет Кисс** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Элисон Роуз** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эллисон Стэнгер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эльвира Талапина** — `academic_indexed`; bioethics_privacy_technology, comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Эльнур Гумбатов** — `academic_indexed`; proportionality_equality_dignity; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эмиль Константинов** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эмиль Маркварт** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Энвер Кисриев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эндрю Арато** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Эндрю Уилсон** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Энико Хорват** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Энтони Лестер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эрик Барендт** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эрик Ластич** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Эрик Мёзе** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Эрхард Бланкенбург** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Эстер Кирш** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Эстер Полгари** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Этан Клингсберг** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Этьен Швайсгут** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Э. Э Баринов** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+### Ю
+
+- **Ю. В Тай** — `bibliographic_lead`; interpretation_and_positions; источники: blokhin_bibliography, zakon_discovery; работ: 7.
+- **Южная Осетия** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Южный Судан** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юлиана Демешева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юлианна Макарова** — `academic_indexed`; bioethics_privacy_technology; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юлия Валерьевна Драгунова** — `academic_indexed`; institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
+- **Юлия Гурковская** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юлия Петухова** — `discovery_only`; comparative_and_international, institutional_design_and_legitimacy; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Юлия Рудт** — `triangulated_academic`; proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Юлия Свешникова** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юлия Федонина** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Юлия Ялунер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юрий Бабаев** — `discovery_only`; admissibility_and_route, proportionality_equality_dignity; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Юрий Багров** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Юрий Барабаш** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юрий Батурин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 7; нужна ручная сверка.
+- **Юрий Берестнев** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Юрий Брисов** — `discovery_only`; comparative_and_international, social_economic_and_property_rights; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Юрий Веденеев** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юрий Ершов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
+- **Юрий Козлов** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Юрий Пудовочкин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Юрий Рейнхиммель** — `discovery_only`; admissibility_and_route, institutional_design_and_legitimacy; источники: zakon_discovery; работ: 3; нужна ручная сверка.
+- **Юрий Сафоклов** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy, social_economic_and_property_rights; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Юрий Старилов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Юрий Тихомиров** — `triangulated_academic`; маршрут ещё не размечен; источники: blokhin_bibliography, sko_index; работ: 3.
+- **Юрий Фогельсон** — `academic_indexed`; evidence_empirics_consequences, identity_sovereignty_systems, social_economic_and_property_rights; источники: sko_index, zakon_discovery; работ: 5; нужна ручная сверка.
+- **Юрий Шмидт** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ю. С Ромашев** — `bibliographic_lead`; comparative_and_international, identity_sovereignty_systems; источники: blokhin_bibliography; работ: 2.
+### Я
+
+- **Яков Шварцман** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Яна Игоревна Лебедева** — `triangulated_academic`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power; источники: mp_index, sko_index; работ: 2.
+- **Яна Юрьевна Цимбалова** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences; источники: mp_index, sko_index; работ: 3.
+- **Ян Мазак** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Яннеке Герардс** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Янош Добжей** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Янош Киш** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ян Синьюй** — `academic_indexed`; identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ян Хельгесен** — `bibliographic_lead`; маршрут ещё не размечен; источники: blokhin_bibliography; работ: 1.
+- **Ян Элстер** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 8; нужна ручная сверка.
+- **Ян Янышев** — `discovery_only`; democracy_federalism_public_power, identity_sovereignty_systems; источники: zakon_discovery; работ: 10; нужна ручная сверка.
+- **Я Омейец** — `bibliographic_lead`; comparative_and_international; источники: blokhin_bibliography; работ: 1.
+- **Ярослава Гребенщикова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ярослав Старцев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ярослав Шицле** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
+- **Ясмин Дэвуд** — `academic_indexed`; comparative_and_international, democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ясна Омеич** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
+- **Ясуо Хасебе** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Яцек Залесны** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
+- **Яцек Олещик** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.

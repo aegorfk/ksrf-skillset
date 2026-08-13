@@ -1,4 +1,4 @@
 interface:
   display_name: "КС РФ: аргумент о правах"
-  short_description: "Построить конституционный аргумент жалобы"
-  default_prompt: "Используй $ksrf-rights-argument-builder, чтобы построить конституционный аргумент для жалобы в КС РФ."
+  short_description: "Собрать principal и reserve аргументы жалобы"
+  default_prompt: "Используй $ksrf-rights-argument-builder, чтобы превратить утверждённый портфель в основной и резервный разделы жалобы в КС РФ."
