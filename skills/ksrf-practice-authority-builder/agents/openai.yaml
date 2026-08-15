@@ -1,0 +1,7 @@
+interface:
+  display_name: "Опора на практику для жалобы в КС РФ"
+  short_description: "Проверяемая практика в аргументации КС РФ"
+  default_prompt: "Используй $ksrf-practice-authority-builder, чтобы найти, проверить и органично встроить практику высших судов в аргументацию жалобы в КС РФ."
+
+policy:
+  allow_implicit_invocation: true

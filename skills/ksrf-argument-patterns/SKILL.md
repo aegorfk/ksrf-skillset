@@ -42,8 +42,8 @@ Pattern match становится опорой только после ручн
    - последующее изменение регулирования.
 5. Запиши candidate finding по контракту `../ksrf-explore-arguments/references/artifact-contracts.md` с relation `supports`, `weakens`, `distinguishes` или `blocks`.
 6. Ищи минимум один контрпример или более узкую позицию для сильной аналогии. Лексическое, векторное или графовое сходство не доказывает переносимость.
-7. Если гипотезе нужна доктринальная методика, выбери в корпусе автора по маршруту, открой указанную работу и запиши точный тезис, locator, функцию, предел переноса и контраргумент. Не вставляй фамилию ради усиления риторики.
-8. Передай findings обратно в argument ledger. Не собирай обязательный пакет `основной + усиливающий + сохраняющий + remedy`, если структура дела требует иного портфеля.
+7. Если гипотезе нужна доктринальная методика, выбери в корпусе автора по маршруту, открой указанную работу и запиши точный тезис, locator, функцию, предел переноса и контраргумент. Для критики позиции высшего суда проверь доктринальную память, системные связи, право/привилегию и усмотрение/доказываемый факт. Не вставляй фамилию ради усиления риторики.
+8. Передай findings обратно в argument ledger. Если практика высших судов исследуется через CasusLegal, маршрутизируй проверенные кандидаты через `ksrf-practice-authority-builder`: сохрани тот же relation, добавь authority role, source status, transfer limit и adverse pass. Не собирай обязательный пакет `основной + усиливающий + сохраняющий + remedy`, если структура дела требует иного портфеля.
 
 ## Семейства как поисковые seeds
 
@@ -59,8 +59,10 @@ Pattern match становится опорой только после ручн
 - `references/language-formulas.md` и `argument-package-builder.md` — drafting options после выбора портфеля.
 - `references/constitutional-graph.md`, `constitutional_graph.json`, `position-retrieval-architecture.md` — candidate generation и обход связей.
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — обязательный автономный baseline по маршруту, допустимости, drafting, filing и исполнению.
+- `../ksrf-practice-authority-builder/SKILL.md` — превращение CasusLegal findings в проверяемый authority ledger и блоки аргумента.
 - `references/complaint-methodology-sources.md` — provenance и журнал источников обновления; для runtime-работы не требуется.
 - `references/constitutionalist-authority-corpus.md` и `constitutionalist-authority-corpus.json` — широкий корпус авторов и работ с маршрутами, статусом извлечения и предохранителями.
+- `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` — полнотекстовые карточки двенадцати статей СКО и оставшийся разведочный lead из тех же номеров.
 
 ## Инструменты
 

@@ -73,3 +73,4 @@ description: Подготовить или оценить ходатайство
 - Читай `../ksrf-complaint-cycle/references/ksrf-live-argument-patterns.md` для аргумента через неопределенность, систему норм и последствия.
 - Читай `../ksrf-argument-patterns/references/pattern-matrix.md` и `../ksrf-argument-patterns/references/automation-backlog.md` для корпусных паттернов и автоматических проверок.
 - Читай `../ksrf-complaint-cycle/references/science-support-pack.md`, когда нужны законодательные факты, эмпирические данные или экспертная поддержка; проверяй их происхождение и дату.
+- Читай `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` для полнотекстовой методики косвенного доступа и разграничения ходатайства стороны, запроса суда и прямой жалобы.

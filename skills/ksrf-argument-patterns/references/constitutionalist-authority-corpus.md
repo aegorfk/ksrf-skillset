@@ -1,6 +1,6 @@
 # Корпус авторитетов по конституционному праву и правосудию
 
-Срез на `2026-08-09`. Реестр охватывает **1652** нормализованных записей и **4163** привязок к работам.
+Срез на `2026-08-14`. Реестр охватывает **1652** нормализованных записей и **4178** привязок к работам.
 
 Это карта поиска и извлечения методологии, а не рейтинг учёных и не самостоятельный источник права. Конституция РФ, официальный акт КС РФ, применённая норма и материалы дела всегда имеют приоритет. Запись уровня `discovery_only` нельзя называть авторитетом без проверки личности, публикации и тезиса.
 
@@ -16,10 +16,10 @@
 
 | Статус | Число | Значение |
 | --- | ---: | --- |
-| `method_integrated` | 13 | метод извлечён и встроен |
+| `method_integrated` | 20 | метод извлечён и встроен |
 | `full_text_available` | 0 | полный текст доступен; метод ожидает извлечения |
-| `triangulated_academic` | 121 | автор подтверждён несколькими академическими слоями |
-| `academic_indexed` | 1052 | автор найден в официальном академическом указателе |
+| `triangulated_academic` | 116 | автор подтверждён несколькими академическими слоями |
+| `academic_indexed` | 1050 | автор найден в официальном академическом указателе |
 | `bibliographic_lead` | 215 | библиографический след у Блохина |
 | `discovery_only` | 251 | разведочный кандидат; авторитетность не подтверждена |
 
@@ -28,14 +28,21 @@
 | Автор | Роль | Рабочие методы | Предохранитель |
 | --- | --- | --- | --- |
 | Mark van Hoecke | коммуникативная теория права | право как коммуникация | теория объясняет механизм, но не заменяет российский нормативный якорь |
-| Алдар Мункожаргалович Чирнинов | конституционное доказывание и аргументация | паспорт конституционного доказательства; аргумент к последствиям | не подменять нормативный дефект повторной оценкой индивидуальных фактов дела; отделять доказанные последствия от гипотез и избегать недоказанного скользкого склона |
+| Алдар Мункожаргалович Чирнинов | конституционное доказывание и аргументация | паспорт конституционного доказательства; аргумент к последствиям; три поля и четыре функции конституционной аргументации; состязательная карта и тест названия на функцию; таксономия фактов и срок конституционной годности; функциональный тест статуса и реальности альтернативного средства | не подменять нормативный дефект повторной оценкой индивидуальных фактов дела; отделять доказанные последствия от гипотез и избегать недоказанного скользкого склона; убедительность не компенсирует недостоверность, отсутствие нормативного носителя или пустое причинное звено; расхождение позиций поддерживает неопределённость, но не заменяет текст, применение и влияние на исход; эмпирика оценивает фактическую основу нормативного решения и не превращает КС РФ в суд повторного установления индивидуальных фактов; не использовать административный контроль или обжалование другого акта как эквивалентное средство без совпадения предмета и восстановительного эффекта |
 | Алексей Владимирович Асосков | логика нормативных коллизий | карта нормативной коллизии | использовать узко; частноправовая коллизионная доктрина не является конституционным тестом |
-| Алексей Вячеславович Должиков | соразмерность в конституционном правосудии | структурированный тест соразмерности | каждая ступень требует фактического или нормативного крючка; баланс не является арифметикой |
+| Алексей Вячеславович Должиков | соразмерность в конституционном правосудии | структурированный тест соразмерности; трёхуровневый тест обоснованности публичного решения | каждая ступень требует фактического или нормативного крючка; баланс не является арифметикой; не подменять законность целесообразностью и не превращать единично слабую мотивировку в нормативный дефект без носителя |
+| Алексей Нечаев | граница истолкования и скрытого правотворчества | downstream simulation конституционного истолкования | отраслевая критика одного решения является stress-test, а не самостоятельным доказательством неконституционности |
+| Анна Васильева | обоснованность публичных решений | трёхуровневый тест обоснованности публичного решения | не подменять орган управления и не превращать проверку обоснованности в проверку целесообразности |
 | Арина Викторовна Дмитриева | эмпирика отбора дел и юридическое письмо | модель секретариатского фильтра; проверка читаемости формулы | эмпирическое наблюдение не является процессуальной нормой и не гарантирует принятие жалобы; простота письма не лечит отсутствие допустимости или нормативного якоря |
+| Виктор Балакаев | конфигурация конституционно-судебных предписаний законодателю | матрица конфигурации предписания и срока | не предлагать точный текст при нескольких допустимых решениях и не подменять законодателя |
 | Гадис Абдуллаевич Гаджиев | конституционная онтология и правовая определённость | различение текста, правового концепта и правовой реальности | не смешивать юридический, эмпирический и экономический уровни без явного перехода |
 | Дмитрий Геннадьевич Шустров | принципы конституционного толкования | чек-лист результата толкования | предлагаемый смысл должен оставаться в допустимых пределах текста и институциональной роли суда |
+| Дмитрий Дедов | структурная целостность правовых позиций высших судов | аудит структурной целостности правовой позиции; разделение усмотрения и доказываемого фактического основания | критиковать объективные пропуски и несовместимые правила, а не приписывать суду скрытую цель без доказательств; не просить КС РФ установить факт; нужен нормативный носитель смешения факта, бремени и исключения контроля |
 | Дмитрий Дмитриевич Коновалов | конституционная ответственность государства | ответственность как обязанность и accountability | до цитирования сверять точный тезис с авторефератом |
-| Ольга Николаевна Кряжкова | правовые позиции и amicus curiae | тест полезности amicus/expert material | amicus не нейтрален по умолчанию, не гарантирует влияние и не заменяет первичный источник |
+| Елена Александровна Сорокина | диалоговые и структурные средства защиты социально-экономических прав | карточка конструктивного взаимодействия; тест институциональных слепых пятен | южноафриканская модель не создаёт полномочий КС РФ; каждый элемент требует российского нормативного якоря и компетентного адресата; участие не заменяет материальный стандарт права и не считается реальным по одному факту консультации |
+| Елена Владимировна Гриценко | доступ к конституционному правосудию и институциональный фильтр | разделение допустимости, отбора и устранимости дефекта | немецкие критерии не являются российским правом; действующие условия проверять официально |
+| Ирина Дудко | косвенный доступ и исполнение решений КС РФ | карта косвенного доступа через запрос суда; многослойный аудит исполнения | не смешивать ходатайство стороны, запрос суда и прямую жалобу; не обещать автоматический пересмотр и не превращать специальную компенсацию в обычный деликт |
+| Ольга Николаевна Кряжкова | правовые позиции и amicus curiae | тест полезности amicus/expert material; карта косвенного доступа через запрос суда | amicus не нейтрален по умолчанию, не гарантирует влияние и не заменяет первичный источник; ходатайство стороны не создаёт безусловного права на запрос; актуальные условия подтверждать по официальному праву |
 | Павел Дмитриевич Блохин | российская методология конституционного нормоконтроля | лестница выбора метода контроля; карточка и перенос правовой позиции | метод не заменяет допустимость и точную проверку официальной позиции КС РФ; не переносить общий тезис без совпадения нормативного механизма и remedy |
 | Светлана Юрьевна Филиппова | коммуникативный и инструментальный подход | проверка поведенческого эффекта нормы | инструментальный эффект должен подтверждаться, а не предполагаться |
 | Сергей Анатольевич Манжосов | конституционный прецедент | трёхосевой анализ прецедента | повторяемость исхода ещё не доказывает устойчивость юридического правила |
@@ -60,7 +67,6 @@
 | Владимир Алексеевич Кряжков | `triangulated_academic` | правовые позиции, их действие и институциональная практика КС РФ | 8 |
 | Талия Ярулловна Хабриева | `bibliographic_lead` | взаимодействие правовых систем и конституционная методология | 5 |
 | Михаил Митюков | `triangulated_academic` | история, процедура и институциональная эволюция конституционного контроля | 9 |
-| Елена Владимировна Гриценко | `triangulated_academic` | доступ к правосудию, сравнительный контроль и публичная власть | 21 |
 | Александр Кокотов | `triangulated_academic` | правовые позиции и российская теория конституционного правосудия | 4 |
 | Александр Постников | `triangulated_academic` | конституционный контроль, демократия и публично-правовые институты | 3 |
 | Евгений Всеволодович Тарибо | `bibliographic_lead` | эволюция нормоконтроля, решения и последствия конституционного контроля | 2 |
@@ -84,14 +90,14 @@
 
 | Маршрут | Что искать | Авторов с совпадением |
 | --- | --- | ---: |
-| `admissibility_and_route` | допустимость, доступ к КС РФ и граница сверхинстанционности | 63 |
-| `interpretation_and_positions` | толкование, правовые позиции, прецедент и перенос правила | 108 |
-| `proportionality_equality_dignity` | соразмерность, равенство, достоинство и интенсивность контроля | 71 |
-| `evidence_empirics_consequences` | доказывание, законодательные факты, эмпирика и последствия | 81 |
-| `remedy_execution_review` | средство защиты, исполнение, пересмотр и действие решения | 52 |
-| `institutional_design_and_legitimacy` | институциональный дизайн, компетенция и легитимность контроля | 116 |
+| `admissibility_and_route` | допустимость, доступ к КС РФ и граница сверхинстанционности | 65 |
+| `interpretation_and_positions` | толкование, правовые позиции, прецедент и перенос правила | 109 |
+| `proportionality_equality_dignity` | соразмерность, равенство, достоинство и интенсивность контроля | 72 |
+| `evidence_empirics_consequences` | доказывание, законодательные факты, эмпирика и последствия | 83 |
+| `remedy_execution_review` | средство защиты, исполнение, пересмотр и действие решения | 55 |
+| `institutional_design_and_legitimacy` | институциональный дизайн, компетенция и легитимность контроля | 121 |
 | `comparative_and_international` | сравнительное право и международные стандарты прав человека | 512 |
-| `certainty_communication_writing` | правовая определённость, аргументация, коммуникация и письмо | 59 |
+| `certainty_communication_writing` | правовая определённость, аргументация, коммуникация и письмо | 60 |
 | `identity_sovereignty_systems` | конституционная идентичность, суверенитет и взаимодействие систем | 78 |
 | `social_economic_and_property_rights` | социальные, трудовые, налоговые и имущественные права | 128 |
 | `democracy_federalism_public_power` | демократия, федерализм и организация публичной власти | 242 |
@@ -291,7 +297,7 @@
 - **Алана Рудольфовна Сиукаева** — `academic_indexed`; comparative_and_international, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
 - **Аласдэр Робертс** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Албена Азманова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
-- **Алдар Мункожаргалович Чирнинов** — `method_integrated`; certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 15.
+- **Алдар Мункожаргалович Чирнинов** — `method_integrated`; admissibility_and_route, certainty_communication_writing, comparative_and_international, evidence_empirics_consequences; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 19.
 - **Александра Алексеевна Троицкая** — `triangulated_academic`; admissibility_and_route, bioethics_privacy_technology, certainty_communication_writing, comparative_and_international; источники: blokhin_bibliography, mp_index, sko_index; работ: 20.
 - **Александра Бутко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Александра Григорьевна Ивлиева** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index, sko_index; работ: 3.
@@ -367,7 +373,7 @@
 - **Алексей Владимирович Петренко** — `academic_indexed`; admissibility_and_route; источники: mp_index; работ: 2; нужна ручная сверка.
 - **Алексей Владимирович Шиянов** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Алексей Волос** — `discovery_only`; remedy_execution_review; источники: zakon_discovery; работ: 2; нужна ручная сверка.
-- **Алексей Вячеславович Должиков** — `method_integrated`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography, curated_method, local_full_text, mp_index, sko_index; работ: 18.
+- **Алексей Вячеславович Должиков** — `method_integrated`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, interpretation_and_positions; источники: blokhin_bibliography, curated_method, local_full_text, mp_index, sko_index; работ: 19.
 - **Алексей Голенко** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
 - **Алексей Грибанов** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
 - **Алексей Гринько** — `academic_indexed`; comparative_and_international, evidence_empirics_consequences, identity_sovereignty_systems, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
@@ -379,7 +385,7 @@
 - **Алексей Кожевников** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 2; нужна ручная сверка.
 - **Алексей Лавров** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Алексей Малиновский** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
-- **Алексей Нечаев** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, interpretation_and_positions; источники: blokhin_bibliography, sko_index; работ: 2.
+- **Алексей Нечаев** — `method_integrated`; certainty_communication_writing, comparative_and_international, interpretation_and_positions, remedy_execution_review; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 3.
 - **Алексей Николаевич Лаптев** — `triangulated_academic`; comparative_and_international, interpretation_and_positions; источники: mp_index, sko_index; работ: 2.
 - **Алексей Павлушкин** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Алексей Петров** — `triangulated_academic`; comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy, interpretation_and_positions; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 13.
@@ -474,7 +480,7 @@
 - **Анна Александровна Швец** — `academic_indexed`; comparative_and_international, interpretation_and_positions; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Анна-Беттина Кайзер** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Анна Валентиновна Деменева** — `triangulated_academic`; comparative_and_international, evidence_empirics_consequences, remedy_execution_review; источники: mp_index, sko_index; работ: 4.
-- **Анна Васильева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 3; нужна ручная сверка.
+- **Анна Васильева** — `method_integrated`; certainty_communication_writing, evidence_empirics_consequences, proportionality_equality_dignity; источники: curated_method, local_full_text, sko_index; работ: 4.
 - **Анна Захарова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 2; нужна ручная сверка.
 - **Анна Игоревна Матвеева** — `academic_indexed`; certainty_communication_writing, remedy_execution_review; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Анна Малышева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
@@ -503,7 +509,7 @@
 - **Антье Химмельрайх** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
 - **А Петерс** — `bibliographic_lead`; proportionality_equality_dignity; источники: blokhin_bibliography; работ: 1.
 - **Арбахан Магомедов** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 6; нужна ручная сверка.
-- **Арина Викторовна Дмитриева** — `method_integrated`; admissibility_and_route, certainty_communication_writing, institutional_design_and_legitimacy; источники: curated_method, local_full_text, sko_index; работ: 2.
+- **Арина Викторовна Дмитриева** — `method_integrated`; admissibility_and_route, certainty_communication_writing, institutional_design_and_legitimacy; источники: curated_method, local_full_text, sko_index; работ: 3.
 - **Арина Макарова** — `discovery_only`; comparative_and_international; источники: zakon_discovery; работ: 1; нужна ручная сверка.
 - **Арина Сергеевна Андросова** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Ариста Мария Циртаутас** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
@@ -614,7 +620,7 @@
 - **Видар Штрёмме** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 2; нужна ручная сверка.
 - **Визар Морина** — `academic_indexed`; comparative_and_international, identity_sovereignty_systems; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Вики С. Джексон** — `triangulated_academic`; democracy_federalism_public_power, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index; работ: 3.
-- **Виктор Балакаев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index, zakon_discovery; работ: 3; нужна ручная сверка.
+- **Виктор Балакаев** — `method_integrated`; institutional_design_and_legitimacy, interpretation_and_positions, remedy_execution_review; источники: curated_method, local_full_text, sko_index, zakon_discovery; работ: 4.
 - **Виктор Демидов** — `academic_indexed`; social_economic_and_property_rights; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Виктор Жуйков** — `academic_indexed`; institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Виктория Вискулова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
@@ -832,7 +838,7 @@
 - **Дмитрий Григорьев** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 2; нужна ручная сверка.
 - **Дмитрий Гурин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Дмитрий Далевский** — `discovery_only`; маршрут ещё не размечен; источники: zakon_discovery; работ: 1; нужна ручная сверка.
-- **Дмитрий Дедов** — `triangulated_academic`; certainty_communication_writing, comparative_and_international, interpretation_and_positions, proportionality_equality_dignity; источники: blokhin_bibliography, sko_index, zakon_discovery; работ: 6.
+- **Дмитрий Дедов** — `method_integrated`; certainty_communication_writing, comparative_and_international, evidence_empirics_consequences, institutional_design_and_legitimacy; источники: blokhin_bibliography, curated_method, local_full_text, sko_index, zakon_discovery; работ: 7.
 - **Дмитрий Дмитриевич Коновалов** — `method_integrated`; institutional_design_and_legitimacy, remedy_execution_review; источники: curated_method, local_full_text; работ: 1.
 - **Дмитрий Киреев** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Дмитрий Леонидович Давыденко** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index, zakon_discovery; работ: 2; нужна ручная сверка.
@@ -905,7 +911,7 @@
 - **Екатерина Тарасова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Екатерина Ульянова** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Екатерина Шехурдина** — `academic_indexed`; democracy_federalism_public_power; источники: sko_index; работ: 1; нужна ручная сверка.
-- **Елена Александровна Сорокина** — `triangulated_academic`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review, social_economic_and_property_rights; источники: mp_index, sko_index; работ: 5.
+- **Елена Александровна Сорокина** — `method_integrated`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review, social_economic_and_property_rights; источники: curated_method, local_full_text, mp_index, sko_index; работ: 6.
 - **Елена Анатольевна Хабарова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
 - **Елена Андреевна Мурашко** — `academic_indexed`; маршрут ещё не размечен; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Елена Б. Абросимова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 12; нужна ручная сверка.
@@ -914,7 +920,7 @@
 - **Елена Бурдина** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Елена Викторовна Мохова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Елена Владимировна Биллебру** — `academic_indexed`; admissibility_and_route, comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
-- **Елена Владимировна Гриценко** — `triangulated_academic`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power; источники: blokhin_bibliography, sko_index; работ: 21.
+- **Елена Владимировна Гриценко** — `method_integrated`; admissibility_and_route, comparative_and_international, democracy_federalism_public_power, institutional_design_and_legitimacy; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 22.
 - **Елена Владимировна Тимошина** — `bibliographic_lead`; certainty_communication_writing, interpretation_and_positions; источники: blokhin_bibliography; работ: 2.
 - **Елена Вячеславовна Сыченко** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
 - **Елена Гладун** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 1; нужна ручная сверка.
@@ -1037,7 +1043,7 @@
 - **Ирина Галяева** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 2; нужна ручная сверка.
 - **Ирина Длин** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Ирина Дмитриевна Сергеева** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 1; нужна ручная сверка.
-- **Ирина Дудко** — `triangulated_academic`; remedy_execution_review; источники: blokhin_bibliography, sko_index; работ: 5.
+- **Ирина Дудко** — `method_integrated`; admissibility_and_route, institutional_design_and_legitimacy, remedy_execution_review; источники: blokhin_bibliography, curated_method, local_full_text, sko_index; работ: 7.
 - **Ирина Калинина** — `academic_indexed`; democracy_federalism_public_power, remedy_execution_review; источники: sko_index; работ: 3; нужна ручная сверка.
 - **Ирина Карасёва** — `academic_indexed`; comparative_and_international; источники: sko_index; работ: 3; нужна ручная сверка.
 - **Ирина Кененова** — `academic_indexed`; certainty_communication_writing, comparative_and_international; источники: sko_index; работ: 4; нужна ручная сверка.
@@ -1432,7 +1438,7 @@
 - **Ольга Киселёва** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 1; нужна ручная сверка.
 - **Ольга Комшукова** — `academic_indexed`; certainty_communication_writing; источники: sko_index; работ: 2; нужна ручная сверка.
 - **Ольга Кузнецова** — `academic_indexed`; маршрут ещё не размечен; источники: sko_index; работ: 4; нужна ручная сверка.
-- **Ольга Николаевна Кряжкова** — `method_integrated`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, institutional_design_and_legitimacy; источники: blokhin_bibliography, curated_method, local_full_text, sko_index, zakon_discovery; работ: 23.
+- **Ольга Николаевна Кряжкова** — `method_integrated`; comparative_and_international, democracy_federalism_public_power, evidence_empirics_consequences, institutional_design_and_legitimacy; источники: blokhin_bibliography, curated_method, local_full_text, sko_index, zakon_discovery; работ: 24.
 - **Ольга Плешанова** — `discovery_only`; comparative_and_international, democracy_federalism_public_power, remedy_execution_review; источники: zakon_discovery; работ: 19; нужна ручная сверка.
 - **Ольга Сергеевна Боклан** — `academic_indexed`; comparative_and_international, institutional_design_and_legitimacy, remedy_execution_review; источники: mp_index; работ: 2; нужна ручная сверка.
 - **Ольга Сергеевна Магомедова** — `academic_indexed`; comparative_and_international; источники: mp_index; работ: 2; нужна ручная сверка.
