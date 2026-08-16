@@ -37,12 +37,29 @@ CASE_RE = re.compile(
     re.IGNORECASE,
 )
 LEGAL_REF_RE = re.compile(
-    r"\b(?:(?:п\.|пункт(?:а|ом)?|ч\.|част[ьи]|абз\.|ст\.|стать[ьяеи])\s*"
-    r"[\d.]+(?:\s*[-–]\s*[\d.]+)?\s*){1,4}"
-    r"(?:Конституци[ияи]\s+РФ|ФКЗ|ГК\s+РФ|ГПК\s+РФ|АПК\s+РФ|КАС\s+РФ|УПК\s+РФ|КоАП\s+РФ|НК\s+РФ|ТК\s+РФ|УК\s+РФ|[Фф]едеральн\w*\s+закона|Закона\s+N|Закона\s+№)?",
+    r"\b(?:(?:п\.|пункт(?:а|ом|е|у)?|ч\.|част(?:ь|и|ью|ей|е)|абз\.|абзац(?:а|ем|е)?|ст\.|стать(?:я|и|е|ю|ей|ёй))\s*"
+    r"[\d.]+(?:\s*[-–]\s*[\d.]+)?\s*){1,4}",
     re.IGNORECASE,
 )
-CONSTITUTION_RE = re.compile(r"(?:ст\.|стать[ьяеи])\s*\d+(?:\.\d+)?\s+Конституци[ияи]\s+(?:РФ|Российской Федерации)", re.IGNORECASE)
+NORMATIVE_INSTRUMENT_TAIL_RE = re.compile(
+    r"^\s*(?P<instrument>"
+    r"Конституци[ияи]\s+(?:РФ|Российской Федерации)"
+    r"|(?:ГК|ГПК|АПК|КАС|УПК|КоАП|НК|ТК|УК|ЖК|ЗК|СК|БК|ЛК|УИК|ГрК|ВК|КТМ)\s+РФ"
+    r"|(?:[А-ЯЁа-яё-]+\s+){1,5}кодекс(?:а|ом|у|е)?\s+(?:РФ|Российской Федерации)"
+    r"|кодекс(?:а|ом|у|е)?(?:\s+[А-ЯЁа-яё-]+){1,5}\s+(?:РФ|Российской Федерации)"
+    r"|(?:ФКЗ|[Фф]едеральн\w*\s+конституционн\w*\s+закон\w*)"
+    r"(?:\s+от\s+\d{1,2}[./-]\d{1,2}[./-]\d{2,4})?"
+    r"(?:\s*(?:№|N)\s*[0-9А-ЯA-ZЁа-яa-z./-]+)?"
+    r"|[Фф]едеральн\w*\s+закон\w*"
+    r"(?:\s+от\s+\d{1,2}[./-]\d{1,2}[./-]\d{2,4})?"
+    r"(?:\s*(?:№|N)\s*[0-9А-ЯA-ZЁа-яa-z./-]+)?"
+    r"|[Зз]акон\w*\s+(?:РФ|Российской Федерации)"
+    r"(?:\s+от\s+\d{1,2}[./-]\d{1,2}[./-]\d{2,4})?"
+    r"(?:\s*(?:№|N)\s*[0-9А-ЯA-ZЁа-яa-z./-]+)?"
+    r")",
+    re.IGNORECASE,
+)
+CONSTITUTION_RE = re.compile(r"(?:ст\.|стать(?:я|и|е|ю|ей|ёй))\s*\d+(?:\.\d+)?\s+Конституци[ияи]\s+(?:РФ|Российской Федерации)", re.IGNORECASE)
 CONSTITUTION_LIST_RE = re.compile(
     r"Конституци[ияи]\s+Российской\s+Федерации,?\s*(?:е[её]\s+)?"
     r"стать[ьяеиюм]+\s+([0-9,\s().частией-]{1,120})",
@@ -108,6 +125,153 @@ TEST_PATTERNS = {
         "missing": ["кто должен уведомить", "срок для позиции", "последствие отсутствия уведомления"],
     },
 }
+EVENT_PATTERNS = [
+    ("filing", re.compile(r"(?:подал[аи]?|подан[аоы]?|направил[аи]?|направлен[аоы]?|поступил[аи]?).{0,90}(?:жалоб|заявлени|ходатайств|представлени)|(?:жалоб|заявлени|ходатайств).{0,90}(?:подал[аи]?|подан[аоы]?|направил[аи]?|направлен[аоы]?|поступил[аи]?)", re.IGNORECASE | re.DOTALL)),
+    ("court_decision", re.compile(r"(?:суд|судья|коллеги|президиум).{0,100}(?:решил|определил|постановил|отказал|отказано|удовлетворил|удовлетворено|оставил|оставлено|взыскал|взыскано)|(?:решени[ея]|решением|определени[ея]|определением|постановлени[ея]|постановлением|приговор).{0,100}(?:вынесен|принят|изготовлен|отказано|удовлетворено|оставлено|взыскано)", re.IGNORECASE | re.DOTALL)),
+    ("hearing", re.compile(r"(?:судебн\w+\s+заседани|рассмотрени[ея]\s+дела|слушани[ея]\s+дела)", re.IGNORECASE)),
+    ("entry_into_force", re.compile(r"вступил[оа]?\s+в\s+законн\w+\s+сил", re.IGNORECASE)),
+    ("service_or_receipt", re.compile(r"(?:получил[аи]?|вручен[ао]?|направлен[ао]?).{0,70}(?:копи|уведомлени|решени|определени)|(?:копи|уведомлени).{0,70}(?:получил[аи]?|вручен[ао]?)", re.IGNORECASE | re.DOTALL)),
+    ("enforcement", re.compile(r"(?:исполнительн\w+\s+производств|исполнительн\w+\s+лист|пристав|исполнени[ея]\s+(?:решени|судебн))", re.IGNORECASE)),
+]
+ACT_TITLE_DATE_PREFIX_RE = re.compile(
+    r"(?:апелляционн\w+\s+|кассационн\w+\s+)?"
+    r"(?:решени(?:е|я|ем)|определени(?:е|я|ем)|постановлени(?:е|я|ем)|приговор)"
+    r"\s*(?:суда\s*)?(?:от\s*)?$",
+    re.IGNORECASE,
+)
+RIGHT_HARM_PATTERNS = [
+    {
+        "code": "effective_judicial_protection",
+        "right": "право на государственную и судебную защиту",
+        "constitutional_articles": ["статья 45 Конституции РФ", "статья 46 Конституции РФ"],
+        "pattern": re.compile(r"неисполн\w+.{0,100}(?:решени|судебн)|(?:отказ|невозможн|лишен).{0,100}(?:судебн\w+\s+защит|обжалован|исполнени)|эффективн\w+\s+(?:судебн\w+\s+защит|средств)|судебн\w+\s+защит\w+.{0,50}неэффектив", re.IGNORECASE | re.DOTALL),
+        "consequence": "судебная защита или исполнение судебного акта могут оказаться недоступными либо неэффективными",
+    },
+    {
+        "code": "equality",
+        "right": "равенство и запрет необоснованной дифференциации",
+        "constitutional_articles": ["статья 19 Конституции РФ"],
+        "pattern": re.compile(r"равенств|дискримин|неравн|различи[ея].{0,90}(?:прав|положени|гаранти)|одинаков\w+.{0,70}(?:ситуац|положени)", re.IGNORECASE | re.DOTALL),
+        "consequence": "сопоставимые лица могут получать различный объём прав или гарантий без достаточного основания",
+    },
+    {
+        "code": "dignity",
+        "right": "достоинство личности",
+        "constitutional_articles": ["статья 21 Конституции РФ"],
+        "pattern": re.compile(r"достоинств|унижающ|бесчеловечн|объективац", re.IGNORECASE),
+        "consequence": "лицо может быть поставлено в положение, несовместимое с уважением достоинства",
+    },
+    {
+        "code": "property",
+        "right": "право собственности",
+        "constitutional_articles": ["статья 35 Конституции РФ"],
+        "pattern": re.compile(r"лишени[ея]\s+(?:имуществ|собственност)|изъят|взыскани[ея].{0,80}(?:имуществ|денежн)|право\s+собственност", re.IGNORECASE | re.DOTALL),
+        "consequence": "имущество может быть изъято, обременено или утрачено вследствие спорного нормативного механизма",
+    },
+    {
+        "code": "housing",
+        "right": "право на жилище",
+        "constitutional_articles": ["статья 40 Конституции РФ"],
+        "pattern": re.compile(r"единственн\w+\s+жиль|выселен|лишени[ея]\s+жилищ|право\s+на\s+жилищ|жилое\s+помещени", re.IGNORECASE),
+        "consequence": "лицо может утратить жилище или возможность пользоваться им",
+    },
+    {
+        "code": "labor",
+        "right": "право на труд и связанные с ним гарантии",
+        "constitutional_articles": ["статья 37 Конституции РФ"],
+        "pattern": re.compile(r"трудов\w+\s+(?:прав|отношени|договор|спор)|работник|работодател|увольнен|заработн\w+\s+плат", re.IGNORECASE),
+        "consequence": "трудовая гарантия может остаться нереализованной либо получить меньшую защиту",
+    },
+    {
+        "code": "privacy_and_personal_data",
+        "right": "неприкосновенность частной жизни и защита персональной информации",
+        "constitutional_articles": ["статья 23 Конституции РФ", "статья 24 Конституции РФ"],
+        "pattern": re.compile(r"частн\w+\s+жизн|персональн\w+\s+данн|тайн\w+\s+(?:переписк|сообщени)|конфиденциальн", re.IGNORECASE),
+        "consequence": "сведения о частной жизни или персональные данные могут стать доступными либо использоваться без достаточной гарантии",
+    },
+    {
+        "code": "freedom_of_expression",
+        "right": "свобода мысли и слова",
+        "constitutional_articles": ["статья 29 Конституции РФ"],
+        "pattern": re.compile(r"свобод\w+\s+(?:слов|выражени)|распространени[ея]\s+информац|критик\w+\s+(?:власт|должност)|цензур", re.IGNORECASE),
+        "consequence": "сообщение информации или критика могут повлечь запрет либо ответственность",
+    },
+    {
+        "code": "petition",
+        "right": "право на обращение в государственные органы",
+        "constitutional_articles": ["статья 33 Конституции РФ"],
+        "pattern": re.compile(r"обращени[ея]\s+(?:граждан|в\s+(?:орган|администрац))|ответ\w+\s+на\s+обращени|59-ФЗ", re.IGNORECASE),
+        "consequence": "адресное обращение может не получить предусмотренного законом рассмотрения или повлечь неблагоприятный эффект",
+    },
+    {
+        "code": "social_security",
+        "right": "право на социальное обеспечение",
+        "constitutional_articles": ["статья 39 Конституции РФ"],
+        "pattern": re.compile(r"пенси|пособи|социальн\w+\s+(?:обеспечени|выплат|поддержк)|инвалидност", re.IGNORECASE),
+        "consequence": "социальная выплата или гарантия может быть недоступна либо уменьшена",
+    },
+    {
+        "code": "health_protection",
+        "right": "право на охрану здоровья и медицинскую помощь",
+        "constitutional_articles": ["статья 41 Конституции РФ"],
+        "pattern": re.compile(r"охран\w+\s+здоров|медицинск\w+\s+помощ|лечени|заболевани", re.IGNORECASE),
+        "consequence": "медицинская помощь или иная гарантия охраны здоровья может оказаться недоступной",
+    },
+]
+RIGHT_HARM_ADVERSE_PATTERNS = {
+    "effective_judicial_protection": re.compile(
+        r"не\s*исполн|отказ.{0,80}(?:защит|обжал|исполн)|невозмож.{0,80}(?:защит|обжал|исполн)|"
+        r"неэффектив.{0,80}(?:защит|средств|исполн)|(?:защит|средств|исполн).{0,80}неэффектив|"
+        r"лишен.{0,80}(?:защит|обжал)|недоступ.{0,80}(?:суд|защит|обжал)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "equality": re.compile(
+        r"дискримин|неравн|необоснован.{0,60}(?:различ|дифференц)|(?:различ|дифференц).{0,60}(?:меньш|хуже|лишен|исключ)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "dignity": re.compile(r"унижающ|бесчеловеч|объективац|умален.{0,40}достоинств", re.IGNORECASE | re.DOTALL),
+    "property": re.compile(
+        r"лишен.{0,60}(?:имуществ|собствен)|изъят|взыскан.{0,60}(?:имуществ|денежн)|"
+        r"утрат.{0,60}(?:имуществ|собствен)|обремен.{0,60}(?:имуществ|собствен)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "housing": re.compile(
+        r"выселен|лишен.{0,50}жилищ|утрат.{0,50}(?:жиль|жилое)|обращен.{0,80}взыскан.{0,80}(?:жиль|жилое)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "labor": re.compile(
+        r"увольнен|невыплат|задержк.{0,50}(?:зарплат|заработ)|отказ.{0,60}(?:работ|труд)|"
+        r"не\s*исполн.{0,60}(?:труд|работодател)|наруш.{0,60}труд|(?:трудов|работник|гарант).{0,60}(?:лишен|меньш.{0,20}гарант|нереализ)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "privacy_and_personal_data": re.compile(
+        r"разглаш|распростран.{0,60}(?:персональн|частн|тайн)|доступ.{0,60}(?:неопредел|посторон)|"
+        r"без\s+(?:соглас|разрешен).{0,60}(?:данн|сведен)|наруш.{0,60}(?:частн|конфиденц|тайн)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "freedom_of_expression": re.compile(
+        r"запрет.{0,60}(?:слов|выраж|информац|публи)|ответствен.{0,60}(?:слов|выраж|информац|публи|критик)|"
+        r"санкц.{0,60}(?:слов|выраж|информац|публи|критик)|преслед.{0,60}(?:слов|критик|публи)|"
+        r"блокир|удален.{0,60}(?:публикац|информац|сообщен)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "petition": re.compile(
+        r"не\s+рассмотр.{0,60}обращ|не\s+ответ.{0,60}обращ|отказ.{0,60}(?:приня|рассмотр).{0,60}обращ|"
+        r"обращ.{0,60}(?:не\s+рассмотр|без\s+ответ|ответ\s+не\s+дан)|"
+        r"ответствен.{0,60}(?:за|из-за).{0,40}обращ|разглаш.{0,60}обращ",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "social_security": re.compile(
+        r"отказ.{0,60}(?:пенси|пособ|выплат)|лишен.{0,60}(?:пенси|пособ|выплат)|"
+        r"уменьш.{0,60}(?:пенси|пособ|выплат)|не\s+назнач.{0,60}(?:пенси|пособ|выплат)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "health_protection": re.compile(
+        r"отказ.{0,60}(?:медицин|лечен)|неоказ.{0,60}(?:помощ|лечен)|недоступ.{0,60}(?:помощ|лечен)|"
+        r"вред.{0,60}здоров|ухудш.{0,60}здоров",
+        re.IGNORECASE | re.DOTALL,
+    ),
+}
 ATTACHMENT_PATTERNS = {
     "судебный акт": re.compile(r"решени[ея]|определени[ея]|постановлени[ея]|приговор", re.IGNORECASE),
     "жалоба или ходатайство": re.compile(r"жалоб|ходатайств|заявлени", re.IGNORECASE),
@@ -119,6 +283,7 @@ ATTACHMENT_PATTERNS = {
     "нормативный акт": re.compile(r"закон|кодекс|фкз|норматив", re.IGNORECASE),
 }
 DOCUMENT_TYPE_PATTERNS = [
+    ("case_study_or_benchmark", re.compile(r"(?:input[- ]?only|held[- ]?out\s+outcome|ретроспективн\w+.{0,100}benchmark|research\s+replay|input/outcome\s+benchmark)", re.IGNORECASE | re.DOTALL)),
     ("formal_ksrf_guide", re.compile(r"(?:как\s+избежать\s+ошибок\s+при\s+обращении\s+в\s+КС|схема\s+прохождения\s+жалоб[ыи]\s+в\s+КС|типичн\w+\s+ошибк\w+\s+.*КС|примерн\w+\s+структур\w+\s+жалоб)", re.IGNORECASE | re.DOTALL)),
     ("legal_writing_methodology", re.compile(r"(?:Основы\s+письма\s+для\s+юристов|юридическ\w+\s+письм|legal\s+writing|legal\s+drafting|структур[аы]\s+текста)", re.IGNORECASE | re.DOTALL)),
     ("research_report", re.compile(r"(?:Исполнительное\s+резюме|deliverable|deep\s+research|автоматизаци[яи].{0,80}(?:жалоб|КС|практик)|таксономи[яи].{0,80}автоматизац)", re.IGNORECASE | re.DOTALL)),
@@ -133,9 +298,14 @@ DOCUMENT_TYPE_PATTERNS = [
     ("court_request_by_court", re.compile(r"(?:запросом|запрос)\s+.*Конституционн\w+\s+Суд|Запрос_ВС", re.IGNORECASE | re.DOTALL)),
     ("institutional_position_or_amicus", re.compile(r"(?:позици[яи]|мнение|заключени[ея]).{0,160}(?:ТПП|торгово-промышленн|международн\w+\s+коммерческ|amicus|инициативн\w+\s+научн)", re.IGNORECASE | re.DOTALL)),
     ("amicus_or_expert_conclusion", re.compile(r"amicus|заключени[ея].{0,120}(?:Конституционн\w+\s+Суд|стандарт|сравнительн)", re.IGNORECASE | re.DOTALL)),
-    ("ksrf_complaint", re.compile(r"жалоб[аы].{0,160}(?:Конституционн\w+\s+Суд|конституционн\w+\s+прав)", re.IGNORECASE | re.DOTALL)),
+    ("ksrf_complaint", re.compile(r"(?:жалоб[аы].{0,240}(?:Конституционн\w+\s+Суд|конституционн\w+\s+прав)|(?:^|\n)\s*(?:В\s+)?Конституционн\w+\s+Суд\s+(?:РФ|Российской Федерации)|(?:^|\n)\s*ЖАЛОБА\b.{0,600}(?:нарушени|Конституционн|стать[ьи]))", re.IGNORECASE | re.DOTALL)),
     ("science_or_methodology", re.compile(r"(?:теория\s+и\s+практика|конституционн\w+\s+правосуди|право\s+быть\s+услышанным|автор\s+использует\s+эмпирическ|научн\w+\s+заключени)", re.IGNORECASE | re.DOTALL)),
-    ("judicial_act", re.compile(r"(?:решени[ея]|определени[ея]|постановлени[ея]|приговор).{0,120}(?:суд|суда|судебн)", re.IGNORECASE | re.DOTALL)),
+    ("judicial_act", re.compile(
+        r"(?:^|\n)\s*(?:апелляционн\w+\s+|кассационн\w+\s+)?"
+        r"(?:РЕШЕНИЕ|ОПРЕДЕЛЕНИЕ|ПОСТАНОВЛЕНИЕ|ПРИГОВОР)\s*(?:суда\s*)?"
+        r"(?:от\s*)?(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4}|\n.{0,900}(?:ИМЕНЕМ\s+РОССИЙСКОЙ\s+ФЕДЕРАЦИИ|дело\s*(?:№|N)|суд.{0,120}в\s+составе|УСТАНОВИЛ|ОПРЕДЕЛИЛ|ПОСТАНОВИЛ))",
+        re.IGNORECASE | re.DOTALL,
+    )),
     ("power_of_attorney", re.compile(r"доверенн", re.IGNORECASE)),
     ("state_fee_or_payment", re.compile(r"госпошлин|пошлин|квитанц|плат[её]ж", re.IGNORECASE)),
     ("translation", re.compile(r"перевод|translated|translation", re.IGNORECASE)),
@@ -469,18 +639,250 @@ def extraction_quality(text: str, path: Path, details: dict[str, Any]) -> dict[s
 def infer_application_effect(window: str) -> str:
     lowered = window.lower()
     if "не предусмотр" in lowered or "не позволяет" in lowered:
-        return "не предусматривающую или не позволяющую реализовать необходимый механизм"
+        return "не предусматривает или не позволяет реализовать необходимый механизм"
     if "не допуска" in lowered or "запрещ" in lowered:
-        return "запрещающую или исключающую реализацию права"
+        return "запрещает или исключает реализацию права"
     if "отказ" in lowered:
-        return "служащую основанием отказа"
+        return "служит основанием отказа"
     if "обязыва" in lowered:
-        return "возлагающую обязанность или запускающую неблагоприятное последствие"
+        return "возлагает обязанность или запускает неблагоприятное последствие"
     if "ответствен" in lowered or "санкц" in lowered:
-        return "допускающую ответственность или санкцию"
+        return "допускает ответственность или санкцию"
     if "истолков" in lowered or "толкован" in lowered:
-        return "истолкованную судами в спорном конституционно-правовом смысле"
-    return "примененную как основание спорного правового эффекта"
+        return "истолковано в потенциально спорном конституционно-правовом смысле"
+    return "могло быть применено как основание спорного правового эффекта"
+
+
+def normalize_legal_ref(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip().rstrip(".,;:").lower().replace("ё", "е")
+    substitutions = [
+        (r"(?:\bпункт(?:а|ом|е|у)?\b|\bп\.)\s*", "п "),
+        (r"(?:\bчаст(?:ь|и|ью|ей|е)\b|\bч\.)\s*", "ч "),
+        (r"(?:\bабзац(?:а|ем|е)?\b|\bабз\.)\s*", "абз "),
+        (r"(?:\bстать(?:я|и|е|ю|ей|ёй)\b|\bст\.)\s*", "ст "),
+        (r"\bроссийской федерации\b", "рф"),
+    ]
+    for pattern, replacement in substitutions:
+        normalized = re.sub(pattern, replacement, normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def canonicalize_legal_ref(value: str) -> str:
+    canonical = re.sub(r"\s+", " ", value).strip().rstrip(".,;:")
+    replacements = [
+        (r"(?:\bпункт(?:а|ом|е|у)?\b|\bп\.)\s*(?=\d)", "п. "),
+        (r"(?:\bчаст(?:ь|и|ью|ей|е)\b|\bч\.)\s*(?=\d)", "ч. "),
+        (r"(?:\bабзац(?:а|ем|е)?\b|\bабз\.)\s*(?=\d)", "абз. "),
+        (r"(?:\bстать(?:я|и|е|ю|ей|ёй)\b|\bст\.)\s*(?=\d)", "ст. "),
+    ]
+    for pattern, replacement in replacements:
+        canonical = re.sub(pattern, replacement, canonical, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", canonical).strip()
+
+
+def extract_legal_ref_occurrences(text: str) -> list[dict[str, Any]]:
+    occurrences: list[dict[str, Any]] = []
+    for match in LEGAL_REF_RE.finditer(text):
+        end = match.end()
+        tail_match = NORMATIVE_INSTRUMENT_TAIL_RE.match(text[end:end + 320])
+        instrument = ""
+        if tail_match:
+            instrument = re.sub(r"\s+", " ", tail_match.group("instrument")).strip().rstrip(".,;:")
+            end += tail_match.end("instrument")
+        value = canonicalize_legal_ref(text[match.start():end])
+        occurrences.append({
+            "value": value,
+            "start": match.start(),
+            "end": end,
+            "instrument_candidate": instrument,
+            "requisites_status": normative_requisites_status(value),
+        })
+    return occurrences
+
+
+def instrument_candidate_from_norm(norm: str) -> str:
+    locator = LEGAL_REF_RE.match(norm)
+    if not locator:
+        return ""
+    return norm[locator.end():].strip()
+
+
+def is_constitution_reference(norm: str) -> bool:
+    instrument = instrument_candidate_from_norm(norm)
+    return bool(re.fullmatch(
+        r"Конституци[ияи]\s+(?:РФ|Российской Федерации)",
+        instrument,
+        re.IGNORECASE,
+    ))
+
+
+def normative_requisites_status(norm: str) -> str:
+    instrument = instrument_candidate_from_norm(norm)
+    if not instrument:
+        return "instrument_missing"
+    if is_constitution_reference(norm) or re.search(
+        r"(?:(?:ГК|ГПК|АПК|КАС|УПК|КоАП|НК|ТК|УК|ЖК|ЗК|СК|БК|ЛК|УИК|ГрК|ВК|КТМ)\s+РФ|кодекс(?:а|ом|у|е)?\s+(?:РФ|Российской Федерации)|кодекс(?:а|ом|у|е)?.{1,100}(?:РФ|Российской Федерации))",
+        instrument,
+        re.IGNORECASE,
+    ):
+        return "complete_instrument_candidate"
+    if re.search(r"(?:ФКЗ|закон)", instrument, re.IGNORECASE):
+        return "complete_instrument_candidate" if re.search(r"(?:№|\bN)\s*[0-9]", instrument) else "date_or_number_missing"
+    return "instrument_identified_requires_official_verification"
+
+
+def has_named_normative_instrument(norm: str) -> bool:
+    return normative_requisites_status(norm) != "instrument_missing"
+
+
+def is_interpretive_source_locator(norm: str, source_context: str) -> bool:
+    return not has_named_normative_instrument(norm) and bool(re.search(
+        r"(?:Постановлени|Определени|Обзор).{0,100}(?:Пленум|Верховн|Конституционн)|(?:Пленум|Верховн|Конституционн).{0,100}(?:Постановлени|Определени|Обзор)",
+        source_context,
+        re.IGNORECASE | re.DOTALL,
+    ))
+
+
+def relative_name(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return path.name
+
+
+def clause_context(text: str, start: int, end: int, max_width: int = 360) -> str:
+    left_candidates = [text.rfind(separator, max(0, start - max_width), start) for separator in ("\n", ";", ".", "!", "?")]
+    left_boundary = max(left_candidates) + 1
+    right_candidates = [
+        position
+        for separator in ("\n", ";", ".", "!", "?")
+        if (position := text.find(separator, end, min(len(text), end + max_width))) != -1
+    ]
+    right_boundary = min(right_candidates) + 1 if right_candidates else min(len(text), end + max_width)
+    return re.sub(r"\s+", " ", text[left_boundary:right_boundary]).strip()
+
+
+def build_timeline_candidates(text: str, document: str, limit: int = 80) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for match in DATE_RE.finditer(text):
+        source_context = clause_context(text, match.start(), match.end())
+        event_types = [code for code, pattern in EVENT_PATTERNS if pattern.search(source_context)]
+        date_prefix = text[max(0, match.start() - 140):match.start()]
+        if ACT_TITLE_DATE_PREFIX_RE.search(date_prefix) and "court_decision" not in event_types:
+            event_types.insert(0, "court_decision")
+        if not event_types:
+            event_types = ["unclassified_date"]
+        stages = [stage for stage, pattern in STAGE_WORDS.items() if pattern.search(source_context)]
+        for event_type in event_types[:2]:
+            key = (match.group(0), event_type, source_context)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append({
+                "date": re.sub(r"\s+", " ", match.group(0)).strip(),
+                "event_type": event_type,
+                "stage_candidates": stages,
+                "document": document,
+                "source_context": source_context,
+                "confidence": "medium" if event_type != "unclassified_date" else "low",
+                "status": "candidate_from_case_document",
+            })
+            if len(candidates) >= limit:
+                return candidates
+    return candidates
+
+
+def build_right_harm_hypotheses(
+    text: str,
+    document: str,
+    constitutional_refs: list[str],
+    bridge_candidates: list[dict[str, str]],
+    limit: int = 16,
+) -> list[dict[str, Any]]:
+    explicit_article_numbers = {
+        number
+        for ref in constitutional_refs
+        for number in re.findall(r"\d+(?:\.\d+)?", ref)
+    }
+    hypotheses: list[dict[str, Any]] = []
+    for cfg in RIGHT_HARM_PATTERNS:
+        matches = list(cfg["pattern"].finditer(text))
+        suggested_articles = cfg["constitutional_articles"]
+        suggested_article_numbers = {
+            number
+            for article in suggested_articles
+            for number in re.findall(r"\d+(?:\.\d+)?", article)
+        }
+        explicit_matches = [
+            match
+            for match in CONSTITUTION_RE.finditer(text)
+            if set(re.findall(r"\d+(?:\.\d+)?", match.group(0))) & suggested_article_numbers
+        ]
+        positive_explicit_matches = [
+            match
+            for match in explicit_matches
+            if not re.search(
+                r"не\s+(?:формулир|заявл|содерж|привод|ссыл)|(?:довод|ссылк|аргумент).{0,45}(?:не\s+заявл|отсутств)",
+                context(text, match.start(), match.end(), 90),
+                re.IGNORECASE | re.DOTALL,
+            )
+        ]
+        negated_explicit_matches = [match for match in explicit_matches if match not in positive_explicit_matches]
+        if not matches and not positive_explicit_matches:
+            continue
+        explicitly_mentioned = bool(positive_explicit_matches)
+        evidence = unique(
+            [context(text, match.start(), match.end(), 170) for match in [*matches, *positive_explicit_matches]],
+            4,
+        )
+        linked_bridges = sorted(
+            (
+                (
+                    max((context_overlap(bridge["source_context"], source) for source in evidence), default=0.0),
+                    bridge,
+                )
+                for bridge in bridge_candidates
+            ),
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
+        mechanism = (
+            linked_bridges[0][1]["bridge"]
+            if linked_bridges and linked_bridges[0][0] >= 0.2
+            else "Нормативный механизм нужно синтезировать из мотивировки и резолютивной части судебных актов."
+        )
+        harm_pattern = RIGHT_HARM_ADVERSE_PATTERNS[cfg["code"]]
+        has_harm_evidence = any(harm_pattern.search(source) for source in evidence)
+        score = min(
+            0.95,
+            0.35 + min(len(matches), 3) * 0.1 + (0.15 if explicitly_mentioned else 0.0) + (0.15 if has_harm_evidence else 0.0),
+        )
+        hypotheses.append({
+            "hypothesis_code": cfg["code"],
+            "constitutional_right_candidate": cfg["right"],
+            "constitutional_article_candidates": suggested_articles,
+            "legal_consequence_candidate": cfg["consequence"] if has_harm_evidence else "",
+            "normative_mechanism_candidate": mechanism,
+            "document": document,
+            "source_contexts": evidence,
+            "negated_explicit_contexts": unique(
+                [context(text, match.start(), match.end(), 120) for match in negated_explicit_matches],
+                3,
+            ),
+            "origin": (
+                "explicit_and_inferred"
+                if explicitly_mentioned and has_harm_evidence
+                else "explicit_right_only"
+                if explicitly_mentioned
+                else "inferred_from_case_materials"
+            ),
+            "confidence": round(score, 2),
+            "status": "right_and_harm_hypothesis" if has_harm_evidence else "right_candidate_without_harm",
+        })
+        if len(hypotheses) >= limit:
+            break
+    return hypotheses
 
 
 def build_application_bridge_candidates(applied_contexts: list[dict[str, str]], limit: int = 8) -> list[dict[str, str]]:
@@ -491,9 +893,9 @@ def build_application_bridge_candidates(applied_contexts: list[dict[str, str]], 
         candidates.append({
             "norm": norm,
             "effect": effect,
-        "bridge": f"Суды применили {norm} как {effect}, что требует проверки связи с конкретным конституционным вредом заявителя.",
-            "bridge": f"Суды применили {norm} в значении или с эффектом: {effect}; это нужно связать с конкретным конституционным вредом заявителя.",
+            "bridge": f"Кандидат связки: положение «{norm}» упомянуто в контексте, указывающем, что оно {effect}. Проверить, применил ли его суд с таким эффектом, и связать с конкретным конституционным вредом заявителя.",
             "source_context": item["context"],
+            "evidence_role": item.get("evidence_role", "unclassified_context"),
         })
         if len(candidates) >= limit:
             break
@@ -526,32 +928,67 @@ def build_request_formula_candidates(passport: dict[str, Any], bridge_candidates
     effect = bridge_candidates[0]["effect"] if bridge_candidates else "[оспариваемый конституционно-правовой эффект]"
     formulas = [{
         "formula_type": "individual_complaint",
-        "text": f"Признать {norm} не соответствующей Конституции РФ ({articles}) в той мере, в какой указанная норма {effect} в деле заявителя.",
+        "text": f"Признать положение «{norm}» не соответствующим Конституции РФ ({articles}) в той мере, в какой оно {effect} в деле заявителя.",
         "review_flags": "Проверить точность нормы, статьи Конституции, фактический крючок и чрезмерную широту формулы.",
     }]
     if passport.get("document_type") == "court_request_motion":
         formulas.append({
             "formula_type": "court_request_motion",
-            "text": f"Направить запрос в Конституционный Суд РФ о проверке соответствия {norm} Конституции РФ ({articles}) в той мере, в какой указанная норма {effect}.",
+            "text": f"Направить запрос в Конституционный Суд РФ о проверке соответствия положения «{norm}» Конституции РФ ({articles}) в той мере, в какой оно {effect}.",
             "review_flags": "Проверить, что норма подлежит применению текущим судом и вопрос необходим для разрешения дела.",
         })
     return formulas
 
 
-def build_practice_matrix_candidates(doc: dict[str, Any], applied_contexts: list[dict[str, str]]) -> list[dict[str, str]]:
-    courts = doc.get("courts", [])
-    dates = doc.get("dates", [])
+def context_overlap(left: str, right: str) -> float:
+    left_words = {word for word in re.findall(r"[а-яёa-z]{5,}", left.lower())}
+    right_words = {word for word in re.findall(r"[а-яёa-z]{5,}", right.lower())}
+    if not left_words or not right_words:
+        return 0.0
+    return len(left_words & right_words) / min(len(left_words), len(right_words))
+
+
+def build_practice_matrix_candidates(
+    doc: dict[str, Any],
+    applied_contexts: list[dict[str, str]],
+    timeline_candidates: list[dict[str, Any]],
+    right_harm_hypotheses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     case_numbers = doc.get("case_numbers", [])
-    rows: list[dict[str, str]] = []
-    for index, item in enumerate(applied_contexts[:10]):
+    rows: list[dict[str, Any]] = []
+    for item in applied_contexts[:10]:
+        linked_timeline = sorted(
+            (
+                (context_overlap(item["context"], candidate["source_context"]), candidate)
+                for candidate in timeline_candidates
+            ),
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
+        timeline = linked_timeline[0][1] if linked_timeline and linked_timeline[0][0] >= 0.35 else None
+        courts = unique([match.group(0) for match in COURT_RE.finditer(item["context"])], 5)
+        linked_harm = sorted(
+            (
+                (
+                    max((context_overlap(item["context"], source) for source in hypothesis["source_contexts"]), default=0.0),
+                    hypothesis,
+                )
+                for hypothesis in right_harm_hypotheses
+            ),
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
+        harm = linked_harm[0][1] if linked_harm and linked_harm[0][0] >= 0.25 else None
         rows.append({
             "case": case_numbers[0] if case_numbers else "[номер дела не извлечен]",
-            "court": courts[index % len(courts)] if courts else "[суд не извлечен]",
-            "date": dates[index % len(dates)] if dates else "[дата не извлечена]",
+            "court": courts[0] if courts else "[суд не связан с этим контекстом]",
+            "date": timeline["date"] if timeline else "[дата не связана с этим контекстом]",
+            "timeline_evidence": timeline or {},
             "norm": item["norm"],
             "interpretive_move": infer_application_effect(item["context"]),
             "proof_source": item["context"],
-            "harmful_effect": "[требует ручной привязки к конституционному вреду]",
+            "harmful_effect_candidate": harm["legal_consequence_candidate"] if harm else "[гипотеза вреда не связана с этим контекстом]",
+            "right_candidate": harm["constitutional_right_candidate"] if harm else "[гипотеза права не связана с этим контекстом]",
             "relevance": "Кандидат для проверки: единичное применение, устойчивая практика или неопределенность.",
         })
     return rows
@@ -583,13 +1020,16 @@ def build_repeatability_detector(passport: dict[str, Any]) -> dict[str, Any]:
 def build_execution_packet(passport: dict[str, Any], text: str) -> dict[str, Any]:
     if not passport.get("ksrf_refs") and not re.search(r"пересмотр|вновь открывш|новые обстоятельства", text, re.IGNORECASE):
         return {}
+    operative_match = re.search(r"\b(?:ПОСТАНОВИЛ|ОПРЕДЕЛИЛ|РЕШИЛ)\b", text, re.IGNORECASE)
+    operative_candidate = context(text, operative_match.start(), operative_match.end(), 1200) if operative_match else ""
     return {
         "ksrf_act_candidates": passport.get("ksrf_refs", [])[:10],
         "possible_post_decision_route": bool(re.search(r"пересмотр|вновь открывш|новые обстоятельства", text, re.IGNORECASE)),
-        "operative_meaning": "[извлечь из резолютивной части акта КС РФ вручную или отдельным парсером]",
-        "affected_persons": "[заявитель / лица в аналогичном положении — требует проверки]",
-        "competent_court": "[определить по процессуальному кодексу и делу]",
-        "missing_attachments": [
+        "operative_meaning_candidate": operative_candidate,
+        "operative_meaning_status": "candidate_from_operative_section" if operative_candidate else "operative_section_not_found",
+        "affected_persons_candidate": "заявитель и, если это следует из резолютивной части, лица в аналогичном положении",
+        "competent_court_task": "Определить по виду судопроизводства, последнему акту и официальной процессуальной норме.",
+        "attachment_requirements_to_check": [
             "акт КС РФ",
             "судебные акты по делу заявителя",
             "доказательство вступления акта в силу",
@@ -648,20 +1088,41 @@ def build_qa_matrix(doc: dict[str, Any]) -> list[dict[str, str]]:
 
 def collect_from_document(path: Path, root: Path, enable_ocr: bool, ocr_pages: int, tessdata_dir: str | None = None) -> dict[str, Any]:
     text, extraction_details = extract_text(path, enable_ocr=enable_ocr, ocr_pages=ocr_pages, tessdata_dir=tessdata_dir)
+    relative_path = relative_name(path, root)
     lower_name = path.name.lower()
     stages = [stage for stage, rx in STAGE_WORDS.items() if rx.search(text) or rx.search(lower_name)]
-    legal_refs = unique([m.group(0) for m in LEGAL_REF_RE.finditer(text)])
+    legal_occurrences = extract_legal_ref_occurrences(text)
+    legal_refs = unique([item["value"] for item in legal_occurrences])
     constitutional_refs = extract_constitutional_refs(text)
     ksrf_refs = unique([m.group(0) for m in KSRF_RE.finditer(text)])
+    doc_type = classify_document(text, path.name)
     applied_contexts: list[dict[str, str]] = []
-    for match in LEGAL_REF_RE.finditer(text):
-        window = context(text, match.start(), match.end())
-        if APPLIED_WORDS_RE.search(window):
-            applied_contexts.append({"norm": re.sub(r"\s+", " ", match.group(0)).strip(), "context": window})
+    if doc_type == "judicial_act":
+        evidence_role = "judicial_application_candidate"
+    elif doc_type in {"ksrf_complaint", "court_request_motion", "court_request_by_court", "request_supplement"}:
+        evidence_role = "party_or_request_reported_application_candidate"
+    else:
+        evidence_role = "contextual_mention_candidate"
+    for occurrence in legal_occurrences:
+        window = context(text, occurrence["start"], occurrence["end"])
+        norm = occurrence["value"]
+        if APPLIED_WORDS_RE.search(window) and not is_constitution_reference(norm):
+            item_evidence_role = (
+                "interpretive_source_locator"
+                if is_interpretive_source_locator(norm, window)
+                else evidence_role
+            )
+            applied_contexts.append({
+                "norm": norm,
+                "context": window,
+                "evidence_role": item_evidence_role,
+                "source_document_type": doc_type,
+                "instrument_candidate": occurrence["instrument_candidate"],
+                "requisites_status": occurrence["requisites_status"],
+            })
         if len(applied_contexts) >= 20:
             break
     attachment_signals = [name for name, rx in ATTACHMENT_PATTERNS.items() if rx.search(path.name) or rx.search(text[:5000])]
-    doc_type = classify_document(text, path.name)
     prayer_block = extract_prayer_block(text)
     passport = {
         "document_type": doc_type,
@@ -669,13 +1130,23 @@ def collect_from_document(path: Path, root: Path, enable_ocr: bool, ocr_pages: i
         "applicant_candidates": extract_labeled_candidates(APPLICANT_RE, text),
         "addressee_candidates": unique([m.group(0) for m in ADDRESSEE_RE.finditer(text[:12000])], 12),
         "case_numbers": unique([m.group(0) for m in CASE_RE.finditer(text)], 30),
-        "challenged_norm_candidates": [ref for ref in legal_refs if "Конституци" not in ref][:50],
+        "challenged_norm_candidates": [ref for ref in legal_refs if not is_constitution_reference(ref)][:50],
+        "challenged_norm_occurrences": [
+            item for item in legal_occurrences if not is_constitution_reference(item["value"])
+        ][:50],
         "constitutional_refs": constitutional_refs,
         "ksrf_refs": ksrf_refs,
         "prayer_block": prayer_block,
         "attachment_signals": attachment_signals,
     }
     bridge_candidates = build_application_bridge_candidates(applied_contexts)
+    timeline_candidates = build_timeline_candidates(text, relative_path)
+    right_harm_hypotheses = build_right_harm_hypotheses(
+        text,
+        relative_path,
+        constitutional_refs,
+        bridge_candidates,
+    )
     test_suggestions = suggest_constitutional_tests(text)
     request_formula_candidates = build_request_formula_candidates(passport, bridge_candidates)
     doc_stub = {
@@ -687,7 +1158,12 @@ def collect_from_document(path: Path, root: Path, enable_ocr: bool, ocr_pages: i
         "application_bridge_candidates": bridge_candidates,
         "constitutional_test_suggestions": test_suggestions,
         "request_formula_candidates": request_formula_candidates,
-        "practice_matrix_candidates": build_practice_matrix_candidates(doc_stub, applied_contexts),
+        "practice_matrix_candidates": build_practice_matrix_candidates(
+            doc_stub,
+            applied_contexts,
+            timeline_candidates,
+            right_harm_hypotheses,
+        ),
         "repeatability_detector": build_repeatability_detector(passport),
         "ksrf_execution_packet": build_execution_packet(passport, text),
     }
@@ -698,7 +1174,7 @@ def collect_from_document(path: Path, root: Path, enable_ocr: bool, ocr_pages: i
     })
     return {
         "path": str(path),
-        "relative_path": str(path.relative_to(root)) if path.is_relative_to(root) else path.name,
+        "relative_path": relative_path,
         "name": path.name,
         "extension": path.suffix.lower(),
         "size_bytes": path.stat().st_size,
@@ -710,48 +1186,292 @@ def collect_from_document(path: Path, root: Path, enable_ocr: bool, ocr_pages: i
         "document_passport": passport,
         "case_numbers": unique([m.group(0) for m in CASE_RE.finditer(text)]),
         "dates": unique([m.group(0) for m in DATE_RE.finditer(text)], 120),
+        "timeline_candidates": timeline_candidates,
         "courts": unique([m.group(0) for m in COURT_RE.finditer(text)]),
         "stages": stages,
         "legal_refs": legal_refs,
         "constitutional_refs": constitutional_refs,
         "ksrf_refs": ksrf_refs,
         "applied_norm_contexts": applied_contexts,
+        "right_harm_hypotheses": right_harm_hypotheses,
         "automation_analysis": analysis,
         "qa_matrix": qa_matrix,
         "attachment_signals": attachment_signals,
     }
 
 
+def rank_challenged_norm_candidates(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    registry: dict[str, dict[str, Any]] = {}
+    complaint_types = {"ksrf_complaint", "court_request_motion", "request_supplement"}
+    for doc in documents:
+        passport = doc["document_passport"]
+        prayer = passport.get("prayer_block", "")
+        for ref in passport.get("challenged_norm_candidates", []):
+            key = normalize_legal_ref(ref)
+            if not has_named_normative_instrument(ref) and (not prayer or key not in normalize_legal_ref(prayer)):
+                continue
+            entry = registry.setdefault(key, {
+                "norm": ref,
+                "instrument_candidate": instrument_candidate_from_norm(ref),
+                "requisites_status": normative_requisites_status(ref),
+                "score": 0,
+                "document_mentions": [],
+                "applied_evidence": [],
+                "effect_candidates": [],
+            })
+            entry["score"] += 1
+            entry["document_mentions"].append(doc["relative_path"])
+            if passport.get("document_type") in complaint_types:
+                entry["score"] += 1
+            if prayer and key in normalize_legal_ref(prayer):
+                entry["score"] += 3
+        for item in doc.get("applied_norm_contexts", []):
+            if is_interpretive_source_locator(item["norm"], item["context"]):
+                continue
+            key = normalize_legal_ref(item["norm"])
+            entry = registry.setdefault(key, {
+                "norm": item["norm"],
+                "instrument_candidate": item.get("instrument_candidate", instrument_candidate_from_norm(item["norm"])),
+                "requisites_status": item.get("requisites_status", normative_requisites_status(item["norm"])),
+                "score": 0,
+                "document_mentions": [],
+                "applied_evidence": [],
+                "effect_candidates": [],
+            })
+            evidence_role = item.get("evidence_role", "unclassified_context")
+            evidence_weight = {
+                "judicial_application_candidate": 6,
+                "party_or_request_reported_application_candidate": 3,
+                "contextual_mention_candidate": 1,
+            }.get(evidence_role, 1)
+            entry["score"] += evidence_weight
+            entry["document_mentions"].append(doc["relative_path"])
+            entry["applied_evidence"].append({
+                "document": doc["relative_path"],
+                "source_context": item["context"],
+                "evidence_role": evidence_role,
+            })
+            entry["effect_candidates"].append(infer_application_effect(item["context"]))
+
+    ranked: list[dict[str, Any]] = []
+    for entry in registry.values():
+        applied = entry["applied_evidence"]
+        evidence_roles = {item.get("evidence_role") for item in applied}
+        exact_instrument = entry["requisites_status"] == "complete_instrument_candidate"
+        if "judicial_application_candidate" in evidence_roles and exact_instrument:
+            candidate_role = "application_anchor_candidate"
+        elif "judicial_application_candidate" in evidence_roles:
+            candidate_role = "application_locator_candidate"
+        elif "party_or_request_reported_application_candidate" in evidence_roles:
+            candidate_role = "reported_application_candidate" if exact_instrument else "reported_application_locator_candidate"
+        elif applied:
+            candidate_role = "contextual_mention_candidate"
+        else:
+            candidate_role = "mentioned_norm_candidate"
+        ranked.append({
+            "norm": entry["norm"],
+            "instrument_candidate": entry["instrument_candidate"],
+            "requisites_status": entry["requisites_status"],
+            "score": entry["score"],
+            "document_mentions": unique(entry["document_mentions"], 30),
+            "applied_evidence": applied[:12],
+            "effect_candidates": unique(entry["effect_candidates"], 8),
+            "candidate_role": candidate_role,
+            "status": (
+                "candidate_requires_official_text_and_case_verification"
+                if exact_instrument
+                else "candidate_requires_normative_instrument_recovery"
+            ),
+        })
+    return sorted(ranked, key=lambda item: (-item["score"], item["norm"]))[:40]
+
+
+def merge_right_harm_hypotheses(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    registry: dict[str, dict[str, Any]] = {}
+    for doc in documents:
+        for item in doc.get("right_harm_hypotheses", []):
+            code = item["hypothesis_code"]
+            entry = registry.setdefault(code, {
+                "hypothesis_code": code,
+                "constitutional_right_candidate": item["constitutional_right_candidate"],
+                "constitutional_article_candidates": [],
+                "legal_consequence_candidates": [],
+                "normative_mechanism_candidates": [],
+                "documents": [],
+                "source_contexts": [],
+                "confidence": 0.0,
+                "origins": [],
+                "statuses": [],
+            })
+            entry["constitutional_article_candidates"].extend(item["constitutional_article_candidates"])
+            if item["legal_consequence_candidate"]:
+                entry["legal_consequence_candidates"].append(item["legal_consequence_candidate"])
+            entry["normative_mechanism_candidates"].append(item["normative_mechanism_candidate"])
+            entry["documents"].append(item["document"])
+            entry["source_contexts"].extend(item["source_contexts"])
+            entry["confidence"] = max(entry["confidence"], item["confidence"])
+            entry["origins"].append(item["origin"])
+            entry["statuses"].append(item["status"])
+
+    merged: list[dict[str, Any]] = []
+    for entry in registry.values():
+        merged.append({
+            "hypothesis_code": entry["hypothesis_code"],
+            "constitutional_right_candidate": entry["constitutional_right_candidate"],
+            "constitutional_article_candidates": unique(entry["constitutional_article_candidates"], 8),
+            "legal_consequence_candidates": unique(entry["legal_consequence_candidates"], 6),
+            "normative_mechanism_candidates": unique(entry["normative_mechanism_candidates"], 6),
+            "documents": unique(entry["documents"], 30),
+            "source_contexts": unique(entry["source_contexts"], 8),
+            "origin": (
+                "explicit_and_inferred"
+                if "explicit_and_inferred" in entry["origins"]
+                else "inferred_from_case_materials"
+                if "inferred_from_case_materials" in entry["origins"]
+                else "explicit_right_only"
+            ),
+            "confidence": entry["confidence"],
+            "status": (
+                "right_and_harm_hypothesis"
+                if "right_and_harm_hypothesis" in entry["statuses"]
+                else "right_candidate_without_harm"
+            ),
+        })
+    return sorted(merged, key=lambda item: (-item["confidence"], item["hypothesis_code"]))
+
+
 def merge(documents: list[dict[str, Any]]) -> dict[str, Any]:
     missing: list[str] = []
     if not any(doc["applied_norm_contexts"] for doc in documents):
-        missing.append("Не найден явный контекст применения нормы: проверь судебные акты вручную.")
+        missing.append("Не извлечён явный контекст применения нормы: повторно проанализировать мотивировку и резолютивную часть актов, затем найти недостающий акт по номеру дела.")
     if not any("кассация" in doc["stages"] or "верховный суд" in doc["stages"] for doc in documents):
-        missing.append("Не найдены очевидные признаки кассации или Верховного Суда: проверь исчерпание.")
+        missing.append("Не найдены очевидные признаки кассации или Верховного Суда: реконструировать путь по актам и официальным карточкам дела.")
     if not any("госпошлина" in doc["attachment_signals"] for doc in documents):
         missing.append("Не найден документ госпошлины или ходатайство о льготе/отсрочке.")
     if not any("доверенность" in doc["attachment_signals"] for doc in documents):
         missing.append("Не найдена доверенность; это нормально только если заявитель подает лично без представителя.")
     if any(doc["low_text_risk"] for doc in documents):
-        missing.append("Есть PDF/DOC/DOCX с малым извлеченным текстом: может понадобиться OCR или ручная проверка.")
+        missing.append("Есть PDF/DOC/DOCX с малым извлечённым текстом: применить OCR и визуальное чтение средствами среды выполнения до вывода о пробеле.")
 
-    next_questions = []
-    if any("проверь исчерпание" in item for item in missing):
-        next_questions.append("Каким актом завершилось исчерпание и есть ли отказ/акт ВС РФ?")
+    autonomous_followups = []
+    if any("официальным карточкам" in item for item in missing):
+        autonomous_followups.append("Найти завершающий акт и даты обжалования в переданном пакете, затем в официальной карточке дела по номеру производства.")
     if any("применения нормы" in item for item in missing):
-        next_questions.append("В каком судебном акте суд применил или истолковал оспариваемую норму?")
+        autonomous_followups.append("Перечитать мотивировочную и резолютивную части всех актов; ранжировать нормы по их причинной роли и проверить текст нормы в официальном источнике.")
     if not any(doc["constitutional_refs"] for doc in documents):
-        next_questions.append("Сохранялся ли конституционный аргумент в обычных судах и в каком документе?")
+        autonomous_followups.append("Самостоятельно построить гипотезы затронутого права из нормативного эффекта и последствий; отдельно проверить, сохранялся ли конституционный довод в поданных жалобах.")
+
+    norm_candidates = rank_challenged_norm_candidates(documents)
+    timeline_candidates = [item for doc in documents for item in doc.get("timeline_candidates", [])][:240]
+    right_harm_hypotheses = merge_right_harm_hypotheses(documents)
+    case_number_candidates = unique([item for doc in documents for item in doc["case_numbers"]], 20)
+    meaningful_timeline = [item for item in timeline_candidates if item["event_type"] != "unclassified_date"]
+    judicial_application_candidates = [
+        item for item in norm_candidates if item["candidate_role"] == "application_anchor_candidate"
+    ]
+    exact_norm_candidates = [
+        item for item in norm_candidates if item["requisites_status"] == "complete_instrument_candidate"
+    ]
+    complete_right_harm_hypotheses = [
+        item for item in right_harm_hypotheses if item["status"] == "right_and_harm_hypothesis"
+    ]
+    unresolved_candidates_before_verification: list[dict[str, str]] = []
+    if not case_number_candidates:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "case_identity_not_extracted",
+            "autonomous_action": "Идентифицировать дело по суду, сторонам, датам и нормам в полных актах и официальных карточках.",
+            "conditional_question": "Если дело не идентифицировано после официального поиска, запросить любой полный судебный акт с номером дела.",
+        })
+    if not meaningful_timeline:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "procedural_timeline_not_reconstructed",
+            "autonomous_action": "Отделить даты источников и документов от процессуальных событий; найти акты и подачи по официальной карточке дела.",
+            "conditional_question": "Если процессуальные события не восстановлены, запросить конкретные отсутствующие акты, а не перечень дат вручную.",
+        })
+    if not judicial_application_candidates:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "judicial_application_not_confirmed",
+            "autonomous_action": "Найти полный судебный акт и цитатное окно, подтверждающее причинную роль лидирующего кандидата нормы.",
+            "conditional_question": "Если акт применения не найден официально, запросить копию решения или определения, на котором основан неблагоприятный результат.",
+        })
+    if norm_candidates and not exact_norm_candidates:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "normative_instrument_not_identified",
+            "autonomous_action": "Восстановить полное наименование, дату и номер нормативного акта по цитатному окну, полному судебному акту и официальному источнику; bare locator не считать точной оспариваемой нормой.",
+            "conditional_question": "Если реквизиты не восстановлены после OCR полного акта и официального поиска, запросить конкретную отсутствующую страницу или судебный акт, а не просить пользователя назвать норму.",
+        })
+    if not complete_right_harm_hypotheses:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "right_harm_chain_not_inferred",
+            "autonomous_action": "Вывести цепочку права и последствия из резолютивной части, фактического результата и механизма нормы.",
+            "conditional_question": "Если фактическое последствие не видно из документов и официальных актов, запросить только конкретный недостающий факт или документ.",
+        })
+    if not norm_candidates:
+        unresolved_candidates_before_verification.append({
+            "gap_code": "challenged_norm_not_extracted",
+            "autonomous_action": "Повторить анализ мотивировки и резолютивной части и найти акт применения по реквизитам дела.",
+            "conditional_question": "Если после OCR, анализа всех актов и официального поиска норма не установлена, запросить только отсутствующий судебный акт, а не просить пользователя сформулировать норму.",
+        })
+    official_verification_tasks: list[dict[str, Any]] = [
+        {
+            "task_type": "verify_norm",
+            "norm": item["norm"],
+            "instrument_candidate": item["instrument_candidate"],
+            "requisites_status": item["requisites_status"],
+            "task": (
+                "Получить из официального источника точный текст, редакцию на дату применения и историю изменений; сверить с цитатным окном судебного акта."
+                if item["requisites_status"] == "complete_instrument_candidate"
+                else "Сначала восстановить точное наименование, дату и номер нормативного акта по полному судебному акту и официальным источникам; затем проверить текст и редакцию нормы."
+            ),
+        }
+        for item in norm_candidates[:8]
+    ]
+    official_verification_tasks.extend({
+        "task_type": "resolve_intake_gap",
+        "gap_code": item["gap_code"],
+        "task": item["autonomous_action"],
+    } for item in unresolved_candidates_before_verification)
+    if timeline_candidates or any(doc["case_numbers"] for doc in documents):
+        official_verification_tasks.append({
+            "task_type": "verify_procedural_timeline",
+            "case_number_candidates": case_number_candidates,
+            "event_candidates": timeline_candidates[:30],
+            "task": "Сверить даты актов, подач, получения и вступления в силу по полным актам и официальным карточкам дел; устранить даты нормативных источников и иные ложные события.",
+        })
+    question_candidates_after_verification = unique(
+        [item["conditional_question"] for item in unresolved_candidates_before_verification],
+        12,
+    )
 
     return {
         "case_numbers": unique([item for doc in documents for item in doc["case_numbers"]], 120),
         "dates": unique([item for doc in documents for item in doc["dates"]], 200),
+        "timeline_candidates": timeline_candidates,
         "courts": unique([item for doc in documents for item in doc["courts"]], 120),
         "stages": unique([item for doc in documents for item in doc["stages"]], 40),
         "legal_refs": unique([item for doc in documents for item in doc["legal_refs"]], 200),
         "constitutional_refs": unique([item for doc in documents for item in doc["constitutional_refs"]], 80),
         "ksrf_refs": unique([item for doc in documents for item in doc["ksrf_refs"]], 80),
         "applied_norm_contexts": [ctx for doc in documents for ctx in doc["applied_norm_contexts"]][:80],
+        "challenged_norm_candidates_ranked": norm_candidates,
+        "right_harm_hypotheses": right_harm_hypotheses,
+        "autonomous_intake": {
+            "challenged_norm_candidates": norm_candidates,
+            "procedural_timeline_candidates": timeline_candidates,
+            "right_harm_hypotheses": right_harm_hypotheses,
+            "official_verification_tasks": official_verification_tasks,
+            "verification": {
+                "status": "pending_official_pass",
+                "norms": "pending",
+                "procedural_timeline": "pending",
+                "right_harm_chain": "pending",
+            },
+            "official_lookup_status": "not_performed_by_offline_collector",
+            "autonomous_followups": unique(autonomous_followups, 12),
+            "unresolved_candidates_before_verification": unresolved_candidates_before_verification,
+            "unresolved_after_exhaustion": None,
+            "question_candidates_after_verification": question_candidates_after_verification,
+        },
         "document_passports": [doc["document_passport"] for doc in documents],
         "application_bridge_candidates": [
             item for doc in documents for item in doc.get("automation_analysis", {}).get("application_bridge_candidates", [])
@@ -786,7 +1506,8 @@ def merge(documents: list[dict[str, Any]]) -> dict[str, Any]:
             for signal in ATTACHMENT_PATTERNS
         },
         "missing_or_risky": missing,
-        "next_questions": next_questions,
+        "next_questions": [],
+        "question_candidates_after_verification": question_candidates_after_verification,
     }
 
 
@@ -849,7 +1570,7 @@ def main() -> int:
     root = input_paths[0] if input_paths[0].is_dir() else input_paths[0].parent
     documents = [collect_from_document(path, root, enable_ocr=not args.no_ocr, ocr_pages=args.ocr_pages, tessdata_dir=args.tessdata_dir) for path in files]
     report = {
-        "schema": "ksrf.casefile.v2",
+        "schema": "ksrf.casefile.v3",
         "inputs": [str(p) for p in input_paths],
         "exclusions": args.exclude,
         "document_count": len(documents),
