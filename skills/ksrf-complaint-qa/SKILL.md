@@ -7,14 +7,8 @@ description: Проверить проект жалобы в КС РФ на не
 
 ## Порядок работы
 
-1. Собери и сверь `CaseFile` и `AutonomousIntakeRecord`; самостоятельно перепроверь кандидатов нормы, событийную хронологию, предполагаемое право и правовое последствие по полным актам и официальным источникам. Только после этого проверь официальные редакции статей 37, 43, 74, 96 и 97 ФКЗ о КС РФ и зафиксируй дату. Не выдавай `неясно` лишь потому, что пользователь не подготовил юридическую выжимку.
-2. Примени hard gates, которые нельзя компенсировать rubric result:
-   - точная норма и редакция;
-   - судебное применение, а не упоминание;
-   - конкретное дело и надлежащий заявитель;
-   - исчерпание и годичный срок;
-   - source/quote integrity;
-   - human approval портфеля.
+1. Если входом был UID, сначала проверь `UIDCaseDossier`, матрицу ожидаемых стадий и журнал поиска по `../ksrf-complaint-cycle/references/uid-first-case-workflow.md`. Затем собери и сверь `CaseFile` и `AutonomousIntakeRecord`; самостоятельно перепроверь кандидатов нормы, событийную хронологию, предполагаемое право и правовое последствие по полным актам и официальным источникам. Только после этого проверь официальные редакции статей 37, 43, 74, 96 и 97 ФКЗ о КС РФ и зафиксируй дату. Не выдавай `неясно` лишь потому, что пользователь не подготовил юридическую выжимку.
+2. До оценки портфеля примени единый `AdmissibilityMatrix`. Юридические hard gates нельзя компенсировать rubric result, качеством текста, полнотой источников или human approval: маршрут и компетенция; точная норма, носитель и редакция; применение и причинная роль; конкретное дело и надлежащий заявитель; нарушение права через применение; исчерпание и годичный срок; продолжающийся эффект; prior-decision/delta check; anti-appeal filter и допустимый remedy. Вынеси source/quote integrity в `EvidenceGate`, а privacy и human approval — в `ReleaseGate`; они обязательны для выпуска, но не смешиваются с юридической допустимостью.
 3. Для каждой нормы собери трассировку `норма -> смысл -> судебный locator -> влияние на результат -> вред -> вопрос -> remedy`. Непрошедшие нормы пометь `не готово`; не снимай их молча.
 4. Проверь, что `ArgumentPortfolio` содержит principal, при необходимости reserve, adverse findings, falsifier, refusal model, transfer limits и причину human selection.
 5. Проведи critic pass отдельно по каждой активной гипотезе:
@@ -37,6 +31,7 @@ description: Проверить проект жалобы в КС РФ на не
 13. Не ставь `готово`, пока для principal и reserve не указан юридически допустимый результат и проверяемый маршрут его реализации после решения. Для диалогового результата требуй участников, предмет, временную защиту, срок, отчёт, контроль, эскалацию и российское полномочие. При сочетании индивидуального и системного результата проведи single-track red team по `../ksrf-complaint-facts-demands/references/remedy-design-matrix.md`; предполагаемый контроль исполнения не выдавай за полномочие без российского основания.
 14. Сравни активные гипотезы по измерениям из `../ksrf-explore-arguments/references/evaluation-and-promotion.md`. Не сворачивай проверку в разрешающий scalar score.
 15. После содержательных hard gates проведи отдельный style/trace pass по `../ksrf-argument-patterns/references/brief-trace-and-citation-qa.md`: проверь framing, adverse material, заголовки, цитаты и приложения, но не превращай редакторский проход в legal score, статус готовности или автоматическое переписывание. Затем выдай verdict и section-level rewrite plan. `готово` означает только переход к `ksrf-formal-filing-check` после явного решения человека.
+16. Проверь, что при допустимом содержательном проходе заявителю представлены `ConstitutionalIssueOptions`, а `KSRFRouteRecommendation` выдана после admissibility и содержит основание, пользу, риски, альтернативы, сроки и условия пересмотра. Не допускай `GO_TO_KSRF`, пока каждый применимый hard gate не имеет `pass`, и не допускай `NO_GO_KSRF` только из-за недоступного после поиска акта: для этого есть `ABSTAIN_PENDING_RECORD`. При раннем `NO_GO_KSRF / ABSTAIN_PENDING_RECORD` issue options могут отсутствовать.
 
 ## Вердикты
 
@@ -57,6 +52,7 @@ description: Проверить проект жалобы в КС РФ на не
 - `Refusal model`;
 - `Precedent-externality review`;
 - `FilingDecisionRecord review` при срабатывании триггера;
+- `KSRFRouteRecommendation review` для каждого дела;
 - `Remedy fit`;
 - `Dimension comparison`;
 - `Fix list и следующий скилл`.
@@ -72,6 +68,7 @@ description: Проверить проект жалобы в КС РФ на не
 ## Справочники
 
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная refusal-модель и финальный контроль полного цикла.
+- `../ksrf-complaint-cycle/references/uid-first-case-workflow.md` — UID-покрытие, единая матрица допустимости, варианты проблемы и go/no-go контракт.
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — проверка фактического применения, внешнего эффекта решения и исполнимости результата.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и источники.
 - `references/workflow-reference.md` — подробный checklist и rewrite map.

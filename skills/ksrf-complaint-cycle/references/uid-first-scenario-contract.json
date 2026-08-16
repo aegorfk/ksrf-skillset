@@ -1,0 +1,108 @@
+{
+  "schema_version": "ksrf.uid-first-scenarios.v1",
+  "scenarios": [
+    {
+      "id": "malformed_uid",
+      "identity_status": "malformed",
+      "case_analysis_allowed": false,
+      "allowed_question": "corrected_uid_or_one_identifying_requisite",
+      "decision": null
+    },
+    {
+      "id": "ambiguous_uid",
+      "identity_status": "ambiguous",
+      "case_analysis_allowed": false,
+      "allowed_question": "corrected_uid_or_one_identifying_requisite",
+      "decision": null
+    },
+    {
+      "id": "not_found_uid",
+      "identity_status": "not_found",
+      "case_analysis_allowed": false,
+      "allowed_question": "corrected_uid_or_one_identifying_requisite",
+      "decision": null
+    },
+    {
+      "id": "adapter_zero_slots",
+      "adapter_reported_slots": 0,
+      "chain_state": "unknown",
+      "complete_allowed": false,
+      "next_action": "official_web_bootstrap"
+    },
+    {
+      "id": "expired_noncurable_deadline",
+      "decisive_gate": "deadline",
+      "gate_status": "fail",
+      "curability": "noncurable",
+      "decision": "NO_GO_KSRF",
+      "options_required": false,
+      "preferred_option_id": null,
+      "reserve_option_ids": []
+    },
+    {
+      "id": "factual_only_dispute",
+      "decisive_gate": "anti_appeal",
+      "gate_status": "fail",
+      "curability": "noncurable_on_current_record",
+      "decision": "NO_GO_KSRF",
+      "options_required": false,
+      "preferred_option_id": null,
+      "reserve_option_ids": []
+    },
+    {
+      "id": "critical_act_unavailable_after_search",
+      "decisive_gate": "application_or_exhaustion",
+      "gate_status": "unknown",
+      "curability": "not_controlled_or_unavailable",
+      "decision": "ABSTAIN_PENDING_RECORD",
+      "options_required": false,
+      "preferred_option_id": null,
+      "reserve_option_ids": []
+    },
+    {
+      "id": "known_obtainable_gap",
+      "decisive_gate": "record_or_ordinary_process",
+      "gate_status": "unknown",
+      "curability": "known_and_controlled",
+      "decision": "FIX_FIRST",
+      "options_required": false,
+      "preferred_option_id": null,
+      "reserve_option_ids": []
+    },
+    {
+      "id": "active_proceeding",
+      "decisive_gate": "route",
+      "gate_status": "pass",
+      "route": "court_request",
+      "decision": "COURT_REQUEST_ROUTE",
+      "options_required": "conditional"
+    },
+    {
+      "id": "complete_viable_case_without_connector",
+      "identity_status": "verified_one_case",
+      "chain_state": "known",
+      "all_applicable_gates": "pass",
+      "connector_available": false,
+      "options_required": true,
+      "decision": "GO_TO_KSRF",
+      "preferred_option_id": "required"
+    },
+    {
+      "id": "single_viable_theory",
+      "all_applicable_gates": "pass",
+      "viable_option_count": 1,
+      "rejected_alternatives_min": 1,
+      "options_required": true,
+      "decision": "GO_TO_KSRF"
+    },
+    {
+      "id": "multiple_viable_theories",
+      "all_applicable_gates": "pass",
+      "viable_option_count_min": 2,
+      "viable_option_count_max": 4,
+      "human_selection": "pending",
+      "options_required": true,
+      "decision": "GO_TO_KSRF"
+    }
+  ]
+}
