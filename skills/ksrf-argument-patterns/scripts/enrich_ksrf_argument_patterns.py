@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 
-DEFAULT_PROJECT = Path("/Users/aegorfk/Documents/ks_parser_lower_court_marker")
-DEFAULT_ANALYSIS = DEFAULT_PROJECT / "analysis_results" / "ksrf_argument_patterns"
 DEFAULT_SKILL = Path(__file__).resolve().parent.parent
 
 
@@ -691,7 +689,11 @@ def write_graph(refs: Path, graph: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--analysis", default=str(DEFAULT_ANALYSIS))
+    parser.add_argument(
+        "--analysis",
+        required=True,
+        help="Каталог результатов extract_ksrf_argument_patterns.py; задаётся явно",
+    )
     parser.add_argument("--skill", default=str(DEFAULT_SKILL))
     args = parser.parse_args()
 

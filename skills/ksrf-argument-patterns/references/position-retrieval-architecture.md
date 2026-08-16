@@ -113,7 +113,7 @@ Retrieval работает от bundled references и официальных а�
 
 ## Локальная реализация в `ks_parser_lower_court_marker`
 
-Если работаешь в проекте `/Users/aegorfk/Documents/ks_parser_lower_court_marker`, используй уже созданный контур:
+Если работаешь в локальном клоне проекта `ks_parser_lower_court_marker`, запускай уже созданный контур из корня проекта:
 
 ```bash
 docker compose -f docker-compose.ksrf-retrieval.yml up -d

@@ -8,8 +8,8 @@
 
 - Обработано стенограмм: 373.
 - Пропущено записей без стенограммы: 0.
-- Журнал обработки: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/processed_log.csv`.
-- Машинно-читаемый реестр: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/hearing_argument_techniques.json`.
+- Журнал обработки: `<project-root>/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/processed_log.csv`.
+- Машинно-читаемый реестр: `<project-root>/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/hearing_argument_techniques.json`.
 
 ## Как применять в автоматизированной оценке
 

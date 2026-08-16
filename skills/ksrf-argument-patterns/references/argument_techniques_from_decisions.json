@@ -1,5 +1,5 @@
 {
-  "source_corpus": "/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ",
+  "source_corpus": "ТЗ/Постановления КС РФ",
   "processed_decisions": 997,
   "generated_from_marker_pass": true,
   "techniques": [

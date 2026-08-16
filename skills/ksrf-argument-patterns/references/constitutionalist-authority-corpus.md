@@ -4,6 +4,15 @@
 
 Это карта поиска и извлечения методологии, а не рейтинг учёных и не самостоятельный источник права. Конституция РФ, официальный акт КС РФ, применённая норма и материалы дела всегда имеют приоритет. Запись уровня `discovery_only` нельзя называть авторитетом без проверки личности, публикации и тезиса.
 
+## Дополнение после широкой волны 2026-08-15
+
+Статусы и таблица «следующей волны» ниже сохраняют discovery-срез сборщика на 2026-08-14 и не показывают последующую source/legal extraction целиком. После него проверены 103 карточки 32-author wave:
+
+- 19 candidate/supporting/exact-overlap карточек — `constitutional-methodology-verified-cards.md`;
+- 84 `revise|comparative_only` карточки — `constitutional-methodology-reference-only-corpus.md`.
+
+Их union даёт 103/103 discoverability в global KSRF skills. Это не означает 103 новых поведенческих правил: 84 используются только как option-generation/red-team/transfer-limit материал, а шесть behavioral delta остаются pending eval и human approval. Число `method_integrated=20` в старой таблице означает прежний curated workflow-набор сборщика, а не общий объём уже извлечённой методологии.
+
 ## Как пользоваться
 
 1. Определи исследовательский маршрут по проблеме жалобы.

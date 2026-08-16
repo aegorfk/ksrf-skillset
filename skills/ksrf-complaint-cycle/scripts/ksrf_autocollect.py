@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -32,7 +33,7 @@ DATE_RE = re.compile(
     re.IGNORECASE,
 )
 CASE_RE = re.compile(
-    r"(?:дел[аоуе]\s*)?(?:N|№)\s*[А-ЯA-Z0-9Ёа-яa-z./-]{2,}(?:\s*/\s*\d{2,4})?",
+    r"(?<!\w)(?:дел[аоуе]\s*)?(?:№|(?-i:N))\s*[А-ЯA-Z0-9Ёа-яa-z./-]{2,}(?:\s*/\s*\d{2,4})?",
     re.IGNORECASE,
 )
 LEGAL_REF_RE = re.compile(
@@ -789,13 +790,37 @@ def merge(documents: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def iter_files(paths: list[Path]) -> list[Path]:
+def is_excluded(path: Path, root: Path, patterns: list[str]) -> bool:
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:
+        relative = path.name
+    return any(
+        fnmatch.fnmatch(path.name, pattern) or fnmatch.fnmatch(relative, pattern)
+        for pattern in patterns
+    )
+
+
+def iter_files(paths: list[Path], exclude_patterns: list[str] | None = None) -> list[Path]:
     allowed = {".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".html", ".htm", ".mhtml", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+    excluded = exclude_patterns or []
     files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            files.extend(p for p in path.rglob("*") if p.is_file() and p.suffix.lower() in allowed)
-        elif path.is_file() and path.suffix.lower() in allowed:
+            for current, dirnames, filenames in os.walk(path, topdown=True, followlinks=False):
+                current_path = Path(current)
+                dirnames[:] = [
+                    name
+                    for name in dirnames
+                    if not is_excluded(current_path / name, path, excluded)
+                ]
+                files.extend(
+                    current_path / name
+                    for name in filenames
+                    if not is_excluded(current_path / name, path, excluded)
+                    and (current_path / name).suffix.lower() in allowed
+                )
+        elif path.is_file() and path.suffix.lower() in allowed and not is_excluded(path, path.parent, excluded):
             files.append(path)
     return sorted(files)
 
@@ -807,10 +832,17 @@ def main() -> int:
     parser.add_argument("--no-ocr", action="store_true", help="Не запускать OCR fallback для PDF с малым извлеченным текстом.")
     parser.add_argument("--ocr-pages", type=int, default=8, help="Сколько первых страниц PDF пробовать через OCR fallback.")
     parser.add_argument("--tessdata-dir", help="Папка с языковыми пакетами Tesseract, если русский язык не установлен системно.")
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Не входить в совпавший файл/каталог; можно повторять (например, --exclude 'private-*').",
+    )
     args = parser.parse_args()
 
     input_paths = [Path(p).expanduser().resolve() for p in args.paths]
-    files = iter_files(input_paths)
+    files = iter_files(input_paths, args.exclude)
     if not files:
         print("Не найдено поддерживаемых файлов.", file=sys.stderr)
         return 2
@@ -819,6 +851,7 @@ def main() -> int:
     report = {
         "schema": "ksrf.casefile.v2",
         "inputs": [str(p) for p in input_paths],
+        "exclusions": args.exclude,
         "document_count": len(documents),
         "documents": documents,
         "summary": merge(documents),

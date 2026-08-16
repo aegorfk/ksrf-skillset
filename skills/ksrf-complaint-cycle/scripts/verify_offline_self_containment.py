@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that every KSRF skill routes to the bundled offline practice core."""
+"""Verify that every KSRF skill routes to a portable bundled practice core."""
 
 from __future__ import annotations
 
@@ -15,8 +15,10 @@ FORBIDDEN_RUNTIME_MARKERS = (
     "/Users/",
     "ТЗ/Каналы/",
     "t.me/s/",
+    'Path.home() / "Documents" / "ks_parser_lower_court_marker"',
 )
 REQUIRED_CORE_HEADINGS = (
+    "## 0. Контракт автономности",
     "## 2. Маршрут до текста",
     "## 3. Hard gates как зависимая цепочка",
     "## 4. Anti-appeal filter",
@@ -65,6 +67,43 @@ def main() -> int:
                 errors.append(
                     f"skill has broken offline core link: {skill_file.parent.name}: {relative_link}"
                 )
+
+    for path in sorted(SKILLS_ROOT.rglob("*")):
+        if path.is_symlink():
+            try:
+                path.resolve().relative_to(SKILLS_ROOT.resolve())
+            except (OSError, ValueError):
+                errors.append(f"external symlink: {path}")
+
+    for markdown in sorted(SKILLS_ROOT.rglob("*.md")):
+        if markdown.name == "complaint-methodology-sources.md":
+            continue
+        markdown_text = markdown.read_text(encoding="utf-8")
+        for raw_target in re.findall(r"`([^`\n]+\.md(?:#[^`\s]+)?)`", markdown_text):
+            target = raw_target.split("#", 1)[0]
+            if (
+                "://" in target
+                or "*" in target
+                or target.startswith("<")
+                or target.startswith("ТЗ/")
+            ):
+                continue
+            resolved = (markdown.parent / target).resolve()
+            try:
+                resolved.relative_to(SKILLS_ROOT.resolve())
+            except ValueError:
+                errors.append(f"markdown path escapes skillset: {markdown}: {raw_target}")
+                continue
+            if not resolved.is_file():
+                errors.append(f"broken bundled markdown path: {markdown}: {raw_target}")
+
+    for script in sorted(SKILLS_ROOT.glob("ksrf-*/scripts/*.py")):
+        if script.resolve() == Path(__file__).resolve():
+            continue
+        script_text = script.read_text(encoding="utf-8")
+        for marker in FORBIDDEN_RUNTIME_MARKERS:
+            if marker in script_text:
+                errors.append(f"script contains external runtime marker {marker}: {script}")
 
     if errors:
         print("Offline self-containment verification failed:")

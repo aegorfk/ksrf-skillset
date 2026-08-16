@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-16T16:01:19Z",
+  "source": "~/.codex/skills/ksrf-*",
+  "remote_base_commit": "7f1d36f311525a8cdafa5a32bd4e7384c6371ad1",
+  "exclusions": [
+    ".DS_Store",
+    "__pycache__/",
+    "*.pyc"
+  ],
+  "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
+  "total_skills": 13,
+  "total_files": 113,
+  "total_bytes": 5286212,
+  "tree_sha256": "e749745ee52447a71bde695996f34f682142bd17b602c3b3160eae4c4e7bb59c",
+  "skills": [
+    {
+      "name": "ksrf-argument-patterns",
+      "files": 37,
+      "bytes": 4148697,
+      "tree_sha256": "c4d81da0ce7af8228e25ea28727ef13f4669489257574a9c31ad421833d1c7be"
+    },
+    {
+      "name": "ksrf-case-triage",
+      "files": 4,
+      "bytes": 46961,
+      "tree_sha256": "cb5aec96308e78fddf0f33268622078c2b09736ea45650d01dd72baa28dc1bac"
+    },
+    {
+      "name": "ksrf-complaint-cycle",
+      "files": 16,
+      "bytes": 428558,
+      "tree_sha256": "2f6a4506ecd6d8a5f0ef55ddb08e0b0e17015d52ee30a3afb6012edeeebe1e0c"
+    },
+    {
+      "name": "ksrf-complaint-facts-demands",
+      "files": 8,
+      "bytes": 100336,
+      "tree_sha256": "eea26eccca9203bced230c299ab6bfb124bbd89c16bbedc40056d4b753bbaa3d"
+    },
+    {
+      "name": "ksrf-complaint-qa",
+      "files": 6,
+      "bytes": 83496,
+      "tree_sha256": "982ac6cbe8176a76bbc2cf5581a77847e452479d7e0fb3c3c1e3a1e60d220eb4"
+    },
+    {
+      "name": "ksrf-court-request-motion",
+      "files": 3,
+      "bytes": 41149,
+      "tree_sha256": "9fb349a27d35bfbee5422dc10fae6b28b1cc901729bec9b8d001cc9ede879450"
+    },
+    {
+      "name": "ksrf-decision-execution",
+      "files": 5,
+      "bytes": 64752,
+      "tree_sha256": "2389e5a0321cee678b81aa86dc7e579c3f7ee3325bc9606e7c00b3d31c57d750"
+    },
+    {
+      "name": "ksrf-echr-argumentation",
+      "files": 3,
+      "bytes": 11229,
+      "tree_sha256": "3b4f60519bce1b822c7b5c2dd3191f7e52365353c2b04e0683863b427e8fe939"
+    },
+    {
+      "name": "ksrf-exhaustion-planner",
+      "files": 3,
+      "bytes": 26134,
+      "tree_sha256": "e869b78f30e7a5363a3d74a1d24e385d572afcae16d20e6411365f180041f0f7"
+    },
+    {
+      "name": "ksrf-explore-arguments",
+      "files": 7,
+      "bytes": 57632,
+      "tree_sha256": "5c444474d9489cb1d49b4dd6024670a05ba44fa7dcbb75dc4e9acbc815142879"
+    },
+    {
+      "name": "ksrf-formal-filing-check",
+      "files": 3,
+      "bytes": 30480,
+      "tree_sha256": "456e1141edfff0002dbe247d670d0181b6f3a5d790def5da731b177a64b1233f"
+    },
+    {
+      "name": "ksrf-practice-authority-builder",
+      "files": 8,
+      "bytes": 83107,
+      "tree_sha256": "e283bad6c6db7ef75a9c628f4ce15f9c8afd749651586fdac7921e5bff8289e6"
+    },
+    {
+      "name": "ksrf-rights-argument-builder",
+      "files": 10,
+      "bytes": 163681,
+      "tree_sha256": "d22420d225a93eaedcc1dc8504e5930f291a14be53b0858bbd7f016b13fe5626"
+    }
+  ]
+}

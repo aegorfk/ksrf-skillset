@@ -11,14 +11,14 @@ description: Исследовать официальную практику ЕС
 
 ## Источники
 
-Сначала прочитай `../ksrf-complaint-cycle/references/offline-practice-core.md` как автономный российский baseline. Затем прочитай `references/official-sources.md`. Используй HUDOC, ECHR-KS и официальные ресурсы Совета Европы как первичные источники; проверяй актуальность в момент работы. Различай решения Суда, admissibility decisions, communicated cases, позиции сторон, summaries и materials of a specific case.
+Сначала прочитай `../ksrf-complaint-cycle/references/offline-practice-core.md` как автономный российский baseline. Затем прочитай `references/official-sources.md`. Для route-indexed сравнительных вопросов и transfer limits можно открыть `../ksrf-argument-patterns/references/constitutional-methodology-reference-only-corpus.md`; его карточки не заменяют HUDOC или российский официальный якорь. Для позитивной обязанности, indirect horizontal effect, Article 14 ambit и границы `scope -> interference -> justification` открой `../ksrf-rights-argument-builder/references/equality-positive-obligations-and-right-boundaries.md`; его MF-14–18 являются только `idea_only` research/QA cards. Используй HUDOC, ECHR-KS и официальные ресурсы Совета Европы как первичные источники; проверяй актуальность в момент работы. Различай решения Суда, admissibility decisions, communicated cases, позиции сторон, summaries и materials of a specific case.
 
 ## Рабочий процесс
 
 1. Зафиксируй отдельно:
    - российский профиль: норма, судебное применение, вред и возможный remedy;
    - конвенционный профиль: факты, статья, victim status, исчерпание, срок, допустимость и сатисфакция.
-2. Выбери исследовательскую функцию: candidate theory, supporting standard, counterexample, minimum guarantee, positive obligation, effective remedy, execution, balance или procedural safeguard.
+2. Выбери исследовательскую функцию: candidate theory, supporting standard, counterexample, minimum guarantee, positive obligation, effective remedy, execution, balance или procedural safeguard. Для positive obligation раздельно заполни `trigger`, `scope`, `content` и `breach`; для scope-вопроса не смешивай применимость, вмешательство и оправдание. При несовместимых моделях верни `model_conflict`, не синтетический тест.
 3. Построй многоязычную матрицу поиска по понятиям, фактам, государствам, периоду и типу документа. Начни с актуального guide/key cases, затем проверь первоисточники и admissibility boundary cases.
 4. Для каждого акта создай `ResearchFinding` по `../ksrf-explore-arguments/references/artifact-contracts.md`: официальный anchor, paragraphs, thesis, relation к гипотезам, factual/legal differences, verification status и transfer limit.
 5. Не приписывай Суду аргументы стороны. Не выдавай legal summary за мотивировку и communicated case за итоговое решение.

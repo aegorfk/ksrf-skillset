@@ -25,7 +25,7 @@ description: "Оценить процессуальную и исследова�
    - материалы, способные изменить оценку.
 7. Классификацию из `ksrf-defect-taxonomy`, примеры Секретариата, refusal-corpus и `ksrf-argument-patterns` используй как hypothesis seeds. Не требуй ближайшей аналогии и не считай отсутствие кандидата доказательством недопустимости.
 8. Если hard gates допускают продолжение, маршрутизируй в `ksrf-explore-arguments`: верни не готовое обоснование, а направления исследования и минимум одну альтернативную постановку вопроса.
-9. Практику КС РФ по точной норме, системной связке и вопросу проверяй по официальным актам. Если действующая позиция уже устраняет проблему, оцени её использование в обычных судах; новый поиск оправдан при изменении регулирования/условий, отказе следовать обязательному смыслу или ином новом механизме вреда.
+9. Практику КС РФ по точной норме, системной связке и вопросу проверяй по официальным актам. Если действующая позиция уже устраняет проблему, оцени её использование в обычных судах; новый поиск оправдан при изменении регулирования/условий, отказе следовать обязательному смыслу или ином новом механизме вреда. При ссылке на новые обстоятельства заполни `../ksrf-complaint-qa/references/argument-quality-revision.md`: прежний тезис, одну из четырёх доказанных дельт и её причинное влияние. Доктринальная дельта не компенсирует hard gate.
 
 ## Решение
 
@@ -64,5 +64,7 @@ description: "Оценить процессуальную и исследова�
 - `references/complaint-patterns.md` — возможные дополнительные направления.
 - `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` — словарь дефектов и anti-patterns.
 - `../ksrf-argument-patterns/references/*` — optional corpus/refusal/hearing seeds и verification resources.
+- `../ksrf-argument-patterns/references/constitutional-methodology-reference-only-corpus.md` — route-indexed triage/remedy comparative cards; использовать для вопросов и hard negatives, а не для обхода действующих hard gates.
+- `../ksrf-complaint-qa/references/argument-quality-revision.md` — prior-position delta, работоспособность позиции и цена пересмотра без автоматического преодоления прежнего отказа.
 - `../ksrf-complaint-cycle/references/science-support-pack.md` — роль доктрины и эмпирики.
 - `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` — фильтр прямого/косвенного доступа, обоснованность решения и проверка границы истолкования.

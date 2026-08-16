@@ -57,3 +57,4 @@ description: Спланировать и проверить исчерпание
 - Читай `../ksrf-complaint-cycle/references/ksrf-tool-layer.md`, когда есть документы дела или нужно автоматически построить процессуальный таймлайн.
 - Читай `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` для языка сохранения аргумента, примеров Секретариата, анти-паттернов, маршрутизации и правила русского языка.
 - Читай `../ksrf-complaint-cycle/references/science-support-pack.md`, когда сохранению аргумента нужны доктрина, карта практики, законодательные факты или экспертные материалы.
+- Читай `../ksrf-complaint-cycle/references/russian-secondary-constitutional-procedure-crosscheck.md` только как навигатор по применённости, последнему акту и допустимости; срок, exhaustion и маршрут подтверждай актуальными первичными источниками.

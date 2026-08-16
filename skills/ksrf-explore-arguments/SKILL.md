@@ -107,6 +107,8 @@ description: Исследовать и сравнить несколько ко�
 - не выдаётся ли международный или научный материал за российское право;
 - устраняет ли предлагаемое средство защиты выявленный механизм вреда.
 
+Для структурного critic-pass используй `../ksrf-argument-patterns/references/constitutional-argument-architecture.md`; для спорной интерпретации, аналогии, правила/исключения или уровня абстракции добавь параллельные ветви из `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md`, а для иностранного примера — contextual transfer card из `../ksrf-argument-patterns/references/institutional-discourse-and-comparative-transfer.md`. При прежней позиции или отказном определении дополнительно заполни дельту, цену пересмотра и quality gates из `../ksrf-complaint-qa/references/argument-quality-revision.md`. Эти научные модели не отменяют hard gates и не создают основание повторного рассмотрения.
+
 ### 6. Сформируй портфель и остановись
 
 Используй `references/evaluation-and-promotion.md`. Сначала примени hard gates, затем сравни прошедшие гипотезы по отдельным измерениям. Не превращай сумму баллов в разрешение на подачу.
@@ -124,11 +126,15 @@ description: Исследовать и сравнить несколько ко�
 
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономный baseline исследования; используй его, даже если внешние корпуса и retrieval недоступны.
 - `ksrf-argument-patterns` — генератор аналогий и терминов поиска, не закрытый перечень допустимых аргументов.
-- `hearing-constitutional-justifications.md` — библиотека возможных связок и вопросов, не обязательная схема обоснования.
-- `hearing-derived-argument-patterns.md` и `hearing-argument-techniques.md` — материал для stress-test и моделирования заседания.
+- `../ksrf-argument-patterns/references/hearing-constitutional-justifications.md` — библиотека возможных связок и вопросов, не обязательная схема обоснования.
+- `../ksrf-argument-patterns/references/hearing-derived-argument-patterns.md` и `../ksrf-argument-patterns/references/hearing-argument-techniques.md` — материал для stress-test и моделирования заседания.
 - отказные определения — источник refusal hypotheses и границ вопроса; отсутствие кандидата или единичный отказ не создаёт автоматического вывода.
 - ЕСПЧ/ООН, доктрина, статистика и comparative materials могут породить или проверить гипотезу, но не заменяют российский нормативный якорь.
 - Широкий реестр авторов не является голосованием доктрины: число публикаций, совпадений или источников не доказывает правильность метода и не снимает проверку конкретной работы.
+- `../ksrf-argument-patterns/references/constitutional-argument-architecture.md` — построение главного тезиса, типизация и attack surface без заранее заданной иерархии аргументов.
+- `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md` — competing interpretations, правило/основание, analogy/distinguishing и hard-case router с `model_conflict -> abstain`.
+- `../ksrf-argument-patterns/references/institutional-discourse-and-comparative-transfer.md` — strongest objection и проверка функциональной, институциональной и социальной сопоставимости иностранного материала.
+- `../ksrf-complaint-qa/references/argument-quality-revision.md` — prior-position delta, немонотонность, универсализация и non-scalar quality review.
 
 Для калибровки на реальном деле читай `references/example-52-p-2024.md`: input-only слой извлечён из реальной обезличенной жалобы С.С. Шапки, а Постановление КС РФ № 52-П/2024 вынесено в отдельный outcome-раздел. Это ретроспективный replay, а не доказательство настоящего слепого предсказания. Не превращай исход дела в шаблон для новых жалоб.
 
@@ -148,7 +154,8 @@ description: Исследовать и сравнить несколько ко�
 Для машинного обмена проверь JSON командой:
 
 ```bash
-python3 scripts/validate_argument_research.py path/to/research.json
+KSRF_SKILLS_ROOT=/path/to/installed/skills
+python3 "$KSRF_SKILLS_ROOT/ksrf-explore-arguments/scripts/validate_argument_research.py" path/to/research.json
 ```
 
 ## Ограничения

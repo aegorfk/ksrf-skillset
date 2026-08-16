@@ -21,7 +21,7 @@ Pattern match становится опорой только после ручн
 
 Для обычной работы используй встроенные references этого skillset и `../ksrf-complaint-cycle/references/offline-practice-core.md`. Они содержат автономную методологию и не требуют доступа к локальному проекту, Telegram, Zakon.ru или исходным research-корпусам. Внешние корпуса нужны только для обновления, расширенного discovery или аудита происхождения. Не цитируй generated card без проверки source anchor и quote locator в официальном тексте.
 
-Для доктринального и сравнительного поиска используй `references/constitutionalist-authority-corpus.md` как маршрут, а `constitutionalist-authority-corpus.json` как полный реестр авторов, работ, алиасов, тематических направлений и статусов готовности. Начинай с `method_integrated`, затем `full_text_available` и `triangulated_academic`. `academic_indexed` и `bibliographic_lead` требуют открытия самой работы; `discovery_only` — только поисковый lead, а не авторитет для жалобы.
+Для доктринального и сравнительного поиска используй `references/constitutionalist-authority-corpus.md` как маршрут, а `references/constitutionalist-authority-corpus.json` как полный реестр авторов, работ, алиасов, тематических направлений и статусов готовности. Начинай с `method_integrated`, затем `full_text_available` и `triangulated_academic`. `academic_indexed` и `bibliographic_lead` требуют открытия самой работы; `discovery_only` — только поисковый lead, а не авторитет для жалобы. Для 19 прошедших pre-promotion карточек открой `references/constitutional-methodology-verified-cards.md`; для остальных 84 source/legal-reviewed методов — `references/constitutional-methodology-reference-only-corpus.md`. Второй файл используется только для option generation, red-team и границ переноса: `revise|comparative_only` не становятся обязательными инструкциями без eval и human approval.
 
 ## Порядок работы
 
@@ -33,7 +33,7 @@ Pattern match становится опорой только после ручн
    - доказательственный носитель;
    - remedy;
    - лучший контраргумент.
-3. Используй `references/pattern-matrix.md`, `constitutional-graph.md`, hearing materials и retrieval architecture как карты кандидатов. Не обязан выбирать ни одного семейства.
+3. Используй `references/pattern-matrix.md`, `references/constitutional-graph.md`, hearing materials и retrieval architecture как карты кандидатов. Не обязан выбирать ни одного семейства.
 4. Для каждого кандидата открой `references/decision-index.md` и официальный акт. Проверь:
    - что позиция принадлежит КС РФ, а не стороне;
    - норму, редакцию и временной контекст;
@@ -42,7 +42,9 @@ Pattern match становится опорой только после ручн
    - последующее изменение регулирования.
 5. Запиши candidate finding по контракту `../ksrf-explore-arguments/references/artifact-contracts.md` с relation `supports`, `weakens`, `distinguishes` или `blocks`.
 6. Ищи минимум один контрпример или более узкую позицию для сильной аналогии. Лексическое, векторное или графовое сходство не доказывает переносимость.
-7. Если гипотезе нужна доктринальная методика, выбери в корпусе автора по маршруту, открой указанную работу и запиши точный тезис, locator, функцию, предел переноса и контраргумент. Для критики позиции высшего суда проверь доктринальную память, системные связи, право/привилегию и усмотрение/доказываемый факт. Не вставляй фамилию ради усиления риторики.
+7. Если гипотезе нужна доктринальная методика, сначала используй встроенные `references/constitutional-methodology-verified-cards.md` и `references/constitutional-methodology-reference-only-corpus.md` в пределах их статуса и guardrails. Открывай исходную работу только для прямой цитаты, атрибуции нового тезиса или выхода за пределы встроенной карточки. Если работа недоступна, поставь `source_unavailable`: методическую карточку можно использовать как внутренний вопрос или red-team ход, но нельзя приписывать автору неподтверждённую формулу. Для критики позиции высшего суда проверь доктринальную память, системные связи, право/привилегию и усмотрение/доказываемый факт. Когда нужно воспроизводимо разобрать мотивировку или иностранный пример, используй `references/comparative-argument-coding.md`: код типа не определяет юридический вес, а иностранный материал остаётся `ResearchFinding` до отдельного российского якоря. Не вставляй фамилию ради усиления риторики.
+   Для построения и атаки конкретного российского конституционного довода используй `references/constitutional-argument-architecture.md`: отдели главный тезис, прескриптивный/дескриптивный/оценочный уровни, поверхность атаки, competence и consequences gates. Научная модель не заменяет официальный якорь и не устанавливает вес типа аргумента.
+   Если спор касается уровня абстракции, правила и его основания, holding/analogy либо цели толкования, открой `references/legal-reasoning-model-branches.md`: запускай конкурирующие модели параллельно и сохраняй `model_conflict`, не выбирая школу голосованием. Для воспроизводимой реконструкции ratio, силы прецедента, различения и defeasible argument graph дополнительно используй `references/precedent-analogy-and-justification.md`; сходство, найденное retrieval, не является relevance rule. Для иностранного института или довода заполни `references/institutional-discourse-and-comparative-transfer.md`, а при вопросах доступа, предмета жалобы, взаимодействия институтов или эффекта решения — `references/constitutional-institutions-access-and-remedy.md`; сходство названия или функции не закрывает contextual transfer и российский competence gate.
 8. Передай findings обратно в argument ledger. Если практика высших судов исследуется через CasusLegal, маршрутизируй проверенные кандидаты через `ksrf-practice-authority-builder`: сохрани тот же relation, добавь authority role, source status, transfer limit и adverse pass. Не собирай обязательный пакет `основной + усиливающий + сохраняющий + remedy`, если структура дела требует иного портфеля.
 
 ## Семейства как поисковые seeds
@@ -53,20 +55,28 @@ Pattern match становится опорой только после ручн
 
 ## Справочники
 
-- `references/pattern-matrix.md` и `decision-index.md` — candidate map и акты для проверки.
-- `references/argument-techniques-from-decisions.md`, `hearing-derived-argument-patterns.md`, `hearing-constitutional-justifications.md`, `hearing-argument-techniques.md` — эвристики, вопросы и stress-tests, не обязательные схемы.
-- `references/evidence-maps.md`, `source-proof-impact-patterns.md`, `counterargument-playbook.md` — проверка материала и adverse case.
-- `references/language-formulas.md` и `argument-package-builder.md` — drafting options после выбора портфеля.
-- `references/constitutional-graph.md`, `constitutional_graph.json`, `position-retrieval-architecture.md` — candidate generation и обход связей.
+- `references/pattern-matrix.md` и `references/decision-index.md` — candidate map и акты для проверки.
+- `references/argument-techniques-from-decisions.md`, `references/hearing-derived-argument-patterns.md`, `references/hearing-constitutional-justifications.md`, `references/hearing-argument-techniques.md` — эвристики, вопросы и stress-tests, не обязательные схемы.
+- `references/evidence-maps.md`, `references/source-proof-impact-patterns.md`, `references/counterargument-playbook.md` — проверка материала и adverse case.
+- `references/language-formulas.md` и `references/argument-package-builder.md` — drafting options после выбора портфеля.
+- `references/constitutional-graph.md`, `references/constitutional_graph.json`, `references/position-retrieval-architecture.md` — candidate generation и обход связей.
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — обязательный автономный baseline по маршруту, допустимости, drafting, filing и исполнению.
 - `../ksrf-practice-authority-builder/SKILL.md` — превращение CasusLegal findings в проверяемый authority ledger и блоки аргумента.
 - `references/complaint-methodology-sources.md` — provenance и журнал источников обновления; для runtime-работы не требуется.
 - `references/constitutionalist-authority-corpus.md` и `constitutionalist-authority-corpus.json` — широкий корпус авторов и работ с маршрутами, статусом извлечения и предохранителями.
+- `references/constitutional-methodology-verified-cards.md` — 19 source/legal и model-conflict-reviewed pre-promotion карточек широкой волны, их locators, пределы переноса, overlap-роль и нерешённые conflict-abstain условия; human conflict gate остаётся отдельным.
+- `references/constitutional-methodology-reference-only-corpus.md` — остальные 84 source/legal-reviewed карточки с triggers, stop-условиями, контрпримером и российской правовой границей; только option generation и red-team, без изменения behavior.
+- `references/comparative-argument-coding.md` — воспроизводимая кодировка структуры и типов доводов, раздельная оценка наличия/веса и function-first gate для иностранного материала.
+- `references/constitutional-argument-architecture.md` — главный тезис, трёхуровневая трасса, четыре типа, attack ledger, институциональная компетентность и последствия по российской научной методике.
+- `references/legal-reasoning-model-branches.md` — правила/принципы, under-/over-inclusion, holding/analogy, лестница абстракции, purpose и hard-case branch set без выбора «правильной» школы.
+- `references/institutional-discourse-and-comparative-transfer.md` — strongest-objection ledger и contextualized functionalism для иностранного материала; архитектурно-визуальные описания остаются `context_only`.
+- `references/precedent-analogy-and-justification.md` — internal/external justification, эмпирический precedent questionnaire, competing analogy branches, universalization boundaries и defeasible graph с `model_conflict -> abstain`.
+- `references/constitutional-institutions-access-and-remedy.md` — сравнительные matrices модели контроля, доступа, предмета жалобы, институционального ответа и фактического эффекта remedy; каждый российский вывод требует отдельного первичного якоря.
 - `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` — полнотекстовые карточки двенадцати статей СКО и оставшийся разведочный lead из тех же номеров.
 
 ## Инструменты
 
-Используй штатные scripts и доступные read-only Qdrant/Neo4j tools для inspection/retrieval. Перед retrieval по новой жалобе строй query profile и сверяй качество на golden/hard-negative наборах. Если semantic collection или исходный корпус отсутствуют, используй bundled references и автономное ядро, а отсутствие retrieval отметь только как предел поиска аналогий. Не запускай глобальное обогащение корпуса, если пользователю нужен анализ одного дела.
+Для анализа одного дела используй bundled references и автономное ядро. Read-only Qdrant/Neo4j и штатные scripts являются необязательным maintenance/retrieval слоем: если они доступны, перед retrieval строй query profile и сверяй качество на golden/hard-negative наборах; если отсутствуют, отметь только предел поиска аналогий. Не запускай глобальное обогащение корпуса, если пользователю нужен анализ одного дела.
 
 `scripts/build_constitutionalist_authority_corpus.py` воспроизводит широкий реестр из библиографии Блохина, официальных указателей СКО/«Международного правосудия», локального discovery-корпуса Zakon.ru и проверенных методических карточек. Его результат не повышает статус источника автоматически.
 

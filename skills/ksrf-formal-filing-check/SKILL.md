@@ -60,3 +60,6 @@ description: "Проверить формальные требования к ж
 - Читай `../ksrf-complaint-cycle/references/ksrf-tool-layer.md`, когда есть папка пакета или нужно автоматически проверить комплектность.
 - Читай `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` только для маршрутизации и анти-паттернов; этот скилл остается сфокусированным на формальной готовности пакета.
 - Читай `../ksrf-complaint-cycle/references/science-support-pack.md` только чтобы проверить, какие научные материалы должны попасть в приложения или опись; содержательную релевантность проверяет `ksrf-complaint-qa`.
+- `../ksrf-argument-patterns/references/constitutional-methodology-reference-only-corpus.md` — route-indexed справочник научных материалов и их пределов; не добавляет формальных требований или приложений сам по себе.
+- `../ksrf-argument-patterns/references/constitutional-institutions-access-and-remedy.md` — только comparative critic для различения norm/application/mixed defect, access route и redressability; формальные требования всегда подтверждай актуальными российскими первичными источниками.
+- `../ksrf-complaint-cycle/references/russian-secondary-constitutional-procedure-crosscheck.md` — вторичный cross-check пакета и допустимости по учебнику 2025 года и исторической монографии; не заменяет current-law check.

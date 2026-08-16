@@ -40,6 +40,8 @@ description: Находить через CasusLegal MCP, проверять и �
 
 Добавляй отдельную дорожку для доказательственного носителя, если спор касается бремени, стандарта или доступа к доказательствам. Не считай один широкий запрос достаточным.
 
+Если тезис выходит за пределы применения к заявителю и утверждает повторяемый судебный смысл, split, системную практику либо remedial effect, до массового поиска открой `references/judicial-meaning-evidence-acquisition.md`. Сначала зафиксируй норму/редакцию, population/query frame, уровни инстанций, inclusion/exclusion, adverse pass, coverage limits и stop condition; для массового кодирования добавь MeasurementAudit, InterpretiveArgumentPassport и при необходимости EmpiricalTriangulationGate. Несколько найденных актов возвращают максимум `corroborated_sample`, а не автоматически «устойчивую практику».
+
 ### 3. Маршрутизируй MCP-вызовы
 
 Прочитай `references/tool-routing.md` перед первым поиском. По умолчанию:
@@ -76,6 +78,8 @@ description: Находить через CasusLegal MCP, проверять и �
 - полный текст и locator для цитаты;
 - минимум одну adverse, limiting или refusal-позицию для сильной аналогии.
 
+Когда спор зависит от holding/dicta, уровня обобщения или аналогии, используй поля и stop rules из `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md`. Common-law термины служат QA-структурой: юридический статус российского акта и применимое положение устанавливай по российской системе источников.
+
 Лексическое, векторное или графовое сходство используй только как candidate generation. Если близкой аналогии нет, запиши `no_close_analogy_found`, а не отрицательный юридический вывод.
 
 ### 6. Собери authority ledger
@@ -85,19 +89,22 @@ description: Находить через CasusLegal MCP, проверять и �
 Проверь JSON:
 
 ```bash
-python3 scripts/validate_authority_ledger.py path/to/authority-ledger.json
+KSRF_SKILLS_ROOT=/path/to/installed/skills
+python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" path/to/authority-ledger.json
 ```
 
 Перед передачей в drafting потребуй human approval:
 
 ```bash
-python3 scripts/validate_authority_ledger.py --require-drafting path/to/authority-ledger.json
+KSRF_SKILLS_ROOT=/path/to/installed/skills
+python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" --require-drafting path/to/authority-ledger.json
 ```
 
 Перед публикацией обезличенного ledger проверь утечку токенизированных URL:
 
 ```bash
-python3 scripts/validate_authority_ledger.py --public path/to/authority-ledger.json
+KSRF_SKILLS_ROOT=/path/to/installed/skills
+python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" --public path/to/authority-ledger.json
 ```
 
 ### 7. Встрой или проверь аргумент

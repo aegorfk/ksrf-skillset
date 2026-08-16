@@ -10,7 +10,7 @@
 
 ### Input: реальная жалоба
 
-- файл: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Гайды/Жалобы/Успешная_жалоба_КС.pdf`;
+- файл: `<project-root>/ТЗ/Гайды/Жалобы/Успешная_жалоба_КС.pdf`;
 - SHA-256: `1e8bc7e4115963cbfdc2fbe674623ec13ea4f044b314badcb2a8ed636810d6c3`;
 - 11 страниц, дата на странице 11 — 28 марта 2024 года;
 - это обезличенный image-only PDF без текстового слоя;
@@ -19,7 +19,7 @@
 ### Outcome
 
 - официальное Постановление КС РФ от 14 ноября 2024 года № 52-П: `https://www.ksrf.ru/doc/KSRFDecision794940.pdf`;
-- локальная копия: `/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Постановления КС РФ/2024/52-П_2024__KSRFDecision794940.pdf`.
+- локальная копия: `<project-root>/ТЗ/Постановления КС РФ/2024/52-П_2024__KSRFDecision794940.pdf`.
 
 Сначала анализируй только разделы `Input-only` и `Research replay`. Раздел `Held-out outcome` открывай после фиксации портфеля.
 
