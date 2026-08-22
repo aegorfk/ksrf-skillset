@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "title": "Нейтральный fixture-план",
+  "research_questions": [
+    {
+      "id": "rq-fixture",
+      "status": "research_question",
+      "question": "При каких сопоставимых обстоятельствах спорная норма допускает восстановление срока?",
+      "norm_refs": ["ст. 10 Примерного кодекса"],
+      "supported": false
+    }
+  ],
+  "norm_editions": [
+    {
+      "id": "edition-fixture",
+      "norm_ref": "ст. 10 Примерного кодекса",
+      "valid_from": "2019-10-01",
+      "valid_to": null,
+      "official_source_url": "https://example.invalid/official-norm-fixture",
+      "edition_status": "verified"
+    }
+  ],
+  "population": {
+    "unit": "independent_case_chain",
+    "date_from": "2024-03-07",
+    "date_to": "2024-03-07",
+    "courts": ["1kas"],
+    "regimes": ["ksoyu_post_2019"],
+    "official_population_rule": "Все официально обнаружимые опубликованные материалы в замкнутом дневном обходе."
+  },
+  "query_lanes": {
+    "exact_norm": ["статья 10"],
+    "synonyms": ["срок подлежит восстановлению"],
+    "mechanisms": ["восстановление срока"],
+    "opposite_readings": ["отказ в восстановлении срока"],
+    "other_grounds": ["иной самостоятельный мотив"],
+    "later_authority": ["последующее разъяснение"]
+  },
+  "inclusion_rules": ["Полный текст и исходозначимое применение нормы."],
+  "exclusion_rules": ["Норма приведена только в доводе стороны."],
+  "materiality_rule": "Смысл нормы принят судом и связан с исходом.",
+  "adverse_review": {
+    "required": true,
+    "queries": ["отказ в восстановлении срока"],
+    "no_hit_wording": "В раскрытом корпусе противоположный акт не обнаружен; отсутствие в практике не доказано."
+  },
+  "contradiction_rule": "Различающиеся материальные факты кодируются отдельно.",
+  "coverage_expectation": "closed_official_population_observed",
+  "maximum_claim_if_incomplete": "corroborated_observed_corpus",
+  "approved_by": "fixture-human-reviewer"
+}

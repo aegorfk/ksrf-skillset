@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ksrf-cassation-judicial-meaning/research-plan/1.0",
+  "title": "Evidence Acquisition Plan",
+  "type": "object",
+  "required": [
+    "schema_version", "research_questions", "norm_editions", "population",
+    "query_lanes", "inclusion_rules", "exclusion_rules", "materiality_rule",
+    "adverse_review", "contradiction_rule", "coverage_expectation",
+    "maximum_claim_if_incomplete", "approved_by"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "research_questions": {"type": "array", "minItems": 1},
+    "norm_editions": {"type": "array", "minItems": 1},
+    "population": {"type": "object"},
+    "query_lanes": {"type": "object"},
+    "inclusion_rules": {"type": "array"},
+    "exclusion_rules": {"type": "array"},
+    "materiality_rule": {"type": "string", "minLength": 1},
+    "adverse_review": {"type": "object"},
+    "contradiction_rule": {"type": "string", "minLength": 1},
+    "coverage_expectation": {"type": "string"},
+    "maximum_claim_if_incomplete": {"type": "string"},
+    "approved_by": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

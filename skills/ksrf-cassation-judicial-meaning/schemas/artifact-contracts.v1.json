@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "artifact_types": {
+    "applicant_chain": ["run_id", "documents", "stages", "facts", "norms", "propositions", "outcomes", "unresolved"],
+    "research_question": ["id", "status", "question", "norm_refs"],
+    "source_manifest": ["source_id", "role", "canonical_url", "fetched_url", "raw_sha256", "adapter_version", "parser_version", "extraction_status"],
+    "page_coverage": ["task_id", "court_code", "hearing_date", "requested_url", "status", "attempts", "navigation_state"],
+    "case_chain": ["chain_id", "document_ids", "link_status", "review_status"],
+    "coding_decision": ["chain_id", "label", "speaker", "quote", "norm_edition_id", "reasoning_to_outcome", "reading_family", "relation", "human_review"],
+    "adverse_review": ["run_id", "lanes", "completed", "reviewer", "limitations"],
+    "thesis_candidate": ["status", "norm_ref", "norm_edition_id", "applicant_meaning", "supportive_chain_ids", "adverse_chain_ids", "limitations", "normative_defect_bridge"],
+    "human_decision": ["decision", "reviewer", "plan_sha256", "evidence_sha256", "decided_at"],
+    "handoff_envelope": ["schema_version", "handoff_id", "source_skill", "target_skill", "run_id", "plan_sha256", "evidence_sha256", "payload_type", "payload", "limitations"]
+  }
+}

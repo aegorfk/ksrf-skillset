@@ -68,6 +68,8 @@ description: Исследовать и сравнить несколько ко�
 
 Выбери не менее трёх направлений из `references/research-directions.md`, релевантных профилю. Хотя бы одно направление должно пытаться опровергнуть исходную формулировку проблемы. Корпусные матрицы, стенограммы, материалы Секретариата, ЕСПЧ/ООН, доктрина и сравнительное право — возможные направления, а не обязательные ступени.
 
+Если одно из направлений должно установить повторяемый судебный смысл, split, динамику или системность кассационной практики, не формируй по нему drafting-тезис из нескольких найденных примеров. При установленном `ksrf-cassation-judicial-meaning` передай через файловый envelope версии `1.0` акты заявителя, нейтральные вопросы и disconfirmation prompts с `payload_type: unproven_research_questions`. В портфель возвращай только `approved_bounded_findings` с совпадающими хешами плана и доказательств, явным `maximum_permitted_claim`, adverse/coverage review и ручным одобрением; иной результат остаётся `hypothesis_under_test`, `contradicted` или `insufficient_coverage`. Отсутствие соседнего скилла не блокирует исследование иных, не зависящих от массовой практики гипотез.
+
 Если выбрано доктринальное или сравнительное направление, открой `../ksrf-argument-patterns/references/constitutionalist-authority-corpus.md`, выбери тематический маршрут и зафиксируй уровень готовности каждого автора. Для рабочего тезиса отдай приоритет `method_integrated`, `full_text_available` или `triangulated_academic`; запись `discovery_only` допускается только как lead к первичной публикации. По возможности проверь не только поддерживающего автора, но и конкурирующий метод или институциональный контраргумент.
 
 ### 3. Веди журнал findings
@@ -132,6 +134,7 @@ description: Исследовать и сравнить несколько ко�
 
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономный baseline исследования; используй его, даже если внешние корпуса и retrieval недоступны.
 - `../ksrf-complaint-cycle/references/uid-first-case-workflow.md` — обязательный UID-досье и admissibility-first gate до портфеля.
+- `../ksrf-cassation-judicial-meaning/SKILL.md` — опциональный post-intake корпусный проход: принимает только недоказанные вопросы, а возвращает в портфель лишь одобренные ограниченные выводы через файлы версии `1.0`.
 - `ksrf-argument-patterns` — генератор аналогий и терминов поиска, не закрытый перечень допустимых аргументов.
 - `../ksrf-argument-patterns/references/hearing-constitutional-justifications.md` — библиотека возможных связок и вопросов, не обязательная схема обоснования.
 - `../ksrf-argument-patterns/references/hearing-derived-argument-patterns.md` и `../ksrf-argument-patterns/references/hearing-argument-techniques.md` — материал для stress-test и моделирования заседания.

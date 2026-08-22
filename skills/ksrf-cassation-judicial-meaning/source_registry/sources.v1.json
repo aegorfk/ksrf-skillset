@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "registry_version": "2026-08-22",
+  "sources": [
+    {
+      "id": "ksoyu_post_2019",
+      "title": "Кассационные суды общей юрисдикции",
+      "role": "official",
+      "applicable_from": "2019-10-01",
+      "applicable_to": null,
+      "adapter": "ksoyu_daily_v1",
+      "enumeration": "daily_official_output",
+      "closed_for_official_output": true,
+      "closed_for_all_decided_cases": false,
+      "rate_limit_seconds": 1.5,
+      "courts": [
+        {"code": "1kas", "host": "1kas.sudrf.ru"},
+        {"code": "2kas", "host": "2kas.sudrf.ru"},
+        {"code": "3kas", "host": "3kas.sudrf.ru"},
+        {"code": "4kas", "host": "4kas.sudrf.ru"},
+        {"code": "5kas", "host": "5kas.sudrf.ru"},
+        {"code": "6kas", "host": "6kas.sudrf.ru"},
+        {"code": "7kas", "host": "7kas.sudrf.ru"},
+        {"code": "8kas", "host": "8kas.sudrf.ru"},
+        {"code": "9kas", "host": "9kas.sudrf.ru"}
+      ]
+    },
+    {
+      "id": "regional_presidia_pre_2019",
+      "title": "Дореформенная кассация региональных президиумов",
+      "role": "official_unconfigured",
+      "applicable_from": null,
+      "applicable_to": "2019-09-30",
+      "adapter": null,
+      "enumeration": "not_configured",
+      "closed_for_official_output": false,
+      "courts": []
+    },
+    {
+      "id": "supreme_court_cassation",
+      "title": "Кассационная практика Верховного Суда РФ",
+      "role": "discovery_only",
+      "applicable_from": null,
+      "applicable_to": null,
+      "adapter": null,
+      "enumeration": "not_configured",
+      "closed_for_official_output": false,
+      "courts": []
+    }
+  ]
+}

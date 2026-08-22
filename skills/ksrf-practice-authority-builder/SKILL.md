@@ -86,6 +86,8 @@ description: Находить через CasusLegal MCP, проверять и �
 
 Используй контракт `references/authority-ledger-contract.md`. Не смешивай записи разных дел и не переноси персональные данные вместе с публичной практикой.
 
+Если корпус исследован `ksrf-cassation-judicial-meaning`, принимай через файловый handoff-envelope версии `1.0` не весь корпус, а только отобранные официальные акты из `approved_bounded_findings`. Для каждой импортируемой записи сохрани `run_id`, `plan_sha256`, `evidence_sha256`, `chain_id`, официальный URL, хеш документа, точную цитату и locator, роль, relation, adverse-status и предел вывода. Несовпадение хешей, отсутствие `human-decision.json`/`validation-report.json` либо статус, не допускающий drafting, блокирует перенос в drafting ledger, но не изменяет исходный исследовательский corpus. Не импортируй Python-модули соседнего скилла и не делай его наличие условием обычного точечного поиска authority.
+
 Проверь JSON:
 
 ```bash
@@ -141,3 +143,7 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_auth
 - Не вставляй токенизированный CasusLegal URL в жалобу; используй реквизиты, locator и официальный источник.
 - Не объявляй поиск исчерпывающим, если не выполнены релевантные дорожки или недоступна часть корпуса.
 - Не делай доступ к CasusLegal условием автономной работы остальных KSRF skills.
+
+## Необязательная стыковка
+
+- `../ksrf-cassation-judicial-meaning/SKILL.md` — источник только выбранных, официально проверенных и одобренных актов для authority ledger; файловый envelope версии `1.0` сохраняет provenance и не подменяет проверку переносимости.
