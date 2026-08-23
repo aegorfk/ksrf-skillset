@@ -136,6 +136,30 @@
 
 Заявление публичного органа о цели, эффекте или гарантии остаётся claim до доказательной проверки.
 
+## 7A. Паспорт конституционного конфликта и риск-реестр
+
+Эта ветвь помогает разложить предполагаемый конфликт, но не объявляет спор «конституционным» и не выбирает полномочие или средство защиты.
+
+### ConstitutionalConflictPassport
+
+**Input → transform → output:** точная норма, подтверждённое применение, действия/бездействие и предполагаемые стороны → раздельно установи `conflictogen`, catalyst/application, риск или уже возникший конфликт, parties, объект и затронутые ценности с российскими anchors, действия/бездействие, stage/scale/form, competent actor и lawful route → `ConstitutionalConflictPassport` и перечень пробелов.
+
+Не смешивай:
+
+- `conflictogen` — свойство регулирования или институциональной связи, способное породить трение;
+- `catalyst` — конкретное применение, событие или бездействие;
+- `risk` — проверяемая возможность конфликта;
+- `actual_conflict` — подтверждённое противоположное поведение сторон вокруг юридически значимого объекта;
+- спор, деликт, политическое несогласие и нарушение — это не автоматические синонимы конституционного конфликта.
+
+### ConflictRiskLedger
+
+**Input → transform → output:** повторяющееся институциональное трение → зафиксируй norm/version, conflictogen type, catalyst, actors, evidence/counterevidence, affected values, monitoring period, adverse cases, mitigation и currentness → `ConflictRiskLedger` как acquisition/eval plan. Один случай, частота упоминаний или доктринальная классификация не доказывают системный конфликт и не прогнозируют исход.
+
+**Confirm/refute/stop:** каждый элемент подтверждается действующими официальными российскими нормами, актами КС РФ и полным case record. Кандидат ослабляют non-conflict cases, cooperative resolution, отсутствие opposing conduct, изменение права и вмешательство, ухудшившее результат. Верни `abstain_conflict_passport`, если не установлены применение, стороны, объект, competent actor, route или current law. Юрист подтверждает justiciability, квалификацию actual conflict и компетенцию; неизвестная компетенция всегда блокирует remedy generation.
+
+Кандидат меры передавай в remedy matrix только после этого gate. Purpose labels `prevention`, `suppression`, `restoration/protection`, `responsibility`, `procedural_assurance` описывают функцию варианта, а не его законность. Не используй бинарную либо числовую plus-minus сумму: законность и компетенция — некомпенсируемые hard gates, `Unknown` не может быть перекрыт полезностью или эффективностью.
+
 ## 8. Матрица институциональной компетентности
 
 Ярлык «политический вопрос» не заменяет юридический анализ. Переведи спор в точную норму, применение и официальный конституционный критерий, затем построй парные позиции:
@@ -200,6 +224,8 @@
 - `ArgumentCodeCard[]` с отдельным weight basis;
 - `AttackSurfaceLedger`;
 - `RegulatoryRealityPassport`;
+- `ConstitutionalConflictPassport` либо `abstain_conflict_passport`;
+- `ConflictRiskLedger` как acquisition/eval plan;
 - парная `InstitutionalCompetenceMatrix`;
 - `ConsequenceMatrix` с red-team и неопределённостью;
 - варианты минимальной коррекции, каждый с official competence anchor.
@@ -218,3 +244,5 @@
 - итоговая реконструкция: с. 438–452.
 
 Проверенный SHA-256 полного локального текста: `4f91567de87bd6a3c5743dcdc5177d9a7036f7f2f178fdc24280f5ffbffb29e1`. PDF-страница совпадает с напечатанным номером страницы. Ссылки автора на акты, факты и состояние законодательства требуют самостоятельной актуальной проверки.
+
+И. А. Третьяк, *Конституционная конфликтология*, Проспект, 2021, ISBN `978-5-392-33354-7`, DOI `10.31085/9785392333547-2021-208`, законодательство по состоянию на 1 мая 2020 года: структура конфликта, объект, стороны и actor — PDF/печатные с. 69–81, особенно 71–80; конфликт, спор и деликт — 81–90; классификация — 90–112, семь осей на 110–112; разрешение и прекращение — 113–116; coercive/cooperative methods — 116–119; prevention, risk и conflictogen — 119–129, различение риска и actual conflict на 124, diagnostic fields на 128–129; принципы выбора меры — 130–136; непереносимая plus-minus таблица — 134; purpose classifier — 143–147 и 169–170; checks/balances/coordination — 171–198. `PDF=print`, SHA-256 `88e278bee4d128c8434a49f16e2c330334c7b32b21cabef3ceaf39e1d1326f3b`. Статус — `russian_academic_method_only`; правовые примеры и currentness перепроверяются официально.

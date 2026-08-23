@@ -56,6 +56,7 @@ description: Подготовить факты, конституционный �
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — статусы фактов, фактическое применение и портфель допустимых результатов.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и source registry.
 - `references/workflow-reference.md` и `references/norm-application-defect-map.md` — факты, применение и зеркальность требования.
+- `references/norm-system-and-gap-qualification.md` — системная карта нормы, квалификация пробела/молчания/коллизии, законодательный ответ, remedy-vacuum guard и secondary evidence lanes с current-law, corpus и human gates.
 - `references/remedy-design-matrix.md` — двухконтурный результат, single-track critic, необратимый вред и competence gate для отложенных/диалоговых вариантов.
 - `references/constitutional-facts-evidence-ledger.md` — doctrinal/reviewable/case-specific fact levels, freshness, burden и individual bridge без импорта американского процессуального режима.
 - `references/evidence-inference-and-dependency-audit.md` — lifecycle бремени/презумпции, rival-explanation graph, evidential anchors, dependency/double-count audit и red-team объяснения Legal AI с российским нормативным gate.

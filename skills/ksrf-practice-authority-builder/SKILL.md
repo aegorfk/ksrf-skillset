@@ -80,6 +80,8 @@ description: Находить через CasusLegal MCP, проверять и �
 
 Когда спор зависит от holding/dicta, уровня обобщения или аналогии, используй поля и stop rules из `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md`. Common-law термины служат QA-структурой: юридический статус российского акта и применимое положение устанавливай по российской системе источников.
 
+Если нужно извлечь позицию, проверить её последующее использование самим КС РФ отдельно от нижестоящей рецепции, обосновать дельту к прежнему решению или проследить uptake довода и post-filing события, прочитай `references/position-lifecycle-and-argument-uptake.md` и не повышай candidate до drafting без official full-text, current-law, adverse и human gates.
+
 Лексическое, векторное или графовое сходство используй только как candidate generation. Если близкой аналогии нет, запиши `no_close_analogy_found`, а не отрицательный юридический вывод.
 
 ### 6. Собери authority ledger

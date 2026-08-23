@@ -143,6 +143,16 @@
 
 Отсутствие общей мотивировки закона само по себе не создаёт дефект. Оно может быть релевантно, если российский источник требует конкретного факта, прогноза или критерия и пробел мешает проверить именно этот элемент.
 
+### R1A: LegislativeRecordTrace как необязательный discovery-pass
+
+**Input → transform → output:** точный тезис о цели, выборе средства или рассмотренной альтернативе → проследи только доступную официальную цепочку `действовавшее регулирование -> поручение/концепция -> проект -> консультация и пояснительные материалы -> предварительное парламентское рассмотрение -> поправки -> итоговый текст -> последующая оценка` → `LegislativeRecordTrace` и план получения недостающих материалов. Это дополнение к R1/R2, а не новая обязательная последовательность и не презумпция конституционности либо неконституционности.
+
+Для каждого звена сохрани `jurisdiction`, `bill_or_act`, `stage`, `actor`, `source_type`, `date`, `official_locator`, `purpose_claim`, `evidence`, `alternatives`, `amendment_effect`, `currentness` и `post_leg_assessment`. Иностранный учебный источник может только подсказать тип документа; содержание звена подтверждай текущим официальным первичным материалом соответствующей юрисдикции. Для российского drafting-ready вывода отдельно нужны действующая норма, официальный акт КС РФ и материалы конкретного дела.
+
+**Adverse/refute pass:** ищи отозванный или отвергнутый проект, поправку, изменившую заявленную цель, конкурирующее объяснение, отрицательное заключение комитета, данные последующей оценки и отсутствие обещанного эффекта. Неполная цепочка не означает, что материал не существовал или законодатель не рассматривал альтернативу.
+
+Верни `abstain_legislative_record`, если нет текущего первичного источника, не установлена редакция, смешаны разные проекты либо разрыв цепочки меняет вывод. Юрист вручную подтверждает роль каждого материала и допустимость российского нормативного моста. Дефект record не создаёт полномочия суда, обязанности законодателя мотивировать закон или самостоятельного средства защиты.
+
 ### R2: что стало известно после применения
 
 Активируй только при значимой неопределённости, сложности или динамичности фактов. Поля:
@@ -197,12 +207,15 @@
 - `MarginalBalanceCard`;
 - `LegislativeFactPassport[]`;
 - `R1/R2 record`;
+- необязательный `LegislativeRecordTrace` либо `abstain_legislative_record`;
 - `review_intensity_query` с российским authority status;
 - adverse findings и более узкий remedy.
 
 ## Источники и locators
 
 - Aharon Barak, *Proportionality: Constitutional Rights and Their Limitations*, Cambridge University Press, 2012: legality, PDF 131–138; purpose, PDF 267–308; rational connection, PDF 322–331; necessity, PDF 335–352; balance, PDF 362–374; trace and model, PDF 469–475. SHA-256: `169cfccb3934a3608ee66205a03d10858918ce5586249d642b0a6f6e2fcbf858`.
+  - **Repack alias QA:** проверенный Cambridge Online repack того же английского издания имеет 666 PDF-страниц и SHA-256 `4d08ce352e95af87d2c9a646b5d9916015e38ef5ecbdd29145b91a432b65278d`. Совпали title/copyright/ISBN/TOC и распределённые контрольные окна. Карта `печатная:repack PDF:канонический PDF`: `1:28:28`, `107:139:131`, `131:164:153`, `245:281:266`, `303:340:322`, `317:355:335`, `340:379:357`, `435:478:449`, `457:501:469`, `481:526:493`, `493:539:506`, `528:575:539`. Статус — `content_duplicate_repack`; каноническими остаются SHA и locators основной записи, новый workflow не извлекается. Любое расхождение edition/translation/TOC или контрольного окна даёт `abstain_alias_mismatch` и ручную проверку, а не автоматическое объединение.
+- М. А. Викулина, *Основы конституционного права Великобритании: исполнительная и законодательная ветви власти*, Проспект, 2021, ISBN `978-5-392-35203-6`: Crown, формальная и фактическая власть, statute/prerogative/convention — PDF/печатные с. 4–19; executive/accountability — с. 20–31; Commons и scrutiny — с. 32–47; Lords и inquiry — с. 48–61; подготовка законопроекта — с. 62–67; парламентские стадии — с. 68–75; post-legislative review — с. 71; TOC — PDF 78. Файл содержит 78 PDF-страниц при библиографическом объёме 80 страниц; явной содержательной утраты не установлено, но полнота требует human check. SHA-256: `36973eba8462c77cffa7ddc96b4dab6307ec87247ec298c721d90b300c53ff37`. Это учебный comparative lead; currentness и каждое звено `LegislativeRecordTrace` подтверждаются официальными первичными источниками.
 - Jacob Weinrib, *The Impasse of Constitutional Rights*, Cambridge University Press, 2025, DOI `10.1017/9781009010078`: system of rights, PDF 51–53; scope/purposive interpretation, PDF 62–74; purpose, means and final proportionality, PDF 92–105. SHA-256: `3f2daf4ce876cb20ea2b9af39083708bb4313b383246aad9ed3791819c0e9606`.
 - Klaus Meßerschmidt, A. Daniel Oliver-Lalana (eds.), *Rational Lawmaking under Review*, Springer, 2016, DOI `10.1007/978-3-319-33217-8`: reasons, PDF 133–152 / pp. 129–148; consistency, PDF 175–177, 191–208, 224–230; legislative facts/intensity, PDF 243–255; post-legislative review, PDF 272–293; procedural review and critique, PDF 348–398. SHA-256: `c42a4851861ce27e4923aec3b2a626a8c7842d56a7b6d18e2642ae71d972a12e`.
 - Aharon Barak, *The Judge in a Democracy*, Princeton University Press, 2006/2008: semantic range, PDF 150–158 / pp. 127–135; balancing and zone of proportional solutions, PDF 190–198, 277–282 / pp. 167–175, 254–259; comparative transfer, PDF 223–226 / pp. 200–203. SHA-256: `a366e88bef184e5dc95f4e69af9cc15c10f255f7c68422aaeb89f2c392b68069`.

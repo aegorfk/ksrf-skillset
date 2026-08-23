@@ -10,6 +10,7 @@
 4. `no_automatic_override`: расхождение буквального результата и предполагаемой цели не даёт полномочия отступить от правила.
 5. `authority_before_similarity`: тематическая или векторная близость не превращает dictum, иностранное решение или вторичный источник в применимую позицию.
 6. `foreign_method_only`: frame/baseline audit и role-классификация reasonableness служат critic/discovery. Они не устанавливают российский смысл нормы, стандарт проверки, практику или полномочие.
+7. `foreign_philosophy_never_invalidates`: иностранная философия права может выявить конфликт правовой определённости, равенства/справедливости и цели, но никогда не возвращает `invalid`, `disapply` или полномочие отступить от российского закона.
 
 ## 1. Паспорт интерпретации
 
@@ -57,6 +58,22 @@
 - В `institutional_mode` проверь, кто несёт риск ошибки и кто вправе учитывать исключение.
 
 Дихотомия rules/principles спорна. Если режимы дают разные итоги, не компилируй их в общий score.
+
+## 3A. LegalValueConflictLedger и ExtremeInjusticeClaimGuard
+
+### LegalValueConflictLedger
+
+**Input → transform → output:** спорное толкование, норма и заявленный результат → раздельно проследи `positive_source_and_version`, legal certainty, equality/justice, purposiveness/public benefit, фактические предпосылки, конкурирующие ветви толкования и competent decision-maker → `LegalValueConflictLedger` с authority/evidence gaps. Это critic-pass ценностного конфликта, а не формула приоритета и не российский тест действительности.
+
+Не своди ценности в scalar score. Для каждой ветви сохрани `claim`, `official_russian_anchor`, `facts`, `counterweight`, `adverse_authority`, `semantic_limit`, `competent_actor`, `permitted_route`, `currentness` и `residual_uncertainty`. Обычная несправедливость, нецелесообразность или несогласие с policy не отменяют положительное право.
+
+### ExtremeInjusticeClaimGuard
+
+**Input → transform → output:** draft, который связывает крайнюю несправедливость с недействительностью или неприменением → потребуй точную действующую российскую норму и официальный акт КС РФ, отдельно проверь equality anchor, доказательства тяжести и, если заявлен, умысла, semantic range, уполномоченного decision-maker, разрешённый route, legal-certainty objection, более узкое официальное толкование и adverse cases → один из статусов `foreign_philosophy_only`, `blocked_missing_russian_authority` или `ready_for_human_critic_review`.
+
+Guard **никогда** не выдаёт `invalid`, `law_ceases_to_be_law`, `disapply`, `court_may_ignore_statute`, готовую допустимость или remedy. Даже наличие российского якоря переводит материал только на ручную правовую проверку; оно не делегирует философской модели вывод по делу.
+
+**Confirm/refute/stop:** drafting-ready юридический элемент может быть подтверждён только действующими Конституцией РФ, ФКЗ/законом, официальным актом КС РФ и record конкретного дела. Claim ослабляют официальный narrower construction, ordinary unjust-but-valid cases, недоказанная intentional inequality, иной equality rationale, последующая редакция и competence rejection. Верни `blocked_missing_russian_authority`, если draft перескакивает от «несправедливо» к «недействительно», предлагает обычному суду игнорировать закон, либо неизвестны severity, equality effect, actor или route. Любое внешнее использование утверждает юрист-конституционалист.
 
 ## 4. Аналогия, holding и различение
 
@@ -144,6 +161,8 @@ Reasonableness не является синонимом proportionality: свя�
 - `AbstractionLadder`;
 - `FrameSensitivityAudit`;
 - `ReasonablenessRoleRecord[]`;
+- `LegalValueConflictLedger`;
+- `ExtremeInjusticeClaimGuard` только со статусами critic/blocked/human-review;
 - `HardCaseBranchSet`;
 - `application/justification/policy` trace;
 - `model_conflict`, `missing_evidence` и вопросы для ручного решения.
@@ -159,5 +178,6 @@ Reasonableness не является синонимом proportionality: свя�
 - Aharon Barak, *Purposive Interpretation in Law*, Princeton University Press, 2005: purpose и semantic anchor, PDF 131–133, 169, 203–205, 391–405 / с. 110–112, 148, 182–184, 370–384. SHA-256: `e73bae5e15d2071452fb2892809833561a0d56c7b731cabe2a2745dfce8e1d9a`.
 - Pierre Schlag, Amy J. Griffin, *How to Do Things with Legal Doctrine*, University of Chicago Press, 2020: frames, печ. с. 31–54 / PDF 40–63; baselines, с. 55–72 / PDF 64–81; legal distinctions, с. 73–99 / PDF 82–108; rules/standards, с. 100–118 / PDF 109–127; regime conflicts, с. 119–137 / PDF 128–146; contexts of interpretation, с. 138–157 / PDF 147–166. У файла отсутствует пригодный текстовый слой; locators сверены визуально и по OCR и используются только для critic-прохода.
 - Giorgio Bongiovanni, Giovanni Sartor, Chiara Valentini (eds.), *Reasonableness and Law*, Springer, 2009: вводная карта значений, печ. с. xi–xvii / PDF 11–17; Robert Alexy, с. 5–15 / PDF 20–30; Giovanni Sartor, с. 17–68 / PDF 31–82; Alec Stone Sweet и Jud Mathews, с. 173–214 / PDF 182–223; Andrea Morrone, с. 215–242 / PDF 224–250; Ariel Porat, с. 243–254 / PDF 251–260. Из-за пропущенных пустых страниц нет единого стабильного offset; это неоднородные сравнительные модели, а не единый тест.
+- Gustav Radbruch, *Философия права*, пер. Ю. М. Юмашева, Международные отношения, 2004, ISBN `5-7133-1197-X`; исходная Studienausgabe под ред. Ralf Dreier и Stanley L. Paulson, C. F. Müller, 1999: антиномии justice/purposiveness/legal certainty и validity — печ. с. 86–101; логика — 127–140; Rechtsstaat — 198–204; *Five Minutes* и statutory injustice/supra-statutory law — 225–239. Источник — legacy `.doc`, SHA-256 `cde4619d8f8214c4053fbd4fdf8953871d4154c13459e0671ace9c81d1487fc8`; для inspection использован производный PDF с картой `derived PDF = print + 1`, соответственно 87–102, 128–141, 199–205 и 226–240. Производный PDF не является новым authority. Статус — `foreign_legal_philosophy_critic_only`: формула Радбруха не устанавливает российский тест недействительности, неприменения, компетенции, допустимости или remedy.
 
 Все источники — `secondary_comparative_methodology`. Их locator проверяет авторский тезис, но не подтверждает российское право, полномочие КС РФ или исход дела.
