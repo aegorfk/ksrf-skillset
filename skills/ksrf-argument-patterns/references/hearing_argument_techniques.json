@@ -1,10 +1,10 @@
 {
-  "source_corpus": "/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Стенограммы заседаний",
+  "source_corpus": "ТЗ/Стенограммы заседаний",
   "generated_at_unix": 1783315963,
   "processed_transcripts": 373,
   "missing_transcripts": 0,
-  "processed_log": "/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/processed_log.csv",
-  "json_path": "/Users/aegorfk/Documents/ks_parser_lower_court_marker/ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/hearing_argument_techniques.json",
+  "processed_log": "ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/processed_log.csv",
+  "json_path": "ТЗ/Стенограммы заседаний/_analysis/argument_techniques_from_hearings/hearing_argument_techniques.json",
   "techniques": [
     {
       "code": "hearing-subject-frame",

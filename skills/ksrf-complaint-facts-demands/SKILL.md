@@ -12,12 +12,16 @@ description: Подготовить факты, конституционный �
 3. Строй факты хронологически, оставляя статус заявителя, попытки реализовать право, непосредственный вред, применение нормы, сохранённые доводы и исчерпание. Пометь каждый существенный факт: `установлено судом`, `следует из документа и не оспорено`, `утверждение стороны`, `оспаривается` или `не подтверждено`.
 4. По каждой судебной стадии фиксируй довод, вывод суда, смысл нормы и точное цитатное окно. Отличай применение от упоминания. При отсутствии прямой ссылки собирай `implicit-application pack` по автономному стратегическому справочнику и не повышай статус выше `неясно`, пока цепочка неполна.
 5. До связного текста собери карту `норма -> судебный смысл -> правовое последствие -> заявленный конституционный вред` по `references/norm-application-defect-map.md`. Если approved hypothesis использует более точную причинную структуру, добавь её как отдельную карту.
-6. Для доказательственного спора укажи предмет, бремя, стандарт, доступ к сведениям, последствие недоказанности и нормативный носитель. Без носителя не превращай переоценку доказательства в конституционный вопрос.
+   Для общих, повторяемых и индивидуальных фактических посылок отдельно заполни `references/constitutional-facts-evidence-ledger.md`; системная статистика не заменяет факт применения к заявителю, а единичный случай не доказывает общий механизм.
+   Если спор касается социального права или фактической доступности гарантии, используй `../ksrf-rights-argument-builder/references/social-rights-institutional-evidence.md`: отдельно покажи российский правовой якорь, паспорт индикатора, стадии access funnel и individual bridge. Не смешивай формальный отказ, проигрыш по существу и отсутствие исполнения.
+6. Для доказательственного спора укажи предмет, бремя, стандарт, доступ к сведениям, последствие недоказанности и нормативный носитель. Затем пройди `references/evidence-inference-and-dependency-audit.md`: отследи смену burden/presumption по стадиям, проверь rival explanation и evidential anchors, построй dependency graph против двойного учёта. Без носителя не превращай переоценку доказательства в конституционный вопрос; научные и Legal-AI модели остаются critic/eval и не устанавливают факт.
 7. Получи principal/reserve hypotheses из утверждённого `ArgumentPortfolio`. Не выбирай 1–3 корпусных паттерна и не переписывай факты ради совпадения с библиотекой.
 8. Сформулируй вопрос КС РФ для каждой жизнеспособной линии, сохраняя один фактический baseline. Покажи, чем principal и reserve отличаются по механизму, тесту или remedy.
 9. Подготовь не менее двух уровней remedy, если это юридически возможно:
    - основная формула, устраняющая выявленный механизм;
    - более узкий конституционно-правовой смысл или гарантия, не предрешающие факты.
+   Для сложной позитивной обязанности отдельно проверь диалоговый вариант: участники, предмет, временная защита, срок, отчётность, контроль и эскалация. Если дефект одновременно требует практического результата для заявителя и общего исправления, заполни `references/remedy-design-matrix.md` и проведи single-track red team. Включай любой сравнительно найденный элемент только при наличии российского нормативного якоря, компетентного адресата и законного downstream-маршрута.
+   Для выбора модели нормативной коррекции и проверки исключения из общего правила используй `../ksrf-argument-patterns/references/constitutional-argument-architecture.md`: обоснуй точный дефект, минимальную коррекцию, затронутых лиц, переходный риск и официальное полномочие.
 10. Сверь каждую часть требования с фактическим крючком, verified finding и полномочиями КС РФ. Не проси отменить судебный акт или установить обстоятельства.
 11. Для каждой активной линии укажи, какой практический результат устраняет дефект и каким процессуальным маршрутом он может быть реализован после решения.
 12. Направь почти готовый проект в `ksrf-complaint-qa`.
@@ -51,7 +55,13 @@ description: Подготовить факты, конституционный �
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная причинная архитектура, multi-norm матрица и правила зеркальности требования.
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — статусы фактов, фактическое применение и портфель допустимых результатов.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и source registry.
-- `references/workflow-reference.md` и `norm-application-defect-map.md` — факты, применение и зеркальность требования.
+- `references/workflow-reference.md` и `references/norm-application-defect-map.md` — факты, применение и зеркальность требования.
+- `references/remedy-design-matrix.md` — двухконтурный результат, single-track critic, необратимый вред и competence gate для отложенных/диалоговых вариантов.
+- `references/constitutional-facts-evidence-ledger.md` — doctrinal/reviewable/case-specific fact levels, freshness, burden и individual bridge без импорта американского процессуального режима.
+- `references/evidence-inference-and-dependency-audit.md` — lifecycle бремени/презумпции, rival-explanation graph, evidential anchors, dependency/double-count audit и red-team объяснения Legal AI с российским нормативным gate.
+- `../ksrf-rights-argument-builder/references/social-rights-institutional-evidence.md` — социальные факты, качество индикаторов, access funnel и fail-closed проверка институционального довода.
+- `../ksrf-argument-patterns/references/constitutional-argument-architecture.md` — типы нормативной коррекции, двухтезисная проверка исключения и consequence/competence gates.
 - `references/complaint-patterns.md`, `../ksrf-argument-patterns/references/language-formulas.md` — optional drafting examples.
 - `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` — словарь возможных дефектов.
 - `../ksrf-complaint-cycle/references/science-support-pack.md` — роль доктрины/эмпирики в фактах и приложениях.
+- `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` — конфигурация просимого результата, граница истолкования и проверка полного механизма remedy.

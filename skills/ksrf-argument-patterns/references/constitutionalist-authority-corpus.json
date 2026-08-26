@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "as_of": "2026-08-09",
+  "as_of": "2026-08-14",
   "purpose": "широкий маршрутизируемый корпус авторов для исследования, извлечения методик и QA жалоб в КС РФ",
   "warning": "Присутствие в реестре не превращает доктрину в право. Discovery-only записи нельзя цитировать как авторитет без проверки автора и работы.",
   "status_legend": {
@@ -59,36 +59,36 @@
   "summary": {
     "authorities_total": 1652,
     "status_counts": {
-      "method_integrated": 13,
-      "triangulated_academic": 121,
-      "academic_indexed": 1052,
+      "method_integrated": 20,
+      "triangulated_academic": 116,
+      "academic_indexed": 1050,
       "bibliographic_lead": 215,
       "discovery_only": 251
     },
     "source_people_counts": {
       "blokhin_bibliography": 302,
-      "curated_method": 13,
-      "local_full_text": 13,
+      "curated_method": 20,
+      "local_full_text": 20,
       "mp_index": 281,
       "sko_index": 954,
       "zakon_discovery": 285
     },
     "route_counts": {
-      "admissibility_and_route": 63,
+      "admissibility_and_route": 65,
       "bioethics_privacy_technology": 29,
-      "certainty_communication_writing": 59,
+      "certainty_communication_writing": 60,
       "comparative_and_international": 512,
       "democracy_federalism_public_power": 242,
-      "evidence_empirics_consequences": 81,
+      "evidence_empirics_consequences": 83,
       "identity_sovereignty_systems": 78,
-      "institutional_design_and_legitimacy": 116,
-      "interpretation_and_positions": 108,
-      "proportionality_equality_dignity": 71,
-      "remedy_execution_review": 52,
+      "institutional_design_and_legitimacy": 121,
+      "interpretation_and_positions": 109,
+      "proportionality_equality_dignity": 72,
+      "remedy_execution_review": 55,
       "social_economic_and_property_rights": 128
     },
-    "works_total": 4163,
-    "needs_review_total": 1303
+    "works_total": 4178,
+    "needs_review_total": 1301
   },
   "next_extraction_wave": [
     {
@@ -234,17 +234,6 @@
         "sko_index": 6
       },
       "works_available": 9
-    },
-    {
-      "authority_id": "authority-407c13198680",
-      "canonical_name": "Елена Владимировна Гриценко",
-      "current_status": "triangulated_academic",
-      "target_methods": "доступ к правосудию, сравнительный контроль и публичная власть",
-      "source_counts": {
-        "blokhin_bibliography": 4,
-        "sko_index": 18
-      },
-      "works_available": 21
     },
     {
       "authority_id": "authority-afc16318634f",
@@ -505,18 +494,25 @@
       "needs_identity_or_method_review": false,
       "parser_confidence": 0.813,
       "routes": [
+        "admissibility_and_route",
         "certainty_communication_writing",
         "comparative_and_international",
-        "evidence_empirics_consequences"
+        "evidence_empirics_consequences",
+        "institutional_design_and_legitimacy",
+        "remedy_execution_review"
       ],
       "source_counts": {
         "blokhin_bibliography": 2,
         "curated_method": 1,
-        "local_full_text": 1,
+        "local_full_text": 5,
         "sko_index": 12
       },
       "full_text_sources": [
-        "Чирнинов А. М. Доказывание и доказательства в конституционном судебном процессе РФ и США"
+        "Чирнинов А. М. Доказывание и доказательства в конституционном судебном процессе РФ и США",
+        "Чирнинов А. М. Убедить нельзя принудить: цель и функции конституционно-судебной аргументации",
+        "Чирнинов А. М. Янус оказался одноликим: аргументационный анализ Постановления КС РФ № 33-П",
+        "Чирнинов А. М. Нельзя объять необъятное: предмет доказывания в конституционном судебном процессе (на примере России и США)",
+        "Чирнинов А. М. «Процессуальный небожитель?»: дело о возможности оспаривания бездействия председателя суда в порядке административного судопроизводства"
       ],
       "method_cards": [
         {
@@ -530,6 +526,30 @@
           "usable_for": "проверка практического эффекта нормы, альтернатив и переходного режима",
           "guardrail": "отделять доказанные последствия от гипотез и избегать недоказанного скользкого склона",
           "skill_reference": "science-support-pack.md"
+        },
+        {
+          "method": "три поля и четыре функции конституционной аргументации",
+          "usable_for": "разделение конституционно должного, нормативно существующего и фактического с проверкой корректирующей, прогностической, познавательной и легитимирующей функции",
+          "guardrail": "убедительность не компенсирует недостоверность, отсутствие нормативного носителя или пустое причинное звено",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; constitutional-review-methods.md"
+        },
+        {
+          "method": "состязательная карта и тест названия на функцию",
+          "usable_for": "сопоставление официальных позиций и проверка, устранён ли механизм дефекта, а не только изменён термин",
+          "guardrail": "расхождение позиций поддерживает неопределённость, но не заменяет текст, применение и влияние на исход",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; strategic-complaint-design.md"
+        },
+        {
+          "method": "таксономия фактов и срок конституционной годности",
+          "usable_for": "разделение содержательных законодательных, процедурных и процессуальных фактов, проверка их относимости, опровержимости и временной актуальности",
+          "guardrail": "эмпирика оценивает фактическую основу нормативного решения и не превращает КС РФ в суд повторного установления индивидуальных фактов",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; evidence-impact-method.md; science-support-pack.md"
+        },
+        {
+          "method": "функциональный тест статуса и реальности альтернативного средства",
+          "usable_for": "отделение защищённой функции правосудия от судебного администрирования и проверка, существует ли иной судебный путь для того же нарушения",
+          "guardrail": "не использовать административный контроль или обжалование другого акта как эквивалентное средство без совпадения предмета и восстановительного эффекта",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; strategic-complaint-design.md"
         }
       ],
       "works": [
@@ -544,7 +564,27 @@
           "bibliography_entry": 402
         },
         {
+          "title": "Чирнинов А. М. «Процессуальный небожитель?»: дело о возможности оспаривания бездействия председателя суда в порядке административного судопроизводства",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
           "title": "Чирнинов А. М. Доказывание и доказательства в конституционном судебном процессе РФ и США",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Чирнинов А. М. Нельзя объять необъятное: предмет доказывания в конституционном судебном процессе (на примере России и США)",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Чирнинов А. М. Убедить нельзя принудить: цель и функции конституционно-судебной аргументации",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Чирнинов А. М. Янус оказался одноликим: аргументационный анализ Постановления КС РФ № 33-П",
           "source": "curated_method",
           "method_integrated": true
         },
@@ -671,12 +711,13 @@
       "source_counts": {
         "blokhin_bibliography": 6,
         "curated_method": 1,
-        "local_full_text": 1,
+        "local_full_text": 2,
         "mp_index": 2,
         "sko_index": 10
       },
       "full_text_sources": [
-        "Должиков А. В. Соразмерность как общеправовой принцип в конституционном правосудии России"
+        "Должиков А. В. Соразмерность как общеправовой принцип в конституционном правосудии России",
+        "Должиков А. В., Васильева А. Ф. «Почему? По кочану!»: принцип обоснованности в административном праве"
       ],
       "method_cards": [
         {
@@ -684,6 +725,12 @@
           "usable_for": "цель, пригодность, необходимость, баланс и интенсивность контроля",
           "guardrail": "каждая ступень требует фактического или нормативного крючка; баланс не является арифметикой",
           "skill_reference": "constitutional-review-methods.md; science-support-pack.md"
+        },
+        {
+          "method": "трёхуровневый тест обоснованности публичного решения",
+          "usable_for": "разделение письменной мотивировки, права быть услышанным и материальной проверки цели, доказательств и релевантных факторов",
+          "guardrail": "не подменять законность целесообразностью и не превращать единично слабую мотивировку в нормативный дефект без носителя",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; workflow-reference.md"
         }
       ],
       "works": [
@@ -719,6 +766,11 @@
         },
         {
           "title": "Должиков А. В. Соразмерность как общеправовой принцип в конституционном правосудии России",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Должиков А. В., Васильева А. Ф. «Почему? По кочану!»: принцип обоснованности в административном праве",
           "source": "curated_method",
           "method_integrated": true
         },
@@ -769,6 +821,121 @@
       ]
     },
     {
+      "id": "authority-9cdebf951777",
+      "identity_key": "нечаев|а",
+      "canonical_name": "Алексей Нечаев",
+      "aliases": [
+        "Алексей Дмитриевич Нечаев",
+        "Нечаев А. Д",
+        "Нечаев А. Д."
+      ],
+      "roles": [
+        "граница истолкования и скрытого правотворчества"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.85,
+      "routes": [
+        "certainty_communication_writing",
+        "comparative_and_international",
+        "interpretation_and_positions",
+        "remedy_execution_review"
+      ],
+      "source_counts": {
+        "blokhin_bibliography": 1,
+        "curated_method": 1,
+        "local_full_text": 1,
+        "sko_index": 1
+      },
+      "full_text_sources": [
+        "Нечаев А. Д. Конституционность положений нормативного акта в истолковании Конституционного Суда России"
+      ],
+      "method_cards": [
+        {
+          "method": "downstream simulation конституционного истолкования",
+          "usable_for": "проверка добавленных признаков, внутренних противоречий, конкуренции норм и предсказуемости нового смысла",
+          "guardrail": "отраслевая критика одного решения является stress-test, а не самостоятельным доказательством неконституционности",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; constitutional-review-methods.md"
+        }
+      ],
+      "works": [
+        {
+          "title": "Нечаев А.Д. Конституционность положений нормативного акта в истолковании Конституционного Суда России: основания и проблемы аргументации (на примере дела Дадина) // Сравнительное конституционное обозрение, 2017, № 3.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 596
+        },
+        {
+          "title": "Нечаев А. Д. Конституционность положений нормативного акта в истолковании Конституционного Суда России",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Конституционность положений нормативного акта в истолковании Конституционного Суда России: основания и проблемы аргументации (на примере дела Дадина)",
+          "source": "sko_index"
+        }
+      ]
+    },
+    {
+      "id": "authority-16c757e0d3d5",
+      "identity_key": "васильева|а",
+      "canonical_name": "Анна Васильева",
+      "aliases": [
+        "Анна Федотовна Васильева",
+        "Васильева А. Ф.",
+        "Васильева Анна"
+      ],
+      "roles": [
+        "обоснованность публичных решений"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.78,
+      "routes": [
+        "certainty_communication_writing",
+        "evidence_empirics_consequences",
+        "proportionality_equality_dignity"
+      ],
+      "source_counts": {
+        "curated_method": 1,
+        "local_full_text": 1,
+        "sko_index": 3
+      },
+      "full_text_sources": [
+        "Должиков А. В., Васильева А. Ф. «Почему? По кочану!»: принцип обоснованности в административном праве"
+      ],
+      "method_cards": [
+        {
+          "method": "трёхуровневый тест обоснованности публичного решения",
+          "usable_for": "письменные основания, право быть услышанным, законная цель, доказательства и релевантные факторы",
+          "guardrail": "не подменять орган управления и не превращать проверку обоснованности в проверку целесообразности",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; workflow-reference.md"
+        }
+      ],
+      "works": [
+        {
+          "title": "Должиков А. В., Васильева А. Ф. «Почему? По кочану!»: принцип обоснованности в административном праве",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "«Почему? По кочану!»: принцип обоснованности в административном праве",
+          "source": "sko_index"
+        },
+        {
+          "title": "Конституционное право на мотивированное управление",
+          "source": "sko_index"
+        },
+        {
+          "title": "Принцип ответственности публичной администрации в условиях цифровизации",
+          "source": "sko_index"
+        }
+      ]
+    },
+    {
       "id": "authority-d5835da0b783",
       "identity_key": "дмитриева|а",
       "canonical_name": "Арина Викторовна Дмитриева",
@@ -814,6 +981,11 @@
       ],
       "works": [
         {
+          "title": "Дмитриева А. В. Искусство юридического письма: количественный анализ решений КС РФ",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
           "title": "Дмитриева А. В. Отбор дел в Конституционном Суде РФ: роль Секретариата",
           "source": "curated_method",
           "method_integrated": true
@@ -821,6 +993,72 @@
         {
           "title": "«Искусство юридического письма»: количественный анализ решений Конституционного Суда России",
           "source": "sko_index"
+        }
+      ]
+    },
+    {
+      "id": "authority-f75a0e1f339f",
+      "identity_key": "балакаев|в",
+      "canonical_name": "Виктор Балакаев",
+      "aliases": [
+        "Балакаев В.",
+        "В. Балакаев"
+      ],
+      "roles": [
+        "конфигурация конституционно-судебных предписаний законодателю"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.627,
+      "routes": [
+        "institutional_design_and_legitimacy",
+        "interpretation_and_positions",
+        "remedy_execution_review"
+      ],
+      "source_counts": {
+        "curated_method": 1,
+        "local_full_text": 1,
+        "sko_index": 1,
+        "zakon_discovery": 2
+      },
+      "full_text_sources": [
+        "Балакаев В. Конституционно-судебные предписания законодателю: вопросы типологии"
+      ],
+      "method_cards": [
+        {
+          "method": "матрица конфигурации предписания и срока",
+          "usable_for": "выбор обязательности, объекта, степени определённости, альтернатив, временного правила, срока и переходного режима remedy",
+          "guardrail": "не предлагать точный текст при нескольких допустимых решениях и не подменять законодателя",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; workflow-reference.md"
+        }
+      ],
+      "works": [
+        {
+          "title": "Балакаев В. Конституционно-судебные предписания законодателю: вопросы типологии",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Нормативные предписания органов конституционного контроля: введение в проблематику",
+          "source": "sko_index"
+        },
+        {
+          "title": "Особое мнение к несуществующему заключению: как Конституционный Суд оказывается вовлечённым в политический процесс",
+          "source": "zakon_discovery",
+          "url": "https://zakon.ru/blog/2020/03/11/osoboe_mnenie_k_nesuschestvuyuschemu_zaklyucheniyu_kak_konstitucionnyj_sud_okazyvaetsya_vovlechyonny",
+          "publication_type": "Блог",
+          "date": "11.03.2020 10:46",
+          "discovery_score": 182
+        },
+        {
+          "title": "Хорошо забытое старое. Комментарий к части 3 статьи 46 Конституции РФ",
+          "source": "zakon_discovery",
+          "url": "https://zakon.ru/blog/2022/12/25/horosho_zabytoe_staroe_kommentarij_k_chasti_3_stati_46_konstitucii_rf",
+          "publication_type": "Блог",
+          "date": "25.12.2022 16:37",
+          "discovery_score": 468
         }
       ]
     },
@@ -1100,6 +1338,96 @@
       ]
     },
     {
+      "id": "authority-7cc5e3edca19",
+      "identity_key": "дедов|д",
+      "canonical_name": "Дмитрий Дедов",
+      "aliases": [
+        "Дедов Д. И",
+        "Дедов Д. И.",
+        "Дедов Д.И.",
+        "Дмитрий Иванович Дедов"
+      ],
+      "roles": [
+        "структурная целостность правовых позиций высших судов"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.835,
+      "routes": [
+        "certainty_communication_writing",
+        "comparative_and_international",
+        "evidence_empirics_consequences",
+        "institutional_design_and_legitimacy",
+        "interpretation_and_positions",
+        "proportionality_equality_dignity"
+      ],
+      "source_counts": {
+        "blokhin_bibliography": 4,
+        "curated_method": 1,
+        "local_full_text": 1,
+        "sko_index": 1,
+        "zakon_discovery": 1
+      },
+      "full_text_sources": [
+        "Дедов Д. И. Структурные дефекты правовых позиций высших судов"
+      ],
+      "method_cards": [
+        {
+          "method": "аудит структурной целостности правовой позиции",
+          "usable_for": "проверка доктринальной памяти, системных связей, квалификации права, соотношения общего и специального правила и процессуальной защиты",
+          "guardrail": "критиковать объективные пропуски и несовместимые правила, а не приписывать суду скрытую цель без доказательств",
+          "skill_reference": "constitutional-review-methods.md; workflow-reference.md; sko-complaint-methods-2017-2026.md"
+        },
+        {
+          "method": "разделение усмотрения и доказываемого фактического основания",
+          "usable_for": "выявление специального факта, который запускает полномочие и должен быть доказан и оспорим до дискреционного решения",
+          "guardrail": "не просить КС РФ установить факт; нужен нормативный носитель смешения факта, бремени и исключения контроля",
+          "skill_reference": "evidence-impact-method.md; constitutional-review-methods.md"
+        }
+      ],
+      "works": [
+        {
+          "title": "Дедов Д. И. Методология права 2.0. Науч. изд. М.: Дело, 2023.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 483
+        },
+        {
+          "title": "Дедов Д.И. Принцип соразмерности и развитие методологии права / ARS IURIS: сборник научных статей к юбилею Г.А. Гаджиева. Под общ. ред. П.Д. Блохина, А.В. Ильина, Д.В. Тютина. М. Статут, 2023.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 484
+        },
+        {
+          "title": "Дедов Д.И., Гаджиев Х.И. Сфера применения права на забвение: комментарий к Постановлению Большой палаты Европейского суда по правам человека по делу \"Хурбейн против Бельгии\" // Журнал зарубежного законодательства и сравнительного правоведения. 2024. № 2.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 485
+        },
+        {
+          "title": "Дедов Д.И., Морозов А.Д. Влияние политических кризисов на конституционное правотворчество Верховного суда США в XIX и XX веках // Российская юстиция. 2025. № 1.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 486
+        },
+        {
+          "title": "Дедов Д. И. Структурные дефекты правовых позиций высших судов",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Структурные дефекты правовых позиций высших судов",
+          "source": "sko_index"
+        },
+        {
+          "title": "Обязательная вакцинация: правомерность и правовые риски // Комментарий для журнала «Закон»",
+          "source": "zakon_discovery",
+          "url": "https://zakon.ru/blog/2021/08/12/obyazatelnaya_vakcinaciya_pravomernost_i_pravovye_riski__kommentarij_dlya_zhurnala_zakon",
+          "publication_type": "Блог",
+          "date": "12.08.2021 17:34",
+          "discovery_score": 30
+        }
+      ]
+    },
+    {
       "id": "authority-48f574687ef3",
       "identity_key": "коновалов|д",
       "canonical_name": "Дмитрий Дмитриевич Коновалов",
@@ -1143,6 +1471,296 @@
       ]
     },
     {
+      "id": "authority-b661497ff15c",
+      "identity_key": "сорокина|е",
+      "canonical_name": "Елена Александровна Сорокина",
+      "aliases": [
+        "Елена Сорокина",
+        "Сорокина Е. А.",
+        "Сорокина Е.А.",
+        "Сорокина Елена Александровна"
+      ],
+      "roles": [
+        "диалоговые и структурные средства защиты социально-экономических прав"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.852,
+      "routes": [
+        "comparative_and_international",
+        "institutional_design_and_legitimacy",
+        "remedy_execution_review",
+        "social_economic_and_property_rights"
+      ],
+      "source_counts": {
+        "curated_method": 1,
+        "local_full_text": 1,
+        "mp_index": 3,
+        "sko_index": 2
+      },
+      "full_text_sources": [
+        "Сорокина Е. А. Конструктивное взаимодействие как средство защиты социально-экономических прав в Южно-Африканской Республике"
+      ],
+      "method_cards": [
+        {
+          "method": "карточка конструктивного взаимодействия",
+          "usable_for": "проектирование участия затронутых лиц, раскрытия альтернатив, временной защиты, срока, отчётности, надзора и эскалации при сложной позитивной обязанности",
+          "guardrail": "южноафриканская модель не создаёт полномочий КС РФ; каждый элемент требует российского нормативного якоря и компетентного адресата",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; strategic-complaint-design.md; workflow-reference.md"
+        },
+        {
+          "method": "тест институциональных слепых пятен",
+          "usable_for": "проверка непредвиденных последствий применения, исключённой перспективы уязвимой группы и инерции публичного органа",
+          "guardrail": "участие не заменяет материальный стандарт права и не считается реальным по одному факту консультации",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; strategic-complaint-design.md"
+        }
+      ],
+      "works": [
+        {
+          "title": "Сорокина Е. А. Конструктивное взаимодействие как средство защиты социально-экономических прав в Южно-Африканской Республике",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "No Возрастная дискриминация и Европейский Суд по правам человека: будет ли прогресс?",
+          "source": "mp_index"
+        },
+        {
+          "title": "«Суд» или «трибунал» как субъект преюдициальной процедуры: автономное понимание в практике Суда ЕС",
+          "source": "mp_index"
+        },
+        {
+          "title": "Роль Суда ЕС в развитии стандартов защиты от дискриминации по признаку возраста",
+          "source": "mp_index"
+        },
+        {
+          "title": "Конструктивное взаимодействие как средство защиты социально-экономических прав в Южно-Африканской Республике",
+          "source": "sko_index"
+        },
+        {
+          "title": "Судебный активизм в практике Конституционного суда Южно-Африканской Республики",
+          "source": "sko_index"
+        }
+      ]
+    },
+    {
+      "id": "authority-407c13198680",
+      "identity_key": "гриценко|е",
+      "canonical_name": "Елена Владимировна Гриценко",
+      "aliases": [
+        "Гриценко Е. В",
+        "Гриценко Е. В.",
+        "Елена Гриценко"
+      ],
+      "roles": [
+        "доступ к конституционному правосудию и институциональный фильтр"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.805,
+      "routes": [
+        "admissibility_and_route",
+        "comparative_and_international",
+        "democracy_federalism_public_power",
+        "institutional_design_and_legitimacy"
+      ],
+      "source_counts": {
+        "blokhin_bibliography": 4,
+        "curated_method": 1,
+        "local_full_text": 1,
+        "sko_index": 18
+      },
+      "full_text_sources": [
+        "Гриценко Е. В., Вилл Р. Доступ к конституционному правосудию в России и Германии"
+      ],
+      "method_cards": [
+        {
+          "method": "разделение допустимости, отбора и устранимости дефекта",
+          "usable_for": "red-team проверки hard gates, материальности недостатка, возможности исправления и единообразия фильтрации",
+          "guardrail": "немецкие критерии не являются российским правом; действующие условия проверять официально",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; ksrf-case-triage"
+        }
+      ],
+      "works": [
+        {
+          "title": "Гриценко Е. В. Роль конституционного суда в обеспечении прямого действия Конституции в Германии и России // Журнал конституционного правосудия. 2013. № 1.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 478
+        },
+        {
+          "title": "Гриценко Е.В., Вилл Р. Природа права на осуществление местного самоуправления как объекта судебной защиты в России и Германии // Известия вузов. Правоведение. 2010. № 6.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 481
+        },
+        {
+          "title": "Гриценко, Е. В., Вилл, Р. Доступ к конституционному правосудию в России и Германии // Сравнительное конституционное обозрение. 2019. № 2.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 479
+        },
+        {
+          "title": "Гриценко Е. В., Вилл Р. Доступ к конституционному правосудию в России и Германии",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "В поисках утраченных идеалов: российская муниципальная реформа и опыт Германии",
+          "source": "sko_index"
+        },
+        {
+          "title": "Введение",
+          "source": "sko_index"
+        },
+        {
+          "title": "Доступ к конституционному правосудию в России и Германии",
+          "source": "sko_index"
+        },
+        {
+          "title": "Европейская доктрина надлежащего публичного управления и перспективы ее восприятия в российском праве",
+          "source": "sko_index"
+        },
+        {
+          "title": "Защита субъективных публичных прав в России: универсальные стандарты доступа к правосудию",
+          "source": "sko_index"
+        },
+        {
+          "title": "Конституционная география России: как не заблудиться в лабиринтах особых режимов и статусов территорий?",
+          "source": "sko_index"
+        },
+        {
+          "title": "Муниципальная реформа в фокусе решений Конституционного Суда России: новое в материально-правовых и процессуальных подходах",
+          "source": "sko_index"
+        },
+        {
+          "title": "Новый формат комментария к российской Конституции: австрийско-германский проект",
+          "source": "sko_index"
+        },
+        {
+          "title": "Право на судебную защиту и доступ к суду в условиях информатизации и цифровизации: значение опыта стран общего права для России",
+          "source": "sko_index"
+        },
+        {
+          "title": "Право на хорошее управление в условиях цифровой трансформации",
+          "source": "sko_index"
+        },
+        {
+          "title": "Пределы конституционно-судебного нормотворчества",
+          "source": "sko_index"
+        },
+        {
+          "title": "Проблемы нормативного регулирования местного самоуправления на региональном и муниципальном уровнях",
+          "source": "sko_index"
+        },
+        {
+          "title": "Развитие права на доступ к информации в сфере публичного управления в российском и",
+          "source": "sko_index"
+        },
+        {
+          "title": "Разграничение и передача полномочий в системе публично-властных отношений",
+          "source": "sko_index"
+        },
+        {
+          "title": "Реформа местного самоуправления в России в свете опыта Германии",
+          "source": "sko_index"
+        },
+        {
+          "title": "Российская муниципальная реформа в свете европейских принципов организации местного самоуправления",
+          "source": "sko_index"
+        },
+        {
+          "title": "Теория и юриспруденция Федерального конституционного суда Германии: у истоков российского судебного конституционного контроля Обеспечение и защита активного избирательного права в процедурах электронного голосования",
+          "source": "sko_index"
+        },
+        {
+          "title": "Федерализм и местное самоуправление в свете конституционной реформы 2020 года",
+          "source": "sko_index"
+        }
+      ]
+    },
+    {
+      "id": "authority-bd358e8f01b9",
+      "identity_key": "дудко|и",
+      "canonical_name": "Ирина Дудко",
+      "aliases": [
+        "Дудко И",
+        "Дудко И. А.",
+        "Ирина Анатольевна Дудко"
+      ],
+      "roles": [
+        "косвенный доступ и исполнение решений КС РФ"
+      ],
+      "status": "method_integrated",
+      "status_label": "метод извлечён и встроен",
+      "method_integrated": true,
+      "needs_identity_or_method_review": false,
+      "parser_confidence": 0.808,
+      "routes": [
+        "admissibility_and_route",
+        "institutional_design_and_legitimacy",
+        "remedy_execution_review"
+      ],
+      "source_counts": {
+        "blokhin_bibliography": 1,
+        "curated_method": 1,
+        "local_full_text": 2,
+        "sko_index": 4
+      },
+      "full_text_sources": [
+        "Дудко И. А., Кряжкова О. Н. Косвенный доступ граждан к конституционному правосудию в России",
+        "Дудко И. А. «Нет ничего важнее мелочей», или Проблемы исполнения решений Конституционного Суда РФ"
+      ],
+      "method_cards": [
+        {
+          "method": "карта косвенного доступа через запрос суда",
+          "usable_for": "живое дело, надлежащий состав, применимость нормы, собственный вывод суда и сохранение отказа",
+          "guardrail": "не смешивать ходатайство стороны, запрос суда и прямую жалобу",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; ksrf-court-request-motion"
+        },
+        {
+          "method": "многослойный аудит исполнения",
+          "usable_for": "текст, аналогичные нормы, переходный режим, практику, индивидуальное восстановление и специальную компенсацию",
+          "guardrail": "не обещать автоматический пересмотр и не превращать специальную компенсацию в обычный деликт",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; ksrf-decision-execution"
+        }
+      ],
+      "works": [
+        {
+          "title": "Дудко И. Проблемные точки остались // Адвокатская газета, № 19, октябрь 2022 г.",
+          "source": "blokhin_bibliography",
+          "bibliography_entry": 496
+        },
+        {
+          "title": "Дудко И. А. «Нет ничего важнее мелочей», или Проблемы исполнения решений Конституционного Суда РФ",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "Дудко И. А., Кряжкова О. Н. Косвенный доступ граждан к конституционному правосудию в России",
+          "source": "curated_method",
+          "method_integrated": true
+        },
+        {
+          "title": "«Нет ничего важнее мелочей», или Проблемы исполнения решений Конституционного Суда РФ",
+          "source": "sko_index"
+        },
+        {
+          "title": "Долгое эхо террора: комментарий к Постановлению Конституционного Суда России от 10 декабря 2019 года No39-П",
+          "source": "sko_index"
+        },
+        {
+          "title": "Косвенный доступ граждан к конституционному правосудию в России",
+          "source": "sko_index"
+        },
+        {
+          "title": "Судьи Конституционного Суда России: кто они?",
+          "source": "sko_index"
+        }
+      ]
+    },
+    {
       "id": "authority-9752e249b964",
       "identity_key": "кряжкова|о",
       "canonical_name": "Ольга Николаевна Кряжкова",
@@ -1171,12 +1789,13 @@
       "source_counts": {
         "blokhin_bibliography": 2,
         "curated_method": 1,
-        "local_full_text": 1,
+        "local_full_text": 2,
         "sko_index": 12,
         "zakon_discovery": 8
       },
       "full_text_sources": [
-        "Кряжкова О. Н. Право быть услышанным: меморандумы amici curiae в российском КС РФ"
+        "Кряжкова О. Н. Право быть услышанным: меморандумы amici curiae в российском КС РФ",
+        "Дудко И. А., Кряжкова О. Н. Косвенный доступ граждан к конституционному правосудию в России"
       ],
       "method_cards": [
         {
@@ -1184,6 +1803,12 @@
           "usable_for": "связь с предметом дела, научная добросовестность, уникальные факты или конструкции",
           "guardrail": "amicus не нейтрален по умолчанию, не гарантирует влияние и не заменяет первичный источник",
           "skill_reference": "science-support-pack.md; complaint-methodology-sources.md"
+        },
+        {
+          "method": "карта косвенного доступа через запрос суда",
+          "usable_for": "проверка живого дела, надлежащего состава, применимости нормы, собственного вывода суда и роли ходатайства стороны",
+          "guardrail": "ходатайство стороны не создаёт безусловного права на запрос; актуальные условия подтверждать по официальному праву",
+          "skill_reference": "sko-complaint-methods-2017-2026.md; ksrf-court-request-motion"
         }
       ],
       "works": [
@@ -1196,6 +1821,11 @@
           "title": "Кряжкова О.Н. Процессуальные правовые позиции Конституционного Суда Российской Федерации // Государственная власть и местное самоуправление, 2005, № 6.",
           "source": "blokhin_bibliography",
           "bibliography_entry": 558
+        },
+        {
+          "title": "Дудко И. А., Кряжкова О. Н. Косвенный доступ граждан к конституционному правосудию в России",
+          "source": "curated_method",
+          "method_integrated": true
         },
         {
           "title": "Кряжкова О. Н. Право быть услышанным: меморандумы amici curiae в российском КС РФ",
@@ -2540,42 +3170,6 @@
         },
         {
           "title": "О социальной \"термодинамике\" в российской истории",
-          "source": "sko_index"
-        }
-      ]
-    },
-    {
-      "id": "authority-9cdebf951777",
-      "identity_key": "нечаев|а",
-      "canonical_name": "Алексей Нечаев",
-      "aliases": [
-        "Нечаев А. Д"
-      ],
-      "roles": [],
-      "status": "triangulated_academic",
-      "status_label": "автор подтверждён несколькими академическими слоями",
-      "method_integrated": false,
-      "needs_identity_or_method_review": false,
-      "parser_confidence": 0.85,
-      "routes": [
-        "certainty_communication_writing",
-        "comparative_and_international",
-        "interpretation_and_positions"
-      ],
-      "source_counts": {
-        "blokhin_bibliography": 1,
-        "sko_index": 1
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "Нечаев А.Д. Конституционность положений нормативного акта в истолковании Конституционного Суда России: основания и проблемы аргументации (на примере дела Дадина) // Сравнительное конституционное обозрение, 2017, № 3.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 596
-        },
-        {
-          "title": "Конституционность положений нормативного акта в истолковании Конституционного Суда России: основания и проблемы аргументации (на примере дела Дадина)",
           "source": "sko_index"
         }
       ]
@@ -5572,67 +6166,6 @@
       ]
     },
     {
-      "id": "authority-7cc5e3edca19",
-      "identity_key": "дедов|д",
-      "canonical_name": "Дмитрий Дедов",
-      "aliases": [
-        "Дедов Д. И"
-      ],
-      "roles": [],
-      "status": "triangulated_academic",
-      "status_label": "автор подтверждён несколькими академическими слоями",
-      "method_integrated": false,
-      "needs_identity_or_method_review": false,
-      "parser_confidence": 0.835,
-      "routes": [
-        "certainty_communication_writing",
-        "comparative_and_international",
-        "interpretation_and_positions",
-        "proportionality_equality_dignity"
-      ],
-      "source_counts": {
-        "blokhin_bibliography": 4,
-        "sko_index": 1,
-        "zakon_discovery": 1
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "Дедов Д. И. Методология права 2.0. Науч. изд. М.: Дело, 2023.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 483
-        },
-        {
-          "title": "Дедов Д.И. Принцип соразмерности и развитие методологии права / ARS IURIS: сборник научных статей к юбилею Г.А. Гаджиева. Под общ. ред. П.Д. Блохина, А.В. Ильина, Д.В. Тютина. М. Статут, 2023.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 484
-        },
-        {
-          "title": "Дедов Д.И., Гаджиев Х.И. Сфера применения права на забвение: комментарий к Постановлению Большой палаты Европейского суда по правам человека по делу \"Хурбейн против Бельгии\" // Журнал зарубежного законодательства и сравнительного правоведения. 2024. № 2.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 485
-        },
-        {
-          "title": "Дедов Д.И., Морозов А.Д. Влияние политических кризисов на конституционное правотворчество Верховного суда США в XIX и XX веках // Российская юстиция. 2025. № 1.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 486
-        },
-        {
-          "title": "Структурные дефекты правовых позиций высших судов",
-          "source": "sko_index"
-        },
-        {
-          "title": "Обязательная вакцинация: правомерность и правовые риски // Комментарий для журнала «Закон»",
-          "source": "zakon_discovery",
-          "url": "https://zakon.ru/blog/2021/08/12/obyazatelnaya_vakcinaciya_pravomernost_i_pravovye_riski__kommentarij_dlya_zhurnala_zakon",
-          "publication_type": "Блог",
-          "date": "12.08.2021 17:34",
-          "discovery_score": 30
-        }
-      ]
-    },
-    {
       "id": "authority-a4cc7b36720a",
       "identity_key": "фокин|е",
       "canonical_name": "Евгений Анатольевич Фокин",
@@ -5683,170 +6216,6 @@
         },
         {
           "title": "\"Старые\" и \"новые\" проблемы конституционализма в заключениях и докладах Венецианской Комиссии",
-          "source": "sko_index"
-        }
-      ]
-    },
-    {
-      "id": "authority-b661497ff15c",
-      "identity_key": "сорокина|е",
-      "canonical_name": "Елена Александровна Сорокина",
-      "aliases": [
-        "Елена Сорокина",
-        "Сорокина Елена Александровна"
-      ],
-      "roles": [],
-      "status": "triangulated_academic",
-      "status_label": "автор подтверждён несколькими академическими слоями",
-      "method_integrated": false,
-      "needs_identity_or_method_review": false,
-      "parser_confidence": 0.852,
-      "routes": [
-        "comparative_and_international",
-        "institutional_design_and_legitimacy",
-        "remedy_execution_review",
-        "social_economic_and_property_rights"
-      ],
-      "source_counts": {
-        "mp_index": 3,
-        "sko_index": 2
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "No Возрастная дискриминация и Европейский Суд по правам человека: будет ли прогресс?",
-          "source": "mp_index"
-        },
-        {
-          "title": "«Суд» или «трибунал» как субъект преюдициальной процедуры: автономное понимание в практике Суда ЕС",
-          "source": "mp_index"
-        },
-        {
-          "title": "Роль Суда ЕС в развитии стандартов защиты от дискриминации по признаку возраста",
-          "source": "mp_index"
-        },
-        {
-          "title": "Конструктивное взаимодействие как средство защиты социально-экономических прав в Южно-Африканской Республике",
-          "source": "sko_index"
-        },
-        {
-          "title": "Судебный активизм в практике Конституционного суда Южно-Африканской Республики",
-          "source": "sko_index"
-        }
-      ]
-    },
-    {
-      "id": "authority-407c13198680",
-      "identity_key": "гриценко|е",
-      "canonical_name": "Елена Владимировна Гриценко",
-      "aliases": [
-        "Гриценко Е. В",
-        "Елена Гриценко"
-      ],
-      "roles": [],
-      "status": "triangulated_academic",
-      "status_label": "автор подтверждён несколькими академическими слоями",
-      "method_integrated": false,
-      "needs_identity_or_method_review": false,
-      "parser_confidence": 0.805,
-      "routes": [
-        "admissibility_and_route",
-        "comparative_and_international",
-        "democracy_federalism_public_power"
-      ],
-      "source_counts": {
-        "blokhin_bibliography": 4,
-        "sko_index": 18
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "Гриценко Е. В. Роль конституционного суда в обеспечении прямого действия Конституции в Германии и России // Журнал конституционного правосудия. 2013. № 1.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 478
-        },
-        {
-          "title": "Гриценко Е.В., Вилл Р. Природа права на осуществление местного самоуправления как объекта судебной защиты в России и Германии // Известия вузов. Правоведение. 2010. № 6.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 481
-        },
-        {
-          "title": "Гриценко, Е. В., Вилл, Р. Доступ к конституционному правосудию в России и Германии // Сравнительное конституционное обозрение. 2019. № 2.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 479
-        },
-        {
-          "title": "В поисках утраченных идеалов: российская муниципальная реформа и опыт Германии",
-          "source": "sko_index"
-        },
-        {
-          "title": "Введение",
-          "source": "sko_index"
-        },
-        {
-          "title": "Доступ к конституционному правосудию в России и Германии",
-          "source": "sko_index"
-        },
-        {
-          "title": "Европейская доктрина надлежащего публичного управления и перспективы ее восприятия в российском праве",
-          "source": "sko_index"
-        },
-        {
-          "title": "Защита субъективных публичных прав в России: универсальные стандарты доступа к правосудию",
-          "source": "sko_index"
-        },
-        {
-          "title": "Конституционная география России: как не заблудиться в лабиринтах особых режимов и статусов территорий?",
-          "source": "sko_index"
-        },
-        {
-          "title": "Муниципальная реформа в фокусе решений Конституционного Суда России: новое в материально-правовых и процессуальных подходах",
-          "source": "sko_index"
-        },
-        {
-          "title": "Новый формат комментария к российской Конституции: австрийско-германский проект",
-          "source": "sko_index"
-        },
-        {
-          "title": "Право на судебную защиту и доступ к суду в условиях информатизации и цифровизации: значение опыта стран общего права для России",
-          "source": "sko_index"
-        },
-        {
-          "title": "Право на хорошее управление в условиях цифровой трансформации",
-          "source": "sko_index"
-        },
-        {
-          "title": "Пределы конституционно-судебного нормотворчества",
-          "source": "sko_index"
-        },
-        {
-          "title": "Проблемы нормативного регулирования местного самоуправления на региональном и муниципальном уровнях",
-          "source": "sko_index"
-        },
-        {
-          "title": "Развитие права на доступ к информации в сфере публичного управления в российском и",
-          "source": "sko_index"
-        },
-        {
-          "title": "Разграничение и передача полномочий в системе публично-властных отношений",
-          "source": "sko_index"
-        },
-        {
-          "title": "Реформа местного самоуправления в России в свете опыта Германии",
-          "source": "sko_index"
-        },
-        {
-          "title": "Российская муниципальная реформа в свете европейских принципов организации местного самоуправления",
-          "source": "sko_index"
-        },
-        {
-          "title": "Теория и юриспруденция Федерального конституционного суда Германии: у истоков российского судебного конституционного контроля Обеспечение и защита активного избирательного права в процедурах электронного голосования",
-          "source": "sko_index"
-        },
-        {
-          "title": "Федерализм и местное самоуправление в свете конституционной реформы 2020 года",
           "source": "sko_index"
         }
       ]
@@ -6160,52 +6529,6 @@
         },
         {
           "title": "Формы правления и партийные системы в",
-          "source": "sko_index"
-        }
-      ]
-    },
-    {
-      "id": "authority-bd358e8f01b9",
-      "identity_key": "дудко|и",
-      "canonical_name": "Ирина Дудко",
-      "aliases": [
-        "Дудко И"
-      ],
-      "roles": [],
-      "status": "triangulated_academic",
-      "status_label": "автор подтверждён несколькими академическими слоями",
-      "method_integrated": false,
-      "needs_identity_or_method_review": false,
-      "parser_confidence": 0.808,
-      "routes": [
-        "remedy_execution_review"
-      ],
-      "source_counts": {
-        "blokhin_bibliography": 1,
-        "sko_index": 4
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "Дудко И. Проблемные точки остались // Адвокатская газета, № 19, октябрь 2022 г.",
-          "source": "blokhin_bibliography",
-          "bibliography_entry": 496
-        },
-        {
-          "title": "«Нет ничего важнее мелочей», или Проблемы исполнения решений Конституционного Суда РФ",
-          "source": "sko_index"
-        },
-        {
-          "title": "Долгое эхо террора: комментарий к Постановлению Конституционного Суда России от 10 декабря 2019 года No39-П",
-          "source": "sko_index"
-        },
-        {
-          "title": "Косвенный доступ граждан к конституционному правосудию в России",
-          "source": "sko_index"
-        },
-        {
-          "title": "Судьи Конституционного Суда России: кто они?",
           "source": "sko_index"
         }
       ]
@@ -13553,40 +13876,6 @@
       ]
     },
     {
-      "id": "authority-16c757e0d3d5",
-      "identity_key": "васильева|а",
-      "canonical_name": "Анна Васильева",
-      "aliases": [
-        "Васильева Анна"
-      ],
-      "roles": [],
-      "status": "academic_indexed",
-      "status_label": "автор найден в официальном академическом указателе",
-      "method_integrated": false,
-      "needs_identity_or_method_review": true,
-      "parser_confidence": 0.78,
-      "routes": [],
-      "source_counts": {
-        "sko_index": 3
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "«Почему? По кочану!»: принцип обоснованности в административном праве",
-          "source": "sko_index"
-        },
-        {
-          "title": "Конституционное право на мотивированное управление",
-          "source": "sko_index"
-        },
-        {
-          "title": "Принцип ответственности публичной администрации в условиях цифровизации",
-          "source": "sko_index"
-        }
-      ]
-    },
-    {
       "id": "authority-db831a481ebd",
       "identity_key": "захарова|а",
       "canonical_name": "Анна Захарова",
@@ -16582,47 +16871,6 @@
         {
           "title": "Соотношение международного и национального права в конституционно-правовой системе Косово",
           "source": "sko_index"
-        }
-      ]
-    },
-    {
-      "id": "authority-f75a0e1f339f",
-      "identity_key": "балакаев|в",
-      "canonical_name": "Виктор Балакаев",
-      "aliases": [],
-      "roles": [],
-      "status": "academic_indexed",
-      "status_label": "автор найден в официальном академическом указателе",
-      "method_integrated": false,
-      "needs_identity_or_method_review": true,
-      "parser_confidence": 0.627,
-      "routes": [],
-      "source_counts": {
-        "sko_index": 1,
-        "zakon_discovery": 2
-      },
-      "full_text_sources": [],
-      "method_cards": [],
-      "works": [
-        {
-          "title": "Нормативные предписания органов конституционного контроля: введение в проблематику",
-          "source": "sko_index"
-        },
-        {
-          "title": "Особое мнение к несуществующему заключению: как Конституционный Суд оказывается вовлечённым в политический процесс",
-          "source": "zakon_discovery",
-          "url": "https://zakon.ru/blog/2020/03/11/osoboe_mnenie_k_nesuschestvuyuschemu_zaklyucheniyu_kak_konstitucionnyj_sud_okazyvaetsya_vovlechyonny",
-          "publication_type": "Блог",
-          "date": "11.03.2020 10:46",
-          "discovery_score": 182
-        },
-        {
-          "title": "Хорошо забытое старое. Комментарий к части 3 статьи 46 Конституции РФ",
-          "source": "zakon_discovery",
-          "url": "https://zakon.ru/blog/2022/12/25/horosho_zabytoe_staroe_kommentarij_k_chasti_3_stati_46_konstitucii_rf",
-          "publication_type": "Блог",
-          "date": "25.12.2022 16:37",
-          "discovery_score": 468
         }
       ]
     },

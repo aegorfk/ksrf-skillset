@@ -23,11 +23,6 @@ except Exception:  # pragma: no cover
     pdfplumber = None  # type: ignore
 
 
-DEFAULT_PROJECT = Path("/Users/aegorfk/Documents/ks_parser_lower_court_marker")
-DEFAULT_SOURCE = DEFAULT_PROJECT / "ТЗ" / "Постановления КС РФ"
-DEFAULT_OUTPUT = DEFAULT_PROJECT / "analysis_results" / "ksrf_argument_patterns"
-
-
 @dataclass(frozen=True)
 class Pattern:
     code: str
@@ -239,8 +234,16 @@ def build_report(summary: Dict[str, object], pattern_hits: Dict[str, List[Dict[s
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", default=str(DEFAULT_SOURCE))
-    parser.add_argument("--out", default=str(DEFAULT_OUTPUT))
+    parser.add_argument(
+        "--source",
+        required=True,
+        help="Каталог PDF Постановлений КС РФ; maintenance-вход задаётся явно",
+    )
+    parser.add_argument(
+        "--out",
+        required=True,
+        help="Каталог для результатов извлечения; задаётся явно",
+    )
     parser.add_argument("--max-per-pattern", type=int, default=200)
     args = parser.parse_args()
 

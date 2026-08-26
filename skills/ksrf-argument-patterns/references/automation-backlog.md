@@ -136,7 +136,7 @@
 - запускать `scripts/crawl_constitutional_methodology_sources.py` по утвержденным источникам;
 - сохранять HTML, документы и `crawl_index.json` в `ТЗ/Гайды/Новое/constitutional_methodology_sources`;
 - отделять методологическое ядро от широкого сайта-шумa;
-- обновлять `references/complaint-methodology-sources.md` после ревью;
+- обновлять `complaint-methodology-sources.md` после ревью;
 - новые идеи автоматизации сначала фиксировать в OpenSpec.
 
 ## zakon-rubric-methodology-ingestor
