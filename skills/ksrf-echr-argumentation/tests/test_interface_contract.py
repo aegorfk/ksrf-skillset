@@ -62,11 +62,11 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             )
 
             self.assertEqual(knowledge.returncode, 0, knowledge.stderr)
-            self.assertIn("knowledge-cli-help-v3.6-v5", knowledge.stdout)
+            self.assertIn("knowledge-cli-help-v3.7-v6", knowledge.stdout)
             self.assertEqual(vector.returncode, 0, vector.stderr)
-            self.assertIn("vector-cli-help-v3.6-v5", vector.stdout)
+            self.assertIn("vector-cli-help-v3.7-v6", vector.stdout)
 
-    def test_resolvers_fail_closed_for_pre_v5_research_contract(self) -> None:
+    def test_resolvers_fail_closed_for_pre_v6_research_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = root / "repository"
@@ -74,7 +74,7 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             home.mkdir()
             self._write_fake_repository(
                 repository,
-                research_version="hudoc-research-extractive-v4",
+                research_version="hudoc-research-extractive-v5",
             )
             environment = self._isolated_environment(home)
             environment["HUDOC_KS_PARSER_REPO"] = str(repository)
@@ -85,7 +85,28 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
                         resolver, environment=environment, cwd=home
                     )
                     self.assertNotEqual(result.returncode, 0)
-                    self.assertIn("hudoc-research-extractive-v5", result.stderr)
+                    self.assertIn("hudoc-research-extractive-v6", result.stderr)
+
+    def test_resolvers_fail_closed_for_pre_v37_knowledge_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "repository"
+            home = root / "home"
+            home.mkdir()
+            self._write_fake_repository(
+                repository,
+                knowledge_version="hudoc-knowledge-indexer-v3.6",
+            )
+            environment = self._isolated_environment(home)
+            environment["HUDOC_KS_PARSER_REPO"] = str(repository)
+
+            for resolver in ("hudoc_kb_cli.py", "hudoc_vector_cli.py"):
+                with self.subTest(resolver=resolver):
+                    result = self._run_resolver(
+                        resolver, environment=environment, cwd=home
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("hudoc-knowledge-indexer-v3.7", result.stderr)
 
     def test_resolvers_are_portable_and_pin_current_interface_versions(self) -> None:
         knowledge = self._read("scripts/hudoc_kb_cli.py")
@@ -95,8 +116,8 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             self.assertNotIn("/Users/", resolver)
             self.assertNotIn(".removeprefix(", resolver)
             self.assertIn("HUDOC_KS_PARSER_REPO", resolver)
-            self.assertIn("hudoc-knowledge-indexer-v3.6", resolver)
-            self.assertIn("hudoc-research-extractive-v5", resolver)
+            self.assertIn("hudoc-knowledge-indexer-v3.7", resolver)
+            self.assertIn("hudoc-research-extractive-v6", resolver)
         self.assertIn("hudoc-vector-indexer-v2", vector)
         self.assertIn("hudoc-vector-evaluator-v2", vector)
 
@@ -151,13 +172,15 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         self.assertIn("Во всех остальных случаях российский якорь обязателен", corpus)
         self.assertIn("Во всех остальных случаях российский якорь обязателен", knowledge)
 
-    def test_references_name_research_v5_and_knowledge_v36(self) -> None:
+    def test_references_name_current_hudoc_interface_versions(self) -> None:
         corpus = self._read("references/local-hudoc-corpus.md")
         knowledge = self._read("references/local-hudoc-knowledge-base.md")
 
-        self.assertIn("hudoc-research-extractive-v5", corpus)
-        self.assertIn("hudoc-research-extractive-v5", knowledge)
-        self.assertIn("hudoc-knowledge-indexer-v3.6", knowledge)
+        self.assertIn("hudoc-research-extractive-v6", corpus)
+        self.assertIn("hudoc-research-extractive-v6", knowledge)
+        self.assertIn("hudoc-knowledge-indexer-v3.7", knowledge)
+        self.assertIn("hudoc-vector-indexer-v2", knowledge)
+        self.assertIn("hudoc-vector-evaluator-v2", knowledge)
 
     def _read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
@@ -190,7 +213,8 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         self,
         repository: Path,
         *,
-        research_version: str = "hudoc-research-extractive-v5",
+        research_version: str = "hudoc-research-extractive-v6",
+        knowledge_version: str = "hudoc-knowledge-indexer-v3.7",
     ) -> None:
         scripts = repository / "scripts"
         source = repository / "src"
@@ -201,7 +225,7 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             encoding="utf-8",
         )
         (source / "hudoc_knowledge_base.py").write_text(
-            'KNOWLEDGE_INDEXER_VERSION = "hudoc-knowledge-indexer-v3.6"\n',
+            f'KNOWLEDGE_INDEXER_VERSION = "{knowledge_version}"\n',
             encoding="utf-8",
         )
         (source / "hudoc_vector_search.py").write_text(
@@ -210,11 +234,11 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             encoding="utf-8",
         )
         (scripts / "hudoc_knowledge_base.py").write_text(
-            'print("knowledge-cli-help-v3.6-v5")\n',
+            'print("knowledge-cli-help-v3.7-v6")\n',
             encoding="utf-8",
         )
         (scripts / "hudoc_vector_search.py").write_text(
-            'print("vector-cli-help-v3.6-v5")\n',
+            'print("vector-cli-help-v3.7-v6")\n',
             encoding="utf-8",
         )
 

@@ -10,10 +10,10 @@ Runtime по умолчанию задаётся через `HUDOC_ARCHIVE_ROOT`
 
 - DB: `$HUDOC_ARCHIVE_ROOT/knowledge/v3/hudoc_knowledge_v3.sqlite3`;
 - progress: `$HUDOC_ARCHIVE_ROOT/knowledge/v3/knowledge_progress.json`;
-- стабильный resolver CLI: `scripts/hudoc_kb_cli.py` внутри текущего skill; он принимает `HUDOC_KB_CLI`, затем `HUDOC_KS_PARSER_REPO`, локальный repository candidate и его Git worktrees и запускает только связку `hudoc-knowledge-indexer-v3.6` + `hudoc-research-extractive-v5`;
-- hybrid resolver CLI: `scripts/hudoc_vector_cli.py` внутри текущего skill; он принимает `HUDOC_VECTOR_CLI`, использует тот же repository/worktree discovery, проверяет `hudoc-vector-indexer-v2` + `hudoc-vector-evaluator-v2` + KB v3.6 + research v5 и использует отдельный HUDOC Qdrant на `127.0.0.1:6335`. Чужие Qdrant collections не выбирать.
+- стабильный resolver CLI: `scripts/hudoc_kb_cli.py` внутри текущего skill; он принимает `HUDOC_KB_CLI`, затем `HUDOC_KS_PARSER_REPO`, локальный repository candidate и его Git worktrees и запускает только связку `hudoc-knowledge-indexer-v3.7` + `hudoc-research-extractive-v6`;
+- hybrid resolver CLI: `scripts/hudoc_vector_cli.py` внутри текущего skill; он принимает `HUDOC_VECTOR_CLI`, использует тот же repository/worktree discovery, проверяет `hudoc-vector-indexer-v2` + `hudoc-vector-evaluator-v2` + KB v3.7 + research v6 и использует отдельный HUDOC Qdrant на `127.0.0.1:6335`. Чужие Qdrant collections не выбирать.
 
-Сначала вызови `--help`, затем `status` и `coverage`, передав `--db` до подкоманды. До полного v3.6 cycle, нулевых stale/failure/coverage deltas и privacy gate считай runtime `branch-local pilot`, а не полной базой. В поиск входят только current-v3.6 `ready`, построенные из `hudoc-research-extractive-v5`; `qa_required`/`quarantine` и старые research versions нельзя использовать содержательно. Если индекс ещё строится, явно сообщи фактическое покрытие.
+Сначала вызови `--help`, затем `status` и `coverage`, передав `--db` до подкоманды. До полного v3.7 cycle, нулевых stale/failure/coverage deltas и privacy gate считай runtime `branch-local pilot`, а не полной базой. В поиск входят только current-v3.7 `ready`, построенные из `hudoc-research-extractive-v6`; историческая v5-проекция и неуспешный v3.6 pilot остаются provenance-only и не принимаются resolver'ами, поиском или reuse. `qa_required`/`quarantine` и старые research versions нельзя использовать содержательно. Если индекс ещё строится, явно сообщи фактическое покрытие.
 
 ## Минимальный порядок
 

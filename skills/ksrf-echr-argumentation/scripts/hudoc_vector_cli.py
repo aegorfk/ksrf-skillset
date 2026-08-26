@@ -12,8 +12,8 @@ from pathlib import Path
 
 EXPECTED_INDEXER = "hudoc-vector-indexer-v2"
 EXPECTED_EVALUATOR = "hudoc-vector-evaluator-v2"
-EXPECTED_KNOWLEDGE = "hudoc-knowledge-indexer-v3.6"
-EXPECTED_RESEARCH = "hudoc-research-extractive-v5"
+EXPECTED_KNOWLEDGE = "hudoc-knowledge-indexer-v3.7"
+EXPECTED_RESEARCH = "hudoc-research-extractive-v6"
 REPOSITORY_ENV = "HUDOC_KS_PARSER_REPO"
 
 
