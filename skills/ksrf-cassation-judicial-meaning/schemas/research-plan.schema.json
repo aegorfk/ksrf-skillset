@@ -14,6 +14,40 @@
     "research_questions": {"type": "array", "minItems": 1},
     "norm_editions": {"type": "array", "minItems": 1},
     "population": {"type": "object"},
+    "temporal_strata": {
+      "type": "array",
+      "anyOf": [{"maxItems": 0}, {"minItems": 2}],
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "date_from", "date_to"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "label": {"type": "string", "minLength": 1},
+          "date_from": {"type": "string", "format": "date"},
+          "date_to": {"type": "string", "format": "date"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "interpretive_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "label", "effective_date", "official_source_url",
+          "before_stratum_id", "after_stratum_id"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "label": {"type": "string", "minLength": 1},
+          "effective_date": {"type": "string", "format": "date"},
+          "official_source_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+          "before_stratum_id": {"type": "string", "minLength": 1},
+          "after_stratum_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": true
+      }
+    },
     "query_lanes": {"type": "object"},
     "inclusion_rules": {"type": "array"},
     "exclusion_rules": {"type": "array"},
@@ -24,5 +58,17 @@
     "maximum_claim_if_incomplete": {"type": "string"},
     "approved_by": {"type": "string", "minLength": 1}
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["interpretive_events"],
+        "properties": {"interpretive_events": {"minItems": 1}}
+      },
+      "then": {
+        "required": ["temporal_strata"],
+        "properties": {"temporal_strata": {"minItems": 2}}
+      }
+    }
+  ],
   "additionalProperties": true
 }

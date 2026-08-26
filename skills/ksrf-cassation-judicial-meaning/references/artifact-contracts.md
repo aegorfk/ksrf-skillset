@@ -18,6 +18,7 @@
 | `exports/case-chains.jsonl` | Независимые цепочки и merge/split review | analysis |
 | `coding-decisions.jsonl` | Полнотекстовые юридические коды и цитаты | adverse review |
 | `adverse-review.json` | Дорожки, результаты и ограничения adverse-pass | analysis |
+| `analysis.json` | Сводка по независимым цепочкам, временные матрицы и статус вывода | thesis review |
 | `thesis-candidates.jsonl` | Только post-corpus кандидаты | thesis review |
 | `human-decision.json` | Решение человека, привязанное к хешам | drafting ready |
 | `validation-report.json` | Пройденные и непройденные gates | handoff |
@@ -25,6 +26,16 @@
 `intake` создаёт `applicant-chain.json` с `run_id=null`, поскольку исследовательский запуск ещё не существует. При первом `collect` runtime создаёт `run_id`, записывает его в `run.json` и атомарно привязывает к нему `applicant-chain.json`.
 
 Первый `analyze` создаёт `analysis.json`, пустой `thesis-candidates.jsonl` и заполняемый шаблон `adverse-review.json`. Кандидаты тезисов появляются только после команды `review --decision evidence_reviewed`, в которой человек подтвердил завершение adverse- и coverage-review, и повторного `analyze`.
+
+## Временной контракт
+
+Поля `temporal_strata` и `interpretive_events` в плане необязательны. Если они заданы, страты непрерывно и без пересечений покрывают период совокупности, а событие связывает две соседние страты; его `effective_date` совпадает с началом следующей страты и подтверждается официальной ссылкой. Поля входят в SHA-256 замороженного плана.
+
+`analysis.json` сохраняет `reading_family_by_year`, `reading_family_by_stratum`, `interpretive_event_findings`, `temporal_unassigned_chain_ids`, `temporal_analysis_complete` и `denominator_scope`. Каждая ячейка содержит `coded_chain_denominator`, `counts` и `shares`; знаменатель всегда равен числу одобренных полнотекстово закодированных независимых цепочек в этой ячейке. Нулевая страта остаётся в матрице.
+
+Каждый `screening-candidates.jsonl` должен иметь одобренное разрешение в `coding-decisions.jsonl` по паре `chain_id + document_id`; файл screening входит в evidence hash. Пока `screening_resolution_complete=false`, evidence review и `drafting_ready` блокируются.
+
+`emergent_reading_candidate` означает, что после события впервые наблюдается новая семья чтения без смешанного постсобытийного массива. `mixed_post_event` требует одновременно новой и сохраняющейся семьи после события. Неизменный набор получает `no_observed_change`; исчезнувшие семьи сохраняются в `disappeared_families` со статусом `contracted_post_event_observation`, без автоматического тезиса об изменении. `insufficient_temporal_evidence` возникает при незакрытом заявленном перечислении, пустой стороне сравнения, неназначенной дате или неодобренной сопоставимости и не допускает `thesis_candidate`.
 
 ## Стабильные идентификаторы
 

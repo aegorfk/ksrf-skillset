@@ -18,7 +18,15 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-from .ksoyu import build_listing_url, classify_listing, decode_response, parse_listing, parse_source_page
+from .ksoyu import (
+    KSOYU_ADAPTER_ID,
+    KSOYU_PARSER_VERSION,
+    build_listing_url,
+    classify_listing,
+    decode_response,
+    parse_listing,
+    parse_source_page,
+)
 from .store import RunStore
 
 
@@ -285,7 +293,23 @@ def _capture_source(
     text: str,
     status: str,
     chain_key: str | None = None,
+    classification_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    metadata = {
+        "adapter_id": KSOYU_ADAPTER_ID,
+        "adapter_version": KSOYU_ADAPTER_ID,
+        "parser_version": KSOYU_PARSER_VERSION,
+        "extraction_status": status,
+        "requested_url": url,
+        "transport": response.headers.get("x-judicial-meaning-transport", "urllib"),
+        "transport_helper_version": response.headers.get(
+            "x-judicial-meaning-helper-version"
+        ),
+        "transport_command_profile": response.headers.get(
+            "x-judicial-meaning-command-profile"
+        ),
+    }
+    metadata.update(classification_evidence or {})
     return store.add_source(
         run_id,
         court_code=court_code,
@@ -297,17 +321,7 @@ def _capture_source(
         chain_key=chain_key,
         http_status=response.status,
         content_type=response.headers.get("content-type"),
-        metadata={
-            "extraction_status": status,
-            "requested_url": url,
-            "transport": response.headers.get("x-judicial-meaning-transport", "urllib"),
-            "transport_helper_version": response.headers.get(
-                "x-judicial-meaning-helper-version"
-            ),
-            "transport_command_profile": response.headers.get(
-                "x-judicial-meaning-command-profile"
-            ),
-        },
+        metadata=metadata,
     )
 
 
@@ -457,7 +471,7 @@ def _add_pagination_tasks(
                     created_at,
                 ),
             )
-            if cursor.rowcount:
+            if cursor.rowcount and cursor.lastrowid is not None:
                 inserted += 1
                 store._event(
                     run_id=run_id,
@@ -490,6 +504,8 @@ def run_collection(
         if not plan_files:
             raise ValueError("Нет замороженного плана для collection.")
         plan = json.loads(plan_files[-1].read_text(encoding="utf-8"))
+    if not isinstance(plan, dict):
+        raise ValueError("Frozen plan должен быть JSON-объектом.")
     if plan.get("frozen") is not True or not plan.get("plan_sha256"):
         raise ValueError("Collection разрешён только по frozen plan с plan_sha256.")
     population = plan.get("population") or {}
@@ -512,7 +528,26 @@ def run_collection(
             }
         )
     ksoyu_source = registry_sources.get("ksoyu_post_2019", {})
-    ksoyu_requested = "ksoyu_post_2019" in requested_regimes and ksoyu_source.get("adapter") == "ksoyu_daily_v1"
+    adapter_ids = {
+        regime: registry_sources.get(regime, {}).get("adapter")
+        for regime in requested_regimes
+    }
+    collector_manifest = {
+        "registry_version": registry.get("registry_version"),
+        "regimes": {
+            regime: {
+                "adapter_id": registry_sources.get(regime, {}).get("adapter"),
+                "parser_version": registry_sources.get(regime, {}).get("parser_version"),
+                "enumeration": registry_sources.get(regime, {}).get("enumeration"),
+            }
+            for regime in requested_regimes
+        },
+    }
+    ksoyu_requested = (
+        "ksoyu_post_2019" in requested_regimes
+        and ksoyu_source.get("adapter") == KSOYU_ADAPTER_ID
+        and ksoyu_source.get("parser_version") == KSOYU_PARSER_VERSION
+    )
     adapter_start = str(ksoyu_source.get("applicable_from") or "2019-10-01")
     if ksoyu_requested and population.get("date_from", adapter_start) < adapter_start and not unsupported:
         regime_gaps.append(
@@ -532,12 +567,36 @@ def run_collection(
         raise ValueError("Неизвестные суды в ksoyu_post_2019: " + ", ".join(unknown_courts))
     transport = transport or (FixtureTransport(fixture_dir) if fixture_dir else HttpTransport())
 
+    run_metadata_path = workspace / "run.json"
+    stored_run_metadata: dict[str, Any] | None = None
+    if resume and run_metadata_path.exists():
+        loaded_run_metadata = json.loads(run_metadata_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded_run_metadata, dict):
+            raise ValueError("Нельзя resume: run.json должен быть JSON-объектом.")
+        stored_run_metadata = loaded_run_metadata
+        if stored_run_metadata.get("adapter_ids") != adapter_ids:
+            raise ValueError(
+                "Нельзя resume: adapter IDs не совпадают с сохранённым run; "
+                "создайте новый run или выполните явную переклассификацию raw snapshots."
+            )
+        if stored_run_metadata.get("collector_manifest") != collector_manifest:
+            raise ValueError(
+                "Нельзя resume: collector manifest не совпадает с сохранённым run; "
+                "создайте новый run или выполните явную переклассификацию raw snapshots."
+            )
+
     with RunLock(workspace), RunStore(workspace) as store:
-        store.recover_stale_claims("9999-01-01T00:00:00Z")
-        store.recover_stale_source_claims("9999-01-01T00:00:00Z")
         existing_run = store.latest_run_id()
         if resume and existing_run:
+            if stored_run_metadata is None:
+                raise ValueError(
+                    "Нельзя resume: в run.json отсутствует provenance adapter IDs."
+                )
             run_id = existing_run
+            if stored_run_metadata.get("run_id") != run_id:
+                raise ValueError("Нельзя resume: run_id в run.json не совпадает с corpus.sqlite3.")
+            if stored_run_metadata.get("plan_sha256") != plan["plan_sha256"]:
+                raise ValueError("Нельзя resume: plan_sha256 в run.json не совпадает с frozen plan.")
             row = store.conn.execute("SELECT plan_sha256 FROM runs WHERE run_id=?", (run_id,)).fetchone()
             if row is None or row["plan_sha256"] != plan["plan_sha256"]:
                 raise ValueError("Нельзя resume: хеш frozen plan не совпадает с run.")
@@ -551,13 +610,17 @@ def run_collection(
                     supported_start,
                     population["date_to"],
                 )
+        store.recover_stale_claims("9999-01-01T00:00:00Z")
+        store.recover_stale_source_claims("9999-01-01T00:00:00Z")
 
         _write_json(
-            workspace / "run.json",
+            run_metadata_path,
             {
                 "schema_version": "1.0",
                 "run_id": run_id,
                 "plan_sha256": plan["plan_sha256"],
+                "adapter_ids": adapter_ids,
+                "collector_manifest": collector_manifest,
             },
         )
         applicant_chain_path = workspace / "applicant-chain.json"
@@ -597,6 +660,17 @@ def run_collection(
                 response,
                 parsed.page_text,
                 status,
+                classification_evidence={
+                    "listing_date": task["listing_date"],
+                    "listing_shell_seen": parsed.listing_shell_seen,
+                    "listing_table_seen": parsed.listing_table_seen,
+                    "control_date_confirmed": parsed.control_date_confirmed,
+                    "content_date_confirmed": parsed.content_date_confirmed,
+                    "date_confirmed": parsed.date_confirmed,
+                    "empty_evidence_code": parsed.empty_evidence_code,
+                    "case_row_count": parsed.case_row_count,
+                    "navigation_state": parsed.navigation_state,
+                },
             )
             if status in {"success_empty", "success_nonempty"}:
                 _add_pagination_tasks(store, run_id=run_id, parent=task, urls=parsed.pagination_urls)
@@ -624,7 +698,22 @@ def run_collection(
                     urls=discovered,
                     discovered_from_task_id=task["task_id"],
                 )
-                store.finish_listing(task["task_id"], status, response.status, row_count=len(parsed.rows))
+                store.finish_listing(
+                    task["task_id"],
+                    status,
+                    response.status,
+                    row_count=parsed.case_row_count,
+                    evidence={
+                        "adapter_id": KSOYU_ADAPTER_ID,
+                        "listing_shell_seen": parsed.listing_shell_seen,
+                        "listing_table_seen": parsed.listing_table_seen,
+                        "control_date_confirmed": parsed.control_date_confirmed,
+                        "content_date_confirmed": parsed.content_date_confirmed,
+                        "date_confirmed": parsed.date_confirmed,
+                        "empty_evidence_code": parsed.empty_evidence_code,
+                        "case_row_count": parsed.case_row_count,
+                    },
+                )
             else:
                 reason = f"HTTP {response.status}; {parsed.navigation_state}"
                 if status != "blocked" and int(task["attempts"]) >= max_attempts:
@@ -652,7 +741,13 @@ def run_collection(
             coverage["closed_official_population_observed"]
             and source_acquisition["unresolved"] == 0
         )
-        coverage["denominator_scope"] = "officially_discoverable_published_output_not_all_decided_cases"
+        coverage["denominator_scope"] = (
+            "official_daily_scheduled_listing_route_not_all_decided_or_published_acts"
+        )
+        coverage["denominator_limit"] = (
+            "Закрытие H_date подтверждает только наблюдаемую выдачу назначенных дел; "
+            "оно не доказывает публикацию каждого рассмотренного или изготовленного акта."
+        )
         independence = store.independence_counts(run_id)
         for table in ("listing_tasks", "source_tasks", "sources", "snapshots", "events"):
             store.export_jsonl(table)

@@ -48,6 +48,103 @@ class KsoyuParserTests(unittest.TestCase):
         self.assertEqual("blocked", classify_listing(403, empty))
         self.assertEqual("retryable_error", classify_listing(503, empty))
 
+    def test_real_sudrf_empty_layout_requires_shell_exact_date_and_dated_marker(self):
+        html = (FIXTURES / "listing_empty_sudrf.html").read_text(encoding="utf-8")
+        result = parse_listing(html, BASE, "2024-03-07")
+        self.assertEqual("success_empty", classify_listing(200, result))
+        self.assertTrue(result.listing_shell_seen)
+        self.assertTrue(result.date_confirmed)
+        self.assertEqual("dated_no_scheduled_cases", result.empty_evidence_code)
+
+        wrong_date = parse_listing(html, BASE, "2024-03-08")
+        self.assertNotEqual("success_empty", classify_listing(200, wrong_date))
+        self.assertFalse(wrong_date.date_confirmed)
+
+    def test_empty_marker_without_shell_and_shell_without_marker_remain_unresolved(self):
+        marker_only = parse_listing(
+            "<main id='content'>На 07.03.2024 дел не назначено</main>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertNotEqual("success_empty", classify_listing(200, marker_only))
+
+        shell_only = parse_listing(
+            "<form id='calformH'><input name='name' value='sud_delo'>"
+            "<input name='srv_num' value='1'><input name='H_date' value='07.03.2024'></form>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertEqual("invalid_structure", classify_listing(200, shell_only))
+
+    def test_protection_wins_over_empty_marker_and_service_row_is_not_a_case(self):
+        protected = parse_listing(
+            (FIXTURES / "listing_empty_sudrf.html").read_text(encoding="utf-8")
+            + "<div>Проверка, что вы не робот</div>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertEqual("blocked", classify_listing(200, protected))
+
+        service_row = parse_listing(
+            "<form id='calformH'><input name='name' value='sud_delo'>"
+            "<input name='srv_num' value='1'><input name='H_date' value='07.03.2024'></form>"
+            "<table id='tablcont'><tr><td>Служебная строка без дела</td></tr></table>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertNotEqual("success_nonempty", classify_listing(200, service_row))
+
+    def test_conflicting_date_table_only_empty_and_paginated_empty_fail_closed(self):
+        mismatched_date = parse_listing(
+            "<form id='calformH'><input name='name' value='sud_delo'>"
+            "<input name='srv_num' value='1'><input name='H_date' value='08.03.2024'></form>"
+            "<main id='content'>Информация по делам на 07.03.2024"
+            "<table id='tablcont'><tr><td><a href='/modules.php?name=sud_delo&amp;srv_num=1&amp;name_op=case&amp;case_id=1'>Дело</a></td></tr></table></main>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertFalse(mismatched_date.structural_ok)
+        self.assertNotEqual("success_nonempty", classify_listing(200, mismatched_date))
+
+        table_only = parse_listing(
+            "<main id='content'>На 07.03.2024 дел не найдено"
+            "<table id='tablcont'><tr><td>Пусто</td></tr></table></main>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertNotEqual("success_empty", classify_listing(200, table_only))
+
+        paginated_empty = parse_listing(
+            (FIXTURES / "listing_empty_sudrf.html").read_text(encoding="utf-8")
+            + "<a rel='next' href='/modules.php?name=sud_delo&amp;srv_num=1&amp;H_date=07.03.2024&amp;page=2'>Следующая</a>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertEqual(1, len(paginated_empty.pagination_urls))
+        self.assertNotEqual("success_empty", classify_listing(200, paginated_empty))
+
+    def test_listing_ignores_external_case_and_document_links(self):
+        external = parse_listing(
+            "<form id='calformH'><input name='name' value='sud_delo'>"
+            "<input name='srv_num' value='1'><input name='H_date' value='07.03.2024'></form>"
+            "<main id='content'>Информация по делам на 07.03.2024"
+            "<table id='tablcont'><tr><td>"
+            "<a href='https://example.invalid/modules.php?name=sud_delo&amp;name_op=case'>Чужое дело</a>"
+            "<a href='https://example.invalid/modules.php?name=sud_delo&amp;name_op=doc'>Чужой акт</a>"
+            "</td></tr></table></main>",
+            BASE,
+            "2024-03-07",
+        )
+        self.assertEqual([], external.case_urls)
+        self.assertEqual([], external.doc_urls)
+        self.assertNotEqual("success_nonempty", classify_listing(200, external))
+        external_card = parse_source_page(
+            "<a href='https://example.invalid/modules.php?name=sud_delo&amp;name_op=doc'>Чужой акт</a>",
+            BASE,
+            "card",
+        )
+        self.assertEqual([], external_card.doc_urls)
+
     def test_card_discovers_docs_and_doc_extracts_content(self):
         card = parse_source_page((FIXTURES / "card.html").read_text(), BASE, "card")
         self.assertEqual(2, len(card.doc_urls))

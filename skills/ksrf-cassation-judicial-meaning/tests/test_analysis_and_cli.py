@@ -16,12 +16,49 @@ from judicial_meaning.analysis import (
     validate_thesis_candidate,
     validate_thesis_readiness,
 )
+from judicial_meaning.cli import screening_resolution_complete
 
 
 SKILL = Path(__file__).resolve().parents[1]
 
 
 class AnalysisAndCliTests(unittest.TestCase):
+    def test_coding_complete_requires_resolution_of_every_screening_candidate(self):
+        def coded(chain_id, document_id):
+            return {
+                "chain_id": chain_id,
+                "document_id": document_id,
+                "label": "core_merits",
+                "speaker": "court",
+                "proposition": "Проверенная позиция суда.",
+                "quote": "проверенная цитата",
+                "quote_locator": "абзац 1",
+                "quote_verified": True,
+                "full_text_reviewed": True,
+                "norm_edition_id": "edition-1",
+                "reasoning_to_outcome": "Позиция определила исход.",
+                "material_facts": ["сопоставимый факт"],
+                "alternative_grounds": [],
+                "remedy": "отмена",
+                "reading_family": "reading-a",
+                "relation": "supports",
+                "coder": "reviewer-1",
+                "codebook_version": "1.0",
+                "human_review": "approved",
+            }
+
+        screening = [
+            {"chain_id": "chain-1", "document_id": "document-1"},
+            {"chain_id": "chain-2", "document_id": "document-2"},
+        ]
+        self.assertFalse(screening_resolution_complete(screening, [coded("chain-1", "document-1")]))
+        self.assertTrue(
+            screening_resolution_complete(
+                screening,
+                [coded("chain-1", "document-1"), coded("chain-2", "document-2")],
+            )
+        )
+
     def test_screening_uses_plan_lanes_not_a_built_in_subject(self):
         lanes = {
             "exact_norm": ["статья 10"],

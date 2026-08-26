@@ -75,6 +75,7 @@ def _pre_thesis_evidence_sha256(workspace: Path) -> str:
     return _digest_existing(
         [
             workspace / "applicant-chain.json",
+            workspace / "screening-candidates.jsonl",
             workspace / "coding-decisions.jsonl",
             workspace / "exports" / "coverage.json",
             workspace / "exports" / "sources.jsonl",
@@ -141,6 +142,8 @@ def plan_template() -> dict[str, Any]:
             "regimes": ["ksoyu_post_2019"],
             "official_population_rule": "Все официально обнаружимые опубликованные материалы в замкнутом дневном обходе; не все рассмотренные дела.",
         },
+        "temporal_strata": [],
+        "interpretive_events": [],
         "query_lanes": {
             "exact_norm": [],
             "synonyms": [],
@@ -344,9 +347,37 @@ def cmd_code(args: argparse.Namespace) -> int:
     return 0
 
 
+def screening_resolution_complete(
+    screening_candidates: list[dict[str, Any]],
+    coding_records: list[dict[str, Any]],
+) -> bool:
+    """Require one valid reviewed resolution for every screened chain/document pair."""
+
+    if not screening_candidates or not coding_records:
+        return False
+    required: set[tuple[str, str]] = set()
+    for candidate in screening_candidates:
+        chain_id = candidate.get("chain_id")
+        document_id = candidate.get("document_id")
+        if not isinstance(chain_id, str) or not chain_id.strip():
+            return False
+        if not isinstance(document_id, str) or not document_id.strip():
+            return False
+        required.add((chain_id.strip(), document_id.strip()))
+    if any(validate_coding_record(record) for record in coding_records):
+        return False
+    resolved = {
+        (str(record["chain_id"]).strip(), str(record["document_id"]).strip())
+        for record in coding_records
+    }
+    return required.issubset(resolved)
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).expanduser().resolve()
     records = read_jsonl(workspace / "coding-decisions.jsonl")
+    screening_candidates = read_jsonl(workspace / "screening-candidates.jsonl")
+    coding_resolution_complete = screening_resolution_complete(screening_candidates, records)
     plan = latest_plan(workspace)
     coverage_path = workspace / "exports" / "coverage.json"
     coverage = read_json(coverage_path) if coverage_path.exists() else {"population_status": "insufficient_coverage"}
@@ -355,9 +386,15 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         if coverage.get("collection_complete") is True
         else "insufficient_coverage"
     )
-    result = analyze_reviewed_chains(records, coverage_status=coverage_status)
+    result = analyze_reviewed_chains(
+        records,
+        coverage_status=coverage_status,
+        temporal_strata=plan.get("temporal_strata"),
+        interpretive_events=plan.get("interpretive_events"),
+    )
     result["plan_sha256"] = plan.get("plan_sha256")
     result["practice_is_evidence_of_meaning_not_review_object"] = True
+    result["screening_resolution_complete"] = coding_resolution_complete
     applicant_chain_path = workspace / "applicant-chain.json"
     applicant_chain = read_json(applicant_chain_path) if applicant_chain_path.exists() else {"propositions": []}
     run_metadata_path = workspace / "run.json"
@@ -395,6 +432,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         and evidence_decision.get("coverage_review_complete") is True
         and adverse.get("completed") is True
         and adverse.get("queries")
+        and coding_resolution_complete
     )
     candidates = (
         build_thesis_candidates(plan, applicant_chain, records, result)
@@ -466,6 +504,7 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     evidence_files = [
         workspace / "analysis.json",
+        workspace / "screening-candidates.jsonl",
         workspace / "coding-decisions.jsonl",
         workspace / "exports" / "coverage.json",
         workspace / "adverse-review.json",
@@ -494,6 +533,7 @@ def _validation_state(workspace: Path) -> dict[str, Any]:
     coverage_path = workspace / "exports" / "coverage.json"
     coverage = read_json(coverage_path) if coverage_path.exists() else {}
     coding = read_jsonl(workspace / "coding-decisions.jsonl")
+    screening = read_jsonl(workspace / "screening-candidates.jsonl")
     decision_path = workspace / "human-decision.json"
     decision = read_json(decision_path) if decision_path.exists() else {}
     analysis_path = workspace / "analysis.json"
@@ -505,6 +545,7 @@ def _validation_state(workspace: Path) -> dict[str, Any]:
     )
     evidence_files = [
         workspace / "analysis.json",
+        workspace / "screening-candidates.jsonl",
         workspace / "coding-decisions.jsonl",
         workspace / "exports" / "coverage.json",
         workspace / "adverse-review.json",
@@ -516,13 +557,14 @@ def _validation_state(workspace: Path) -> dict[str, Any]:
     return {
         "plan_frozen": plan.get("frozen") is True,
         "collection_complete": coverage.get("collection_complete") is True,
-        "coding_complete": bool(coding) and all(not validate_coding_record(record) for record in coding),
+        "coding_complete": screening_resolution_complete(screening, coding),
         "adverse_review_complete": decision.get("adverse_review_complete") is True,
         "coverage_review_complete": decision.get("coverage_review_complete") is True,
         "human_approved": decision.get("decision") == "approved" and approval_hashes_match,
         "candidate_approved": candidate_approved and approval_hashes_match,
         "approval_hashes_match": approval_hashes_match,
         "maximum_permitted_claim": analysis.get("status", plan.get("maximum_claim_if_incomplete")),
+        "temporal_analysis_complete": analysis.get("temporal_analysis_complete") is True,
     }
 
 

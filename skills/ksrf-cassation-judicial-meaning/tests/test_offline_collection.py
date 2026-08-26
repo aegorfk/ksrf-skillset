@@ -48,7 +48,93 @@ class OfflineCollectionTests(unittest.TestCase):
         registry = load_source_registry()
         sources = {source["id"]: source for source in registry["sources"]}
         self.assertEqual(9, len(sources["ksoyu_post_2019"]["courts"]))
+        self.assertEqual("ksoyu_daily_v2", sources["ksoyu_post_2019"]["adapter"])
         self.assertIsNone(sources["regional_presidia_pre_2019"]["adapter"])
+
+    def test_real_empty_day_closes_without_source_tasks_and_exports_evidence(self):
+        root = build_listing_url("1kas.sudrf.ru", "2024-03-07")
+        transport = MappingTransport({root: (200, "listing_empty_sudrf.html")})
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_collection(Path(tmp), plan=frozen_plan(), transport=transport, resume=False)
+            self.assertEqual(1, result["coverage"]["success_empty"])
+            self.assertEqual(0, result["source_acquisition"]["total"])
+            self.assertTrue(result["coverage"]["collection_complete"])
+            self.assertTrue(result["coverage"]["closed_declared_enumeration_observed"])
+            self.assertEqual(
+                "closed_declared_enumeration_observed",
+                result["coverage"]["declared_enumeration_status"],
+            )
+            self.assertEqual(
+                "official_daily_scheduled_listing_route_not_all_decided_or_published_acts",
+                result["coverage"]["denominator_scope"],
+            )
+            sources = [
+                json.loads(line)
+                for line in (Path(tmp) / "exports" / "sources.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            listing = next(source for source in sources if source["kind"] == "listing")
+            metadata = json.loads(listing["metadata_json"])
+            self.assertEqual("ksoyu_daily_v2", metadata["adapter_id"])
+            self.assertEqual("ksoyu_daily_v2", metadata["adapter_version"])
+            self.assertEqual("2.0", metadata["parser_version"])
+            self.assertEqual("dated_no_scheduled_cases", metadata["empty_evidence_code"])
+            self.assertTrue(metadata["date_confirmed"])
+
+    def test_resume_rejects_adapter_change_before_fetching(self):
+        root = build_listing_url("1kas.sudrf.ru", "2024-03-07")
+        with tempfile.TemporaryDirectory() as tmp:
+            first_transport = MappingTransport({root: (200, "listing_empty_sudrf.html")})
+            run_collection(Path(tmp), plan=frozen_plan(), transport=first_transport, resume=False)
+            run_path = Path(tmp) / "run.json"
+            run_metadata = json.loads(run_path.read_text(encoding="utf-8"))
+            run_metadata["adapter_ids"]["ksoyu_post_2019"] = "ksoyu_daily_v1"
+            run_path.write_text(json.dumps(run_metadata), encoding="utf-8")
+            second_transport = MappingTransport({})
+            with self.assertRaisesRegex(ValueError, "adapter"):
+                run_collection(Path(tmp), plan=frozen_plan(), transport=second_transport, resume=True)
+            self.assertEqual([], second_transport.calls)
+
+    def test_resume_rejects_tampered_run_identity_before_fetching(self):
+        root = build_listing_url("1kas.sudrf.ru", "2024-03-07")
+        for field, replacement in (("run_id", "run-tampered"), ("plan_sha256", "0" * 64)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                run_collection(
+                    Path(tmp),
+                    plan=frozen_plan(),
+                    transport=MappingTransport({root: (200, "listing_empty_sudrf.html")}),
+                    resume=False,
+                )
+                run_path = Path(tmp) / "run.json"
+                run_metadata = json.loads(run_path.read_text(encoding="utf-8"))
+                run_metadata[field] = replacement
+                run_path.write_text(json.dumps(run_metadata), encoding="utf-8")
+                transport = MappingTransport({})
+                with self.assertRaisesRegex(ValueError, "run_id|plan_sha256"):
+                    run_collection(Path(tmp), plan=frozen_plan(), transport=transport, resume=True)
+                self.assertEqual([], transport.calls)
+
+    def test_resume_rejects_parser_or_registry_manifest_change(self):
+        root = build_listing_url("1kas.sudrf.ru", "2024-03-07")
+        for field in ("parser_version", "registry_version"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                run_collection(
+                    Path(tmp),
+                    plan=frozen_plan(),
+                    transport=MappingTransport({root: (200, "listing_empty_sudrf.html")}),
+                    resume=False,
+                )
+                run_path = Path(tmp) / "run.json"
+                run_metadata = json.loads(run_path.read_text(encoding="utf-8"))
+                manifest = run_metadata["collector_manifest"]
+                if field == "registry_version":
+                    manifest[field] = "tampered"
+                else:
+                    manifest["regimes"]["ksoyu_post_2019"][field] = "tampered"
+                run_path.write_text(json.dumps(run_metadata), encoding="utf-8")
+                transport = MappingTransport({})
+                with self.assertRaisesRegex(ValueError, "collector manifest"):
+                    run_collection(Path(tmp), plan=frozen_plan(), transport=transport, resume=True)
+                self.assertEqual([], transport.calls)
 
     def test_end_to_end_pagination_card_doc_and_resume(self):
         root = build_listing_url("1kas.sudrf.ru", "2024-03-07")

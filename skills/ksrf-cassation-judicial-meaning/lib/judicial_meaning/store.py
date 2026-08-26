@@ -372,6 +372,7 @@ class RunStore:
         http_status: int | None,
         *,
         row_count: int | None = None,
+        evidence: dict[str, Any] | None = None,
     ) -> None:
         if status not in _SUCCESS_STATES:
             raise ValueError(f"not a successful terminal listing status: {status}")
@@ -396,7 +397,11 @@ class RunStore:
                 task_id=task_id,
                 event_type="listing",
                 reason_code=status,
-                payload={"http_status": http_status, "row_count": row_count},
+                payload={
+                    "http_status": http_status,
+                    "row_count": row_count,
+                    **(evidence or {}),
+                },
                 event_at=finished_at,
             )
 
@@ -726,6 +731,10 @@ class RunStore:
             "total_segments": total,
             "successful_segments": successful,
             "unresolved_segments": total - successful,
+            "closed_declared_enumeration_observed": closed,
+            "declared_enumeration_status": (
+                "closed_declared_enumeration_observed" if closed else "observed_enumeration_only"
+            ),
             "closed_official_population_observed": closed,
             "population_status": (
                 "closed_official_population_observed" if closed else "observed_corpus_only"

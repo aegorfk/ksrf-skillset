@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +49,104 @@ def _valid_iso_date(value: Any, *, nullable: bool = False) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _validate_temporal_plan(plan: dict[str, Any], population: Any) -> list[str]:
+    """Validate optional, population-covering temporal strata and linked events."""
+
+    errors: list[str] = []
+    strata = plan.get("temporal_strata")
+    events = plan.get("interpretive_events")
+    if strata in (None, []):
+        if events not in (None, []):
+            errors.append("Интерпретационные события требуют временных страт.")
+        return errors
+    if not isinstance(strata, list) or len(strata) < 2:
+        return ["Для временного сравнения нужны как минимум две страты."]
+
+    parsed: list[tuple[date, date, str]] = []
+    seen_ids: set[str] = set()
+    strata_by_id: dict[str, tuple[date, date]] = {}
+    for index, stratum in enumerate(strata, start=1):
+        if not isinstance(stratum, dict):
+            errors.append(f"Временная страта {index} должна быть объектом.")
+            continue
+        stratum_id = stratum.get("id")
+        if not isinstance(stratum_id, str) or not stratum_id.strip() or stratum_id in seen_ids:
+            errors.append(f"У временной страты {index} отсутствует уникальный id.")
+            continue
+        seen_ids.add(stratum_id)
+        if not _nonempty_string(stratum.get("label")):
+            errors.append(f"У временной страты {index} нет названия.")
+        start_raw = stratum.get("date_from")
+        end_raw = stratum.get("date_to")
+        if (
+            not isinstance(start_raw, str)
+            or not isinstance(end_raw, str)
+            or not _valid_iso_date(start_raw)
+            or not _valid_iso_date(end_raw)
+        ):
+            errors.append(f"У временной страты {index} неверные даты ISO.")
+            continue
+        start = date.fromisoformat(start_raw)
+        end = date.fromisoformat(end_raw)
+        if start > end:
+            errors.append(f"У временной страты {index} период задан в обратном порядке.")
+            continue
+        parsed.append((start, end, stratum_id))
+        strata_by_id[stratum_id] = (start, end)
+
+    if len(parsed) == len(strata):
+        ordered = sorted(parsed)
+        if isinstance(population, dict):
+            population_start = population.get("date_from")
+            population_end = population.get("date_to")
+            if isinstance(population_start, str) and _valid_iso_date(population_start) and ordered[0][0] != date.fromisoformat(population_start):
+                errors.append("Временные страты не начинаются вместе с исследуемой совокупностью.")
+            if isinstance(population_end, str) and _valid_iso_date(population_end) and ordered[-1][1] != date.fromisoformat(population_end):
+                errors.append("Временные страты не заканчиваются вместе с исследуемой совокупностью.")
+        for previous, current in zip(ordered, ordered[1:]):
+            if previous[1] + timedelta(days=1) != current[0]:
+                errors.append("Временные страты должны идти подряд, без пробелов и пересечений.")
+                break
+
+    if events is None:
+        events = []
+    if not isinstance(events, list):
+        return errors + ["Интерпретационные события должны быть списком."]
+
+    seen_event_ids: set[str] = set()
+    ordered_ids = [item[2] for item in sorted(parsed)]
+    adjacent_pairs = set(zip(ordered_ids, ordered_ids[1:]))
+    for index, event in enumerate(events, start=1):
+        if not isinstance(event, dict):
+            errors.append(f"Интерпретационное событие {index} должно быть объектом.")
+            continue
+        event_id = event.get("id")
+        if not isinstance(event_id, str) or not event_id.strip() or event_id in seen_event_ids:
+            errors.append(f"У интерпретационного события {index} отсутствует уникальный id.")
+        else:
+            seen_event_ids.add(event_id)
+        if not _nonempty_string(event.get("label")):
+            errors.append(f"У интерпретационного события {index} нет названия.")
+        source_url = event.get("official_source_url")
+        if not isinstance(source_url, str) or not source_url.strip() or not source_url.startswith(("https://", "http://")):
+            errors.append(f"У интерпретационного события {index} нет официальной ссылки.")
+        before_id = event.get("before_stratum_id")
+        after_id = event.get("after_stratum_id")
+        if not isinstance(before_id, str) or not isinstance(after_id, str) or (before_id, after_id) not in adjacent_pairs:
+            errors.append(f"Событие {index} должно связывать соседние временные страты.")
+            continue
+        effective_raw = event.get("effective_date")
+        if not isinstance(effective_raw, str) or not _valid_iso_date(effective_raw):
+            errors.append(f"У интерпретационного события {index} неверная дата.")
+            continue
+        effective = date.fromisoformat(effective_raw)
+        before_dates = strata_by_id[before_id]
+        after_dates = strata_by_id[after_id]
+        if effective != after_dates[0] or before_dates[1] + timedelta(days=1) != effective:
+            errors.append(f"Дата события {index} должна совпадать с началом следующей страты.")
+    return errors
 
 
 def make_research_question(assertion: str, norm_refs: list[str]) -> dict[str, Any]:
@@ -142,7 +240,12 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             errors.append("Единица учёта должна быть независимой цепочкой дела.")
         start = population.get("date_from")
         end = population.get("date_to")
-        if not _valid_iso_date(start) or not _valid_iso_date(end):
+        if (
+            not isinstance(start, str)
+            or not isinstance(end, str)
+            or not _valid_iso_date(start)
+            or not _valid_iso_date(end)
+        ):
             errors.append("Период совокупности должен быть задан датами ISO.")
         elif start > end:
             errors.append("Начало периода совокупности позже его окончания.")
@@ -152,6 +255,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             errors.append("Укажите режимы источников и судебной системы.")
         if not _nonempty_string(population.get("official_population_rule")):
             errors.append("Зафиксируйте правило официальной совокупности.")
+
+    errors.extend(_validate_temporal_plan(plan, population))
 
     lanes = plan.get("query_lanes")
     if not isinstance(lanes, dict):

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from collections import Counter
+from datetime import date
 from typing import Any, Iterable
 
 
@@ -14,6 +15,9 @@ ALLOWED_CONCLUSIONS = frozenset(
         "corroborated_observed_corpus",
         "material_split_candidate",
         "temporal_shift_candidate",
+        "emergent_reading_candidate",
+        "mixed_post_event",
+        "insufficient_temporal_evidence",
         "circuit_divergence_candidate",
         "fact_sensitive_divergence",
         "implementation_gap",
@@ -51,6 +55,11 @@ _VALID_LABELS = {
     "unclear",
 }
 _VALID_RELATIONS = {"supports", "adverse", "neutral", "distinguishes", "supersedes"}
+_CLOSED_ENUMERATION_COVERAGE = {
+    "closed_declared_enumeration_observed",
+    "closed_official_population_observed",
+}
+_ANALYSABLE_COVERAGE = _CLOSED_ENUMERATION_COVERAGE | {"bounded_sample_observed"}
 _RISKY_CLAIM_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(?:судебн\w+\s+)?хаос\b", re.IGNORECASE), "Слово «хаос» замените проверяемым описанием расхождения."),
     (
@@ -187,10 +196,22 @@ def analyze_reviewed_chains(
     records: Iterable[dict[str, Any]],
     *,
     coverage_status: str,
+    temporal_strata: Iterable[dict[str, Any]] | None = None,
+    interpretive_events: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Summarise approved independent case chains without overstating coverage."""
 
     chains, conflicts = _approved_unique_chains(records)
+
+    def is_valid_date(value: Any) -> bool:
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            return False
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            return False
+        return True
+
     family_counts = Counter(record["reading_family"] for record in chains.values())
     relation_counts = Counter(str(record.get("relation")) for record in chains.values())
     edition_counts = Counter(
@@ -206,9 +227,128 @@ def analyze_reviewed_chains(
     year_counts = Counter(
         str(record["decision_date"])[:4]
         for record in chains.values()
-        if isinstance(record.get("decision_date"), str)
-        and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(record["decision_date"]))
+        if is_valid_date(record.get("decision_date"))
     )
+
+    def matrix_cell(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
+        item_list = list(items)
+        counts = Counter(record["reading_family"] for record in item_list)
+        denominator = len(item_list)
+        shares = {
+            family: round(count / denominator, 6)
+            for family, count in sorted(counts.items())
+        } if denominator else {}
+        return {
+            "coded_chain_denominator": denominator,
+            "counts": dict(sorted(counts.items())),
+            "shares": shares,
+        }
+
+    by_year: dict[str, list[dict[str, Any]]] = {}
+    for record in chains.values():
+        decision_date = record.get("decision_date")
+        if isinstance(decision_date, str) and is_valid_date(decision_date):
+            by_year.setdefault(decision_date[:4], []).append(record)
+    reading_family_by_year = {
+        year: matrix_cell(items) for year, items in sorted(by_year.items())
+    }
+
+    strata = [item for item in (temporal_strata or []) if isinstance(item, dict)]
+    events = [item for item in (interpretive_events or []) if isinstance(item, dict)]
+    strata_by_id = {
+        str(item.get("id")): item
+        for item in strata
+        if isinstance(item.get("id"), str) and item.get("id")
+    }
+    chains_by_stratum: dict[str, list[dict[str, Any]]] = {
+        stratum_id: [] for stratum_id in strata_by_id
+    }
+    temporal_unassigned_chain_ids: list[str] = []
+    for chain_id, record in chains.items():
+        decision_date = record.get("decision_date")
+        matches = []
+        if isinstance(decision_date, str) and is_valid_date(decision_date):
+            matches = [
+                stratum_id
+                for stratum_id, stratum in strata_by_id.items()
+                if isinstance(stratum.get("date_from"), str)
+                and isinstance(stratum.get("date_to"), str)
+                and stratum["date_from"] <= decision_date <= stratum["date_to"]
+            ]
+        if strata and len(matches) != 1:
+            temporal_unassigned_chain_ids.append(chain_id)
+        elif len(matches) == 1:
+            chains_by_stratum[matches[0]].append(record)
+
+    reading_family_by_stratum = {
+        stratum_id: matrix_cell(chains_by_stratum[stratum_id])
+        for stratum_id in strata_by_id
+    }
+    event_findings: list[dict[str, Any]] = []
+    for event in events:
+        before_id = event.get("before_stratum_id")
+        after_id = event.get("after_stratum_id")
+        before_records = chains_by_stratum.get(str(before_id), [])
+        after_records = chains_by_stratum.get(str(after_id), [])
+        before_families = sorted({record["reading_family"] for record in before_records})
+        after_families = sorted({record["reading_family"] for record in after_records})
+        emergent_families = sorted(set(after_families) - set(before_families))
+        persisting_families = sorted(set(after_families) & set(before_families))
+        disappeared_families = sorted(set(before_families) - set(after_families))
+        compared_records = before_records + after_records
+        limitations = [
+            "Знаменатель включает только одобренные полнотекстово закодированные независимые цепочки дел.",
+            "Сравнение не означает полноту всех рассмотренных или опубликованных дел.",
+        ]
+        comparable = bool(compared_records) and all(
+            record.get("comparability_approved") is True for record in compared_records
+        )
+        if (
+            coverage_status not in _CLOSED_ENUMERATION_COVERAGE
+            or temporal_unassigned_chain_ids
+            or not before_records
+            or not after_records
+            or not comparable
+        ):
+            event_status = "insufficient_temporal_evidence"
+        elif emergent_families and persisting_families:
+            event_status = "mixed_post_event"
+        elif emergent_families:
+            event_status = "emergent_reading_candidate"
+        elif disappeared_families:
+            event_status = "contracted_post_event_observation"
+        else:
+            event_status = "no_observed_change"
+        event_findings.append(
+            {
+                "event_id": event.get("id"),
+                "before_stratum_id": before_id,
+                "after_stratum_id": after_id,
+                "before_chain_count": len(before_records),
+                "after_chain_count": len(after_records),
+                "before_families": before_families,
+                "after_families": after_families,
+                "emergent_families": emergent_families,
+                "persisting_families": persisting_families,
+                "disappeared_families": disappeared_families,
+                "status": event_status,
+                "limitations": limitations,
+            }
+        )
+
+    temporal_analysis_complete = bool(strata) and not temporal_unassigned_chain_ids
+    if events:
+        temporal_analysis_complete = temporal_analysis_complete and all(
+            finding["status"] != "insufficient_temporal_evidence"
+            for finding in event_findings
+        )
+    elif strata:
+        temporal_analysis_complete = (
+            temporal_analysis_complete
+            and coverage_status in _CLOSED_ENUMERATION_COVERAGE
+            and all(chains_by_stratum.values())
+            and all(record.get("comparability_approved") is True for record in chains.values())
+        )
 
     def separated_by(field: str) -> bool:
         by_family: dict[str, set[str]] = {}
@@ -239,22 +379,29 @@ def analyze_reviewed_chains(
         ranges.sort()
         return all(ranges[index][1] < ranges[index + 1][0] for index in range(len(ranges) - 1))
 
+    event_statuses = {finding["status"] for finding in event_findings}
     if conflicts:
         status = "measurement_unreliable"
     elif not chains:
         status = "insufficient_coverage"
-    elif coverage_status not in {"closed_official_population_observed", "bounded_sample_observed"}:
+    elif coverage_status not in _ANALYSABLE_COVERAGE:
         status = "insufficient_coverage"
     elif len(edition_counts) >= 2 and not all(
         record.get("comparability_approved") is True for record in chains.values()
     ):
         status = "needs_human_resolution"
+    elif len(family_counts) >= 2 and separated_by("material_facts_group"):
+        status = "fact_sensitive_divergence"
+    elif len(family_counts) >= 2 and separated_by("court_code"):
+        status = "circuit_divergence_candidate"
+    elif "insufficient_temporal_evidence" in event_statuses:
+        status = "insufficient_temporal_evidence"
+    elif "mixed_post_event" in event_statuses:
+        status = "mixed_post_event"
+    elif "emergent_reading_candidate" in event_statuses:
+        status = "emergent_reading_candidate"
     elif len(family_counts) >= 2:
-        if separated_by("material_facts_group"):
-            status = "fact_sensitive_divergence"
-        elif separated_by("court_code"):
-            status = "circuit_divergence_candidate"
-        elif temporal_separation():
+        if temporal_separation():
             status = "temporal_shift_candidate"
         else:
             status = "material_split_candidate"
@@ -272,6 +419,12 @@ def analyze_reviewed_chains(
         "norm_edition_counts": dict(sorted(edition_counts.items())),
         "court_counts": dict(sorted(court_counts.items())),
         "year_counts": dict(sorted(year_counts.items())),
+        "reading_family_by_year": reading_family_by_year,
+        "reading_family_by_stratum": reading_family_by_stratum,
+        "interpretive_event_findings": event_findings,
+        "temporal_unassigned_chain_ids": sorted(temporal_unassigned_chain_ids),
+        "temporal_analysis_complete": temporal_analysis_complete,
+        "denominator_scope": "approved_independent_coded_chains",
         "conflicting_chain_ids": conflicts,
         "coverage_status": coverage_status,
         "bounded": True,
@@ -287,7 +440,26 @@ def build_thesis_candidates(
     """Build bounded post-corpus candidates, never a drafting-ready assertion."""
 
     status = analysis.get("status")
-    if status in {None, "insufficient_coverage", "measurement_unreliable", "needs_human_resolution"}:
+    if status in {
+        None,
+        "insufficient_coverage",
+        "measurement_unreliable",
+        "needs_human_resolution",
+        "insufficient_temporal_evidence",
+    }:
+        return []
+    temporal_event_ids = sorted(
+        {
+            str(finding["event_id"])
+            for finding in analysis.get("interpretive_event_findings", [])
+            if isinstance(finding, dict)
+            and finding.get("status") in {"emergent_reading_candidate", "mixed_post_event"}
+            and finding.get("event_id")
+        }
+    )
+    if status in {"emergent_reading_candidate", "mixed_post_event"} and (
+        analysis.get("temporal_analysis_complete") is not True or not temporal_event_ids
+    ):
         return []
     approved = [
         record
@@ -320,6 +492,31 @@ def build_thesis_candidates(
         and proposition.get("meaning", "").strip()
     ]
     applicant_meaning = applicant_meanings[0] if len(applicant_meanings) == 1 else None
+    if status == "emergent_reading_candidate":
+        emergent_families = sorted(
+            {
+                str(family)
+                for finding in analysis.get("interpretive_event_findings", [])
+                if isinstance(finding, dict)
+                for family in finding.get("emergent_families", [])
+            }
+        )
+        observed_statement = (
+            "В раскрытом и проверенном корпусе после указанного события впервые наблюдается "
+            "семья чтения: "
+            + ", ".join(emergent_families)
+            + "; знаменатель ограничен одобренными независимыми цепочками дел."
+        )
+    elif status == "mixed_post_event":
+        observed_statement = (
+            "В раскрытом и проверенном корпусе после указанного события одновременно наблюдаются "
+            "прежняя и новая семьи чтения; знаменатель ограничен одобренными независимыми цепочками дел."
+        )
+    else:
+        observed_statement = (
+            "В раскрытом и проверенном корпусе независимых цепочек дел выявлено "
+            f"соотношение чтений со статусом {status}; вывод не выходит за раскрытый охват."
+        )
     candidates: list[dict[str, Any]] = []
     for question in plan.get("research_questions", []):
         if not isinstance(question, dict):
@@ -334,10 +531,8 @@ def build_thesis_candidates(
             "supportive_chain_ids": supportive,
             "adverse_chain_ids": adverse,
             "coverage_status": analysis.get("coverage_status"),
-            "observed_statement": (
-                "В раскрытом и проверенном корпусе независимых цепочек дел выявлено "
-                f"соотношение чтений со статусом {status}; вывод не выходит за раскрытый охват."
-            ),
+            "interpretive_event_ids": temporal_event_ids,
+            "observed_statement": observed_statement,
             "limitations": [
                 "Практика используется как доказательство придаваемого норме смысла, а не как самостоятельный предмет проверки КС РФ.",
                 "Частота и расхождение сами по себе не доказывают неконституционность.",
@@ -365,6 +560,7 @@ def validate_thesis_candidate(candidate: dict[str, Any]) -> list[str]:
         "insufficient_coverage",
         "measurement_unreliable",
         "needs_human_resolution",
+        "insufficient_temporal_evidence",
     }:
         errors.append("Статус исследования не допускает одобрение тезиса по существу.")
     for field, message in (
@@ -387,6 +583,10 @@ def validate_thesis_candidate(candidate: dict[str, Any]) -> list[str]:
         "coverage_status", ""
     ).strip():
         errors.append("Не указан статус охвата корпуса.")
+    if status in {"emergent_reading_candidate", "mixed_post_event"}:
+        event_ids = candidate.get("interpretive_event_ids")
+        if not isinstance(event_ids, list) or not event_ids:
+            errors.append("Временной вывод не связан с проверенным интерпретационным событием.")
     if not isinstance(candidate.get("normative_defect_bridge"), str) or not candidate.get(
         "normative_defect_bridge", ""
     ).strip():
@@ -416,7 +616,14 @@ def validate_thesis_readiness(state: dict[str, Any], proposed_thesis: str) -> li
             errors.append(message)
 
     maximum_claim = state.get("maximum_permitted_claim")
-    if maximum_claim in {None, "", "insufficient_coverage", "measurement_unreliable", "needs_human_resolution"}:
+    if maximum_claim in {
+        None,
+        "",
+        "insufficient_coverage",
+        "measurement_unreliable",
+        "needs_human_resolution",
+        "insufficient_temporal_evidence",
+    }:
         errors.append("Текущий уровень охвата не допускает тезис по существу практики.")
     elif maximum_claim not in ALLOWED_CONCLUSIONS and maximum_claim != "corroborated_observed_corpus":
         errors.append("Неизвестен допустимый предел итогового утверждения.")

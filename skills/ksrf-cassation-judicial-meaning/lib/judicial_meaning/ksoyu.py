@@ -35,6 +35,8 @@ _EMPTY_MARKERS = (
 )
 _IGNORED_TEXT_TAGS = {"script", "style", "noscript", "template"}
 _CHROME_TAGS = {"nav", "header", "footer", "form", "aside"}
+KSOYU_ADAPTER_ID = "ksoyu_daily_v2"
+KSOYU_PARSER_VERSION = "2.0"
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,13 @@ class ListingResult:
     protective: bool = False
     explicit_empty: bool = False
     page_text: str = ""
+    listing_shell_seen: bool = False
+    listing_table_seen: bool = False
+    control_date_confirmed: bool = False
+    content_date_confirmed: bool = False
+    date_confirmed: bool = False
+    empty_evidence_code: str | None = None
+    case_row_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -104,6 +113,11 @@ class _CourtHTMLParser(HTMLParser):
         self.content_depth = 0
         self.listing_table_depth = 0
         self.listing_table_seen = False
+        self.listing_form_depth = 0
+        self.listing_form_seen = False
+        self.listing_name_control_seen = False
+        self.listing_server_control_seen = False
+        self.listing_date_value: str | None = None
         self.current_row: _MutableRow | None = None
         self.rows: list[_MutableRow] = []
         self.current_anchor: _Anchor | None = None
@@ -127,6 +141,7 @@ class _CourtHTMLParser(HTMLParser):
             attr.get("id", "").lower() == "tablcont"
             or "tablcont" in attr.get("class", "").lower().split()
         )
+        starts_listing_form = tag == "form" and attr.get("id", "").casefold() == "calformh"
         self.stack.append((tag, starts_ignored, starts_chrome, starts_content))
         if starts_ignored:
             self.ignored_depth += 1
@@ -139,6 +154,21 @@ class _CourtHTMLParser(HTMLParser):
             self.listing_table_depth += 1
         elif self.listing_table_depth and tag == "table":
             self.listing_table_depth += 1
+        if starts_listing_form:
+            self.listing_form_seen = True
+            self.listing_form_depth += 1
+        elif self.listing_form_depth and tag == "form":
+            self.listing_form_depth += 1
+
+        if tag == "input" and self.listing_form_depth:
+            control_name = attr.get("name", "").casefold()
+            control_value = attr.get("value", "").strip()
+            if control_name == "name" and control_value.casefold() == "sud_delo":
+                self.listing_name_control_seen = True
+            elif control_name == "srv_num" and control_value == "1":
+                self.listing_server_control_seen = True
+            elif control_name == "h_date" and control_value:
+                self.listing_date_value = control_value
 
         if tag == "tr" and self.listing_table_depth:
             self.current_row = _MutableRow()
@@ -202,6 +232,8 @@ class _CourtHTMLParser(HTMLParser):
                 self.content_depth = max(0, self.content_depth - 1)
             if removed_tag == "table" and self.listing_table_depth:
                 self.listing_table_depth -= 1
+            if removed_tag == "form" and self.listing_form_depth:
+                self.listing_form_depth -= 1
 
 
 def _clean_text(value: str) -> str:
@@ -291,6 +323,16 @@ def _absolute_url(base_url: str, href: str) -> str:
     return urldefrag(urljoin(base_url, href.strip()))[0]
 
 
+def _same_origin(base_url: str, candidate_url: str) -> bool:
+    base = urlparse(base_url)
+    candidate = urlparse(candidate_url)
+    return bool(
+        base.scheme.casefold() in {"http", "https"}
+        and candidate.scheme.casefold() == base.scheme.casefold()
+        and candidate.netloc.casefold() == base.netloc.casefold()
+    )
+
+
 def _operation(url: str) -> str:
     values = parse_qs(urlparse(url).query).get("name_op", [])
     return values[0].lower() if values else ""
@@ -327,9 +369,29 @@ def parse_listing(html: str, base_url: str, listing_date: str) -> ListingResult:
 
     parser = _parse(html)
     page_text = _clean_text(" ".join(parser.all_text))
+    content_text = _clean_text(" ".join(parser.content_text or parser.fallback_text))
     folded = page_text.casefold()
+    content_folded = content_text.casefold()
     protective = any(marker in folded for marker in _PROTECTIVE_MARKERS)
-    explicit_empty = any(marker in folded for marker in _EMPTY_MARKERS)
+    expected_date = date.fromisoformat(listing_date).strftime("%d.%m.%Y")
+    control_date_confirmed = parser.listing_date_value == expected_date
+    content_date_confirmed = expected_date in content_text
+    listing_shell_seen = bool(
+        parser.listing_form_seen
+        and parser.listing_name_control_seen
+        and parser.listing_server_control_seen
+        and parser.listing_date_value
+    )
+    date_confirmed = bool(
+        listing_shell_seen and control_date_confirmed and content_date_confirmed
+    )
+    dated_empty = bool(
+        re.search(
+            rf"\bна\s+{re.escape(expected_date)}\s+дел\s+не\s+назначено\b",
+            content_folded,
+        )
+    )
+    generic_empty = any(marker in content_folded for marker in _EMPTY_MARKERS)
 
     case_urls: list[str] = []
     doc_urls: list[str] = []
@@ -338,6 +400,8 @@ def parse_listing(html: str, base_url: str, listing_date: str) -> ListingResult:
         if not anchor.href:
             continue
         absolute = _absolute_url(base_url, anchor.href)
+        if not _same_origin(base_url, absolute):
+            continue
         operation = _operation(absolute)
         if operation == "case":
             case_urls.append(absolute)
@@ -352,6 +416,8 @@ def parse_listing(html: str, base_url: str, listing_date: str) -> ListingResult:
         row_docs: list[str] = []
         for href in raw_row.hrefs:
             absolute = _absolute_url(base_url, href)
+            if not _same_origin(base_url, absolute):
+                continue
             operation = _operation(absolute)
             if operation == "case":
                 row_cases.append(absolute)
@@ -366,7 +432,40 @@ def parse_listing(html: str, base_url: str, listing_date: str) -> ListingResult:
         )
 
     pagination_urls = _unique(pagination_urls)
-    structural_ok = parser.listing_table_seen and not protective
+    case_row_count = sum(bool(row.case_urls or row.doc_urls) for row in rows)
+    exact_dated_empty = bool(
+        listing_shell_seen
+        and control_date_confirmed
+        and content_date_confirmed
+        and dated_empty
+        and not case_urls
+        and not doc_urls
+        and not pagination_urls
+        and case_row_count == 0
+    )
+    table_empty = bool(
+        listing_shell_seen
+        and control_date_confirmed
+        and content_date_confirmed
+        and parser.listing_table_seen
+        and generic_empty
+        and not case_urls
+        and not doc_urls
+        and not pagination_urls
+        and case_row_count == 0
+    )
+    explicit_empty = exact_dated_empty or table_empty
+    if exact_dated_empty:
+        empty_evidence_code = "dated_no_scheduled_cases"
+    elif table_empty:
+        empty_evidence_code = "dated_table_zero_results"
+    else:
+        empty_evidence_code = None
+    structural_ok = bool(
+        not protective
+        and date_confirmed
+        and listing_shell_seen
+    )
     if pagination_urls:
         navigation_state = "pagination_observed"
     elif structural_ok:
@@ -384,6 +483,13 @@ def parse_listing(html: str, base_url: str, listing_date: str) -> ListingResult:
         protective=protective,
         explicit_empty=explicit_empty,
         page_text=page_text,
+        listing_shell_seen=listing_shell_seen,
+        listing_table_seen=parser.listing_table_seen,
+        control_date_confirmed=control_date_confirmed,
+        content_date_confirmed=content_date_confirmed,
+        date_confirmed=date_confirmed,
+        empty_evidence_code=empty_evidence_code,
+        case_row_count=case_row_count,
     )
 
 
@@ -400,7 +506,7 @@ def classify_listing(http_status: int, result: ListingResult) -> str:
         return "blocked"
     if not result.structural_ok:
         return "invalid_structure"
-    if result.rows or result.case_urls or result.doc_urls:
+    if result.case_row_count or result.case_urls or result.doc_urls:
         return "success_nonempty"
     if result.explicit_empty:
         return "success_empty"
@@ -420,7 +526,9 @@ def parse_source_page(html: str, base_url: str, kind: str) -> SourcePage:
         [
             _absolute_url(base_url, anchor.href)
             for anchor in parser.anchors
-            if anchor.href and _operation(_absolute_url(base_url, anchor.href)) == "doc"
+            if anchor.href
+            and _same_origin(base_url, _absolute_url(base_url, anchor.href))
+            and _operation(_absolute_url(base_url, anchor.href)) == "doc"
         ]
     )
     if protective:

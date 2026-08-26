@@ -8,8 +8,15 @@
     "case_chain": ["chain_id", "document_ids", "link_status", "review_status"],
     "coding_decision": ["chain_id", "label", "speaker", "quote", "norm_edition_id", "reasoning_to_outcome", "reading_family", "relation", "human_review"],
     "adverse_review": ["run_id", "lanes", "completed", "reviewer", "limitations"],
-    "thesis_candidate": ["status", "norm_ref", "norm_edition_id", "applicant_meaning", "supportive_chain_ids", "adverse_chain_ids", "limitations", "normative_defect_bridge"],
+    "analysis": ["status", "screening_resolution_complete", "reading_family_counts", "reading_family_by_year", "reading_family_by_stratum", "interpretive_event_findings", "temporal_analysis_complete", "temporal_unassigned_chain_ids", "denominator_scope"],
+    "thesis_candidate": ["status", "norm_refs", "norm_edition_ids", "applicant_case_meaning", "supportive_chain_ids", "adverse_chain_ids", "limitations", "normative_defect_bridge"],
     "human_decision": ["decision", "reviewer", "plan_sha256", "evidence_sha256", "decided_at"],
     "handoff_envelope": ["schema_version", "handoff_id", "source_skill", "target_skill", "run_id", "plan_sha256", "evidence_sha256", "payload_type", "payload", "limitations"]
+  },
+  "conditional_requirements": {
+    "temporal_thesis_candidate": {
+      "when_status_in": ["emergent_reading_candidate", "mixed_post_event"],
+      "requires": ["interpretive_event_ids"]
+    }
   }
 }

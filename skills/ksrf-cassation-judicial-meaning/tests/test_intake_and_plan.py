@@ -180,6 +180,85 @@ class IntakeAndPlanTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "редакц"):
                 freeze_plan(plan, Path(tmp))
 
+    def test_temporal_strata_and_official_event_are_validated_and_hashed(self):
+        plan = complete_plan()
+        plan["population"]["date_from"] = "2023-06-14"
+        plan["population"]["date_to"] = "2023-06-16"
+        plan["temporal_strata"] = [
+            {
+                "id": "before-event",
+                "label": "До события",
+                "date_from": "2023-06-14",
+                "date_to": "2023-06-14",
+            },
+            {
+                "id": "after-event",
+                "label": "После события",
+                "date_from": "2023-06-15",
+                "date_to": "2023-06-16",
+            },
+        ]
+        plan["interpretive_events"] = [
+            {
+                "id": "event-1",
+                "label": "Официальное толкование",
+                "effective_date": "2023-06-15",
+                "official_source_url": "https://official.example.invalid/decision",
+                "before_stratum_id": "before-event",
+                "after_stratum_id": "after-event",
+            }
+        ]
+        self.assertEqual([], validate_plan(plan))
+        with tempfile.TemporaryDirectory() as first_tmp, tempfile.TemporaryDirectory() as second_tmp:
+            first = freeze_plan(plan, Path(first_tmp))
+            changed = json.loads(json.dumps(plan))
+            changed["interpretive_events"][0]["label"] = "Уточнённое официальное толкование"
+            second = freeze_plan(changed, Path(second_tmp))
+        self.assertNotEqual(first["plan_sha256"], second["plan_sha256"])
+
+    def test_temporal_strata_reject_gaps_overlap_and_invalid_event_links(self):
+        base = complete_plan()
+        base["population"]["date_from"] = "2023-06-14"
+        base["population"]["date_to"] = "2023-06-17"
+        base["temporal_strata"] = [
+            {"id": "before", "label": "До", "date_from": "2023-06-14", "date_to": "2023-06-14"},
+            {"id": "after", "label": "После", "date_from": "2023-06-15", "date_to": "2023-06-17"},
+        ]
+        base["interpretive_events"] = [
+            {
+                "id": "event",
+                "label": "Событие",
+                "effective_date": "2023-06-15",
+                "official_source_url": "https://official.example.invalid/decision",
+                "before_stratum_id": "before",
+                "after_stratum_id": "after",
+            }
+        ]
+
+        invalid_plans = []
+        gap = json.loads(json.dumps(base))
+        gap["temporal_strata"][1]["date_from"] = "2023-06-16"
+        invalid_plans.append(gap)
+        overlap = json.loads(json.dumps(base))
+        overlap["temporal_strata"][0]["date_to"] = "2023-06-15"
+        invalid_plans.append(overlap)
+        unknown = json.loads(json.dumps(base))
+        unknown["interpretive_events"][0]["after_stratum_id"] = "missing"
+        invalid_plans.append(unknown)
+        wrong_date = json.loads(json.dumps(base))
+        wrong_date["interpretive_events"][0]["effective_date"] = "2023-06-16"
+        invalid_plans.append(wrong_date)
+
+        for plan in invalid_plans:
+            with self.subTest(plan=plan):
+                self.assertTrue(validate_plan(plan))
+
+    def test_empty_temporal_fields_keep_legacy_plan_valid(self):
+        plan = complete_plan()
+        plan["temporal_strata"] = []
+        plan["interpretive_events"] = []
+        self.assertEqual([], validate_plan(plan))
+
 
 if __name__ == "__main__":
     unittest.main()

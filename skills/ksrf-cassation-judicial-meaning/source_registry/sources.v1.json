@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "registry_version": "2026-08-22",
+  "registry_version": "2026-08-26",
   "sources": [
     {
       "id": "ksoyu_post_2019",
@@ -8,10 +8,13 @@
       "role": "official",
       "applicable_from": "2019-10-01",
       "applicable_to": null,
-      "adapter": "ksoyu_daily_v1",
-      "enumeration": "daily_official_output",
-      "closed_for_official_output": true,
+      "adapter": "ksoyu_daily_v2",
+      "parser_version": "2.0",
+      "enumeration": "official_daily_scheduled_listing",
+      "closed_for_declared_enumeration": true,
+      "closed_for_official_output": false,
       "closed_for_all_decided_cases": false,
+      "closed_for_all_published_acts": false,
       "rate_limit_seconds": 1.5,
       "courts": [
         {"code": "1kas", "host": "1kas.sudrf.ru"},
