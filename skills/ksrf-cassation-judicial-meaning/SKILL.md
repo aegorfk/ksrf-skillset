@@ -5,124 +5,65 @@ description: "Use when материалы дела заявителя нужно
 
 # Исследование судебного смысла нормы
 
-Этот скилл запускается **до** формулирования эмпирического тезиса о судебной практике. Он начинает с актов заявителя, строит нейтральный план проверки, собирает воспроизводимый корпус, ищет неблагоприятные материалы и только потом допускает кандидаты тезисов.
+Этот скилл запускается **до** формулирования тезиса о кассационной практике. Он автономно работает на Python 3.10+ без проектной БД, API-ключей и платных сервисов: инвентаризирует акты заявителя, строит fingerprint дела, замораживает нейтральный поиск, ведёт публичный корпус, сравнивает полнотекстовые позиции и допускает в жалобу только ограниченный вывод, одобренный человеком.
 
 ## Неподвижное правило
 
-До завершения сбора, полнотекстового кодирования, adverse-pass и проверки охвата называй формулировки только `research_question` или `hypothesis_under_test`. Не ищи акты для подтверждения уже выбранной позиции и не пиши, что практика устойчива, хаотична, меняется или доказывает дефект нормы.
+До закрытия сбора, полнотекстового кодирования, сопоставимости, четырёх adverse-корзин, охвата и нормативного моста называй формулировку только `research_question` или `hypothesis_under_test`. Не ищи акты для подтверждения заранее выбранной позиции и не утверждай, что практика устойчива, хаотична, изменилась или доказывает неконституционность.
 
-Практика может подтверждать придаваемый норме смысл и его последствия, но не становится самостоятельным предметом проверки КС РФ. Допустимость, применение нормы к заявителю, исчерпание, срок и средство защиты проверяются отдельно.
+Практика может показывать смысл, придаваемый норме, и его последствия. Она не становится самостоятельным предметом проверки КС РФ. Допустимость, применение нормы к заявителю, исчерпание, срок и средство защиты проверяются отдельными KSRF-контурами.
 
-## Быстрый запуск
+## Обязательная последовательность
 
-Требуется Python 3.10+; сторонние Python-пакеты, проект `ks_parser`, PostgreSQL, API-ключи и платные сервисы не нужны. Найди каталог этого скилла и используй его исполняемый файл из любого рабочего каталога:
+1. **Сначала intake.** Инвентаризируй акты заявителя и их хеши. Fingerprint по произвольному JSON без инвентаризированного документа запрещён.
+2. **Затем fingerprint.** Зафиксируй нейтральный `issue`, точные `norm_refs` и признаки, включая обязательные `norm_edition`, `applicant_case_meaning`, `procedural_posture`. Проверенный документальный признак требует `document_id` и точного `quote_locator`; неизвестный материальный признак создаёт блокирующую задачу.
+3. **Подтверди запросы до freeze.** `case prepare` создаёт только `suggested_unconfirmed`. Человек принимает нужные `query_id` через `query accept`; они входят в хеш плана. После freeze разрешён только раскрытый `post_freeze_supplemental`, который не меняет исходный знаменатель.
+4. **Собери и закодируй корпус.** Сохраняй raw bytes, official URL, хеши, ошибки и незакрытые сегменты. Считай независимые цепочки дел, а не URL или PDF.
+5. **Проверь каждую позицию применительно к делу.** Полная карточка позиции → ручное сравнение признаков → applicant-relative relation. Все карточки и все review-состояния остаются в реестрах; ни очередь, ни `uncertain`/`unresolved` не удаляют кандидата.
+6. **Закрой четыре adverse-корзины.** Для каждой нужны выполненные query IDs, отсутствие неразрешённых сегментов и влияние пробела на `maximum_permitted_claim`.
+7. **Проверь нормативный мост.** Свяжи смысл в деле заявителя, ограниченное наблюдение корпуса и конкретное конституционное последствие; отдельно объясни обычное средство защиты.
+8. **Только после проверки сформируй handoff.** `drafting_ready` требует текущие хеши fingerprint/плана/evidence, человеческое одобрение и формулировку не сильнее `maximum_permitted_claim`.
+
+Минимальный старт из любого каталога:
 
 ```bash
 python3 <skill-dir>/scripts/judicial_meaning.py intake \
   --workspace ./judicial-meaning-run \
   --inputs ./acts/
 
+python3 <skill-dir>/scripts/judicial_meaning.py case prepare \
+  --workspace ./judicial-meaning-run \
+  --answers ./case-answers.json
+
 python3 <skill-dir>/scripts/judicial_meaning.py plan template \
   --workspace ./judicial-meaning-run
 ```
 
-После проверки и заполнения `research-plan.json`:
+Точные команды и форматы находятся в профильных разделах:
 
-```bash
-python3 <skill-dir>/scripts/judicial_meaning.py plan freeze \
-  --workspace ./judicial-meaning-run \
-  --plan ./judicial-meaning-run/research-plan.json
-
-python3 <skill-dir>/scripts/judicial_meaning.py collect \
-  --workspace ./judicial-meaning-run --resume
-
-python3 <skill-dir>/scripts/judicial_meaning.py screen \
-  --workspace ./judicial-meaning-run
-
-python3 <skill-dir>/scripts/judicial_meaning.py code \
-  --workspace ./judicial-meaning-run
-# Заполни coding-decisions.jsonl по полным текстам и проверь его:
-python3 <skill-dir>/scripts/judicial_meaning.py code \
-  --workspace ./judicial-meaning-run \
-  --input ./judicial-meaning-run/coding-decisions.jsonl
-
-# Первый analyze создаёт analysis.json и шаблон adverse-review.json,
-# но не создаёт тезис до отдельной проверки adverse и coverage:
-python3 <skill-dir>/scripts/judicial_meaning.py analyze \
-  --workspace ./judicial-meaning-run
-
-# Проверь exports/coverage.json, выполни все дорожки adverse-review.json,
-# укажи completed=true, reviewer, результаты и ограничения:
-python3 <skill-dir>/scripts/judicial_meaning.py review \
-  --workspace ./judicial-meaning-run \
-  --decision evidence_reviewed --reviewer "ФИО проверяющего" \
-  --adverse-complete --coverage-complete \
-  --adverse-file ./judicial-meaning-run/adverse-review.json
-
-# Только теперь повторный analyze создаёт post-review thesis-candidates.jsonl:
-python3 <skill-dir>/scripts/judicial_meaning.py analyze \
-  --workspace ./judicial-meaning-run
-
-# Проверь кандидата, заполни нормативный мост и human_review=approved:
-python3 <skill-dir>/scripts/judicial_meaning.py review \
-  --workspace ./judicial-meaning-run \
-  --decision approved --reviewer "ФИО проверяющего" \
-  --adverse-complete --coverage-complete \
-  --adverse-file ./judicial-meaning-run/adverse-review.json \
-  --thesis-file ./judicial-meaning-run/thesis-candidates.jsonl
-
-python3 <skill-dir>/scripts/judicial_meaning.py validate \
-  --workspace ./judicial-meaning-run --require-thesis-ready
-```
-
-Сбор может занять долгое время. Не держи весь корпус в контексте: работай через реестры, top-K очереди на ручное кодирование и checkpoint/resume.
-
-Если акт заявителя — скан без текстового слоя, явно создай OCR-копию, затем визуально сверь каждую страницу и только после этого передай `.txt` в `intake`:
-
-```bash
-python3 <skill-dir>/scripts/judicial_meaning.py ocr \
-  --input ./acts/scan.pdf \
-  --output ./acts/scan.ocr.txt \
-  --language rus
-```
-
-OCR требует локальные `pdftoppm` и `tesseract`; рядом создаётся provenance-файл `scan.ocr.txt.provenance.json` с хешами, версиями помощников и `human_verified=false`. Команда не подменяет ручную сверку.
-
-## Рабочий цикл
-
-1. **Зафиксируй вход.** Инвентаризируй акты заявителя, хеши, процессуальные стадии и отсутствующие материалы. Не приписывай суду довод стороны. Если PDF не извлечён, запиши `unextractable` и запроси текстовую копию или локальное OCR; не угадывай содержание.
-2. **Поставь вопросы, а не тезисы.** Для каждой применённой или предположительно применённой нормы сформулируй: какой смысл придан в деле заявителя; какие иные смыслы возможны; при каких сопоставимых фактах каждый смысл влияет на исход.
-3. **Заморозь Evidence Acquisition Plan.** Обязательно укажи точную норму и редакции, суды, институциональные режимы, период, единицу `independent_case_chain`, поисковые дорожки, inclusion/exclusion, materiality, adverse и contradiction rules, правило охвата и максимум допустимого вывода при пробелах. Если проверяется динамика, до сбора добавь непрерывные `temporal_strata` и официально привязанные `interpretive_events`; пустые списки сохраняют обычный режим без временного тезиса.
-4. **Собери официально наблюдаемый корпус.** Встроенный `ksoyu_daily_v2` обходит официальные дневные выдачи девяти КСОЮ с 01.10.2019, сохраняет raw bytes, хеши, версию адаптера, ссылки, ошибки, пустые страницы и признаки навигации в локальные SQLite/JSONL. Пустая выдача закрывается только при совпадении запрошенной даты, канонической формы и точной датированной формулы об отсутствии назначенных дел. Не обходи CAPTCHA и не превращай 403/429/5xx/защитную страницу в «ничего не найдено».
-5. **Отбери кандидатов с высоким recall.** Используй все дорожки плана: точная норма, редакция, синоним, механизм без номера статьи, противоположное толкование, тот же исход по иному основанию, позднейший акт или изменение закона.
-6. **Кодируй полный текст.** Разреши каждый `screening-candidate`: одобренная карточка позиции либо одобренное полнотекстовое исключение с той же парой `chain_id + document_id`. На каждую центральную позицию укажи speaker, точную цитату и локатор, редакцию нормы, материальные факты, связь мотива с исходом, альтернативные основания, результат, reading family, отношение к исходной гипотезе и цепочку дела. Частичное кодирование, сниппет или упоминание нормы недостаточны.
-7. **Проведи adverse-pass.** Ищи противоположные и более узкие прочтения, фактические различия, процессуальные отказы, альтернативные основания, позднейший закон и более высокую инстанцию. Ноль найденных adverse-актов означает только ноль в раскрытом охвате.
-8. **Оцени охват и сопоставимость.** Считай независимые цепочки дел, а не URL/PDF. Разделяй редакции нормы и дореформенный/послереформенный режимы. Временные матрицы по годам и стратам имеют знаменатель `approved_independent_coded_chains`: это одобренные полнотекстово закодированные цепочки, а не все рассмотренные или опубликованные дела.
-9. **Сформируй кандидаты тезисов только после evidence review.** Первый `analyze` фиксирует измерения и создаёт незаполненный adverse-шаблон. Лишь после полного разрешения screening-кандидатов, `evidence_reviewed`, завершённых adverse/coverage review и повторного `analyze` появляются кандидаты. Временной слой различает `emergent_reading_candidate`, `mixed_post_event` и блокирующий `insufficient_temporal_evidence`; различия фактов и округов имеют приоритет над временной гипотезой. Каждый положительный временной кандидат связан с `interpretive_event_ids`.
-10. **Передай в жалобу только после человека.** `drafting_ready` требует human approval, совпадения хеша плана и доказательств, завершённых adverse/coverage review и формулировки не сильнее `maximum_permitted_claim`.
-
-Подробные поля и правила см. в [контракте артефактов](references/artifact-contracts.md), [источниках и режимах](references/source-regimes.md), [кодировании и стоп-правилах](references/coding-and-thesis-gates.md) и [устранении проблем](references/troubleshooting.md).
+- [контур позиций применительно к делу](references/case-relative-workbench.md) — intake, fingerprint, query lifecycle, position card, compare, relation, adverse, bridge, status/report/handoff;
+- [контракт артефактов](references/artifact-contracts.md) — файлы, идентификаторы, неизменяемые hash bindings и stale-инвалидация;
+- [публичный корпусный кеш](references/public-corpus-cache.md) — privacy boundary, ingest/search, funnel, treatment, public-only export/import;
+- [источники и институциональные режимы](references/source-regimes.md) — перечислители, source reconcile, verify/promote и честные пределы маршрутов;
+- [кодирование и допуск тезиса](references/coding-and-thesis-gates.md) — роли текста и независимые gates;
+- [устранение проблем](references/troubleshooting.md) — OCR, blocked routes, resume, stale artifacts и незакрытые периоды.
 
 ## Стоп-правила
 
-- Нет полного текста центрального акта → не кодируй судебный смысл.
-- Не установлена применимая редакция → не объединяй период и не допускай сильный тезис.
-- Есть `blocked`, `terminal_error`, `pagination_unresolved`, `not_configured` или open denominator → ограничь вывод наблюдаемым корпусом.
-- Есть акт без даты, пустая сторона события либо не одобрена межстратовая сопоставимость → `insufficient_temporal_evidence`, без кандидата тезиса о динамике.
-- Формулы «тренд» и «динамика» не переносятся в жалобу автоматически даже при полном временном анализе; используй точное ограниченное описание «после события впервые наблюдается...» или «после события одновременно наблюдаются...», затем отдельный нормативный мост.
-- Не разрешён спор о merge/split цепочки → исключи её из сильных количественных выводов.
-- Нет adverse-pass или ручного подтверждения → нет `drafting_ready`.
-- Не выводи неконституционность из частоты, расхождения или числа актов без моста от неопределённого нормативного смысла к нарушенному конституционному праву и невозможности устранить дефект конституционно-сообразным толкованием.
+- Нет intake, полного текста центрального акта, точного speaker/цитаты/локатора или применимой редакции → нет доказанного судебного смысла.
+- Есть `missing_task`, `pending_human_review`, `uncertain`, `unresolved`, stale hash binding или неразрешённая merge/split identity → нет сильного applicant-relative вывода.
+- Есть `blocked`, `retryable_error`, `terminal_error`, `pagination_unresolved`, `contract_only_not_wired`, `not_configured` или open denominator → вывод ограничивается наблюдаемым корпусом.
+- Ноль adverse-находок означает только ноль по раскрытым завершённым запросам.
+- Частота, число решений, расхождение и временная последовательность сами по себе не доказывают неконституционность.
+- Не передавай формулы «вся практика», «устойчиво», «судебный хаос», «закон не работает» или причинный «тренд», если именно такой уровень не разрешён текущим `maximum_permitted_claim` и нормативным мостом.
 
-## Необязательные стыковки
+## Автономность и стыковки
 
-Скилл автономен. Если установлены другие KSRF skills, передавай только файловые envelopes версии `1.0`:
+Скилл не требует соседних skills. При их наличии передавай только файловые envelopes версии `1.0`:
 
-- `ksrf-complaint-cycle` → ссылки на акты заявителя и нейтральные вопросы; обратно — только post-corpus результат;
-- `ksrf-explore-arguments` → гипотезы и disconfirmation prompts; обратно — supported/narrowed/contradicted/unresolved кандидаты;
-- `ksrf-practice-authority-builder` → только отобранные официальные акты с хешем, цитатой, ролью, adverse-status и chain ID;
-- `ksrf-complaint-qa` → approved run, максимальный допустимый вывод и ограничения.
+- `ksrf-complaint-cycle` → акты заявителя и нейтральные вопросы; обратно только post-corpus результат;
+- `ksrf-explore-arguments` → гипотезы и disconfirmation prompts;
+- `ksrf-practice-authority-builder` → проверенные `authority_cards` с official URL, хешем, цитатой, ролью, adverse-status и chain ID;
+- `ksrf-complaint-qa` → approved run, `maximum_permitted_claim` и раскрытые ограничения.
 
-Отсутствие или несовместимость соседнего скилла не ломает локальное исследование и не меняет его доказательства.
-
-Если установлен полный KSRF bundle, применяй общие offline-роли источников и provenance из [offline-practice-core](../ksrf-complaint-cycle/references/offline-practice-core.md). Если соседний скилл отсутствует, эквивалентные обязательные правила уже полностью изложены в локальных references этого скилла; runtime к соседнему файлу не обращается.
+Отсутствие или несовместимость соседнего скилла не меняет доказательства и не ослабляет локальные gates. Legacy `selected_authorities` допускается только для проверки старого envelope; новый handoff использует `authority_cards`.

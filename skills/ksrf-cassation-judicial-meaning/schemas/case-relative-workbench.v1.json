@@ -1,0 +1,1500 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aegorfk/ksrf-skillset/schemas/case-relative-workbench.v1.json",
+  "title": "Case-relative cassation workbench artifact contracts",
+  "description": "Versioned, fail-closed exchange contracts for case-relative cassation research. A conforming document MUST match exactly one root artifact definition.",
+  "contract_version": "1.0",
+  "oneOf": [
+    {"$ref": "#/definitions/casework_bundle"},
+    {"$ref": "#/definitions/position_card"},
+    {"$ref": "#/definitions/feature_comparison"},
+    {"$ref": "#/definitions/applicant_relation"},
+    {"$ref": "#/definitions/review_queue"},
+    {"$ref": "#/definitions/adverse_review"},
+    {"$ref": "#/definitions/normative_bridge"},
+    {"$ref": "#/definitions/derived_status"},
+    {"$ref": "#/definitions/report_manifest"},
+    {"$ref": "#/definitions/handoff_envelope"},
+    {"$ref": "#/definitions/public_cache_exchange"},
+    {"$ref": "#/definitions/funnel"},
+    {"$ref": "#/definitions/treatment_edge"},
+    {"$ref": "#/definitions/enumerator_manifest"},
+    {"$ref": "#/definitions/source_reconciliation"},
+    {"$ref": "#/definitions/promotion_record"}
+  ],
+  "definitions": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^snapshot-sha256:[0-9a-f]{64}$"
+    },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*-sha256:[0-9a-f]{64}$"
+    },
+    "string_array": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "source_locator": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["document", "user_decision"]
+        },
+        "document_id": {"$ref": "#/definitions/non_empty_string"},
+        "decision_id": {"$ref": "#/definitions/non_empty_string"},
+        "speaker": {"$ref": "#/definitions/non_empty_string"},
+        "quote": {"$ref": "#/definitions/non_empty_string"},
+        "quote_locator": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "case_feature": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "feature_id",
+        "value",
+        "status",
+        "confirmation_state",
+        "material",
+        "source",
+        "query_terms",
+        "revision"
+      ],
+      "properties": {
+        "feature_id": {"$ref": "#/definitions/non_empty_string"},
+        "value": {},
+        "status": {
+          "type": "string",
+          "enum": ["verified", "unknown", "disputed"]
+        },
+        "confirmation_state": {
+          "type": "string",
+          "enum": ["verified", "unknown", "disputed"]
+        },
+        "material": {"type": "boolean"},
+        "source": {
+          "oneOf": [
+            {"$ref": "#/definitions/source_locator"},
+            {"type": "null"}
+          ]
+        },
+        "query_terms": {"$ref": "#/definitions/string_array"},
+        "revision": {"type": "integer", "minimum": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "verified"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "source": {
+                "oneOf": [
+                  {
+                    "allOf": [
+                      {"$ref": "#/definitions/source_locator"},
+                      {"required": ["document_id", "quote_locator"]}
+                    ]
+                  },
+                  {
+                    "allOf": [
+                      {"$ref": "#/definitions/source_locator"},
+                      {
+                        "required": ["source_type", "decision_id"],
+                        "properties": {"source_type": {"const": "user_decision"}}
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "case_fingerprint": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "issue",
+        "norm_refs",
+        "features",
+        "revision",
+        "fingerprint_sha256"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "issue": {"$ref": "#/definitions/non_empty_string"},
+        "norm_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "features": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/definitions/case_feature"}
+        },
+        "revision": {"type": "integer", "minimum": 1},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "query_provenance": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "fingerprint_sha256",
+        "fingerprint_revision",
+        "derived_from",
+        "source_feature_ids",
+        "norm_refs",
+        "source_records"
+      ],
+      "properties": {
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "fingerprint_revision": {"type": "integer", "minimum": 1},
+        "derived_from": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "source_feature_ids": {"$ref": "#/definitions/string_array"},
+        "norm_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "source_records": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/source_locator"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "query_suggestion": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "query_id",
+        "lane",
+        "query",
+        "reason_code",
+        "confirmation_state",
+        "plan_relationship",
+        "provenance"
+      ],
+      "properties": {
+        "query_id": {"type": "string", "pattern": "^query-[0-9a-f]{16}$"},
+        "lane": {
+          "type": "string",
+          "enum": [
+            "exact_norm",
+            "case_feature",
+            "court_language",
+            "legal_mechanism",
+            "controlled_synonym",
+            "opposite_reading",
+            "narrower_reading",
+            "alternative_ground",
+            "later_legislation",
+            "higher_authority"
+          ]
+        },
+        "query": {"$ref": "#/definitions/non_empty_string"},
+        "reason_code": {"$ref": "#/definitions/non_empty_string"},
+        "confirmation_state": {
+          "type": "string",
+          "const": "suggested_unconfirmed"
+        },
+        "plan_relationship": {
+          "type": "string",
+          "const": "pre_freeze_candidate"
+        },
+        "provenance": {"$ref": "#/definitions/query_provenance"}
+      },
+      "additionalProperties": false
+    },
+    "query_decision": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "query_id", "decision", "confirmation_state",
+        "plan_relationship", "reviewer", "confirmed_at", "suggestion"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "query_id": {"$ref": "#/definitions/non_empty_string"},
+        "decision": {"type": "string", "const": "accepted"},
+        "confirmation_state": {"type": "string", "const": "human_confirmed"},
+        "plan_relationship": {"type": "string", "const": "accepted_pre_freeze"},
+        "reviewer": {"$ref": "#/definitions/non_empty_string"},
+        "confirmed_at": {"type": "string", "format": "date-time"},
+        "suggestion": {"$ref": "#/definitions/query_suggestion"}
+      },
+      "additionalProperties": false
+    },
+    "supplemental_query": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "query_id", "plan_sha256", "fingerprint_sha256",
+        "lane", "plan_lane", "query", "reason", "confirmation_state",
+        "plan_relationship", "changes_original_denominator", "reviewer",
+        "confirmed_at"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "query_id": {"$ref": "#/definitions/non_empty_string"},
+        "plan_sha256": {"$ref": "#/definitions/sha256"},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "lane": {"$ref": "#/definitions/non_empty_string"},
+        "plan_lane": {"$ref": "#/definitions/non_empty_string"},
+        "query": {"$ref": "#/definitions/non_empty_string"},
+        "reason": {"$ref": "#/definitions/non_empty_string"},
+        "confirmation_state": {"type": "string", "const": "human_confirmed"},
+        "plan_relationship": {"type": "string", "const": "post_freeze_supplemental"},
+        "changes_original_denominator": {"type": "boolean", "const": false},
+        "reviewer": {"$ref": "#/definitions/non_empty_string"},
+        "confirmed_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "missing_task": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "task_id",
+        "task_type",
+        "feature_id",
+        "lane",
+        "status",
+        "reason_code",
+        "action",
+        "blocks_comparability",
+        "source"
+      ],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^missing-[0-9a-f]{16}$"},
+        "task_type": {
+          "type": "string",
+          "enum": ["feature_confirmation", "query_axis_confirmation", "required_case_field"]
+        },
+        "feature_id": {"type": ["string", "null"]},
+        "lane": {
+          "type": ["string", "null"],
+          "enum": [
+            null,
+            "exact_norm",
+            "court_language",
+            "legal_mechanism",
+            "controlled_synonym",
+            "opposite_reading",
+            "narrower_reading",
+            "alternative_ground",
+            "later_legislation",
+            "higher_authority"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["unknown", "disputed"]
+        },
+        "reason_code": {"$ref": "#/definitions/non_empty_string"},
+        "action": {"$ref": "#/definitions/non_empty_string"},
+        "blocks_comparability": {"type": "boolean"},
+        "source": {
+          "oneOf": [
+            {"$ref": "#/definitions/source_locator"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "dependency_state": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "applicant_relative_evidence_stale",
+        "superseded_fingerprint_sha256",
+        "current_fingerprint_sha256"
+      ],
+      "properties": {
+        "applicant_relative_evidence_stale": {"type": "boolean"},
+        "superseded_fingerprint_sha256": {
+          "oneOf": [
+            {"$ref": "#/definitions/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "current_fingerprint_sha256": {"$ref": "#/definitions/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "casework_bundle": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "fingerprint",
+        "query_suggestions",
+        "missing_tasks",
+        "dependency_state"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "fingerprint": {"$ref": "#/definitions/case_fingerprint"},
+        "query_suggestions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/definitions/query_suggestion"}
+        },
+        "missing_tasks": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/missing_task"}
+        },
+        "dependency_state": {"$ref": "#/definitions/dependency_state"}
+      },
+      "additionalProperties": false
+    },
+    "alternative_ground": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["ground", "independently_sufficient"],
+      "properties": {
+        "ground": {"$ref": "#/definitions/non_empty_string"},
+        "independently_sufficient": {"type": "boolean"},
+        "quote": {"type": ["string", "null"]},
+        "quote_locator": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "comparison_case_feature": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["feature_id", "value", "status", "material", "source"],
+      "properties": {
+        "feature_id": {"$ref": "#/definitions/non_empty_string"},
+        "value": {},
+        "status": {"type": "string", "enum": ["verified", "unknown", "disputed"]},
+        "material": {"type": "boolean"},
+        "source": {"$ref": "#/definitions/source_locator"},
+        "query_terms": {"$ref": "#/definitions/string_array"}
+      },
+      "additionalProperties": false
+    },
+    "position_card": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "position_card_id",
+        "chain_id",
+        "document_id",
+        "court_id",
+        "decision_date",
+        "official_url",
+        "document_sha256",
+        "speaker",
+        "proposition",
+        "quote",
+        "quote_locator",
+        "quote_verified",
+        "full_text_reviewed",
+        "norm_edition_id",
+        "material_facts",
+        "comparison_features",
+        "reasoning_to_outcome",
+        "outcome_materiality",
+        "alternative_grounds",
+        "reading_family",
+        "outcome",
+        "remedy",
+        "coder",
+        "human_review"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "position_card_id": {"$ref": "#/definitions/non_empty_string"},
+        "chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "document_id": {"$ref": "#/definitions/non_empty_string"},
+        "court_id": {"$ref": "#/definitions/non_empty_string"},
+        "decision_date": {"type": "string", "format": "date"},
+        "official_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+        "document_sha256": {"$ref": "#/definitions/sha256"},
+        "speaker": {"$ref": "#/definitions/non_empty_string"},
+        "proposition": {"$ref": "#/definitions/non_empty_string"},
+        "quote": {"$ref": "#/definitions/non_empty_string"},
+        "quote_locator": {"$ref": "#/definitions/non_empty_string"},
+        "quote_verified": {"type": "boolean"},
+        "full_text_reviewed": {"type": "boolean"},
+        "norm_edition_id": {"$ref": "#/definitions/non_empty_string"},
+        "material_facts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "comparison_features": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/definitions/comparison_case_feature"}
+        },
+        "reasoning_to_outcome": {"$ref": "#/definitions/non_empty_string"},
+        "outcome_materiality": {
+          "type": "string",
+          "enum": [
+            "necessary_to_outcome",
+            "independent_sufficient_ground",
+            "contextual",
+            "unclear"
+          ]
+        },
+        "alternative_grounds": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/alternative_ground"}
+        },
+        "reading_family": {"$ref": "#/definitions/non_empty_string"},
+        "outcome": {"$ref": "#/definitions/non_empty_string"},
+        "remedy": {"$ref": "#/definitions/non_empty_string"},
+        "coder": {"$ref": "#/definitions/non_empty_string"},
+        "adverse_buckets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "opposite_reading",
+              "narrower_reading",
+              "alternative_ground",
+              "later_authority"
+            ]
+          }
+        },
+        "human_review": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "feature_comparison_item": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["feature_id", "applicant_value", "candidate_value", "status"],
+      "properties": {
+        "feature_id": {"$ref": "#/definitions/non_empty_string"},
+        "applicant_value": {},
+        "candidate_value": {},
+        "status": {
+          "type": "string",
+          "enum": ["matched", "different", "unknown"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "feature_comparison": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "status",
+        "comparisons",
+        "matched_feature_ids",
+        "different_feature_ids",
+        "unknown_feature_ids",
+        "limitation",
+        "fingerprint_sha256",
+        "review_provenance"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "status": {
+          "type": "string",
+          "enum": ["matched", "distinguishable", "uncertain"]
+        },
+        "comparisons": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/feature_comparison_item"}
+        },
+        "matched_feature_ids": {"$ref": "#/definitions/string_array"},
+        "different_feature_ids": {"$ref": "#/definitions/string_array"},
+        "unknown_feature_ids": {"$ref": "#/definitions/string_array"},
+        "limitation": {"type": ["string", "null"]},
+        "fingerprint_sha256": {
+          "oneOf": [
+            {"$ref": "#/definitions/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "comparison_id": {"$ref": "#/definitions/non_empty_string"},
+        "position_card_id": {"$ref": "#/definitions/non_empty_string"},
+        "chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "applicant_features_sha256": {"$ref": "#/definitions/sha256"},
+        "candidate_features_sha256": {"$ref": "#/definitions/sha256"},
+        "position_card_sha256": {"$ref": "#/definitions/sha256"},
+        "review_provenance": {
+          "type": "object",
+          "required": ["status", "reviewer", "reviewed_at"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["approved", "pending_human_review"]
+            },
+            "reviewer": {"type": ["string", "null"]},
+            "reviewed_at": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "applicant_relation": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["relation", "stale", "reason"],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "position_card_id": {"type": "string"},
+        "comparison_id": {"type": "string"},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "position_card_sha256": {"$ref": "#/definitions/sha256"},
+        "comparison_sha256": {"$ref": "#/definitions/sha256"},
+        "applicant_position_sha256": {"$ref": "#/definitions/sha256"},
+        "reviewer": {"$ref": "#/definitions/non_empty_string"},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "human_review": {"type": "string", "enum": ["approved", "blocked"]},
+        "relation": {
+          "type": "string",
+          "enum": ["supports", "adverse", "distinguishes", "neutral", "unresolved"]
+        },
+        "stale": {"type": "boolean"},
+        "reason": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "additionalProperties": false
+    },
+    "review_queue_item": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "chain_id",
+        "document_id",
+        "court_id",
+        "stratum_id",
+        "lane",
+        "status",
+        "explanation",
+        "reason_codes",
+        "priority_review"
+      ],
+      "properties": {
+        "candidate_id": {"$ref": "#/definitions/non_empty_string"},
+        "chain_id": {"type": ["string", "null"]},
+        "document_id": {"type": ["string", "null"]},
+        "court_id": {"type": ["string", "null"]},
+        "stratum_id": {"type": ["string", "null"]},
+        "lane": {"type": ["string", "null"]},
+        "status": {
+          "type": "string",
+          "enum": ["pending_review", "coded_position", "reviewed_exclusion"]
+        },
+        "position_card_id": {"type": "string"},
+        "explanation": {"$ref": "#/definitions/non_empty_string"},
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "priority_review": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "review_queue": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "input_count",
+        "output_count",
+        "items",
+        "unresolved_candidate_ids",
+        "priority_candidate_ids",
+        "quota_counts",
+        "all_candidates_preserved"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "input_count": {"type": "integer", "minimum": 0},
+        "output_count": {"type": "integer", "minimum": 0},
+        "items": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/review_queue_item"}
+        },
+        "unresolved_candidate_ids": {"$ref": "#/definitions/string_array"},
+        "priority_candidate_ids": {"$ref": "#/definitions/string_array"},
+        "quota_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {"type": "integer", "minimum": 0}
+          }
+        },
+        "all_candidates_preserved": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "adverse_buckets": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "opposite_reading",
+        "narrower_reading",
+        "alternative_ground",
+        "later_authority"
+      ],
+      "properties": {
+        "opposite_reading": {"$ref": "#/definitions/string_array"},
+        "narrower_reading": {"$ref": "#/definitions/string_array"},
+        "alternative_ground": {"$ref": "#/definitions/string_array"},
+        "later_authority": {"$ref": "#/definitions/string_array"}
+      },
+      "additionalProperties": false
+    },
+    "adverse_review": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "buckets",
+        "bucket_reviews",
+        "completed_buckets",
+        "missing_buckets",
+        "no_hit_buckets",
+        "completed",
+        "no_hit_wording"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "buckets": {"$ref": "#/definitions/adverse_buckets"},
+        "bucket_reviews": {
+          "type": "object",
+          "required": ["opposite_reading", "narrower_reading", "alternative_ground", "later_authority"],
+          "properties": {
+            "opposite_reading": {"$ref": "#/definitions/adverse_bucket_review"},
+            "narrower_reading": {"$ref": "#/definitions/adverse_bucket_review"},
+            "alternative_ground": {"$ref": "#/definitions/adverse_bucket_review"},
+            "later_authority": {"$ref": "#/definitions/adverse_bucket_review"}
+          },
+          "additionalProperties": false
+        },
+        "completed_buckets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "opposite_reading",
+              "narrower_reading",
+              "alternative_ground",
+              "later_authority"
+            ]
+          }
+        },
+        "missing_buckets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "opposite_reading",
+              "narrower_reading",
+              "alternative_ground",
+              "later_authority"
+            ]
+          }
+        },
+        "no_hit_buckets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "opposite_reading",
+              "narrower_reading",
+              "alternative_ground",
+              "later_authority"
+            ]
+          }
+        },
+        "completed": {"type": "boolean"},
+        "searched_buckets": {"$ref": "#/definitions/string_array"},
+        "missing_searched_buckets": {"$ref": "#/definitions/string_array"},
+        "no_hit_wording": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "additionalProperties": false
+    },
+    "adverse_bucket_review": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "executed_query_ids",
+        "reviewed_position_card_ids",
+        "unresolved_source_segments",
+        "maximum_claim_effect",
+        "completed"
+      ],
+      "properties": {
+        "executed_query_ids": {"$ref": "#/definitions/string_array"},
+        "reviewed_position_card_ids": {"$ref": "#/definitions/string_array"},
+        "unresolved_source_segments": {"$ref": "#/definitions/string_array"},
+        "maximum_claim_effect": {"type": ["string", "null"]},
+        "completed": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "normative_bridge": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "norm_ref",
+        "applicant_case_meaning",
+        "corpus_observation",
+        "constitutional_consequence",
+        "ordinary_remedy_analysis",
+        "supporting_position_card_ids",
+        "adverse_position_card_ids",
+        "fingerprint_sha256",
+        "maximum_permitted_claim",
+        "claim_wording",
+        "reviewer",
+        "reviewed_at",
+        "human_review"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "norm_ref": {"$ref": "#/definitions/non_empty_string"},
+        "applicant_case_meaning": {"$ref": "#/definitions/non_empty_string"},
+        "corpus_observation": {"$ref": "#/definitions/non_empty_string"},
+        "constitutional_consequence": {"$ref": "#/definitions/non_empty_string"},
+        "ordinary_remedy_analysis": {"$ref": "#/definitions/non_empty_string"},
+        "supporting_position_card_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "adverse_position_card_ids": {"$ref": "#/definitions/string_array"},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "maximum_permitted_claim": {"$ref": "#/definitions/non_empty_string"},
+        "claim_wording": {"$ref": "#/definitions/non_empty_string"},
+        "reviewer": {"$ref": "#/definitions/non_empty_string"},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "human_review": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "temporal_aggregate": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "position_card_count", "independent_chain_count",
+        "reading_family_chain_counts", "relation_chain_counts",
+        "court_chain_counts", "materiality_chain_counts",
+        "comparability_chain_counts"
+      ],
+      "properties": {
+        "position_card_count": {"type": "integer", "minimum": 0},
+        "independent_chain_count": {"type": "integer", "minimum": 0},
+        "reading_family_chain_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "relation_chain_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "court_chain_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "materiality_chain_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "comparability_chain_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      },
+      "additionalProperties": false
+    },
+    "case_temporal_analysis": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "fingerprint_sha256", "unit", "position_card_count",
+        "independent_chain_count", "by_year", "by_stratum", "transitions",
+        "unresolved_position_cards", "unassigned_position_card_ids",
+        "temporal_analysis_complete", "claim_limit"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "unit": {"type": "string", "const": "independent_case_chain"},
+        "position_card_count": {"type": "integer", "minimum": 0},
+        "independent_chain_count": {"type": "integer", "minimum": 0},
+        "by_year": {"type": "object", "additionalProperties": {"$ref": "#/definitions/temporal_aggregate"}},
+        "by_stratum": {"type": "object", "additionalProperties": {"$ref": "#/definitions/temporal_aggregate"}},
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from_stratum", "to_stratum", "status", "causal_claim_permitted"],
+            "properties": {
+              "from_stratum": {"$ref": "#/definitions/non_empty_string"},
+              "to_stratum": {"$ref": "#/definitions/non_empty_string"},
+              "status": {"type": "string", "enum": ["descriptive_distribution_changed", "no_descriptive_change_observed", "insufficient_observation"]},
+              "causal_claim_permitted": {"type": "boolean", "const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "unresolved_position_cards": {"type": "array", "items": {"type": "object"}},
+        "unassigned_position_card_ids": {"$ref": "#/definitions/string_array"},
+        "temporal_analysis_complete": {"type": "boolean"},
+        "claim_limit": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "additionalProperties": false
+    },
+    "derived_status": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "code", "label", "blockers", "next_action",
+        "drafting_ready", "pending_task_counts", "stale_artifacts",
+        "maximum_permitted_claim"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "code": {
+          "type": "string",
+          "enum": [
+            "approval_stale",
+            "plan_not_frozen",
+            "case_fingerprint_incomplete",
+            "collection_incomplete",
+            "coding_incomplete",
+            "comparison_review_incomplete",
+            "applicant_relation_incomplete",
+            "adverse_review_incomplete",
+            "coverage_review_incomplete",
+            "normative_bridge_incomplete",
+            "analysis_incomplete",
+            "temporal_analysis_incomplete",
+            "human_review_pending",
+            "candidate_review_pending",
+            "validation_incomplete",
+            "drafting_ready"
+          ]
+        },
+        "label": {"$ref": "#/definitions/non_empty_string"},
+        "blockers": {"$ref": "#/definitions/string_array"},
+        "next_action": {"$ref": "#/definitions/non_empty_string"},
+        "drafting_ready": {"type": "boolean"},
+        "pending_task_counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "stale_artifacts": {"$ref": "#/definitions/string_array"},
+        "maximum_permitted_claim": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "additionalProperties": false
+    },
+    "report_manifest": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "plan_sha256",
+        "evidence_sha256",
+        "fingerprint_sha256",
+        "model_sha256",
+        "html_sha256",
+        "offline",
+        "external_runtime_dependencies",
+        "status"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "run_id": {"$ref": "#/definitions/non_empty_string"},
+        "plan_sha256": {"$ref": "#/definitions/sha256"},
+        "evidence_sha256": {"$ref": "#/definitions/sha256"},
+        "fingerprint_sha256": {
+          "oneOf": [
+            {"$ref": "#/definitions/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "model_sha256": {"$ref": "#/definitions/sha256"},
+        "html_sha256": {"$ref": "#/definitions/sha256"},
+        "offline": {"type": "boolean", "const": true},
+        "external_runtime_dependencies": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "status": {"$ref": "#/definitions/derived_status"}
+      },
+      "additionalProperties": false
+    },
+    "handoff_envelope": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "handoff_id",
+        "created_at",
+        "source_skill",
+        "target_skill",
+        "run_id",
+        "plan_sha256",
+        "evidence_sha256",
+        "payload_type",
+        "payload",
+        "limitations"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "handoff_id": {"$ref": "#/definitions/sha256"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "source_skill": {"$ref": "#/definitions/non_empty_string"},
+        "target_skill": {"$ref": "#/definitions/non_empty_string"},
+        "run_id": {"$ref": "#/definitions/non_empty_string"},
+        "plan_sha256": {"$ref": "#/definitions/sha256"},
+        "evidence_sha256": {"$ref": "#/definitions/sha256"},
+        "fingerprint_sha256": {"$ref": "#/definitions/sha256"},
+        "payload_type": {
+          "type": "string",
+          "enum": [
+            "unproven_research_questions",
+            "approved_bounded_findings",
+            "authority_cards",
+            "selected_authorities"
+          ]
+        },
+        "payload": {"type": "object"},
+        "limitations": {"$ref": "#/definitions/string_array"}
+      },
+      "additionalProperties": false
+    },
+    "public_cache_seed": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["seed_id", "url", "role", "public"],
+      "properties": {
+        "seed_id": {"$ref": "#/definitions/content_digest"},
+        "url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+        "role": {
+          "type": "string",
+          "enum": [
+            "official_enumerator_observation",
+            "official_user_seed",
+            "official_authority_seed",
+            "discovery_only"
+          ]
+        },
+        "public": {"type": "boolean", "const": true},
+        "created_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "public_cache_snapshot": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["snapshot_id", "raw_sha256", "byte_length"],
+      "properties": {
+        "snapshot_id": {"$ref": "#/definitions/snapshot_id"},
+        "raw_sha256": {"$ref": "#/definitions/sha256"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "public_cache_observation": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "observation_id",
+        "seed_id",
+        "snapshot_id",
+        "fetched_at",
+        "content_type",
+        "parser_manifest"
+      ],
+      "properties": {
+        "observation_id": {"$ref": "#/definitions/content_digest"},
+        "seed_id": {"$ref": "#/definitions/content_digest"},
+        "snapshot_id": {"$ref": "#/definitions/snapshot_id"},
+        "fetched_at": {"type": "string", "format": "date-time"},
+        "content_type": {"type": ["string", "null"]},
+        "parser_manifest": {
+          "type": "object",
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "public_cache_indexed_text": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["snapshot_id", "text_hash", "text"],
+      "properties": {
+        "snapshot_id": {"$ref": "#/definitions/snapshot_id"},
+        "text_hash": {"$ref": "#/definitions/sha256"},
+        "text": {"$ref": "#/definitions/non_empty_string"}
+      },
+      "additionalProperties": false
+    },
+    "public_cache_run_pin": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["run_id", "pin_digest", "snapshot_ids"],
+      "properties": {
+        "run_id": {"$ref": "#/definitions/non_empty_string"},
+        "pin_digest": {"$ref": "#/definitions/content_digest"},
+        "snapshot_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/snapshot_id"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "public_cache_exchange": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "export_id",
+        "exported_at",
+        "corpus_evidence_digest",
+        "public_only",
+        "seeds",
+        "snapshots",
+        "observations",
+        "indexed_texts",
+        "run_pins",
+        "funnel",
+        "treatments",
+        "limitations"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "export_id": {"$ref": "#/definitions/content_digest"},
+        "exported_at": {"type": "string", "format": "date-time"},
+        "corpus_evidence_digest": {"$ref": "#/definitions/content_digest"},
+        "public_only": {"type": "boolean", "const": true},
+        "seeds": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/public_cache_seed"}
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/public_cache_snapshot"}
+        },
+        "observations": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/public_cache_observation"}
+        },
+        "indexed_texts": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/public_cache_indexed_text"}
+        },
+        "run_pins": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/public_cache_run_pin"}
+        },
+        "funnel": {"$ref": "#/definitions/funnel"},
+        "treatments": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/treatment_edge"}
+        },
+        "limitations": {"$ref": "#/definitions/string_array"}
+      },
+      "additionalProperties": false
+    },
+    "funnel_item": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["chain_id", "status", "snapshot_id", "reason"],
+      "properties": {
+        "chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "status": {
+          "type": "string",
+          "enum": [
+            "enumerated",
+            "card",
+            "document_link",
+            "payload_validated",
+            "full_text_extracted",
+            "indexed",
+            "screened",
+            "coded",
+            "approved_independent_chain",
+            "blocked",
+            "retryable_error",
+            "official_page_no_text",
+            "unextractable",
+            "ocr_pending",
+            "human_verification_pending"
+          ]
+        },
+        "snapshot_id": {
+          "oneOf": [
+            {"$ref": "#/definitions/snapshot_id"},
+            {"type": "null"}
+          ]
+        },
+        "reason": {"type": ["string", "null"]}
+        ,"source_role": {"type": ["string", "null"]}
+        ,"court_id": {"type": ["string", "null"]}
+        ,"period_id": {"type": ["string", "null"]}
+        ,"enumerator_id": {"type": ["string", "null"]}
+        ,"updated_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "funnel": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["schema_version", "items", "counts"],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "items": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/funnel_item"}
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        }
+      },
+      "additionalProperties": false
+    },
+    "treatment_edge": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "treatment_id",
+        "source_chain_id",
+        "target_authority_id",
+        "treatment_type",
+        "snapshot_id",
+        "status"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "treatment_id": {"$ref": "#/definitions/content_digest"},
+        "source_chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "target_authority_id": {"$ref": "#/definitions/non_empty_string"},
+        "treatment_type": {
+          "type": "string",
+          "enum": ["applies", "follows", "distinguishes", "limits", "rejects", "supersedes", "unclear", "does_not_reach"]
+        },
+        "snapshot_id": {"$ref": "#/definitions/snapshot_id"},
+        "status": {
+          "type": "string",
+          "enum": ["candidate", "verified", "rejected"]
+        },
+        "reviewer": {"type": ["string", "null"]},
+        "quote": {"type": ["string", "null"]},
+        "locator": {"type": ["string", "null"]},
+        "speaker": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "enumerator_manifest": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "enumerator_id",
+        "version",
+        "source_role",
+        "institutional_regime",
+        "applicable_from",
+        "applicable_to",
+        "courts",
+        "enumeration_unit",
+        "closure_rule",
+        "denominator_scope",
+        "adapter_id",
+        "configured"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "enumerator_id": {"$ref": "#/definitions/non_empty_string"},
+        "version": {"$ref": "#/definitions/non_empty_string"},
+        "source_role": {
+          "type": "string",
+          "enum": ["official", "official_unconfigured"]
+        },
+        "institutional_regime": {"$ref": "#/definitions/non_empty_string"},
+        "applicable_from": {"type": ["string", "null"], "format": "date"},
+        "applicable_to": {"type": ["string", "null"], "format": "date"},
+        "courts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "enumeration_unit": {"$ref": "#/definitions/non_empty_string"},
+        "closure_rule": {"type": ["string", "null"]},
+        "denominator_scope": {"$ref": "#/definitions/non_empty_string"},
+        "adapter_id": {"type": ["string", "null"]},
+        "configured": {"type": "boolean"},
+        "promotion": {
+          "type": "object",
+          "required": [
+            "promotion_id",
+            "status",
+            "verification",
+            "reviewer",
+            "reviewed_at"
+          ],
+          "properties": {
+            "promotion_id": {"$ref": "#/definitions/content_digest"},
+            "status": {"type": "string", "const": "official_enumerator_verified"},
+            "verification": {
+              "type": "object",
+              "required": [
+                "adapter_id",
+                "closure_rule",
+                "registry_verified",
+                "applicability_verified",
+                "identity_verified",
+                "terminal_states_verified",
+                "fixtures_passed",
+                "resume_passed",
+                "live_smoke_passed"
+              ],
+              "properties": {
+                "adapter_id": {"$ref": "#/definitions/non_empty_string"},
+                "closure_rule": {"$ref": "#/definitions/non_empty_string"},
+                "registry_verified": {"type": "boolean", "const": true},
+                "applicability_verified": {"type": "boolean", "const": true},
+                "identity_verified": {"type": "boolean", "const": true},
+                "terminal_states_verified": {"type": "boolean", "const": true},
+                "fixtures_passed": {"type": "boolean", "const": true},
+                "resume_passed": {"type": "boolean", "const": true},
+                "live_smoke_passed": {"type": "boolean", "const": true}
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {"$ref": "#/definitions/non_empty_string"},
+            "reviewed_at": {"type": "string", "format": "date-time"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "route_coverage_result": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "status",
+        "total_segments",
+        "successful_segments",
+        "unresolved_segments",
+        "statuses",
+        "denominator_scope"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_applicable",
+            "not_configured",
+            "observed_only",
+            "closed_declared_enumeration"
+          ]
+        },
+        "total_segments": {"type": "integer", "minimum": 0},
+        "successful_segments": {"type": "integer", "minimum": 0},
+        "unresolved_segments": {"type": "integer", "minimum": 0},
+        "statuses": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "denominator_scope": {"$ref": "#/definitions/non_empty_string"},
+        "reason": {"type": "string"},
+        "closure_blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "terminal_evidence": {
+          "type": "object",
+          "required": [
+            "terminal_snapshot_sha256",
+            "terminal_rule_verified",
+            "pagination_complete",
+            "resume_verified",
+            "live_smoke_verified"
+          ],
+          "properties": {
+            "terminal_snapshot_sha256": {"type": ["string", "null"]},
+            "terminal_rule_verified": {"type": "boolean"},
+            "pagination_complete": {"type": "boolean"},
+            "resume_verified": {"type": "boolean"},
+            "live_smoke_verified": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_observation": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["enumerator_id", "chain_id", "document_id", "identity_status"],
+      "properties": {
+        "enumerator_id": {"$ref": "#/definitions/non_empty_string"},
+        "chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "document_id": {"$ref": "#/definitions/non_empty_string"},
+        "identity_status": {
+          "type": "string",
+          "enum": ["confirmed", "unconfirmed", "needs_merge_split_review", "outside_configured_scope"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "reconciliation_gap": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["chain_id", "missing_from", "reason"],
+      "properties": {
+        "chain_id": {"$ref": "#/definitions/non_empty_string"},
+        "missing_from": {"$ref": "#/definitions/non_empty_string"},
+        "reason": {
+          "type": "string",
+          "enum": ["not_observed_in_route", "route_coverage_open"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "historical_gap": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": ["enumerator_id", "institutional_regime", "status", "applicable_from", "applicable_to"],
+      "properties": {
+        "enumerator_id": {"$ref": "#/definitions/non_empty_string"},
+        "institutional_regime": {"$ref": "#/definitions/non_empty_string"},
+        "status": {"type": "string", "const": "not_configured"},
+        "applicable_from": {"type": ["string", "null"], "format": "date"},
+        "applicable_to": {"type": ["string", "null"], "format": "date"}
+      },
+      "additionalProperties": false
+    },
+    "source_reconciliation": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "requested_from",
+        "requested_to",
+        "found_by",
+        "intersection_chain_ids",
+        "gaps",
+        "unresolved_identity_observations",
+        "route_coverage",
+        "historical_gaps",
+        "independent_chain_count",
+        "all_routes_closed",
+        "overall_status",
+        "denominator_limit",
+        "reconciliation_digest"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "requested_from": {"type": "string", "format": "date"},
+        "requested_to": {"type": "string", "format": "date"},
+        "found_by": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"$ref": "#/definitions/non_empty_string"}
+          }
+        },
+        "intersection_chain_ids": {"$ref": "#/definitions/string_array"},
+        "gaps": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/reconciliation_gap"}
+        },
+        "unresolved_identity_observations": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/source_observation"}
+        },
+        "route_coverage": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/definitions/route_coverage_result"}
+        },
+        "historical_gaps": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/historical_gap"}
+        },
+        "independent_chain_count": {"type": "integer", "minimum": 0},
+        "all_routes_closed": {"type": "boolean"},
+        "overall_status": {
+          "type": "string",
+          "enum": ["observed_only", "closed_declared_enumerations"]
+        },
+        "denominator_limit": {"$ref": "#/definitions/non_empty_string"},
+        "reconciliation_digest": {"$ref": "#/definitions/content_digest"}
+      },
+      "additionalProperties": false
+    },
+    "promotion_record": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "promotion_id",
+        "candidate_id",
+        "discovery_url",
+        "official_snapshot_id",
+        "official_url",
+        "official_source_role",
+        "identity_status",
+        "reviewer",
+        "reviewed_at",
+        "source_role",
+        "status"
+      ],
+      "properties": {
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "promotion_id": {"$ref": "#/definitions/content_digest"},
+        "candidate_id": {"$ref": "#/definitions/non_empty_string"},
+        "discovery_url": {"type": ["string", "null"], "format": "uri"},
+        "official_snapshot_id": {"$ref": "#/definitions/snapshot_id"},
+        "official_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "official_source_role": {"type": "string", "const": "official"},
+        "identity_status": {"type": "string", "const": "confirmed"},
+        "reviewer": {"$ref": "#/definitions/non_empty_string"},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "source_role": {"type": "string", "const": "official"},
+        "status": {"type": "string", "enum": ["official_verified"]}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from html.parser import HTMLParser
 from typing import Mapping
-from urllib.parse import parse_qs, urldefrag, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urldefrag, urljoin, urlparse
 
 
 _PROTECTIVE_MARKERS = (
@@ -71,6 +71,21 @@ class ListingResult:
     date_confirmed: bool = False
     empty_evidence_code: str | None = None
     case_row_count: int = 0
+
+
+@dataclass(frozen=True)
+class ResultSearchPage:
+    result_date: str
+    structural_ok: bool
+    case_urls: list[str]
+    doc_urls: list[str]
+    pagination_urls: list[str]
+    protective: bool = False
+    explicit_empty: bool = False
+    query_date_confirmed: bool = False
+    scope_conflict: bool = False
+    empty_evidence_code: str | None = None
+    page_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -319,6 +334,36 @@ def build_listing_url(host: str, listing_date: str) -> str:
     )
 
 
+def build_result_date_search_url(host: str, result_date: str, *, page: int | None = None) -> str:
+    """Build the verified 2 KSOYU civil-cassation search for one result date."""
+
+    parsed_date = date.fromisoformat(result_date)
+    clean_host = host.strip().lower()
+    if clean_host.startswith("http://") or clean_host.startswith("https://"):
+        clean_host = urlparse(clean_host).netloc
+    if clean_host != "2kas.sudrf.ru":
+        raise ValueError("result-date search is verified only for 2kas.sudrf.ru")
+    display_date = parsed_date.strftime("%d.%m.%Y")
+    query: list[tuple[str, str]] = [
+        ("name", "sud_delo"),
+        ("srv_num", "1"),
+        ("name_op", "r"),
+        ("delo_id", "2800001"),
+        ("case_type", "0"),
+        ("new", "2800001"),
+        ("delo_table", "g33_case"),
+        ("g33_case__RESULT_DATE1D", display_date),
+        ("g33_case__RESULT_DATE2D", display_date),
+        ("list", "ON"),
+        ("Submit", "Найти"),
+    ]
+    if page is not None:
+        if page < 1:
+            raise ValueError("page must be positive")
+        query.insert(3, ("page", str(page)))
+    return f"https://{clean_host}/modules.php?{urlencode(query)}"
+
+
 def _absolute_url(base_url: str, href: str) -> str:
     return urldefrag(urljoin(base_url, href.strip()))[0]
 
@@ -507,6 +552,142 @@ def classify_listing(http_status: int, result: ListingResult) -> str:
     if not result.structural_ok:
         return "invalid_structure"
     if result.case_row_count or result.case_urls or result.doc_urls:
+        return "success_nonempty"
+    if result.explicit_empty:
+        return "success_empty"
+    return "ambiguous_empty"
+
+
+def _is_result_search_pagination(absolute_url: str, expected_date: str) -> bool:
+    query = parse_qs(urlparse(absolute_url).query)
+    if query.get("name_op", [""])[0].casefold() != "r":
+        return False
+    page_values = query.get("page", [])
+    if not page_values or not page_values[0].isdigit():
+        return False
+    start = query.get("g33_case__RESULT_DATE1D", [expected_date])[0]
+    end = query.get("g33_case__RESULT_DATE2D", [expected_date])[0]
+    return start == expected_date and end == expected_date
+
+
+def parse_result_search(html: str, base_url: str, result_date: str) -> ResultSearchPage:
+    """Parse the official case-search route without upgrading it to all court output."""
+
+    parser = _parse(html)
+    page_text = _clean_text(" ".join(parser.all_text))
+    folded = page_text.casefold()
+    protective = any(marker in folded for marker in _PROTECTIVE_MARKERS)
+    expected_date = date.fromisoformat(result_date).strftime("%d.%m.%Y")
+    parsed_base = urlparse(base_url)
+    base_query = parse_qs(parsed_base.query)
+
+    def exact_query_value(name: str, expected: str) -> bool:
+        return base_query.get(name) == [expected]
+
+    query_date_confirmed = bool(
+        parsed_base.scheme.casefold() == "https"
+        and parsed_base.netloc.casefold() == "2kas.sudrf.ru"
+        and parsed_base.path == "/modules.php"
+        and exact_query_value("name", "sud_delo")
+        and exact_query_value("srv_num", "1")
+        and exact_query_value("name_op", "r")
+        and exact_query_value("delo_id", "2800001")
+        and exact_query_value("case_type", "0")
+        and exact_query_value("new", "2800001")
+        and exact_query_value("delo_table", "g33_case")
+        and exact_query_value("g33_case__RESULT_DATE1D", expected_date)
+        and exact_query_value("g33_case__RESULT_DATE2D", expected_date)
+        and exact_query_value("list", "ON")
+    )
+
+    case_urls: list[str] = []
+    doc_urls: list[str] = []
+    pagination_urls: list[str] = []
+    scope_conflict = False
+    for anchor in parser.anchors:
+        if not anchor.href:
+            continue
+        absolute = _absolute_url(base_url, anchor.href)
+        if not _same_origin(base_url, absolute):
+            continue
+        operation = _operation(absolute)
+        link_query = parse_qs(urlparse(absolute).query)
+        bounded_source_link = bool(
+            link_query.get("name") == ["sud_delo"]
+            and link_query.get("srv_num") == ["1"]
+            and link_query.get("delo_id") == ["2800001"]
+        )
+        if operation == "case":
+            if bounded_source_link:
+                case_urls.append(absolute)
+            else:
+                scope_conflict = True
+        elif operation == "doc":
+            if bounded_source_link:
+                doc_urls.append(absolute)
+            else:
+                scope_conflict = True
+        elif _is_result_search_pagination(absolute, expected_date):
+            page = int(parse_qs(urlparse(absolute).query)["page"][0])
+            if page > 0:
+                pagination_urls.append(
+                    build_result_date_search_url("2kas.sudrf.ru", result_date, page=page)
+                )
+        elif operation == "r" and parse_qs(urlparse(absolute).query).get("page"):
+            scope_conflict = True
+
+    case_urls = _unique(case_urls)
+    doc_urls = _unique(doc_urls)
+    pagination_urls = _unique(pagination_urls)
+    zero_marker = "данных по запросу не обнаружено" in folded
+    explicit_empty = bool(
+        not protective
+        and query_date_confirmed
+        and not scope_conflict
+        and zero_marker
+        and not case_urls
+        and not doc_urls
+        and not pagination_urls
+    )
+    structural_ok = bool(
+        not protective
+        and query_date_confirmed
+        and not scope_conflict
+        and (
+            bool(case_urls or doc_urls)
+            or zero_marker
+            or "результат поиска" in folded
+        )
+    )
+    return ResultSearchPage(
+        result_date=result_date,
+        structural_ok=structural_ok,
+        case_urls=case_urls,
+        doc_urls=doc_urls,
+        pagination_urls=pagination_urls,
+        protective=protective,
+        explicit_empty=explicit_empty,
+        query_date_confirmed=query_date_confirmed,
+        scope_conflict=scope_conflict,
+        empty_evidence_code=("result_date_search_zero_results" if explicit_empty else None),
+        page_text=page_text,
+    )
+
+
+def classify_result_search(http_status: int, result: ResultSearchPage) -> str:
+    """Classify one result-date search page with the same fail-closed states as listings."""
+
+    if http_status in {401, 403, 407, 429, 451}:
+        return "blocked"
+    if http_status == 408 or http_status >= 500:
+        return "retryable_error"
+    if http_status < 200 or http_status >= 300:
+        return "http_error"
+    if result.protective:
+        return "blocked"
+    if not result.structural_ok:
+        return "invalid_structure"
+    if result.case_urls or result.doc_urls:
         return "success_nonempty"
     if result.explicit_empty:
         return "success_empty"

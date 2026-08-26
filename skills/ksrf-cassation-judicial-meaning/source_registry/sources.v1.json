@@ -40,6 +40,44 @@
       "courts": []
     },
     {
+      "id": "2kas_civil_result_date_search",
+      "title": "2 КСОЮ: официальный поиск гражданской кассации по дате результата",
+      "role": "official_secondary",
+      "institutional_regime": "ksoyu_post_2019",
+      "applicable_from": "2019-10-01",
+      "applicable_to": null,
+      "adapter": null,
+      "enumerator_contract": "2kas_civil_result_date_search_v1",
+      "operational_status": "contract_only_not_wired",
+      "parser_version": "1.0",
+      "enumeration": "official_civil_cassation_search_by_result_date",
+      "enumeration_unit": "official_result_date_search_page",
+      "closure_rule": "all_observed_pagination_pages_terminal_success_or_exact_zero_marker",
+      "date_basis": "result_date",
+      "coverage_claim": "bounded_declared_search_results",
+      "denominator_scope": "2kas_civil_cassation_official_search_results_by_result_date_not_all_court_output",
+      "closed_for_declared_enumeration": false,
+      "closed_for_official_output": false,
+      "closed_for_all_decided_cases": false,
+      "closed_for_all_published_acts": false,
+      "closed_for_all_court_case_types": false,
+      "official_page_publication_limited": true,
+      "publication_limit_notice_ru": "Официальная страница предупреждает, что результаты поиска могут показывать не все судебные дела из-за ограничений публикации.",
+      "official_search_url": "https://2kas.sudrf.ru/modules.php?name=sud_delo",
+      "official_page_notice_url": "https://2kas.sudrf.ru/modules.php?name=sud_delo",
+      "route_verified_at": "2026-08-26",
+      "rate_limit_seconds": 1.5,
+      "case_scope": {
+        "jurisdiction": "civil_cassation",
+        "delo_table": "g33_case",
+        "case_type": "0",
+        "delo_id": "2800001"
+      },
+      "courts": [
+        {"code": "2kas", "host": "2kas.sudrf.ru"}
+      ]
+    },
+    {
       "id": "supreme_court_cassation",
       "title": "Кассационная практика Верховного Суда РФ",
       "role": "discovery_only",

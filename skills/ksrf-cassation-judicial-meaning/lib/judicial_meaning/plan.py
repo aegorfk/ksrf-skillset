@@ -350,8 +350,59 @@ def freeze_plan(plan: dict[str, Any], workspace: str | Path) -> dict[str, Any]:
     questions_path.write_text(question_payload, encoding="utf-8", newline="\n")
 
     query_records: list[dict[str, Any]] = []
+    accepted = frozen.get("accepted_query_suggestions", [])
+    accepted_pairs: set[tuple[str, str]] = set()
+    if isinstance(accepted, list):
+        for decision in accepted:
+            if not isinstance(decision, dict):
+                continue
+            suggestion = decision.get("suggestion")
+            if not isinstance(suggestion, dict):
+                continue
+            query = suggestion.get("query")
+            lane = suggestion.get("lane")
+            if not isinstance(query, str) or not isinstance(lane, str):
+                continue
+            plan_lane = {
+                "exact_norm": "exact_norm",
+                "court_language": "synonyms",
+                "legal_mechanism": "mechanisms",
+                "controlled_synonym": "synonyms",
+                "opposite_reading": "opposite_readings",
+                "narrower_reading": "opposite_readings",
+                "alternative_ground": "other_grounds",
+                "later_legislation": "later_authority",
+                "higher_authority": "later_authority",
+                "case_feature": "synonyms",
+            }.get(lane)
+            if plan_lane is None:
+                continue
+            accepted_pairs.add((plan_lane, query))
+            query_records.append(
+                {
+                    "query_id": suggestion.get("query_id"),
+                    "lane": plan_lane,
+                    "source_lane": lane,
+                    "query": query,
+                    "adverse": lane
+                    in {
+                        "opposite_reading",
+                        "narrower_reading",
+                        "alternative_ground",
+                        "later_legislation",
+                        "higher_authority",
+                    },
+                    "plan_relationship": "accepted_pre_freeze",
+                    "provenance": suggestion.get("provenance"),
+                    "reviewer": decision.get("reviewer"),
+                    "confirmed_at": decision.get("confirmed_at"),
+                    "plan_sha256": digest,
+                }
+            )
     for lane in sorted(frozen["query_lanes"]):
         for index, query in enumerate(frozen["query_lanes"][lane], start=1):
+            if (lane, query) in accepted_pairs:
+                continue
             query_records.append(
                 {
                     "query_id": f"{lane}-{index}",
