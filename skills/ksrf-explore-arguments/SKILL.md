@@ -117,6 +117,8 @@ description: Исследовать и сравнить несколько ко�
 
 Для структурного critic-pass используй `../ksrf-argument-patterns/references/constitutional-argument-architecture.md`; для спорной интерпретации, аналогии, правила/исключения или уровня абстракции добавь параллельные ветви из `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md`, а для иностранного примера — contextual transfer card из `../ksrf-argument-patterns/references/institutional-discourse-and-comparative-transfer.md`. При прежней позиции или отказном определении дополнительно заполни дельту, цену пересмотра и quality gates из `../ksrf-complaint-qa/references/argument-quality-revision.md`. Эти научные модели не отменяют hard gates и не создают основание повторного рассмотрения.
 
+Для каждого существенного довода дополнительно пройди LI-M03 из `../ksrf-argument-patterns/references/lawinfo-constitutional-methods-2023-2026.md`: текстовая, интенциональная, consistency- и pragmatic-атаки. Сохрани применимые вопросы и результат как `supports/weakens/distinguishes/blocks`; отсутствие атаки одного семейства пометь `not_applicable`, а не выдумывай возражение.
+
 ### 6. Сформируй портфель и остановись
 
 Используй `references/evaluation-and-promotion.md`. Сначала примени hard gates, затем сравни прошедшие гипотезы по отдельным измерениям. Не превращай сумму баллов в разрешение на подачу.
@@ -145,6 +147,7 @@ description: Исследовать и сравнить несколько ко�
 - `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md` — competing interpretations, правило/основание, analogy/distinguishing и hard-case router с `model_conflict -> abstain`.
 - `../ksrf-argument-patterns/references/institutional-discourse-and-comparative-transfer.md` — strongest objection и проверка функциональной, институциональной и социальной сопоставимости иностранного материала.
 - `../ksrf-complaint-qa/references/argument-quality-revision.md` — prior-position delta, немонотонность, универсализация и non-scalar quality review.
+- `../ksrf-argument-patterns/references/lawinfo-constitutional-methods-2023-2026.md` — LI-M01/M03/M06/M07: портфель методов, четыре семейства атак, gap/defect и промежуточная цепочка от конституционного текста к проверяемому правилу.
 
 Для калибровки на реальном деле читай `references/example-52-p-2024.md`: input-only слой извлечён из реальной обезличенной жалобы С.С. Шапки, а Постановление КС РФ № 52-П/2024 вынесено в отдельный outcome-раздел того же файла. Это только ретроспективный replay: файл и его название раскрывают outcome и не обеспечивают blind firewall. Для настоящей слепой оценки подготовь физически отдельный input-ресурс без номера, ссылки и текста последующего акта, зафиксируй hash/commit `CaseFile`, findings и портфеля, и лишь затем раскрой outcome. Не превращай исход дела в шаблон для новых жалоб.
 
@@ -157,6 +160,7 @@ description: Исследовать и сравнить несколько ко�
 - `Research ledger`: новые и отрицательные findings;
 - `Активные гипотезы`: различия, evidence for/against, falsifier, remedy;
 - `Critic report`: контрпримеры, пределы переноса, отказная логика;
+- `Argument attack ledger`: четыре семейства атак и их relation/status;
 - `Argument portfolio`: principal, reserve, experimental, rejected;
 - `ConstitutionalIssueOptions`: сопоставимые варианты для заявителя или юриста простым и юридическим языком;
 - `Human decision`: что именно должен утвердить юрист;

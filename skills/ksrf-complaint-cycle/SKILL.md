@@ -46,6 +46,8 @@ description: "Организовать полный цикл обращения 
 
 Происхождение источников, полноту материалов и точность цитат вынеси в `EvidenceGate`, privacy scope и human approval — в `ReleaseGate`. Сначала выдай `AdmissibilityMatrix`; только после неё переходи к оценке содержательных линий. `Unknown` не является `pass`, а карточка дела или поисковый сниппет не заменяют полный акт применения.
 
+Для жалобы частного лица внутри матрицы отдельно докажи prima facie субъективную заинтересованность: регулируемое отношение, применение нормы, индивидуальный правовой эффект и признаки нарушения права именно нормой. Веди `private/admission` и `public/objective norm-control` как два связанных ledger; системная важность не лечит отсутствие допуска.
+
 Если порог не пройден, не компенсируй его качеством правовой позиции. Для неустранимого fail сразу верни `NO_GO_KSRF`; при критическом unknown после полного поиска — `ABSTAIN_PENDING_RECORD`; при реально устранимом пробеле — `FIX_FIRST`. Не требуй и не фабрикуй `ConstitutionalIssueOptions`, когда содержательное исследование заблокировано. Если дело продолжается, отдельно оцени `ksrf-court-request-motion` и `COURT_REQUEST_ROUTE`.
 
 ### 3. Запусти адаптивное исследование
@@ -63,7 +65,11 @@ description: "Организовать полный цикл обращения 
 
 Обратно принимай только artifact-derived portable v2 `approved_bounded_findings`/`authority_cards`, связанные с исходным request, текущими claim/fingerprint/plan/evidence hashes и proof records: selected positions/relations/adverse, нормативный мост, `validation-report.json` и `human-decision.json`. До drafting обязательно сверь bundle с внешним trust anchor из предшествующего `run attach`: sibling CLI перечитывает исходный request и доказательства в прикреплённом кассационном workspace. Внутренние SHA-256 без этой сверки означают лишь `audit_only_unanchored`. После anchored import нужен отдельный reviewed `within-limit` для точной текущей формулировки и её source-file hash. Legacy v1, неизвестный ID, неполный proof, stale binding, неполный охват или непройденный gate оставляют claim как `blocked`/`stale` и текст как `hypothesis_under_test`/`insufficient_coverage`; независимые claims и обычные hard gates продолжают свой маршрут.
 
-Используй `ksrf-argument-patterns`, стенограммы, матрицы обоснований и graph/retrieval как генераторы кандидатов и stress-test. Отсутствие известного паттерна — риск исследования, но не автоматический отказ.
+Используй `ksrf-argument-patterns`, стенограммы, матрицы обоснований, `../ksrf-argument-patterns/references/external-ks-complaint-webinar-methods.md` и graph/retrieval как генераторы кандидатов и stress-test. Вебинарный материал помогает проверить нормативный барьер, неединичность практики, раннюю фиксацию нормы, ходатайство о запросе суда и риск неблагоприятного системного эффекта; он не является официальной позицией КС РФ. Отсутствие известного паттерна — риск исследования, но не автоматический отказ.
+
+При применимом Lawinfo-триггере используй `../ksrf-argument-patterns/references/lawinfo-constitutional-methods-2023-2026.md`: проведи четыре семейства атак на существенный довод, раздели формальную и материальную определённость, а пропорциональность не сворачивай в единый score. Эти карточки направляют исследование, но не являются правом.
+
+Если вопрос касается исторической модели жалобы, формы оспариваемого акта, письма/возврата Секретариата, старого правила срока/исчерпания, доказательств, письменного производства, вида решения, обязательности позиции либо исполнения, дополнительно открой `references/lawinfo-historical-complaint-procedure-2009-2024.md`. Применяй только совпавшую JH-M карточку как critic/reference layer: она не меняет текущий hard gate, а любой процессуальный вывод требует актуального официального якоря.
 
 Если доступен CasusLegal MCP или пользователь передал практику высших судов, используй `ksrf-practice-authority-builder`, чтобы превратить результаты поиска в case-scoped authority ledger: назначить актам функции, проверить переносимость, найти adverse/refusal-позиции и отделить doctrine КС РФ от доказательства судебного смысла в практике ВС РФ. Недоступность подписки фиксируй как coverage gap и не делай ее препятствием для автономного исследования.
 
@@ -73,7 +79,7 @@ description: "Организовать полный цикл обращения 
 
 После admissibility и исследования в каждом деле дай предварительную `KSRFRouteRecommendation`: `GO_TO_KSRF / FIX_FIRST / COURT_REQUEST_ROUTE / NO_GO_KSRF / ABSTAIN_PENDING_RECORD`. Обоснуй её hard gates, пользой для заявителя, рисками, альтернативами и ближайшими сроками без ложной числовой точности.
 
-Если ожидаемая перспектива низкая либо цели включают фиксацию позиции, официальный след или системный эффект, создай `FilingDecisionRecord` по `references/strategic-complaint-design.md`. Раздельно зафиксируй legal readiness, прогноз, пользу и риски для заявителя, альтернативы со сроками и предварительное решение `file_now / strengthen_ordinary_case_first / defer_until / do_not_file`. Стратегическая цель не устраняет hard gate и не меняет содержательный QA verdict.
+Если ожидаемая перспектива низкая либо цели включают фиксацию позиции, официальный след или системный эффект, создай `FilingDecisionRecord` по `references/strategic-complaint-design.md`. Раздельно зафиксируй legal readiness, прогноз, пользу и риски для клиента, альтернативы со сроками и предварительное решение `file_now / strengthen_ordinary_case_first / defer_until / do_not_file`. Стратегическая цель не устраняет hard gate и не меняет содержательный QA verdict.
 
 ### 5. Собери текст вокруг утверждённого портфеля
 
@@ -83,6 +89,7 @@ description: "Организовать полный цикл обращения 
 4. Используй `ksrf-rights-argument-builder`, чтобы превратить principal/reserve hypotheses и проверенный authority ledger в самостоятельные разделы с источниками, пределами и counterarguments.
 5. Для каждого требования веди трассировку `норма -> судебный смысл -> непосредственное последствие -> конституционный вред -> предлагаемая гарантия -> приложение`.
 6. Если причинная цепочка иной структуры лучше объясняет дело, используй её, но сохрани проверяемые anchors для нормы, применения, вреда и remedy.
+7. При подготовке DOCX применяй единый макет первой страницы из `references/docx-first-page-layout.md`: шапка отдельным блоком на правой половине страницы, а заголовок — только `ЖАЛОБА` и `на нарушение конституционных прав и свобод`. Перечень оспариваемых норм в подзаголовок не выноси.
 
 ### 6. Подготовь вспомогательные материалы
 
@@ -100,7 +107,7 @@ description: "Организовать полный цикл обращения 
 
 1. Перед `ksrf-complaint-qa` выполни `validate --stage qa`; он блокирует только активные empirical claims без current `ready`/`within-limit`, а не всю жалобу. Перед формальной подачей выполни `validate --stage filing` с текущим pre-filing refresh.
 2. Используй `ksrf-complaint-qa` для hard gates, portfolio coherence, source traceability, refusal model и remedy fit.
-3. До формальной подачи финализируй `FilingDecisionRecord`, если сработал его триггер: требуется информированное решение заявителя и отдельное одобрение юриста без давления символической или общественной целью.
+3. До формальной подачи финализируй `FilingDecisionRecord`, если сработал его триггер: требуется информированное решение клиента и отдельное одобрение юриста без давления символической или общественной целью.
 4. Используй `ksrf-formal-filing-check` только после содержательного verdict и human approval.
 5. После акта КС РФ используй `ksrf-decision-execution` для последствий, пересмотра, разъяснения, исправления или применения в аналогичных делах.
 
@@ -139,8 +146,10 @@ description: "Организовать полный цикл обращения 
 - `references/ksrf-tool-layer.md` — автосбор `CaseFile` и проверяемые evidence refs.
 - `references/uid-first-case-workflow.md` — маршрут `один UID -> скачанное досье -> допустимость -> варианты проблемы -> go/no-go` с минимальным взаимодействием.
 - `references/ksrf-defect-taxonomy.md` — язык возможных дефектов и анти-паттерны; используй как словарь гипотез, не обязательную классификацию.
+- `references/docx-first-page-layout.md` — единый воспроизводимый макет шапки и заголовка первой страницы жалобы в DOCX.
 - `references/ksrf-embedded-guides.md`, `references/ksrf-live-argument-patterns.md`, `references/crystal-themis-*` — эвристики drafting и состязательного stress-test.
 - `../ksrf-argument-patterns/references/*` — corpus/retrieval/evidence/language/critic materials; их роль и ограничения определяет активная гипотеза.
+- `../ksrf-argument-patterns/references/external-ks-complaint-webinar-methods.md` — профессиональная методика подготовки жалобы: два фильтра, четыре дефекта, формула просительной части, ходатайство о запросе суда, ответ на возврат Секретариата и red-team последствий; не заменяет ФКЗ, Регламент и официальные акты.
 - `../ksrf-argument-patterns/references/constitutional-methodology-reference-only-corpus.md` — self-contained слой 84 revise/comparative карточек для option generation, red-team и transfer limits; behavior и hard gates не меняет.
 - Сравнительные workbooks по стадиям: `../ksrf-argument-patterns/references/comparative-argument-coding.md`, `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md`, `../ksrf-argument-patterns/references/precedent-analogy-and-justification.md`, `../ksrf-argument-patterns/references/institutional-discourse-and-comparative-transfer.md`, `../ksrf-argument-patterns/references/constitutional-institutions-access-and-remedy.md`, `../ksrf-rights-argument-builder/references/proportionality-and-lawmaking-workbook.md`, `../ksrf-complaint-facts-demands/references/constitutional-facts-evidence-ledger.md`, `../ksrf-complaint-facts-demands/references/remedy-design-matrix.md`, `../ksrf-decision-execution/references/german-remedy-and-institutional-patterns.md` и `../ksrf-decision-execution/references/compliance-forecast-matrix.md`. Если тезис выходит за пределы одного дела и описывает линию практики, системность или фактический effect, сначала заполни `../ksrf-practice-authority-builder/references/judicial-meaning-evidence-acquisition.md`. Все эти файлы дают optional method/critic cards и не заменяют российские первичные источники.
 - Российская научная методика аргументации: `../ksrf-argument-patterns/references/constitutional-argument-architecture.md` для построения/атаки довода, `../ksrf-complaint-qa/references/argument-quality-revision.md` для quality/revision review и `../ksrf-complaint-qa/references/meta-argumentation-qa.md` для trigger-check баланса, идентичности и эволюции. Все справочники вторичны: текущие нормы, полномочия и позиции подтверждаются официально.
@@ -149,6 +158,8 @@ description: "Организовать полный цикл обращения 
 - `references/science-support-pack.md` — проверка роли научных, эмпирических и экспертных материалов.
 - `references/sko-complaint-methods-2017-2026.md` — полнотекстовые методические карточки СКО по аргументации, доступу, remedy, истолкованию и исполнению.
 - `references/russian-secondary-constitutional-procedure-crosscheck.md` — учебный и историко-доктринальный навигатор, включая Зорькина (2021) и Витрука (1998), по доказательствам, пакету обращения, допустимости, решениям и исполнению; авторская/институциональная атрибуция не превращает тезис в holding, любое поле требует актуального официального российского anchor и later-law check.
+- `references/lawinfo-historical-complaint-procedure-2009-2024.md` — автономный реестр 38 статей и 13 JH-M карточек по нормативному предмету, screening/refusal, versioned exhaustion, evidence roles, видам/силе/исполнению решений и model conflicts; только reference-only refinement.
+- `../ksrf-argument-patterns/references/lawinfo-constitutional-methods-2023-2026.md` и JSON рядом — источник происхождения и маршрутизация 15 российских методических карточек 2023–2026, включая конфликтный ledger абсолютного права; PDF из inbox не является runtime-зависимостью.
 
 ## Проверка автономности
 

@@ -1,0 +1,313 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-27",
+  "family": "KSRF",
+  "layer": "methodology_only",
+  "runtime_source": "global_skill_reference",
+  "source_scope": {
+    "publisher_group": "Lawinfo",
+    "years": "2023-2026",
+    "original_inbox": "ТЗ/Гайды/Новое",
+    "archive_roots": [
+      "ТЗ/Наука/Конституционное правосудие/russian_argumentation_methodology/lawinfo_issues_2018_2026",
+      "ТЗ/Наука/Конституционное правосудие/russian_argumentation_methodology/books_and_monographs",
+      "ТЗ/Гайды/Жалобы"
+    ],
+    "excluded_path": "ТЗ/Гайды/Новое/Конституционалисты",
+    "supported_pdf_count_audited": 39,
+    "readable_pdf_count": 37,
+    "unreadable_or_empty_text_count": 2
+  },
+  "promotion_policy": {
+    "scholarship_is_law": false,
+    "official_russian_anchor_required": true,
+    "case_application_evidence_required": true,
+    "model_conflict_action": "human_review_or_abstain",
+    "scalar_score_authorizes_filing": false
+  },
+  "sources": [
+    {
+      "id": "LI-01",
+      "author": "Е. В. Тарибо",
+      "title": "К вопросу о методологии российского конституционного правосудия",
+      "publication": "Журнал конституционного правосудия, 2026, № 2, с. 1-12",
+      "doi": "10.18572/2072-4144-2026-2-1-12",
+      "sha256": "f5e66203dbdd87a673d64b8b87fcb6ecd06ffebf01a74d4e5cde227c56a4dad6"
+    },
+    {
+      "id": "LI-02",
+      "author": "Н. Б. Тихонов",
+      "title": "Роль и значение субъективной заинтересованности при рассмотрении Конституционным Судом Российской Федерации жалоб на нарушение конституционных прав и свобод",
+      "publication": "Журнал конституционного правосудия, 2026, № 2, с. 13-23",
+      "doi": "10.18572/2072-4144-2026-2-13-23",
+      "sha256": "f5e66203dbdd87a673d64b8b87fcb6ecd06ffebf01a74d4e5cde227c56a4dad6"
+    },
+    {
+      "id": "LI-03A",
+      "author": "А. М. Чирнинов",
+      "title": "Аргументативные атаки в конституционном правосудии. Часть 1",
+      "publication": "Журнал конституционного правосудия, 2025, № 2, с. 21-28",
+      "doi": "10.18572/2072-4144-2025-2-21-28",
+      "sha256": "01c82258cfd22686b184f732753ed902cbf974194b833cf1f5e9e9156c894fcc"
+    },
+    {
+      "id": "LI-03B",
+      "author": "А. М. Чирнинов",
+      "title": "Аргументативные атаки в конституционном правосудии. Часть 2",
+      "publication": "Журнал конституционного правосудия, 2025, № 3, с. 12-18",
+      "doi": "10.18572/2072-4144-2025-3-12-18",
+      "sha256": "0516883f87bc11f4b24070f81a8750263a6117460c93e88ab51973d5b0faad96"
+    },
+    {
+      "id": "LI-04",
+      "author": "Р. Б. Булатов, А. С. Михасев",
+      "title": "Принцип пропорциональности и его тестовые критерии",
+      "publication": "Административное право и процесс, 2024, № 11, с. 21-24",
+      "doi": "10.18572/2071-1166-2024-11-21-24",
+      "sha256": "32fd553967707d7eb3992ffb5c0da0c991fc555381db5f0b43f67c96d6f59cdc"
+    },
+    {
+      "id": "LI-05",
+      "author": "Д. В. Парин",
+      "title": "Конституционные критерии правовой определенности: конфликт формального и материального аспектов на примере отдельных судебных дел",
+      "publication": "Журнал конституционного правосудия, 2024, № 3, с. 23-31",
+      "doi": "10.18572/2072-4144-2024-3-23-31",
+      "sha256": "f52aa0dd9ef2c8751a2a5e59ef160f11b407dda117d55183c24e00a6dc61ca60"
+    },
+    {
+      "id": "LI-06",
+      "author": "О. В. Брежнев",
+      "title": "Конституционно значимые пробелы в законодательстве и их квалификация в практике российского конституционного правосудия",
+      "publication": "Конституционное и муниципальное право, 2024, № 11, с. 42-46",
+      "doi": "10.18572/1812-3767-2024-11-42-46",
+      "sha256": "10331b9caba1c5e16ae0229187efd00810a4bfaa1e20d84a9d3055f62e58b5c4"
+    },
+    {
+      "id": "LI-07",
+      "author": "А. М. Чирнинов",
+      "title": "Значение аргументации в раскрытии конституционной нормативности",
+      "publication": "Конституционное и муниципальное право, 2025, № 4, с. 39-42",
+      "doi": "10.18572/1812-3767-2025-4-39-42",
+      "sha256": "5a77b7fcca4e8c6770eba2bbdcb6a9bee217200e6519ea63e9f766733600b29b"
+    },
+    {
+      "id": "LI-08",
+      "author": "С. А. Белов",
+      "title": "Ценностная аргументация в решениях органов конституционного правосудия",
+      "publication": "Конституционное и муниципальное право, 2025, № 5, с. 2-13",
+      "doi": "10.18572/1812-3767-2025-5-2-13",
+      "sha256": "16269e9d0e253f62948fd5c25c8c64f9cc998bf4e8bf224c77d70978ff55f77e"
+    },
+    {
+      "id": "LI-09",
+      "author": "С. С. Заикин",
+      "title": "Использование достоинства личности как правовой ценности в аргументации Конституционного Суда Российской Федерации: практическое значение и невольная игра в слова",
+      "publication": "Конституционное и муниципальное право, 2026, № 1, с. 28-33",
+      "doi": "10.18572/1812-3767-2026-1-28-33",
+      "sha256": "440e3e8302c62dec5eb1c41efb2517e9759370a9ddc7d629b74fe33aaf4e3b6c"
+    },
+    {
+      "id": "LI-10",
+      "author": "А. Н. Кокотов",
+      "title": "Проверка конституционности правоприменительной практики в России",
+      "publication": "Конституционное и муниципальное право, 2023, № 1, с. 2-6",
+      "doi": "10.18572/1812-3767-2023-1-2-6",
+      "sha256": "084cddff5cf1f398b3a6b2de813a5bf2c0908b73921913e8ad0bc224237a4210"
+    },
+    {
+      "id": "LI-11",
+      "author": "Н. Б. Тихонов",
+      "title": "Предмет судебной деятельности в конкретном конституционном нормоконтроле: соотношение частных и публичных начал",
+      "publication": "Конституционное и муниципальное право, 2025, № 1, с. 53-59",
+      "doi": "10.18572/1812-3767-2025-1-53-59",
+      "sha256": "00d54a88315077eaba863e575e4d55c780c49d3a0ad0a6a6e068c78112a8f494"
+    },
+    {
+      "id": "LI-12",
+      "author": "П. Д. Блохин",
+      "title": "Феномен конституционно-согласованного истолкования в современном праве",
+      "publication": "Журнал конституционного правосудия, 2025, № 4, с. 1-8",
+      "doi": "10.18572/2072-4144-2025-4-1-8",
+      "sha256": "01925795dfeb5f10d1245577401689fc151637cfd264f3a4ea2fd3f6114e0557"
+    },
+    {
+      "id": "LI-13",
+      "author": "А. А. Семченков",
+      "title": "Правовая природа, практика и пределы устанавливаемого Конституционным Судом Российской Федерации временного регулирования",
+      "publication": "Журнал конституционного правосудия, 2025, № 4, с. 17-21",
+      "doi": "10.18572/2072-4144-2025-4-17-21",
+      "sha256": "01925795dfeb5f10d1245577401689fc151637cfd264f3a4ea2fd3f6114e0557"
+    },
+    {
+      "id": "LI-14",
+      "author": "Д. А. Котельников",
+      "title": "Компенсаторные механизмы как средство восстановления конституционных прав",
+      "publication": "Журнал конституционного правосудия, 2025, № 2, с. 10-15",
+      "doi": "10.18572/2072-4144-2025-2-10-15",
+      "sha256": "01c82258cfd22686b184f732753ed902cbf974194b833cf1f5e9e9156c894fcc"
+    },
+    {
+      "id": "LI-15",
+      "author": "Д. В. Парин",
+      "title": "К вопросу об абсолютных правах: нормативное содержание и развитие в практике Конституционного Суда России",
+      "publication": "Журнал конституционного правосудия, 2026, № 1, с. 12-19",
+      "doi": "10.18572/2072-4144-2026-1-12-19",
+      "sha256": "b15b2732d160e2431f8bfdbb60da3c41b8176fe43bec6ebf0ade8570990d8179"
+    }
+  ],
+  "cards": [
+    {
+      "id": "LI-M01",
+      "name": "method_portfolio",
+      "source_ids": ["LI-01"],
+      "targets": ["ksrf-explore-arguments", "ksrf-argument-patterns"],
+      "trigger": "new_or_method_sensitive_issue",
+      "operations": ["parallel_text_system_history_consequence_comparative_remedy_branches", "record_inputs_falsifier_and_official_anchor", "preserve_model_conflict"],
+      "stop_rules": ["foreign_or_interdisciplinary_model_does_not_replace_russian_law", "unresolved_material_conflict_requires_human_review_or_abstain"]
+    },
+    {
+      "id": "LI-M02",
+      "name": "prima_facie_subjective_interest",
+      "source_ids": ["LI-02"],
+      "targets": ["ksrf-case-triage", "ksrf-complaint-cycle", "ksrf-complaint-qa"],
+      "trigger": "individual_or_collective_complaint_admissibility",
+      "operations": ["prove_regulated_relationship_application_and_individual_effect", "record_prima_facie_rights_violation", "separate_admission_private_interest_from_merits_objective_review"],
+      "stop_rules": ["regulated_group_membership_alone_is_insufficient", "no_actio_popularis"]
+    },
+    {
+      "id": "LI-M03",
+      "name": "four_argument_attack_families",
+      "source_ids": ["LI-03A", "LI-03B"],
+      "targets": ["ksrf-explore-arguments", "ksrf-argument-patterns", "ksrf-complaint-qa"],
+      "trigger": "material_argument_or_critic_pass",
+      "operations": ["textual_attack", "intentional_attack", "consistency_attack", "pragmatic_attack", "record_supports_weakens_distinguishes_blocks"],
+      "stop_rules": ["no_apriori_hierarchy", "attack_weight_requires_case_specific_value_evidence_and_official_anchors"]
+    },
+    {
+      "id": "LI-M04",
+      "name": "proportionality_evidence_dimensions",
+      "source_ids": ["LI-04"],
+      "targets": ["ksrf-rights-argument-builder", "ksrf-complaint-qa"],
+      "trigger": "rights_restriction_or_excessive_burden",
+      "operations": ["test_legitimate_aim", "test_suitability", "test_equally_effective_less_intrusive_alternative", "test_concrete_balance_and_safeguards"],
+      "stop_rules": ["do_not_collapse_to_scalar", "do_not_import_rigid_sequence_as_binding_law"]
+    },
+    {
+      "id": "LI-M05",
+      "name": "formal_material_legal_certainty",
+      "source_ids": ["LI-05"],
+      "targets": ["ksrf-case-triage", "ksrf-argument-patterns", "ksrf-complaint-qa"],
+      "trigger": "uncertainty_or_divergent_practice_claim",
+      "operations": ["map_text_and_possible_readings", "map_higher_court_positions", "build_comparable_lower_court_sample", "classify_stable_competing_approaches"],
+      "stop_rules": ["single_outlier_is_not_systemic_uncertainty", "practice_claim_requires_bounded_sample_and_adverse_pass"]
+    },
+    {
+      "id": "LI-M06",
+      "name": "gap_versus_broader_legal_defect",
+      "source_ids": ["LI-06"],
+      "targets": ["ksrf-explore-arguments", "ksrf-argument-patterns", "ksrf-rights-argument-builder"],
+      "trigger": "missing_rule_or_ineffective_existing_rule",
+      "operations": ["classify_gap_or_broader_defect", "identify_normative_carrier", "compare_legislative_fix_interpretation_invalidity_temporary_rule"],
+      "stop_rules": ["missing_desired_rule_does_not_authorize_court_lawmaking", "each_remedy_requires_competence_and_effect_gate"]
+    },
+    {
+      "id": "LI-M07",
+      "name": "argument_to_constitutional_normativity",
+      "source_ids": ["LI-07"],
+      "targets": ["ksrf-explore-arguments", "ksrf-rights-argument-builder"],
+      "trigger": "deriving_case_specific_rule_from_general_constitutional_text",
+      "operations": ["record_official_anchor", "state_derivative_rule", "identify_competing_guarantee", "bound_competence_and_consequences"],
+      "stop_rules": ["general_constitutional_citation_without_intermediate_chain_is_insufficient"]
+    },
+    {
+      "id": "LI-M08",
+      "name": "value_argument_anti_trump",
+      "source_ids": ["LI-08"],
+      "targets": ["ksrf-argument-patterns", "ksrf-rights-argument-builder", "ksrf-complaint-qa"],
+      "trigger": "value_public_interest_or_balance_language",
+      "operations": ["link_constitutional_anchor_protected_good_holder_competing_value_consequence_remedy", "test_same_value_on_both_sides"],
+      "stop_rules": ["value_is_not_a_trump", "unanchored_public_interest_is_rhetorical_only"]
+    },
+    {
+      "id": "LI-M09",
+      "name": "dignity_anti_slogan",
+      "source_ids": ["LI-09"],
+      "targets": ["ksrf-rights-argument-builder", "ksrf-complaint-qa"],
+      "trigger": "dignity_social_benefit_compensation_or_irrational_distinction",
+      "operations": ["link_formal_criterion_comparable_persons_irrational_burden_actual_harm_specific_right_remedy", "test_individual_assessment_and_transition"],
+      "stop_rules": ["dignity_does_not_replace_harm_equality_or_specific_right"]
+    },
+    {
+      "id": "LI-M10",
+      "name": "anti_appeal_norm_in_judicial_meaning",
+      "source_ids": ["LI-10"],
+      "targets": ["ksrf-case-triage", "ksrf-complaint-cycle", "ksrf-complaint-qa"],
+      "trigger": "complaint_attacks_court_error_or_practice",
+      "operations": ["identify_normative_carrier", "prove_application_and_causal_role", "draft_remedy_against_norm_or_meaning"],
+      "stop_rules": ["ksrf_does_not_review_judicial_decision_as_appeal", "de_lege_ferenda_proposal_is_not_current_competence"]
+    },
+    {
+      "id": "LI-M11",
+      "name": "dual_track_concrete_review",
+      "source_ids": ["LI-11", "LI-02"],
+      "targets": ["ksrf-case-triage", "ksrf-complaint-cycle", "ksrf-complaint-qa"],
+      "trigger": "concrete_constitutional_review",
+      "operations": ["maintain_private_admission_ledger", "maintain_public_objective_norm_control_ledger", "link_but_do_not_merge_tracks"],
+      "stop_rules": ["public_importance_does_not_cure_individual_admissibility"]
+    },
+    {
+      "id": "LI-M12",
+      "name": "constitution_conforming_interpretation",
+      "source_ids": ["LI-12"],
+      "targets": ["ksrf-rights-argument-builder", "ksrf-complaint-qa", "ksrf-decision-execution"],
+      "trigger": "saving_construction_or_constitutional_meaning_remedy",
+      "operations": ["build_competing_readings", "test_textual_boundary_and_harm_removal", "compare_invalidity_legislative_fix_temporary_rule", "apply_current_competence_gate"],
+      "stop_rules": ["foreign_saving_construction_does_not_prove_russian_power", "do_not_silently_rewrite_statute"]
+    },
+    {
+      "id": "LI-M13",
+      "name": "temporary_regulation_three_forms",
+      "source_ids": ["LI-13"],
+      "targets": ["ksrf-rights-argument-builder", "ksrf-decision-execution", "ksrf-complaint-qa"],
+      "trigger": "temporary_or_transition_rule",
+      "operations": ["classify_other_statute_direct_constitutional_rule_or_court_formula", "record_basis_addressee_duration_individual_effect_procedural_route_compliance"],
+      "stop_rules": ["temporary_rule_is_decision_effect_not_free_form_applicant_demand"]
+    },
+    {
+      "id": "LI-M14",
+      "name": "special_constitutional_compensation",
+      "source_ids": ["LI-14"],
+      "targets": ["ksrf-decision-execution", "ksrf-complaint-qa"],
+      "trigger": "reconsideration_cannot_restore_right",
+      "operations": ["prove_violation_by_applied_norm", "prove_reconsideration_inadequacy", "verify_current_federal_constitutional_law_and_operational_part", "identify_first_instance_route", "prove_individual_harm_causation_and_amount"],
+      "stop_rules": ["not_generic_tort", "unfavorable_result_or_public_benefit_does_not_create_compensation"]
+    },
+    {
+      "id": "LI-M15",
+      "name": "absolute_right_classification_conflict",
+      "source_ids": ["LI-15"],
+      "targets": ["ksrf-rights-argument-builder", "ksrf-argument-patterns", "ksrf-complaint-qa"],
+      "trigger": "right_claimed_absolute_or_categorical_prohibition",
+      "operations": ["identify_exact_right_aspect", "separate_article_56_non_derogability_article_55_limitation_and_categorical_core", "map_official_supporting_and_qualifying_cases", "preserve_conflict_with_three_zone_model"],
+      "stop_rules": ["scholarship_does_not_prove_no_absolute_rights", "do_not_generalize_one_absolute_aspect_to_whole_right", "unresolved_model_or_current_anchor_conflict_requires_human_review"]
+    }
+  ],
+  "quarantine": [
+    {
+      "file": "Доступность конституционного правосудия в субъектах.pdf",
+      "identity": "А. В. Гагиева, Доступность конституционного правосудия в субъектах Российской Федерации, Владикавказ, 2013",
+      "sha256": "8cfc75437deb99f8b435501fc34f74c02c1a2bfcb16420e0086b4dd9d195caa3",
+      "status": "quarantined_unreadable_scan",
+      "reason": "189 image-only pages; no text layer; Boxoft demo watermark",
+      "allowed_use": "identity_and_acquisition_lead_only"
+    },
+    {
+      "file": "Судебная защита прав человека в России через призму.pdf",
+      "identity": "Ю. В. Самович, Л. В. Волк, Судебная защита прав человека в России через призму конституционного правосудия, 2022",
+      "sha256": "0e18fc86bb8de452a8ef2ea205c31a7a29879c19829e89af104e5c7f216cd304",
+      "status": "quarantined_unreadable_scan",
+      "reason": "116 image-only pages; no text layer; trial OCR did not produce reliable legal locators",
+      "allowed_use": "identity_and_acquisition_lead_only"
+    }
+  ]
+}
