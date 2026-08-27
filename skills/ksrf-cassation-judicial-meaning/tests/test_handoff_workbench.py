@@ -1,11 +1,20 @@
+import copy
 import hashlib
 import json
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
 from judicial_meaning.handoff_workbench import (
+    artifact_sha256,
+    bind_request_payload,
+    build_approved_finding,
+    build_artifact_manifest,
+    build_selected_position_set_sha256,
+    build_trusted_source_receipt,
     check_handoff,
     create_handoff,
     import_handoff,
@@ -24,133 +33,694 @@ def canonical_digest(envelope):
 
 
 class HandoffWorkbenchTests(unittest.TestCase):
-    def make_approved(self, *, run_id="run-1", evidence_sha256="b" * 64):
+    plan_sha256 = "a" * 64
+    evidence_sha256 = "b" * 64
+    fingerprint_sha256 = "c" * 64
+    limitations = ["Только раскрытый наблюдаемый корпус."]
+
+    @staticmethod
+    def claim_bindings():
+        return [
+            {
+                "claim_id": "claim-1",
+                "claim_sha256": "1" * 64,
+                "source_locator": "жалоба.md#абзац-12",
+            }
+        ]
+
+    def make_request(self):
+        payload = bind_request_payload(
+            {
+                "drafting_ready": False,
+                "questions": ["Каков судебный смысл нормы в сопоставимых делах?"],
+                "claim_bindings": self.claim_bindings(),
+            }
+        )
+        return create_handoff(
+            source_skill="ksrf-complaint-cycle",
+            target_skill="ksrf-cassation-judicial-meaning",
+            run_id="request-run",
+            plan_sha256=self.plan_sha256,
+            evidence_sha256=self.evidence_sha256,
+            payload_type="unproven_research_questions",
+            payload=payload,
+            limitations=[],
+            created_at="2026-08-26T11:00:00Z",
+        )
+
+    @staticmethod
+    def position_card(card_id, *, proposition, quote, family):
+        return {
+            "position_card_id": card_id,
+            "chain_id": f"chain-{card_id}",
+            "document_id": f"document-{card_id}",
+            "court_id": "2kas",
+            "decision_date": "2025-12-04",
+            "official_url": f"https://2kas.sudrf.ru/{card_id}",
+            "document_sha256": "d" * 64,
+            "speaker": "court",
+            "proposition": proposition,
+            "quote": quote,
+            "quote_locator": "абзац 18",
+            "quote_verified": True,
+            "full_text_reviewed": True,
+            "norm_edition_id": "article-135-edition-1",
+            "material_facts": ["ежемесячная премия"],
+            "comparison_features": [],
+            "reasoning_to_outcome": "Вывод был необходим для результата.",
+            "outcome_materiality": "necessary_to_outcome",
+            "alternative_grounds": [],
+            "reading_family": family,
+            "outcome": "решение по существу",
+            "remedy": "взыскание премии",
+            "coder": "И.И. Иванов",
+            "human_review": "approved",
+            "adverse_buckets": ["opposite_reading"],
+        }
+
+    def selected_proofs(self):
+        support = self.position_card(
+            "position-support-1",
+            proposition="Премия входит в систему оплаты труда.",
+            quote="премия является составной частью заработной платы",
+            family="wage_component",
+        )
+        adverse_card = self.position_card(
+            "position-adverse-1",
+            proposition="Условия премирования допускают усмотрение работодателя.",
+            quote="выплата премии зависит от предусмотренных положением условий",
+            family="employer_discretion",
+        )
+        comparisons = []
+        relations = []
+        for card, relation_name in ((support, "supports"), (adverse_card, "adverse")):
+            comparison = {
+                "comparison_id": f"comparison-{card['position_card_id']}",
+                "position_card_id": card["position_card_id"],
+                "position_card_sha256": artifact_sha256(card),
+                "status": "matched",
+                "fingerprint_sha256": self.fingerprint_sha256,
+                "review_provenance": {
+                    "status": "approved",
+                    "reviewer": "И.И. Иванов",
+                    "reviewed_at": "2026-08-26T11:10:00Z",
+                },
+            }
+            comparisons.append(comparison)
+            relations.append(
+                {
+                    "position_card_id": card["position_card_id"],
+                    "position_card_sha256": artifact_sha256(card),
+                    "comparison_id": comparison["comparison_id"],
+                    "comparison_sha256": artifact_sha256(comparison),
+                    "relation": relation_name,
+                    "fingerprint_sha256": self.fingerprint_sha256,
+                    "human_review": "approved",
+                    "stale": False,
+                }
+            )
+        adverse = {
+            "completed": True,
+            "completed_buckets": [
+                "opposite_reading",
+                "narrower_reading",
+                "alternative_ground",
+                "later_authority",
+            ],
+            "missing_buckets": [],
+            "buckets": {
+                "opposite_reading": ["position-adverse-1"],
+                "narrower_reading": [],
+                "alternative_ground": [],
+                "later_authority": [],
+            },
+        }
+        bridge = {
+            "norm_ref": "ст. 135 ТК РФ",
+            "applicant_case_meaning": "Премия снижена без проверяемого критерия.",
+            "corpus_observation": "В сопоставимом корпусе раскрыты разные прочтения.",
+            "constitutional_consequence": "Вознаграждение становится непредсказуемым.",
+            "ordinary_remedy_analysis": "Обычная проверка неопределённость не устранила.",
+            "supporting_position_card_ids": ["position-support-1"],
+            "adverse_position_card_ids": ["position-adverse-1"],
+            "fingerprint_sha256": self.fingerprint_sha256,
+            "maximum_permitted_claim": "mixed_post_event",
+            "claim_wording": "В раскрытом сопоставимом корпусе наблюдаются разные прочтения нормы.",
+            "reviewer": "И.И. Иванов",
+            "reviewed_at": "2026-08-26T11:20:00Z",
+            "human_review": "approved",
+        }
+        decision = {
+            "schema_version": "1.0",
+            "decision": "approved",
+            "reviewer": "И.И. Иванов",
+            "decided_at": "2026-08-26T11:30:00Z",
+            "plan_sha256": self.plan_sha256,
+            "evidence_sha256": self.evidence_sha256,
+            "candidate_ids": ["thesis-1"],
+            "adverse_review_complete": True,
+            "coverage_review_complete": True,
+        }
+        validation = {
+            "schema_version": "1.0",
+            "valid": True,
+            "errors": [],
+            "plan_sha256": self.plan_sha256,
+            "evidence_sha256": self.evidence_sha256,
+            "fingerprint_sha256": self.fingerprint_sha256,
+            "validated_at": "2026-08-26T11:31:00Z",
+        }
+        return {
+            "position_cards": [support, adverse_card],
+            "comparisons": comparisons,
+            "relations": relations,
+            "adverse": adverse,
+            "bridge": bridge,
+            "human_decision": decision,
+            "validation_report": validation,
+        }
+
+    def quality_bindings(self, *, evidence_sha256=None):
+        bound_evidence_sha256 = evidence_sha256 or self.evidence_sha256
+        trajectory_payload = {
+            "schema_version": "1.0",
+            "chain_id": "chain-position-support-1",
+            "observation_ids": ["observation-1"],
+            "observation_sha256s": ["9" * 64],
+            "origin_stage": "first_instance",
+            "origin_reading_family": "wage_component",
+            "reported_only_observation_ids": [],
+            "cassation_treatment": "expressly_adopts",
+            "cassation_express_adoption": True,
+            "alternative_sufficient_ground_present": False,
+            "review_complete": True,
+            "unresolved_reasons": [],
+            "claim_limit": "bounded_observed_corpus",
+        }
+        trajectory = {
+            **trajectory_payload,
+            "trajectory_id": artifact_sha256(trajectory_payload),
+        }
+        chain_payload = {
+            "schema_version": "1.0",
+            "observation_count": 2,
+            "observations_sha256": "b" * 64,
+            "chain_count": 1,
+            "required_chain_ids": ["chain-position-support-1"],
+            "trajectories": [trajectory],
+            "unresolved": [],
+            "review_complete": True,
+        }
+        chain = {**chain_payload, "evidence_sha256": artifact_sha256(chain_payload)}
+        dimensions = {
+            name: {
+                "state": "reviewed",
+                "chain_ids": ["chain-position-support-1"],
+                "evidence_refs": ["position-support-1"],
+                "unknowns": [],
+                "claim_effect": "bounded",
+                "assessed": True,
+                "usable_for_claim": True,
+                "review_complete": True,
+            }
+            for name in (
+                "comparable_reading_plurality",
+                "fact_sensitivity",
+                "court_distribution",
+                "temporal_distribution",
+                "chain_endorsement",
+                "outcome_materiality",
+                "higher_authority_treatment",
+                "coverage_limits",
+                "coding_reliability",
+            )
+        }
+        profile_payload = {
+            "schema_version": "1.0",
+            "fingerprint_sha256": self.fingerprint_sha256,
+            "unit": "independent_case_chain",
+            "dimensions": dimensions,
+            "profile_assessed": True,
+            "claim_use_ready": True,
+            "blocking_dimensions": [],
+            "profile_complete": True,
+            "numeric_aggregation": "prohibited",
+            "constitutional_conclusion_permitted": False,
+            "malformed_position_card_refs": [],
+            "malformed_trajectory_refs": [],
+            "input_sha256s": {
+                "applicant_relations": "1" * 64,
+                "coding_reliability": "2" * 64,
+                "comparisons": "3" * 64,
+                "higher_authority_treatments": "4" * 64,
+                "position_cards": "5" * 64,
+                "source_reconciliation": "6" * 64,
+                "temporal_analysis": "7" * 64,
+                "trajectories": "8" * 64,
+            },
+            "claim_limit": "bounded_observed_corpus",
+        }
+        profile = {**profile_payload, "profile_id": artifact_sha256(profile_payload)}
+        reliability_payload = {
+            "schema_version": "1.0",
+            "audit_plan_sha256": "7" * 64,
+            "audit_plan_frozen": True,
+            "audit_plan_digest_valid": True,
+            "primary_coding_sha256": "8" * 64,
+            "current_primary_coding_sha256": "8" * 64,
+            "required_candidate_ids": ["candidate-1"],
+            "audited_candidate_ids": ["candidate-1"],
+            "missing_candidate_ids": [],
+            "same_reviewer_candidate_ids": [],
+            "invalid_binding_candidate_ids": [],
+            "invalid_provenance_candidate_ids": [],
+            "invalid_screening_record_ids": [],
+            "invalid_primary_record_ids": [],
+            "invalid_audit_record_ids": [],
+            "invalid_adjudication_record_ids": [],
+            "field_disagreements": [],
+            "false_exclusion_diagnostics": [],
+            "unresolved_candidate_ids": [],
+            "stale": False,
+            "complete": True,
+        }
+        reliability = {
+            **reliability_payload,
+            "evidence_sha256": artifact_sha256(reliability_payload),
+        }
+        refresh_payload = {
+            "schema_version": "1.0",
+            "baseline_corpus_digest": "4" * 64,
+            "current_corpus_digest": "4" * 64,
+            "subject_evidence_sha256": bound_evidence_sha256,
+            "refresh_plan_id": "refresh-plan-1",
+            "refresh_plan_sha256": "5" * 64,
+            "checked_through": "2026-08-26T11:40:00Z",
+            "filing_cutoff": "2026-08-26T11:35:00Z",
+            "reviewer": "И.И. Иванов",
+            "reviewed_at": "2026-08-26T11:45:00Z",
+            "claim_ids": ["claim-1"],
+            "affected_claim_ids": [],
+            "treatments_sha256": "6" * 64,
+            "pending_treatment_ids": [],
+            "verified_treatment_ids": [],
+            "rejected_treatment_ids": [],
+            "treatment_chronology_issue_ids": [],
+            "stale_seed_ids": [],
+            "malformed_refresh_entry_ids": [],
+            "malformed_coverage_gap_ids": [],
+            "coverage_gaps": [],
+            "reasons": [],
+            "status": "current_no_material_change",
+            "complete": True,
+        }
+        refresh = {**refresh_payload, "refresh_id": artifact_sha256(refresh_payload)}
+        return [
+            {
+                "quality_type": quality_type,
+                "artifact_sha256": artifact_sha256(artifact),
+                "artifact": artifact,
+            }
+            for quality_type, artifact in (
+                ("chain_stage_propagation", chain),
+                ("uncertainty_profile", profile),
+                ("coding_reliability", reliability),
+                ("prefiling_refresh", refresh),
+            )
+        ]
+
+    def persist_trusted_source(self, workspace, envelope):
+        selected = envelope["payload"]["selected_proofs"]
+        workspace.mkdir(parents=True, exist_ok=True)
+        for name, records in (
+            ("position-cards.jsonl", selected["position_cards"]),
+            ("comparability-matrix.jsonl", selected["comparisons"]),
+            ("applicant-relations.jsonl", selected["relations"]),
+        ):
+            (workspace / name).write_text(
+                "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in records),
+                encoding="utf-8",
+            )
+        for name, key in (
+            ("case-adverse-review.json", "adverse"),
+            ("normative-bridge.json", "bridge"),
+            ("human-decision.json", "human_decision"),
+            ("validation-report.json", "validation_report"),
+        ):
+            (workspace / name).write_text(
+                json.dumps(selected[key], ensure_ascii=False), encoding="utf-8"
+            )
+        request = self.make_request()
+        request_dir = workspace / "handoffs" / "trusted-requests"
+        request_dir.mkdir(parents=True, exist_ok=True)
+        (request_dir / f"{request['handoff_id']}.json").write_text(
+            json.dumps(request, ensure_ascii=False), encoding="utf-8"
+        )
+        quality_dir = workspace / "handoffs" / "trusted-quality"
+        quality_dir.mkdir(parents=True, exist_ok=True)
+        for binding in envelope["payload"]["quality_bindings"]:
+            (quality_dir / f"{binding['quality_type']}-{binding['artifact_sha256']}.json").write_text(
+                json.dumps(binding["artifact"], ensure_ascii=False), encoding="utf-8"
+            )
+        result_dir = workspace / "handoffs" / "trusted-results"
+        result_dir.mkdir(parents=True, exist_ok=True)
+        (result_dir / f"{envelope['handoff_id']}.json").write_text(
+            json.dumps(build_trusted_source_receipt(envelope), ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def make_approved(self, *, run_id="run-1", evidence_sha256=None):
+        request = self.make_request()
+        selected_proofs = self.selected_proofs()
+        bound_evidence_sha256 = evidence_sha256 or self.evidence_sha256
+        selected_proofs["human_decision"]["evidence_sha256"] = bound_evidence_sha256
+        selected_proofs["validation_report"]["evidence_sha256"] = bound_evidence_sha256
+        bridge = selected_proofs["bridge"]
+        candidate = {
+            "candidate_id": "thesis-1",
+            "plan_sha256": self.plan_sha256,
+            "observed_statement": "В сопоставимом корпусе раскрыты разные прочтения.",
+            "normative_defect_bridge": bridge["claim_wording"],
+            "maximum_permitted_claim": bridge["maximum_permitted_claim"],
+            "supporting_position_card_ids": bridge["supporting_position_card_ids"],
+            "adverse_position_card_ids": bridge["adverse_position_card_ids"],
+            "human_review": "approved",
+            "drafting_ready": True,
+        }
+        finding = build_approved_finding(candidate, ["claim-1"], bridge)
+        payload = {
+            "drafting_ready": True,
+            "request_handoff_id": request["handoff_id"],
+            "request_sha256": request["payload"]["request_sha256"],
+            "claim_set_sha256": request["payload"]["claim_set_sha256"],
+            "claim_bindings": request["payload"]["claim_bindings"],
+            "findings": [finding],
+            "supporting_position_card_ids": bridge["supporting_position_card_ids"],
+            "adverse_position_card_ids": bridge["adverse_position_card_ids"],
+            "approval_binding": {
+                "human_decision_sha256": artifact_sha256(selected_proofs["human_decision"]),
+                "validation_report_sha256": artifact_sha256(selected_proofs["validation_report"]),
+                "normative_bridge_sha256": artifact_sha256(bridge),
+                "reviewer": selected_proofs["human_decision"]["reviewer"],
+                "approved_at": selected_proofs["human_decision"]["decided_at"],
+            },
+            "artifact_manifest": build_artifact_manifest(selected_proofs),
+            "selected_position_set_sha256": build_selected_position_set_sha256(selected_proofs),
+            "selected_proofs": selected_proofs,
+            "maximum_permitted_claim": bridge["maximum_permitted_claim"],
+            "limitations": self.limitations,
+            "quality_bindings": self.quality_bindings(
+                evidence_sha256=bound_evidence_sha256
+            ),
+        }
         return create_handoff(
             source_skill="ksrf-cassation-judicial-meaning",
-            target_skill="ksrf-complaint-qa",
-            run_id=run_id,
-            plan_sha256="a" * 64,
-            evidence_sha256=evidence_sha256,
-            payload_type="approved_bounded_findings",
-            payload={
-                "drafting_ready": True,
-                "maximum_permitted_claim": "mixed_post_event",
-                "findings": [{"candidate_id": "thesis-1"}],
-                "supporting_position_card_ids": ["position-support-1"],
-                "adverse_position_card_ids": ["position-adverse-1"],
-            },
-            limitations=["Только раскрытый наблюдаемый корпус."],
-            created_at="2026-08-26T12:00:00Z",
-            fingerprint_sha256="c" * 64,
-        )
-
-    def test_create_and_check_typed_handoff_with_digest(self):
-        envelope = self.make_approved()
-        self.assertEqual(envelope["schema_version"], "1.0")
-        self.assertEqual(envelope["handoff_id"], canonical_digest(envelope))
-
-        valid = check_handoff(
-            envelope,
-            expected_target="ksrf-complaint-qa",
-            current_plan_sha256="a" * 64,
-            current_evidence_sha256="b" * 64,
-        )
-        self.assertTrue(valid["valid"])
-        self.assertEqual(valid["status"], "valid")
-
-        tampered = json.loads(json.dumps(envelope))
-        tampered["payload"]["maximum_permitted_claim"] = "all_practice"
-        tamper_result = check_handoff(tampered)
-        self.assertFalse(tamper_result["valid"])
-        self.assertEqual(tamper_result["status"], "tampered")
-
-        stale_result = check_handoff(
-            envelope,
-            current_plan_sha256="a" * 64,
-            current_evidence_sha256="d" * 64,
-        )
-        self.assertFalse(stale_result["valid"])
-        self.assertEqual(stale_result["status"], "stale")
-        self.assertIn("evidence_sha256", " ".join(stale_result["errors"]))
-
-        stale_fingerprint = check_handoff(
-            envelope,
-            current_fingerprint_sha256="d" * 64,
-        )
-        self.assertFalse(stale_fingerprint["valid"])
-        self.assertEqual("stale", stale_fingerprint["status"])
-
-        excessive = check_handoff(
-            envelope,
-            current_maximum_permitted_claim="unproven_research_question",
-        )
-        self.assertFalse(excessive["valid"])
-        self.assertEqual("incompatible", excessive["status"])
-        self.assertIn("maximum_permitted_claim", " ".join(excessive["errors"]))
-
-    def test_typed_payloads_fail_closed(self):
-        with self.assertRaisesRegex(ValueError, "drafting_ready"):
-            create_handoff(
-                source_skill="ksrf-explore-arguments",
-                target_skill="ksrf-cassation-judicial-meaning",
-                run_id="run-input",
-                plan_sha256="a" * 64,
-                evidence_sha256="b" * 64,
-                payload_type="unproven_research_questions",
-                payload={"drafting_ready": True, "questions": []},
-                limitations=[],
-                created_at="2026-08-26T12:00:00Z",
-            )
-
-        with self.assertRaisesRegex(ValueError, "maximum_permitted_claim"):
-            create_handoff(
-                source_skill="ksrf-cassation-judicial-meaning",
-                target_skill="ksrf-complaint-qa",
-                run_id="run-output",
-                plan_sha256="a" * 64,
-                evidence_sha256="b" * 64,
-                payload_type="approved_bounded_findings",
-                payload={"drafting_ready": True},
-                limitations=[],
-                created_at="2026-08-26T12:00:00Z",
-            )
-
-        with self.assertRaisesRegex(ValueError, "supporting_position_card_ids"):
-            create_handoff(
-                source_skill="ksrf-cassation-judicial-meaning",
-                target_skill="ksrf-complaint-qa",
-                run_id="run-output",
-                plan_sha256="a" * 64,
-                evidence_sha256="b" * 64,
-                payload_type="approved_bounded_findings",
-                payload={
-                    "drafting_ready": True,
-                    "maximum_permitted_claim": "bounded",
-                    "findings": [{"candidate_id": "thesis-1"}],
-                    "adverse_position_card_ids": [],
-                },
-                limitations=["Только наблюдаемый корпус."],
-                created_at="2026-08-26T12:00:00Z",
-                fingerprint_sha256="c" * 64,
-            )
-
-        unproven = create_handoff(
-            source_skill="ksrf-cassation-judicial-meaning",
             target_skill="ksrf-complaint-cycle",
-            run_id="run-input",
-            plan_sha256="a" * 64,
-            evidence_sha256="b" * 64,
-            payload_type="unproven_research_questions",
-            payload={"drafting_ready": False, "questions": ["Каков судебный смысл?"]},
-            limitations=[],
+            run_id=run_id,
+            plan_sha256=self.plan_sha256,
+            evidence_sha256=bound_evidence_sha256,
+            payload_type="approved_bounded_findings",
+            payload=payload,
+            limitations=self.limitations,
             created_at="2026-08-26T12:00:00Z",
+            fingerprint_sha256=self.fingerprint_sha256,
         )
-        injected = json.loads(json.dumps(unproven))
-        injected["payload"]["findings"] = [{"claim": "готовый вывод"}]
-        injected["handoff_id"] = canonical_digest(injected)
-        result = check_handoff(injected)
+
+    def test_v2_request_and_approved_result_are_content_bound(self):
+        request = self.make_request()
+        self.assertEqual("2.0", request["schema_version"])
+        self.assertEqual(request["handoff_id"], canonical_digest(request))
+        self.assertTrue(check_handoff(request)["valid"])
+
+        bad_request = copy.deepcopy(request)
+        bad_request["payload"]["claim_bindings"][0]["source_locator"] = "иной абзац"
+        bad_request["handoff_id"] = canonical_digest(bad_request)
+        result = check_handoff(bad_request)
         self.assertFalse(result["valid"])
-        self.assertEqual("incompatible", result["status"])
+        self.assertIn("claim_set_sha256", " ".join(result["errors"]))
+
+        envelope = self.make_approved()
+        unanchored = check_handoff(envelope, expected_target="ksrf-complaint-cycle")
+        self.assertFalse(unanchored["valid"])
+        self.assertEqual("audit_only_unanchored", unanchored["status"])
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            self.persist_trusted_source(source, envelope)
+            valid = check_handoff(
+                envelope,
+                expected_target="ksrf-complaint-cycle",
+                current_plan_sha256=self.plan_sha256,
+                current_evidence_sha256=self.evidence_sha256,
+                current_fingerprint_sha256=self.fingerprint_sha256,
+                current_maximum_permitted_claim="mixed_post_event",
+                trusted_source_workspace=source,
+            )
+            self.assertTrue(valid["valid"], valid["errors"])
+
+    def test_reviewed_receiver_requires_explicit_target_before_trusted_verification(self):
+        envelope = self.make_approved()
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            ledger = Path(tmp) / "inbox.jsonl"
+            self.persist_trusted_source(source, envelope)
+            checked = check_handoff(
+                envelope,
+                trusted_source_workspace=source,
+            )
+            imported = import_handoff(
+                envelope,
+                ledger,
+                trusted_source_workspace=source,
+            )
+            self.assertFalse(ledger.exists())
+        self.assertFalse(checked["valid"])
+        self.assertEqual("incompatible", checked["status"])
+        self.assertIn("expected_target", " ".join(checked["errors"]))
+        self.assertFalse(imported["valid"])
+        self.assertFalse(imported["imported"])
+
+        request = check_handoff(self.make_request())
+        self.assertTrue(request["valid"])
+
+    def test_full_nested_rehash_attacks_require_external_source_anchor(self):
+        envelope = copy.deepcopy(self.make_approved())
+        payload = envelope["payload"]
+        selected = payload["selected_proofs"]
+        card = selected["position_cards"][0]
+        card["quote"] = "полностью выдуманная цитата"
+        comparison = selected["comparisons"][0]
+        comparison["position_card_sha256"] = artifact_sha256(card)
+        relation = selected["relations"][0]
+        relation["position_card_sha256"] = artifact_sha256(card)
+        relation["comparison_sha256"] = artifact_sha256(comparison)
+        bridge = selected["bridge"]
+        old_support = bridge["supporting_position_card_ids"][0]
+        old_adverse = bridge["adverse_position_card_ids"][0]
+        for item in selected["relations"]:
+            if item["position_card_id"] == old_support:
+                item["relation"] = "adverse"
+            elif item["position_card_id"] == old_adverse:
+                item["relation"] = "supports"
+        bridge["supporting_position_card_ids"] = [old_adverse]
+        bridge["adverse_position_card_ids"] = [old_support]
+        selected["adverse"]["buckets"]["opposite_reading"] = [old_support]
+        payload["supporting_position_card_ids"] = [old_adverse]
+        payload["adverse_position_card_ids"] = [old_support]
+        bridge["maximum_permitted_claim"] = "вся практика доказывает неконституционность"
+        bridge["claim_wording"] = "Вся практика доказывает неконституционность."
+        payload["maximum_permitted_claim"] = bridge["maximum_permitted_claim"]
+        candidate = payload["findings"][0]["candidate"]
+        candidate["supporting_position_card_ids"] = [old_adverse]
+        candidate["adverse_position_card_ids"] = [old_support]
+        candidate["maximum_permitted_claim"] = bridge["maximum_permitted_claim"]
+        payload["findings"] = [build_approved_finding(candidate, ["claim-1"], bridge)]
+        payload["approval_binding"]["normative_bridge_sha256"] = artifact_sha256(bridge)
+        payload["selected_position_set_sha256"] = build_selected_position_set_sha256(selected)
+        payload["artifact_manifest"] = build_artifact_manifest(selected)
+        envelope["handoff_id"] = canonical_digest(envelope)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            pristine = self.make_approved()
+            self.persist_trusted_source(source, pristine)
+            result = check_handoff(
+                envelope,
+                expected_target="ksrf-complaint-cycle",
+                trusted_source_workspace=source,
+            )
+        self.assertFalse(result["valid"])
+        self.assertIn("trusted", " ".join(result["errors"]).lower())
+
+    def test_rehashed_request_and_claim_set_are_rejected_by_trusted_request(self):
+        envelope = copy.deepcopy(self.make_approved())
+        payload = envelope["payload"]
+        payload["request_handoff_id"] = "f" * 64
+        payload["request_sha256"] = "e" * 64
+        payload["claim_bindings"][0]["claim_sha256"] = "9" * 64
+        payload["claim_bindings"][0]["source_locator"] = "invented.md#1"
+        payload["claim_set_sha256"] = artifact_sha256(payload["claim_bindings"])
+        envelope["handoff_id"] = canonical_digest(envelope)
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            self.persist_trusted_source(source, self.make_approved())
+            result = check_handoff(
+                envelope,
+                expected_target="ksrf-complaint-cycle",
+                trusted_source_workspace=source,
+            )
+        self.assertFalse(result["valid"])
+
+    def test_rehashed_invented_ids_relations_quotes_and_limits_are_rejected(self):
+        mutations = {
+            "finding id": lambda payload: payload["findings"][0].__setitem__(
+                "finding_id", "f" * 64
+            ),
+            "relation": lambda payload: payload["selected_proofs"]["relations"][0].__setitem__(
+                "relation", "adverse"
+            ),
+            "quote": lambda payload: payload["selected_proofs"]["position_cards"][0].__setitem__(
+                "quote", "придуманная цитата"
+            ),
+            "limit": lambda payload: payload.__setitem__(
+                "maximum_permitted_claim", "all_practice"
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                envelope = copy.deepcopy(self.make_approved())
+                mutate(envelope["payload"])
+                envelope["handoff_id"] = canonical_digest(envelope)
+                result = check_handoff(envelope)
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+
+    def test_missing_selected_proof_and_partial_claim_binding_fail_closed(self):
+        envelope = copy.deepcopy(self.make_approved())
+        del envelope["payload"]["selected_proofs"]["validation_report"]
+        envelope["handoff_id"] = canonical_digest(envelope)
+        result = check_handoff(envelope)
+        self.assertFalse(result["valid"])
+        self.assertIn("validation_report", " ".join(result["errors"]))
+
+        request = self.make_request()
+        del request["payload"]["claim_bindings"][0]["source_locator"]
+        request["handoff_id"] = canonical_digest(request)
+        result = check_handoff(request)
+        self.assertFalse(result["valid"])
+        self.assertIn("source_locator", " ".join(result["errors"]))
+
+    def test_quality_artifact_is_content_bound(self):
+        envelope = copy.deepcopy(self.make_approved())
+        profile_binding = next(
+            item
+            for item in envelope["payload"]["quality_bindings"]
+            if item["quality_type"] == "uncertainty_profile"
+        )
+        profile_binding["artifact"]["profile_id"] = "8" * 64
+        envelope["handoff_id"] = canonical_digest(envelope)
+        result = check_handoff(envelope)
+        self.assertFalse(result["valid"])
+        self.assertIn("quality_bindings", " ".join(result["errors"]))
+
+    def test_fabricated_or_missing_quality_bindings_fail_closed(self):
+        missing = copy.deepcopy(self.make_approved())
+        del missing["payload"]["quality_bindings"]
+        missing["handoff_id"] = canonical_digest(missing)
+        result = check_handoff(missing)
+        self.assertFalse(result["valid"])
+        self.assertIn("quality_bindings", " ".join(result["errors"]))
+
+        fabricated = copy.deepcopy(self.make_approved())
+        artifact = {"invented": True}
+        fabricated["payload"]["quality_bindings"] = [
+            {
+                "quality_type": "prefiling_refresh",
+                "artifact_sha256": artifact_sha256(artifact),
+                "artifact": artifact,
+            }
+        ]
+        fabricated["handoff_id"] = canonical_digest(fabricated)
+        result = check_handoff(fabricated)
+        self.assertFalse(result["valid"])
+        self.assertIn("quality", " ".join(result["errors"]).lower())
+
+    def test_prefiling_quality_rejects_missing_fields_and_overlapping_treatments(self):
+        for mutation in ("missing_field", "overlap", "malformed"):
+            with self.subTest(mutation=mutation):
+                envelope = copy.deepcopy(self.make_approved())
+                binding = next(
+                    item
+                    for item in envelope["payload"]["quality_bindings"]
+                    if item["quality_type"] == "prefiling_refresh"
+                )
+                artifact = binding["artifact"]
+                if mutation == "missing_field":
+                    del artifact["malformed_refresh_entry_ids"]
+                elif mutation == "overlap":
+                    artifact["verified_treatment_ids"] = ["treatment-1"]
+                    artifact["rejected_treatment_ids"] = ["treatment-1"]
+                else:
+                    artifact["verified_treatment_ids"] = [{"invented": True}]
+                refresh_payload = {
+                    key: value for key, value in artifact.items() if key != "refresh_id"
+                }
+                artifact["refresh_id"] = artifact_sha256(refresh_payload)
+                binding["artifact_sha256"] = artifact_sha256(artifact)
+                envelope["handoff_id"] = canonical_digest(envelope)
+                result = check_handoff(envelope)
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+                self.assertIn("prefiling_refresh", " ".join(result["errors"]))
+
+    def test_duplicate_selected_ids_fail_runtime_like_schema(self):
+        envelope = copy.deepcopy(self.make_approved())
+        payload = envelope["payload"]
+        selected = payload["selected_proofs"]
+        bridge = selected["bridge"]
+        bridge["supporting_position_card_ids"] *= 2
+        payload["supporting_position_card_ids"] = list(bridge["supporting_position_card_ids"])
+        payload["findings"] = [
+            build_approved_finding(payload["findings"][0]["candidate"], ["claim-1"], bridge)
+        ]
+        payload["approval_binding"]["normative_bridge_sha256"] = artifact_sha256(bridge)
+        payload["artifact_manifest"] = build_artifact_manifest(selected)
+        payload["selected_position_set_sha256"] = build_selected_position_set_sha256(selected)
+        envelope["handoff_id"] = canonical_digest(envelope)
+        result = check_handoff(envelope)
+        self.assertFalse(result["valid"])
+        self.assertIn("повтор", " ".join(result["errors"]).lower())
+
+    def test_legacy_v1_is_audit_readable_but_never_importable(self):
+        legacy = {
+            "schema_version": "1.0",
+            "created_at": "2026-08-26T12:00:00Z",
+            "source_skill": "ksrf-cassation-judicial-meaning",
+            "target_skill": "ksrf-complaint-cycle",
+            "run_id": "legacy-run",
+            "plan_sha256": self.plan_sha256,
+            "evidence_sha256": self.evidence_sha256,
+            "payload_type": "approved_bounded_findings",
+            "payload": {
+                "drafting_ready": True,
+                "maximum_permitted_claim": "bounded",
+                "findings": [{"candidate_id": "legacy-thesis"}],
+                "supporting_position_card_ids": ["legacy-card"],
+                "adverse_position_card_ids": [],
+            },
+            "limitations": self.limitations,
+            "fingerprint_sha256": self.fingerprint_sha256,
+        }
+        legacy["handoff_id"] = canonical_digest(legacy)
+        result = check_handoff(legacy)
+        self.assertFalse(result["valid"])
+        self.assertTrue(result["audit_readable"])
+        self.assertEqual("legacy_audit_only", result["status"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "inbox.jsonl"
+            imported = import_handoff(legacy, ledger)
+            self.assertFalse(imported["imported"])
+            self.assertFalse(ledger.exists())
 
     def test_import_is_atomic_idempotent_and_rejects_stale_or_tampered_input(self):
         first = self.make_approved()
@@ -158,45 +728,84 @@ class HandoffWorkbenchTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             ledger = Path(tmp) / "inbox" / "import-ledger.jsonl"
+            source = Path(tmp) / "source"
+            self.persist_trusted_source(source, first)
             imported = import_handoff(
                 first,
                 ledger,
-                expected_target="ksrf-complaint-qa",
-                current_plan_sha256="a" * 64,
-                current_evidence_sha256="b" * 64,
+                expected_target="ksrf-complaint-cycle",
+                current_plan_sha256=self.plan_sha256,
+                current_evidence_sha256=self.evidence_sha256,
+                trusted_source_workspace=source,
             )
-            self.assertEqual(imported["status"], "imported")
-            self.assertTrue(imported["imported"])
+            self.assertEqual("imported", imported["status"])
             original_bytes = ledger.read_bytes()
-            self.assertEqual(len(ledger.read_text(encoding="utf-8").splitlines()), 1)
 
-            duplicate = import_handoff(first, ledger, expected_target="ksrf-complaint-qa")
-            self.assertEqual(duplicate["status"], "idempotent_noop")
-            self.assertFalse(duplicate["imported"])
-            self.assertEqual(ledger.read_bytes(), original_bytes)
+            duplicate = import_handoff(
+                first,
+                ledger,
+                expected_target="ksrf-complaint-cycle",
+                trusted_source_workspace=source,
+            )
+            self.assertEqual("idempotent_noop", duplicate["status"])
+            self.assertEqual(original_bytes, ledger.read_bytes())
 
-            tampered = json.loads(json.dumps(first))
-            tampered["payload"]["findings"].append({"candidate_id": "injected"})
+            tampered = copy.deepcopy(first)
+            tampered["payload"]["findings"][0]["claim_wording"] = "подмена"
             rejected = import_handoff(tampered, ledger)
-            self.assertEqual(rejected["status"], "tampered")
-            self.assertEqual(ledger.read_bytes(), original_bytes)
+            self.assertEqual("tampered", rejected["status"])
+            self.assertEqual(original_bytes, ledger.read_bytes())
 
             stale = import_handoff(
                 first,
                 ledger,
+                expected_target="ksrf-complaint-cycle",
                 current_evidence_sha256="f" * 64,
+                trusted_source_workspace=source,
             )
-            self.assertEqual(stale["status"], "stale")
-            self.assertEqual(ledger.read_bytes(), original_bytes)
+            self.assertEqual("stale", stale["status"])
+            self.assertEqual(original_bytes, ledger.read_bytes())
 
             with patch(
                 "judicial_meaning.handoff_workbench.os.replace",
                 side_effect=OSError("simulated atomic replace failure"),
             ):
+                second_source = Path(tmp) / "second-source"
+                self.persist_trusted_source(second_source, second)
                 with self.assertRaisesRegex(OSError, "atomic replace failure"):
-                    import_handoff(second, ledger, expected_target="ksrf-complaint-qa")
-            self.assertEqual(ledger.read_bytes(), original_bytes)
+                    import_handoff(
+                        second,
+                        ledger,
+                        expected_target="ksrf-complaint-cycle",
+                        trusted_source_workspace=second_source,
+                    )
+            self.assertEqual(original_bytes, ledger.read_bytes())
             self.assertFalse(list(ledger.parent.glob("*.tmp")))
+
+    def test_concurrent_imports_do_not_lose_records(self):
+        first = self.make_approved(run_id="race-1")
+        second = self.make_approved(run_id="race-2")
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            self.persist_trusted_source(source, first)
+            self.persist_trusted_source(source, second)
+            ledger = Path(tmp) / "inbox.jsonl"
+            barrier = threading.Barrier(2)
+
+            def import_one(envelope):
+                barrier.wait(timeout=5)
+                return import_handoff(
+                    envelope,
+                    ledger,
+                    expected_target="ksrf-complaint-cycle",
+                    trusted_source_workspace=source,
+                )
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                results = list(executor.map(import_one, (first, second)))
+            self.assertTrue(all(result["imported"] for result in results))
+            records = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(2, len(records))
 
 
 if __name__ == "__main__":

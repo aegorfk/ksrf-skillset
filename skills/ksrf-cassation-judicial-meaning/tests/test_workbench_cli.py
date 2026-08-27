@@ -4,15 +4,23 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from judicial_meaning.cli import (
     _approval_evidence_sha256,
+    _build_reviewed_handoff_payload,
     _default_report_model,
     _validation_state,
     main,
     read_json,
     read_jsonl,
     write_json,
+    write_jsonl,
+)
+from judicial_meaning.handoff_workbench import (
+    artifact_sha256,
+    bind_request_payload,
+    create_handoff,
 )
 
 
@@ -303,6 +311,27 @@ class WorkbenchCliTests(unittest.TestCase):
             write_json(workspace / "case-fingerprint.json", fingerprint)
             self.assertFalse(_validation_state(workspace)["case_fingerprint_ready"])
 
+    def test_approval_evidence_digest_binds_file_boundaries_and_missing_slots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "matter"
+            workspace.mkdir()
+            analysis = workspace / "analysis.json"
+            screening = workspace / "screening-candidates.jsonl"
+            analysis.write_bytes(b"a")
+            screening.write_bytes(b"bc")
+            first = _approval_evidence_sha256(workspace)
+
+            analysis.write_bytes(b"ab")
+            screening.write_bytes(b"c")
+            second = _approval_evidence_sha256(workspace)
+            self.assertNotEqual(first, second)
+
+            screening.unlink()
+            missing = _approval_evidence_sha256(workspace)
+            screening.write_bytes(b"")
+            empty = _approval_evidence_sha256(workspace)
+            self.assertNotEqual(missing, empty)
+
     def test_case_relative_review_commands_are_explainable_and_persist_when_workspace_given(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -507,7 +536,20 @@ class WorkbenchCliTests(unittest.TestCase):
             write_json(workspace / "case-fingerprint.json", {"revision": 1, "fingerprint_sha256": "b" * 64})
             payload_path = root / "payload.json"
             handoff_path = root / "handoff.json"
-            write_json(payload_path, {"drafting_ready": False, "questions": ["Что показывает корпус?"]})
+            write_json(
+                payload_path,
+                {
+                    "drafting_ready": False,
+                    "questions": ["Что показывает корпус?"],
+                    "claim_bindings": [
+                        {
+                            "claim_id": "claim-1",
+                            "claim_sha256": "1" * 64,
+                            "source_locator": "жалоба.md#абзац-12",
+                        }
+                    ],
+                },
+            )
             code, stdout, stderr = self.run_cli(
                 [
                     "handoff", "create", "--workspace", str(workspace),
@@ -518,7 +560,11 @@ class WorkbenchCliTests(unittest.TestCase):
                 ]
             )
             self.assertEqual(0, code, stderr)
-            self.assertEqual("unproven_research_questions", json.loads(stdout)["payload_type"])
+            request_handoff = json.loads(stdout)
+            self.assertEqual("2.0", request_handoff["schema_version"])
+            self.assertEqual("unproven_research_questions", request_handoff["payload_type"])
+            self.assertRegex(request_handoff["payload"]["claim_set_sha256"], r"^[0-9a-f]{64}$")
+            self.assertRegex(request_handoff["payload"]["request_sha256"], r"^[0-9a-f]{64}$")
 
             approved_payload_path = root / "approved-payload.json"
             write_json(
@@ -541,15 +587,15 @@ class WorkbenchCliTests(unittest.TestCase):
                 ]
             )
             self.assertEqual(2, code)
-            self.assertIn("одобр", stderr.lower())
+            self.assertIn("произволь", stderr.lower())
             code, stdout, stderr = self.run_cli(
-                ["handoff", "check", "--input", str(handoff_path), "--workspace", str(workspace), "--expected-target", "ksrf-complaint-cycle"]
+                ["handoff", "check", "--input", str(handoff_path), "--expected-target", "ksrf-complaint-cycle"]
             )
             self.assertEqual(0, code, stderr)
             self.assertTrue(json.loads(stdout)["valid"])
             ledger = root / "inbox.jsonl"
             code, stdout, stderr = self.run_cli(
-                ["handoff", "import", "--input", str(handoff_path), "--ledger", str(ledger), "--workspace", str(workspace), "--expected-target", "ksrf-complaint-cycle"]
+                ["handoff", "import", "--input", str(handoff_path), "--ledger", str(ledger), "--expected-target", "ksrf-complaint-cycle"]
             )
             self.assertEqual(0, code, stderr)
             self.assertTrue(json.loads(stdout)["imported"])
@@ -563,6 +609,332 @@ class WorkbenchCliTests(unittest.TestCase):
             ):
                 code, _, stderr = self.run_cli(argv)
                 self.assertEqual(0, code, stderr)
+
+    def test_practice_quality_cli_persists_content_bound_chain_and_audit_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            observations = root / "observations.json"
+            chain_output = root / "chain-propagation.json"
+            write_json(
+                observations,
+                [
+                    {
+                        "observation_id": "observation-1",
+                        "chain_id": "chain-1",
+                        "source_stage": "first_instance",
+                        "position_actor_stage": "first_instance",
+                        "evidence_role": "actor_primary_text",
+                        "document_id": "document-1",
+                        "document_sha256": "a" * 64,
+                        "official_url": "https://2kas.sudrf.ru/example",
+                        "speaker": "court",
+                        "proposition": "Премия входит в систему оплаты труда.",
+                        "quote": "премия является частью заработной платы",
+                        "quote_locator": "абзац 18",
+                        "quote_verified": True,
+                        "full_text_reviewed": True,
+                        "treatment_of_prior": "originates",
+                        "disposition": "claim_granted",
+                        "outcome_materiality": "necessary_to_outcome",
+                        "alternative_grounds": [],
+                        "reading_family": "wage_component",
+                        "reviewer": "И.И. Иванов",
+                        "reviewed_at": "2026-08-27T12:00:00Z",
+                        "human_review": "approved",
+                    },
+                    {
+                        "observation_id": "observation-2",
+                        "chain_id": "chain-1",
+                        "source_stage": "cassation",
+                        "position_actor_stage": "cassation",
+                        "evidence_role": "actor_primary_text",
+                        "document_id": "document-2",
+                        "document_sha256": "b" * 64,
+                        "official_url": "https://2kas.sudrf.ru/example-2",
+                        "speaker": "court",
+                        "proposition": "Кассация прямо поддержала толкование.",
+                        "quote": "судебная коллегия соглашается с данным выводом",
+                        "quote_locator": "абзац 22",
+                        "quote_verified": True,
+                        "full_text_reviewed": True,
+                        "treatment_of_prior": "expressly_adopts",
+                        "disposition": "left_unchanged",
+                        "outcome_materiality": "necessary_to_outcome",
+                        "alternative_grounds": [],
+                        "reading_family": "wage_component",
+                        "reviewer": "П.П. Петров",
+                        "reviewed_at": "2026-08-27T12:05:00Z",
+                        "human_review": "approved",
+                    },
+                ],
+            )
+            code, stdout, stderr = self.run_cli(
+                [
+                    "quality",
+                    "chain-propagation",
+                    "--observations",
+                    str(observations),
+                    "--required-chain-id",
+                    "chain-1",
+                    "--output",
+                    str(chain_output),
+                ]
+            )
+            self.assertEqual(0, code, stderr)
+            self.assertTrue(json.loads(stdout)["review_complete"])
+
+            self.assertRegex(read_json(chain_output)["evidence_sha256"], r"^[0-9a-f]{64}$")
+
+            screening = root / "screening.json"
+            primary = root / "primary.json"
+            audit_output = root / "coding-audit-plan.json"
+            write_json(screening, [{"candidate_id": "candidate-1"}])
+            write_json(
+                primary,
+                [{"candidate_id": "candidate-1", "label": "core_merits"}],
+            )
+            code, stdout, stderr = self.run_cli(
+                [
+                    "quality",
+                    "coding-audit-plan",
+                    "--screening-candidates",
+                    str(screening),
+                    "--primary-decisions",
+                    str(primary),
+                    "--plan-sha256",
+                    "b" * 64,
+                    "--sample-size",
+                    "1",
+                    "--exclusion-sample-size",
+                    "0",
+                    "--output",
+                    str(audit_output),
+                ]
+            )
+            self.assertEqual(0, code, stderr)
+            self.assertEqual(["candidate-1"], json.loads(stdout)["required_candidate_ids"])
+            self.assertTrue(read_json(audit_output)["frozen"])
+
+    def test_reviewed_handoff_receiver_cli_requires_external_anchor_and_target(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                main(["handoff", "check", "--input", "portable.json"])
+            with self.assertRaises(SystemExit):
+                main(
+                    [
+                        "handoff",
+                        "import",
+                        "--input",
+                        "portable.json",
+                        "--ledger",
+                        "inbox.jsonl",
+                        "--source-workspace",
+                        "source",
+                    ]
+                )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            portable = root / "reviewed.json"
+            write_json(portable, {"payload_type": "approved_bounded_findings"})
+            code, _, stderr = self.run_cli(
+                [
+                    "handoff",
+                    "check",
+                    "--input",
+                    str(portable),
+                    "--expected-target",
+                    "ksrf-complaint-cycle",
+                ]
+            )
+            self.assertEqual(2, code)
+            self.assertIn("--source-workspace", stderr)
+
+    def test_reviewed_handoff_payload_is_derived_from_request_and_selected_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "matter"
+            workspace.mkdir()
+            plan_sha256 = "a" * 64
+            evidence_sha256 = "b" * 64
+            fingerprint_sha256 = "c" * 64
+            card = self.position_card()
+            comparison = {
+                "comparison_id": "comparison-position-1",
+                "position_card_id": "position-1",
+                "position_card_sha256": artifact_sha256(card),
+                "status": "matched",
+                "fingerprint_sha256": fingerprint_sha256,
+                "review_provenance": {
+                    "status": "approved",
+                    "reviewer": "И.И. Иванов",
+                    "reviewed_at": "2026-08-27T12:00:00Z",
+                },
+            }
+            relation = {
+                "position_card_id": "position-1",
+                "position_card_sha256": artifact_sha256(card),
+                "comparison_id": comparison["comparison_id"],
+                "comparison_sha256": artifact_sha256(comparison),
+                "relation": "supports",
+                "fingerprint_sha256": fingerprint_sha256,
+                "human_review": "approved",
+                "stale": False,
+            }
+            adverse = {
+                "completed": True,
+                "completed_buckets": [
+                    "opposite_reading",
+                    "narrower_reading",
+                    "alternative_ground",
+                    "later_authority",
+                ],
+                "missing_buckets": [],
+                "buckets": {
+                    "opposite_reading": [],
+                    "narrower_reading": [],
+                    "alternative_ground": [],
+                    "later_authority": [],
+                },
+            }
+            bridge = {
+                "supporting_position_card_ids": ["position-1"],
+                "adverse_position_card_ids": [],
+                "fingerprint_sha256": fingerprint_sha256,
+                "maximum_permitted_claim": "bounded_observed_corpus",
+                "claim_wording": "В раскрытом корпусе наблюдается проверенная позиция.",
+                "reviewer": "И.И. Иванов",
+                "reviewed_at": "2026-08-27T12:10:00Z",
+                "human_review": "approved",
+            }
+            decision = {
+                "decision": "approved",
+                "reviewer": "И.И. Иванов",
+                "decided_at": "2026-08-27T12:20:00Z",
+                "plan_sha256": plan_sha256,
+                "evidence_sha256": evidence_sha256,
+                "candidate_ids": ["thesis-1"],
+            }
+            validation = {
+                "valid": True,
+                "plan_sha256": plan_sha256,
+                "evidence_sha256": evidence_sha256,
+                "fingerprint_sha256": fingerprint_sha256,
+            }
+            candidate = {
+                "candidate_id": "thesis-1",
+                "plan_sha256": plan_sha256,
+                "human_review": "approved",
+                "drafting_ready": True,
+                "limitations": ["Только раскрытый корпус."],
+            }
+            write_jsonl(workspace / "position-cards.jsonl", [card])
+            write_jsonl(workspace / "comparability-matrix.jsonl", [comparison])
+            write_jsonl(workspace / "applicant-relations.jsonl", [relation])
+            write_jsonl(workspace / "thesis-candidates.jsonl", [candidate])
+            write_json(workspace / "case-adverse-review.json", adverse)
+            write_json(workspace / "normative-bridge.json", bridge)
+            write_json(workspace / "human-decision.json", decision)
+            write_json(workspace / "validation-report.json", validation)
+
+            request_payload = bind_request_payload(
+                {
+                    "drafting_ready": False,
+                    "questions": ["Каков судебный смысл нормы?"],
+                    "claim_bindings": [
+                        {
+                            "claim_id": "claim-1",
+                            "claim_sha256": "1" * 64,
+                            "source_locator": "жалоба.md#абзац-12",
+                        }
+                    ],
+                }
+            )
+            request = create_handoff(
+                source_skill="ksrf-complaint-cycle",
+                target_skill="ksrf-cassation-judicial-meaning",
+                run_id="request-1",
+                plan_sha256="d" * 64,
+                evidence_sha256="e" * 64,
+                payload_type="unproven_research_questions",
+                payload=request_payload,
+                limitations=[],
+                created_at="2026-08-27T12:00:00Z",
+            )
+            request_path = root / "request.json"
+            write_json(request_path, request)
+            args = SimpleNamespace(
+                request=str(request_path),
+                claim_id=[],
+                candidate_id=[],
+                position_card_id=[],
+                payload_type="approved_bounded_findings",
+            )
+            payload = _build_reviewed_handoff_payload(
+                workspace,
+                args,
+                plan_sha256=plan_sha256,
+                evidence_sha256=evidence_sha256,
+                fingerprint_sha256=fingerprint_sha256,
+                maximum_permitted_claim="bounded_observed_corpus",
+                limitations=["Только раскрытый корпус."],
+            )
+            self.assertEqual(request["handoff_id"], payload["request_handoff_id"])
+            self.assertEqual(["claim-1"], payload["findings"][0]["claim_ids"])
+            self.assertEqual(candidate, payload["findings"][0]["candidate"])
+            self.assertEqual(7, len(payload["artifact_manifest"]["files"]))
+
+            args.position_card_id = ["invented-position"]
+            with self.assertRaisesRegex(ValueError, "нормативным мостом"):
+                _build_reviewed_handoff_payload(
+                    workspace,
+                    args,
+                    plan_sha256=plan_sha256,
+                    evidence_sha256=evidence_sha256,
+                    fingerprint_sha256=fingerprint_sha256,
+                    maximum_permitted_claim="bounded_observed_corpus",
+                    limitations=["Только раскрытый корпус."],
+                )
+
+            wider_request_payload = bind_request_payload(
+                {
+                    "drafting_ready": False,
+                    "questions": ["Каков смысл?", "Какова динамика?"],
+                    "claim_bindings": [
+                        *request_payload["claim_bindings"],
+                        {
+                            "claim_id": "claim-2",
+                            "claim_sha256": "2" * 64,
+                            "source_locator": "жалоба.md#абзац-18",
+                        },
+                    ],
+                }
+            )
+            wider_request = create_handoff(
+                source_skill="ksrf-complaint-cycle",
+                target_skill="ksrf-cassation-judicial-meaning",
+                run_id="request-2",
+                plan_sha256="d" * 64,
+                evidence_sha256="e" * 64,
+                payload_type="unproven_research_questions",
+                payload=wider_request_payload,
+                limitations=[],
+                created_at="2026-08-27T12:01:00Z",
+            )
+            wider_request_path = root / "wider-request.json"
+            write_json(wider_request_path, wider_request)
+            args.request = str(wider_request_path)
+            args.position_card_id = []
+            args.claim_id = ["claim-1"]
+            with self.assertRaisesRegex(ValueError, "Частичный reviewed result запрещён"):
+                _build_reviewed_handoff_payload(
+                    workspace,
+                    args,
+                    plan_sha256=plan_sha256,
+                    evidence_sha256=evidence_sha256,
+                    fingerprint_sha256=fingerprint_sha256,
+                    maximum_permitted_claim="bounded_observed_corpus",
+                    limitations=["Только раскрытый корпус."],
+                )
 
             manifests = root / "manifests.json"
             observations = root / "observations.json"

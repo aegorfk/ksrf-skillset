@@ -59,7 +59,9 @@ description: "Организовать полный цикл обращения 
 - провести отдельный critic pass;
 - вернуть principal/reserve/experimental/rejected portfolio.
 
-Если содержательная линия зависит от утверждения о повторяемом судебном смысле нормы, расхождении, временной или межокружной динамике либо системности практики, до формулирования такого тезиса и до `ConstitutionalIssueOptions` запусти установленный `ksrf-cassation-judicial-meaning`. Передай ему через файловый handoff-envelope версии `1.0` ссылки и хеши актов заявителя и только `unproven_research_questions`: предварительный тезис не маркируй как finding. Обратно принимай только `approved_bounded_findings`, для которых совпадают `plan_sha256` и `evidence_sha256`, а `validation-report.json` и `human-decision.json` допускают заявленный максимум вывода. При отсутствии скилла, неполном охвате или непройденном gate оставь вопрос как `hypothesis_under_test`/`insufficient_coverage`; это не блокирует остальные линии полного цикла.
+До `ConstitutionalIssueOptions` запусти исполняемый `PracticeAnalysisGate` из `scripts/ksrf_practice_analysis.py` и следуй `references/practice-analysis-integration.md`. Он сканирует каждый кандидат/абзац и создаёт append-only `PracticeClaimLedger`. Если линия зависит от повторяемого судебного смысла нормы, расхождения, временной или межокружной динамики, количества решений, системности либо «неработоспособности» закона, состояние конкретного claim становится `required`: передай установленному `ksrf-cassation-judicial-meaning` только portable v2 `unproven_research_questions` с нейтральными вопросами, disconfirmation prompts, claim hashes и ссылками/хешами актов заявителя. Предварительный тезис не маркируй как finding.
+
+Обратно принимай только artifact-derived portable v2 `approved_bounded_findings`/`authority_cards`, связанные с исходным request, текущими claim/fingerprint/plan/evidence hashes и proof records: selected positions/relations/adverse, нормативный мост, `validation-report.json` и `human-decision.json`. До drafting обязательно сверь bundle с внешним trust anchor из предшествующего `run attach`: sibling CLI перечитывает исходный request и доказательства в прикреплённом кассационном workspace. Внутренние SHA-256 без этой сверки означают лишь `audit_only_unanchored`. После anchored import нужен отдельный reviewed `within-limit` для точной текущей формулировки и её source-file hash. Legacy v1, неизвестный ID, неполный proof, stale binding, неполный охват или непройденный gate оставляют claim как `blocked`/`stale` и текст как `hypothesis_under_test`/`insufficient_coverage`; независимые claims и обычные hard gates продолжают свой маршрут.
 
 Используй `ksrf-argument-patterns`, стенограммы, матрицы обоснований и graph/retrieval как генераторы кандидатов и stress-test. Отсутствие известного паттерна — риск исследования, но не автоматический отказ.
 
@@ -77,9 +79,10 @@ description: "Организовать полный цикл обращения 
 
 1. Используй `ksrf-complaint-facts-demands`, чтобы подготовить факты, связку применения, вопрос и несколько допустимых формул требования. Факты не подгоняются под известный паттерн.
 2. Для утвержденных principal/reserve hypotheses проверь authority ledger через `ksrf-practice-authority-builder`; в drafting передавай только записи с понятной ролью, locator, transfer limit и завершенным adverse pass.
-3. Используй `ksrf-rights-argument-builder`, чтобы превратить principal/reserve hypotheses и проверенный authority ledger в самостоятельные разделы с источниками, пределами и counterarguments.
-4. Для каждого требования веди трассировку `норма -> судебный смысл -> непосредственное последствие -> конституционный вред -> предлагаемая гарантия -> приложение`.
-5. Если причинная цепочка иной структуры лучше объясняет дело, используй её, но сохрани проверяемые anchors для нормы, применения, вреда и remedy.
+3. Перед передачей любого эмпирического абзаца в authority ledger выполни claim-level lint и `validate --stage drafting`; допускается только `supported_bounded` при state `ready`. Заблокированный claim можно оставить placeholder-гипотезой, не останавливая независимые разделы.
+4. Используй `ksrf-rights-argument-builder`, чтобы превратить principal/reserve hypotheses и проверенный authority ledger в самостоятельные разделы с источниками, пределами и counterarguments.
+5. Для каждого требования веди трассировку `норма -> судебный смысл -> непосредственное последствие -> конституционный вред -> предлагаемая гарантия -> приложение`.
+6. Если причинная цепочка иной структуры лучше объясняет дело, используй её, но сохрани проверяемые anchors для нормы, применения, вреда и remedy.
 
 ### 6. Подготовь вспомогательные материалы
 
@@ -95,10 +98,11 @@ description: "Организовать полный цикл обращения 
 
 ### 7. Проверь, подай и исполни
 
-1. Используй `ksrf-complaint-qa` для hard gates, portfolio coherence, source traceability, refusal model и remedy fit.
-2. До формальной подачи финализируй `FilingDecisionRecord`, если сработал его триггер: требуется информированное решение заявителя и отдельное одобрение юриста без давления символической или общественной целью.
-3. Используй `ksrf-formal-filing-check` только после содержательного verdict и human approval.
-4. После акта КС РФ используй `ksrf-decision-execution` для последствий, пересмотра, разъяснения, исправления или применения в аналогичных делах.
+1. Перед `ksrf-complaint-qa` выполни `validate --stage qa`; он блокирует только активные empirical claims без current `ready`/`within-limit`, а не всю жалобу. Перед формальной подачей выполни `validate --stage filing` с текущим pre-filing refresh.
+2. Используй `ksrf-complaint-qa` для hard gates, portfolio coherence, source traceability, refusal model и remedy fit.
+3. До формальной подачи финализируй `FilingDecisionRecord`, если сработал его триггер: требуется информированное решение заявителя и отдельное одобрение юриста без давления символической или общественной целью.
+4. Используй `ksrf-formal-filing-check` только после содержательного verdict и human approval.
+5. После акта КС РФ используй `ksrf-decision-execution` для последствий, пересмотра, разъяснения, исправления или применения в аналогичных делах.
 
 ## Выходы
 
@@ -108,6 +112,7 @@ description: "Организовать полный цикл обращения 
 - `ConstitutionalIssueOptions` для выбора заявителем или юристом;
 - `Case-scoped research ledger`;
 - `Argument portfolio` с adverse findings и critic report;
+- `PracticeAnalysisGate`, `PracticeClaimLedger`, claim-level lint и pre-filing refresh при empirical trigger;
 - `Human selection record`;
 - `FilingDecisionRecord` при низкой перспективе или символических/системных целях;
 - `KSRFRouteRecommendation` для каждого разобранного дела;

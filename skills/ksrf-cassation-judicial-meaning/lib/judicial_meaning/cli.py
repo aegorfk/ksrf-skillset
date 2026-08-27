@@ -33,8 +33,25 @@ from .casework import (
     validate_normative_bridge,
     validate_position_card,
 )
-from .handoff_workbench import check_handoff, create_handoff, import_handoff
+from .handoff_workbench import (
+    artifact_sha256,
+    bind_request_payload,
+    build_approved_finding,
+    build_artifact_manifest,
+    build_selected_position_set_sha256,
+    build_trusted_source_receipt,
+    check_handoff,
+    create_handoff,
+    import_handoff,
+)
 from .public_corpus import PublicCorpus
+from .practice_quality import (
+    analyze_chain_stage_propagation,
+    assess_coding_reliability,
+    assess_prefiling_refresh,
+    build_coding_audit_plan,
+    build_uncertainty_profile,
+)
 from .reporting import derive_research_status, write_offline_report
 from .source_reconciliation import (
     promote_enumerator,
@@ -151,7 +168,7 @@ _POST_REVIEW_CASE_RELATIVE_FILES = (
 def _case_relative_evidence_paths(
     workspace: Path, *, include_post_review: bool
 ) -> list[Path]:
-    names = list(_PRE_THESIS_CASE_RELATIVE_FILES)
+    names: list[str] = list(_PRE_THESIS_CASE_RELATIVE_FILES)
     if include_post_review:
         names.extend(_POST_REVIEW_CASE_RELATIVE_FILES)
     return [workspace / name for name in names]
@@ -170,11 +187,19 @@ def _approval_evidence_paths(workspace: Path) -> list[Path]:
 
 
 def _digest_existing(paths: Iterable[Path]) -> str:
-    digest = hashlib.sha256()
-    for path in paths:
-        if path.exists():
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
+    manifest: list[dict[str, Any]] = []
+    for slot, path in enumerate(paths):
+        present = path.exists()
+        content = path.read_bytes() if present else b""
+        manifest.append(
+            {
+                "slot": slot,
+                "present": present,
+                "bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest() if present else None,
+            }
+        )
+    return _artifact_sha256(manifest)
 
 
 def _artifact_sha256(value: Any) -> str:
@@ -2116,6 +2141,115 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _quality_result(args: argparse.Namespace, result: Mapping[str, Any]) -> int:
+    if args.output:
+        write_json(Path(args.output).expanduser().resolve(), dict(result))
+    _print_json(result)
+    return 0
+
+
+def _optional_json(path_value: str | None) -> Any:
+    if not path_value:
+        return None
+    return read_json(Path(path_value).expanduser().resolve())
+
+
+def _records_index(path_value: str, id_field: str) -> dict[str, dict[str, Any]]:
+    records = _read_records(Path(path_value).expanduser().resolve())
+    result: dict[str, dict[str, Any]] = {}
+    for record in records:
+        identifier = record.get(id_field)
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError(f"Запись не содержит {id_field}.")
+        if identifier in result:
+            raise ValueError(f"Повторный {id_field}: {identifier}.")
+        result[identifier] = record
+    return result
+
+
+def cmd_quality_chain_propagation(args: argparse.Namespace) -> int:
+    result = analyze_chain_stage_propagation(
+        _read_records(Path(args.observations).expanduser().resolve()),
+        required_chain_ids=args.required_chain_id or [],
+    )
+    return _quality_result(args, result)
+
+
+def cmd_quality_uncertainty_profile(args: argparse.Namespace) -> int:
+    trajectory_value = read_json(Path(args.trajectories).expanduser().resolve())
+    if isinstance(trajectory_value, Mapping):
+        trajectories = trajectory_value.get("trajectories")
+    else:
+        trajectories = trajectory_value
+    if not isinstance(trajectories, list) or not all(
+        isinstance(item, Mapping) for item in trajectories
+    ):
+        raise ValueError("--trajectories должен содержать массив trajectories.")
+    result = build_uncertainty_profile(
+        fingerprint_sha256=args.fingerprint_sha256,
+        position_cards=_read_records(Path(args.position_cards).expanduser().resolve()),
+        comparisons=_records_index(args.comparisons, "position_card_id"),
+        applicant_relations=_records_index(args.applicant_relations, "position_card_id"),
+        temporal_analysis=_optional_json(args.temporal_analysis),
+        trajectories=trajectories,
+        source_reconciliation=_optional_json(args.source_reconciliation),
+        coding_reliability=_optional_json(args.coding_reliability),
+        higher_authority_treatments=(
+            _read_records(Path(args.higher_authority_treatments).expanduser().resolve())
+            if args.higher_authority_treatments
+            else []
+        ),
+    )
+    return _quality_result(args, result)
+
+
+def cmd_quality_coding_audit_plan(args: argparse.Namespace) -> int:
+    result = build_coding_audit_plan(
+        _read_records(Path(args.screening_candidates).expanduser().resolve()),
+        _read_records(Path(args.primary_decisions).expanduser().resolve()),
+        plan_sha256=args.plan_sha256,
+        sample_size=args.sample_size,
+        exclusion_sample_size=args.exclusion_sample_size,
+    )
+    return _quality_result(args, result)
+
+
+def cmd_quality_coding_reliability(args: argparse.Namespace) -> int:
+    audit_plan = read_json(Path(args.audit_plan).expanduser().resolve())
+    if not isinstance(audit_plan, Mapping):
+        raise ValueError("--audit-plan должен содержать JSON-объект.")
+    result = assess_coding_reliability(
+        audit_plan,
+        _read_records(Path(args.primary_decisions).expanduser().resolve()),
+        _read_records(Path(args.audit_decisions).expanduser().resolve()),
+        (
+            _read_records(Path(args.adjudications).expanduser().resolve())
+            if args.adjudications
+            else []
+        ),
+    )
+    return _quality_result(args, result)
+
+
+def cmd_quality_prefiling_refresh(args: argparse.Namespace) -> int:
+    refresh_plan = read_json(Path(args.refresh_plan).expanduser().resolve())
+    if not isinstance(refresh_plan, Mapping):
+        raise ValueError("--refresh-plan должен содержать JSON-объект.")
+    result = assess_prefiling_refresh(
+        baseline_corpus_digest=args.baseline_corpus_digest,
+        current_corpus_digest=args.current_corpus_digest,
+        subject_evidence_sha256=args.subject_evidence_sha256,
+        refresh_plan=refresh_plan,
+        treatments=_read_records(Path(args.treatments).expanduser().resolve()),
+        checked_through=args.checked_through,
+        filing_cutoff=args.filing_cutoff,
+        reviewer=args.reviewer,
+        reviewed_at=args.reviewed_at,
+        claim_ids=args.claim_id or [],
+    )
+    return _quality_result(args, result)
+
+
 def _handoff_hashes(workspace: Path) -> tuple[str, str]:
     plan = latest_plan(workspace)
     plan_sha256 = plan.get("plan_sha256")
@@ -2137,13 +2271,315 @@ def _handoff_limitations(args: argparse.Namespace) -> list[str]:
     return limitations
 
 
+def _unique_nonempty_strings(values: Iterable[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        cleaned = " ".join(value.split())
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        result.append(cleaned)
+    return result
+
+
+def _selected_records(
+    records: list[dict[str, Any]],
+    *,
+    id_field: str,
+    required_ids: set[str],
+    label: str,
+) -> list[dict[str, Any]]:
+    by_id = {
+        str(record.get(id_field)): record
+        for record in records
+        if isinstance(record, dict) and record.get(id_field)
+    }
+    missing = sorted(required_ids - set(by_id))
+    if missing:
+        raise ValueError(f"{label}: отсутствуют выбранные ID: " + ", ".join(missing) + ".")
+    return [by_id[identifier] for identifier in sorted(required_ids)]
+
+
+def _load_v2_request(path_value: str) -> dict[str, Any]:
+    request = read_json(Path(path_value).expanduser().resolve())
+    if not isinstance(request, dict):
+        raise ValueError("--request должен содержать JSON envelope v2.")
+    checked = check_handoff(
+        request,
+        expected_target="ksrf-cassation-judicial-meaning",
+    )
+    if not checked.get("valid"):
+        raise ValueError(
+            "--request не прошёл fail-closed проверку: "
+            + " ".join(str(item) for item in checked.get("errors", []))
+        )
+    if request.get("payload_type") != "unproven_research_questions":
+        raise ValueError("--request должен иметь payload_type=unproven_research_questions.")
+    return request
+
+
+def _quality_artifact_type(value: Mapping[str, Any]) -> str:
+    if "profile_id" in value and "dimensions" in value:
+        return "uncertainty_profile"
+    if "refresh_id" in value and "status" in value:
+        return "prefiling_refresh"
+    if "audit_plan_sha256" in value and "required_candidate_ids" in value:
+        if "field_disagreements" in value or "current_primary_coding_sha256" in value:
+            return "coding_reliability"
+        return "coding_audit_plan"
+    if "trajectories" in value and "review_complete" in value:
+        return "chain_stage_propagation"
+    raise ValueError("Не удалось определить тип practice-quality артефакта.")
+
+
+def _load_quality_bindings(path_values: Iterable[str]) -> list[dict[str, Any]]:
+    bindings: list[dict[str, Any]] = []
+    for path_value in path_values:
+        artifact = read_json(Path(path_value).expanduser().resolve())
+        if not isinstance(artifact, dict):
+            raise ValueError("--quality-binding должен содержать JSON-объект.")
+        bindings.append(
+            {
+                "quality_type": _quality_artifact_type(artifact),
+                "artifact_sha256": artifact_sha256(artifact),
+                "artifact": artifact,
+            }
+        )
+    return sorted(
+        bindings,
+        key=lambda item: (item["quality_type"], item["artifact_sha256"]),
+    )
+
+
+def _build_reviewed_handoff_payload(
+    workspace: Path,
+    args: argparse.Namespace,
+    *,
+    plan_sha256: str,
+    evidence_sha256: str,
+    fingerprint_sha256: str,
+    maximum_permitted_claim: str,
+    limitations: list[str],
+) -> dict[str, Any]:
+    """Derive a reviewed payload only from current approved workspace artifacts."""
+
+    if not args.request:
+        raise ValueError("Проверенный handoff требует --request v2.")
+    request = _load_v2_request(args.request)
+    request_payload = request["payload"]
+    request_bindings = {
+        str(binding.get("claim_id")): binding
+        for binding in request_payload.get("claim_bindings", [])
+        if isinstance(binding, dict) and binding.get("claim_id")
+    }
+    requested_claim_ids = set(args.claim_id or request_bindings)
+    if not requested_claim_ids:
+        raise ValueError("Не выбрано ни одного claim_id из request.")
+    unknown_claim_ids = sorted(requested_claim_ids - set(request_bindings))
+    if unknown_claim_ids:
+        raise ValueError(
+            "--claim-id отсутствует в request: " + ", ".join(unknown_claim_ids) + "."
+        )
+    omitted_claim_ids = sorted(set(request_bindings) - requested_claim_ids)
+    if omitted_claim_ids:
+        raise ValueError(
+            "Частичный reviewed result запрещён: не выбраны claim_id "
+            + ", ".join(omitted_claim_ids)
+            + ". Создайте отдельный request для более узкого набора требований."
+        )
+    selected_claim_bindings = [
+        request_bindings[claim_id] for claim_id in sorted(requested_claim_ids)
+    ]
+
+    bridge = read_json(workspace / "normative-bridge.json")
+    decision = read_json(workspace / "human-decision.json")
+    validation = read_json(workspace / "validation-report.json")
+    adverse = read_json(workspace / "case-adverse-review.json")
+    for label, value in (
+        ("normative-bridge.json", bridge),
+        ("human-decision.json", decision),
+        ("validation-report.json", validation),
+        ("case-adverse-review.json", adverse),
+    ):
+        if not isinstance(value, dict):
+            raise ValueError(f"{label} должен быть JSON-объектом.")
+
+    supporting_ids = bridge.get("supporting_position_card_ids", [])
+    adverse_ids = bridge.get("adverse_position_card_ids", [])
+    if not isinstance(supporting_ids, list) or not isinstance(adverse_ids, list):
+        raise ValueError("Нормативный мост должен явно выбрать supporting/adverse карточки.")
+    required_position_ids = {
+        str(identifier)
+        for identifier in [*supporting_ids, *adverse_ids]
+        if isinstance(identifier, str) and identifier.strip()
+    }
+    selector_position_ids = set(args.position_card_id or required_position_ids)
+    if selector_position_ids != required_position_ids:
+        missing = sorted(required_position_ids - selector_position_ids)
+        invented = sorted(selector_position_ids - required_position_ids)
+        details = []
+        if missing:
+            details.append("пропущены " + ", ".join(missing))
+        if invented:
+            details.append("не выбраны мостом " + ", ".join(invented))
+        raise ValueError(
+            "--position-card-id должен точно совпадать с нормативным мостом: "
+            + "; ".join(details)
+            + "."
+        )
+    cards = _selected_records(
+        read_jsonl(workspace / "position-cards.jsonl"),
+        id_field="position_card_id",
+        required_ids=required_position_ids,
+        label="position-cards.jsonl",
+    )
+    comparisons = _selected_records(
+        read_jsonl(workspace / "comparability-matrix.jsonl"),
+        id_field="position_card_id",
+        required_ids=required_position_ids,
+        label="comparability-matrix.jsonl",
+    )
+    relations = _selected_records(
+        read_jsonl(workspace / "applicant-relations.jsonl"),
+        id_field="position_card_id",
+        required_ids=required_position_ids,
+        label="applicant-relations.jsonl",
+    )
+    selected_proofs = {
+        "position_cards": cards,
+        "comparisons": comparisons,
+        "relations": relations,
+        "adverse": adverse,
+        "bridge": bridge,
+        "human_decision": decision,
+        "validation_report": validation,
+    }
+    approval_binding = {
+        "human_decision_sha256": artifact_sha256(decision),
+        "validation_report_sha256": artifact_sha256(validation),
+        "normative_bridge_sha256": artifact_sha256(bridge),
+        "reviewer": decision.get("reviewer"),
+        "approved_at": decision.get("decided_at"),
+    }
+    common = {
+        "drafting_ready": True,
+        "request_handoff_id": request["handoff_id"],
+        "request_sha256": request_payload["request_sha256"],
+        "claim_set_sha256": request_payload["claim_set_sha256"],
+        "claim_bindings": selected_claim_bindings,
+        "supporting_position_card_ids": list(supporting_ids),
+        "adverse_position_card_ids": list(adverse_ids),
+        "approval_binding": approval_binding,
+        "artifact_manifest": build_artifact_manifest(selected_proofs),
+        "selected_position_set_sha256": build_selected_position_set_sha256(
+            selected_proofs
+        ),
+        "selected_proofs": selected_proofs,
+        "maximum_permitted_claim": maximum_permitted_claim,
+        "limitations": limitations,
+    }
+    quality_bindings = _load_quality_bindings(getattr(args, "quality_binding", []) or [])
+    if quality_bindings:
+        common["quality_bindings"] = quality_bindings
+    if args.payload_type == "authority_cards":
+        return {
+            **common,
+            "authority_cards": cards,
+            "reviewer": decision.get("reviewer"),
+            "review_state": "approved",
+        }
+
+    candidates = read_jsonl(workspace / "thesis-candidates.jsonl")
+    decision_candidate_ids = {
+        str(candidate_id)
+        for candidate_id in decision.get("candidate_ids", [])
+        if isinstance(candidate_id, str) and candidate_id.strip()
+    }
+    selected_candidate_ids = set(args.candidate_id or decision_candidate_ids)
+    if not selected_candidate_ids:
+        raise ValueError("Не выбрано ни одного одобренного candidate_id.")
+    unknown_candidate_ids = sorted(selected_candidate_ids - decision_candidate_ids)
+    if unknown_candidate_ids:
+        raise ValueError(
+            "--candidate-id отсутствует в human-decision: "
+            + ", ".join(unknown_candidate_ids)
+            + "."
+        )
+    selected_candidates = _selected_records(
+        candidates,
+        id_field="candidate_id",
+        required_ids=selected_candidate_ids,
+        label="thesis-candidates.jsonl",
+    )
+    findings = [
+        build_approved_finding(candidate, sorted(requested_claim_ids), bridge)
+        for candidate in selected_candidates
+    ]
+    return {**common, "findings": findings}
+
+
+def _persist_trusted_source_material(
+    workspace: Path,
+    envelope: Mapping[str, Any],
+    *,
+    request_path: str,
+) -> None:
+    """Persist source-workspace trust anchors outside the portable envelope."""
+
+    request = _load_v2_request(request_path)
+    request_id = envelope["payload"]["request_handoff_id"]
+    if request.get("handoff_id") != request_id:
+        raise ValueError("Trusted request не совпадает с request_handoff_id результата.")
+    write_json(
+        workspace / "handoffs" / "trusted-requests" / f"{request_id}.json",
+        request,
+    )
+    for binding in envelope["payload"].get("quality_bindings", []):
+        write_json(
+            workspace
+            / "handoffs"
+            / "trusted-quality"
+            / f"{binding['quality_type']}-{binding['artifact_sha256']}.json",
+            binding["artifact"],
+        )
+    write_json(
+        workspace
+        / "handoffs"
+        / "trusted-results"
+        / f"{envelope['handoff_id']}.json",
+        build_trusted_source_receipt(envelope),
+    )
+
+
 def cmd_handoff_create(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).expanduser().resolve()
+    if args.payload_type == "selected_authorities":
+        raise ValueError(
+            "selected_authorities относится к legacy v1; используйте authority_cards v2."
+        )
+    if args.payload_type == "unproven_research_questions" and not args.payload:
+        raise ValueError("unproven_research_questions требует --payload.")
+    if args.payload_type != "unproven_research_questions" and args.payload:
+        raise ValueError(
+            "Проверенный handoff нельзя создавать из произвольного --payload; "
+            "используйте --request и селекторы одобренных артефактов."
+        )
     plan_sha256, evidence_sha256 = _handoff_hashes(workspace)
-    payload = read_json(Path(args.payload).expanduser().resolve())
-    if not isinstance(payload, dict):
-        raise ValueError("Payload handoff должен быть JSON-объектом.")
-    if args.payload_type != "unproven_research_questions":
+    limitations = _handoff_limitations(args)
+    fingerprint = (
+        read_json(workspace / "case-fingerprint.json").get("fingerprint_sha256")
+        if (workspace / "case-fingerprint.json").exists()
+        else None
+    )
+    if args.payload_type == "unproven_research_questions":
+        payload_value = read_json(Path(args.payload).expanduser().resolve())
+        if not isinstance(payload_value, dict):
+            raise ValueError("Payload handoff должен быть JSON-объектом.")
+        payload = bind_request_payload(payload_value)
+    else:
         state = _validation_state(workspace)
         status = derive_research_status(_status_derivation_state(workspace, state))
         if status.get("drafting_ready") is not True:
@@ -2163,10 +2599,38 @@ def cmd_handoff_create(args: argparse.Namespace) -> int:
             or validation.get("evidence_sha256") != _approval_evidence_sha256(workspace)
         ):
             raise ValueError("Проверенный handoff требует успешную проверку текущих доказательств.")
-        if payload.get("maximum_permitted_claim") != state.get("maximum_permitted_claim"):
+        maximum_claim = state.get("maximum_permitted_claim")
+        if not isinstance(maximum_claim, str) or not maximum_claim.strip():
             raise ValueError(
-                "maximum_permitted_claim payload не совпадает с текущим пределом вывода."
+                "Текущий maximum_permitted_claim отсутствует; проверенный handoff заблокирован."
             )
+        candidates = read_jsonl(workspace / "thesis-candidates.jsonl")
+        limitations = _unique_nonempty_strings(
+            [
+                *limitations,
+                *(
+                    limitation
+                    for candidate in candidates
+                    for limitation in candidate.get("limitations", [])
+                    if isinstance(candidate, dict)
+                    and isinstance(candidate.get("limitations"), list)
+                ),
+                read_json(workspace / "case-adverse-review.json").get("no_hit_wording"),
+            ]
+        )
+        if not limitations:
+            raise ValueError("Проверенный handoff требует явные limitations.")
+        if not isinstance(fingerprint, str):
+            raise ValueError("Проверенный handoff требует fingerprint_sha256 дела заявителя.")
+        payload = _build_reviewed_handoff_payload(
+            workspace,
+            args,
+            plan_sha256=plan_sha256,
+            evidence_sha256=evidence_sha256,
+            fingerprint_sha256=fingerprint,
+            maximum_permitted_claim=maximum_claim,
+            limitations=limitations,
+        )
     run_path = workspace / "run.json"
     run = read_json(run_path) if run_path.exists() else {}
     run_id = args.run_id or run.get("run_id") or f"run-{evidence_sha256[:12]}"
@@ -2178,14 +2642,16 @@ def cmd_handoff_create(args: argparse.Namespace) -> int:
         evidence_sha256=evidence_sha256,
         payload_type=args.payload_type,
         payload=payload,
-        limitations=_handoff_limitations(args),
+        limitations=limitations,
         created_at=args.created_at or utc_now(),
-        fingerprint_sha256=(
-            read_json(workspace / "case-fingerprint.json").get("fingerprint_sha256")
-            if (workspace / "case-fingerprint.json").exists()
-            else None
-        ),
+        fingerprint_sha256=fingerprint,
     )
+    if args.payload_type != "unproven_research_questions":
+        _persist_trusted_source_material(
+            workspace,
+            envelope,
+            request_path=args.request,
+        )
     destination = (
         Path(args.output).expanduser().resolve()
         if args.output
@@ -2219,7 +2685,14 @@ def _optional_current_context(
 
 def cmd_handoff_check(args: argparse.Namespace) -> int:
     envelope = read_json(Path(args.input).expanduser().resolve())
-    plan_sha256, evidence_sha256, fingerprint_sha256, maximum_claim = _optional_current_context(args.workspace)
+    if (
+        envelope.get("payload_type") != "unproven_research_questions"
+        and not args.source_workspace
+    ):
+        raise ValueError(
+            "Проверенный handoff требует --source-workspace полного cassation workspace."
+        )
+    plan_sha256, evidence_sha256, fingerprint_sha256, maximum_claim = _optional_current_context(args.source_workspace)
     result = check_handoff(
         envelope,
         expected_target=args.expected_target,
@@ -2227,6 +2700,7 @@ def cmd_handoff_check(args: argparse.Namespace) -> int:
         current_evidence_sha256=evidence_sha256,
         current_fingerprint_sha256=fingerprint_sha256,
         current_maximum_permitted_claim=maximum_claim,
+        trusted_source_workspace=args.source_workspace,
     )
     _print_json(result)
     return 0 if result.get("valid") else 2
@@ -2234,7 +2708,14 @@ def cmd_handoff_check(args: argparse.Namespace) -> int:
 
 def cmd_handoff_import(args: argparse.Namespace) -> int:
     envelope = read_json(Path(args.input).expanduser().resolve())
-    plan_sha256, evidence_sha256, fingerprint_sha256, maximum_claim = _optional_current_context(args.workspace)
+    if (
+        envelope.get("payload_type") != "unproven_research_questions"
+        and not args.source_workspace
+    ):
+        raise ValueError(
+            "Проверенный handoff требует --source-workspace полного cassation workspace."
+        )
+    plan_sha256, evidence_sha256, fingerprint_sha256, maximum_claim = _optional_current_context(args.source_workspace)
     result = import_handoff(
         envelope,
         Path(args.ledger).expanduser().resolve(),
@@ -2243,6 +2724,7 @@ def cmd_handoff_import(args: argparse.Namespace) -> int:
         current_evidence_sha256=evidence_sha256,
         current_fingerprint_sha256=fingerprint_sha256,
         current_maximum_permitted_claim=maximum_claim,
+        trusted_source_workspace=args.source_workspace,
     )
     _print_json(result)
     return 0 if result.get("valid") else 2
@@ -2674,6 +3156,76 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--manifest")
     report.set_defaults(func=cmd_report)
 
+    quality = sub.add_parser(
+        "quality",
+        help="Проверить распространение позиций, неопределённость и надёжность кодирования",
+    )
+    quality_sub = quality.add_subparsers(dest="quality_command", required=True)
+    quality_chain = quality_sub.add_parser(
+        "chain-propagation",
+        help="Проверить, кто и на какой стадии выразил либо поддержал позицию",
+    )
+    quality_chain.add_argument("--observations", required=True)
+    quality_chain.add_argument("--required-chain-id", action="append", default=[])
+    quality_chain.add_argument("--output")
+    quality_chain.set_defaults(func=cmd_quality_chain_propagation)
+
+    quality_uncertainty = quality_sub.add_parser(
+        "uncertainty-profile",
+        help="Сформировать ненумерованный профиль неопределённости практики",
+    )
+    quality_uncertainty.add_argument("--fingerprint-sha256", required=True)
+    quality_uncertainty.add_argument("--position-cards", required=True)
+    quality_uncertainty.add_argument("--comparisons", required=True)
+    quality_uncertainty.add_argument("--applicant-relations", required=True)
+    quality_uncertainty.add_argument("--trajectories", required=True)
+    quality_uncertainty.add_argument("--temporal-analysis")
+    quality_uncertainty.add_argument("--source-reconciliation")
+    quality_uncertainty.add_argument("--coding-reliability")
+    quality_uncertainty.add_argument("--higher-authority-treatments")
+    quality_uncertainty.add_argument("--output")
+    quality_uncertainty.set_defaults(func=cmd_quality_uncertainty_profile)
+
+    quality_audit_plan = quality_sub.add_parser(
+        "coding-audit-plan",
+        help="Заморозить детерминированную выборку независимого кодирования",
+    )
+    quality_audit_plan.add_argument("--screening-candidates", required=True)
+    quality_audit_plan.add_argument("--primary-decisions", required=True)
+    quality_audit_plan.add_argument("--plan-sha256", required=True)
+    quality_audit_plan.add_argument("--sample-size", type=int, required=True)
+    quality_audit_plan.add_argument("--exclusion-sample-size", type=int, required=True)
+    quality_audit_plan.add_argument("--output")
+    quality_audit_plan.set_defaults(func=cmd_quality_coding_audit_plan)
+
+    quality_reliability = quality_sub.add_parser(
+        "coding-reliability",
+        help="Проверить независимое кодирование и неразрешённые расхождения",
+    )
+    quality_reliability.add_argument("--audit-plan", required=True)
+    quality_reliability.add_argument("--primary-decisions", required=True)
+    quality_reliability.add_argument("--audit-decisions", required=True)
+    quality_reliability.add_argument("--adjudications")
+    quality_reliability.add_argument("--output")
+    quality_reliability.set_defaults(func=cmd_quality_coding_reliability)
+
+    quality_refresh = quality_sub.add_parser(
+        "prefiling-refresh",
+        help="Проверить актуальность корпуса непосредственно перед подачей жалобы",
+    )
+    quality_refresh.add_argument("--baseline-corpus-digest", required=True)
+    quality_refresh.add_argument("--current-corpus-digest", required=True)
+    quality_refresh.add_argument("--subject-evidence-sha256", required=True)
+    quality_refresh.add_argument("--refresh-plan", required=True)
+    quality_refresh.add_argument("--treatments", required=True)
+    quality_refresh.add_argument("--checked-through", required=True)
+    quality_refresh.add_argument("--filing-cutoff", required=True)
+    quality_refresh.add_argument("--reviewer", required=True)
+    quality_refresh.add_argument("--reviewed-at", required=True)
+    quality_refresh.add_argument("--claim-id", action="append", default=[])
+    quality_refresh.add_argument("--output")
+    quality_refresh.set_defaults(func=cmd_quality_prefiling_refresh)
+
     handoff = sub.add_parser("handoff", help="Передать типизированный проверяемый результат")
     handoff_sub = handoff.add_subparsers(dest="handoff_command", required=True)
     handoff_create = handoff_sub.add_parser("create", help="Создать content-bound handoff")
@@ -2689,7 +3241,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         required=True,
     )
-    handoff_create.add_argument("--payload", required=True)
+    handoff_create.add_argument(
+        "--payload",
+        help="JSON request payload; для проверенных результатов запрещён",
+    )
+    handoff_create.add_argument(
+        "--request",
+        help="Проверенный v2 request envelope для artifact-derived результата",
+    )
+    handoff_create.add_argument("--claim-id", action="append", default=[])
+    handoff_create.add_argument("--candidate-id", action="append", default=[])
+    handoff_create.add_argument("--position-card-id", action="append", default=[])
+    handoff_create.add_argument(
+        "--quality-binding",
+        action="append",
+        default=[],
+        help="JSON-артефакт practice-quality для content-bound привязки",
+    )
     handoff_create.add_argument("--limitations")
     handoff_create.add_argument("--limitation", action="append", default=[])
     handoff_create.add_argument("--run-id")
@@ -2698,14 +3266,24 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_create.set_defaults(func=cmd_handoff_create)
     handoff_check = handoff_sub.add_parser("check", help="Проверить handoff и его хеши")
     handoff_check.add_argument("--input", required=True)
-    handoff_check.add_argument("--workspace")
-    handoff_check.add_argument("--expected-target")
+    handoff_check.add_argument(
+        "--source-workspace",
+        "--workspace",
+        dest="source_workspace",
+        help="Доверенный workspace источника; --workspace сохранён как совместимый alias",
+    )
+    handoff_check.add_argument("--expected-target", required=True)
     handoff_check.set_defaults(func=cmd_handoff_check)
     handoff_import = handoff_sub.add_parser("import", help="Идемпотентно добавить handoff в inbox")
     handoff_import.add_argument("--input", required=True)
     handoff_import.add_argument("--ledger", required=True)
-    handoff_import.add_argument("--workspace")
-    handoff_import.add_argument("--expected-target")
+    handoff_import.add_argument(
+        "--source-workspace",
+        "--workspace",
+        dest="source_workspace",
+        help="Доверенный workspace источника; --workspace сохранён как совместимый alias",
+    )
+    handoff_import.add_argument("--expected-target", required=True)
     handoff_import.set_defaults(func=cmd_handoff_import)
 
     cache = sub.add_parser("cache", help="Управлять локальным публичным корпусом")

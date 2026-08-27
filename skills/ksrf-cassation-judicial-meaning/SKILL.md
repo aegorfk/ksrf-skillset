@@ -21,8 +21,9 @@ description: "Use when материалы дела заявителя нужно
 4. **Собери и закодируй корпус.** Сохраняй raw bytes, official URL, хеши, ошибки и незакрытые сегменты. Считай независимые цепочки дел, а не URL или PDF.
 5. **Проверь каждую позицию применительно к делу.** Полная карточка позиции → ручное сравнение признаков → applicant-relative relation. Все карточки и все review-состояния остаются в реестрах; ни очередь, ни `uncertain`/`unresolved` не удаляют кандидата.
 6. **Закрой четыре adverse-корзины.** Для каждой нужны выполненные query IDs, отсутствие неразрешённых сегментов и влияние пробела на `maximum_permitted_claim`.
-7. **Проверь нормативный мост.** Свяжи смысл в деле заявителя, ограниченное наблюдение корпуса и конкретное конституционное последствие; отдельно объясни обычное средство защиты.
-8. **Только после проверки сформируй handoff.** `drafting_ready` требует текущие хеши fingerprint/плана/evidence, человеческое одобрение и формулировку не сильнее `maximum_permitted_claim`.
+7. **Проверь качество наблюдения.** По `references/practice-quality.md` отдельно построй межинстанционную траекторию смысла, девятимерный профиль неопределённости и frozen coding-reliability audit. Не считай оставление результата без изменения принятием мотивировки и не сворачивай измерения в score.
+8. **Проверь нормативный мост и актуальность.** Свяжи смысл в деле заявителя, ограниченное наблюдение корпуса и конкретное конституционное последствие; отдельно объясни обычное средство защиты и выполни pre-filing refresh по official routes, закону, higher authority, verified и pending treatments.
+9. **Только после проверки сформируй handoff.** `drafting_ready` требует текущие хеши fingerprint/плана/evidence/quality/refresh, человеческое одобрение и формулировку не сильнее `maximum_permitted_claim`. Reviewed v2 result строится CLI из текущих одобренных артефактов по selectors; произвольный findings payload запрещён. Получатель допускает его в drafting лишь после `handoff check` с этим source workspace и ожидаемым target: bundle без внешнего trust anchor остаётся audit-only, потому что SHA-256 не является подписью.
 
 Минимальный старт из любого каталога:
 
@@ -59,11 +60,11 @@ python3 <skill-dir>/scripts/judicial_meaning.py plan template \
 
 ## Автономность и стыковки
 
-Скилл не требует соседних skills. При их наличии передавай только файловые envelopes версии `1.0`:
+Скилл не требует соседних skills. Общие офлайн-правила источников, доказательственных ролей и fail-closed вывода бери из `../ksrf-complaint-cycle/references/offline-practice-core.md`. При наличии соседних skills передавай только portable файловые envelopes версии `2.0`:
 
 - `ksrf-complaint-cycle` → акты заявителя и нейтральные вопросы; обратно только post-corpus результат;
 - `ksrf-explore-arguments` → гипотезы и disconfirmation prompts;
 - `ksrf-practice-authority-builder` → проверенные `authority_cards` с official URL, хешем, цитатой, ролью, adverse-status и chain ID;
 - `ksrf-complaint-qa` → approved run, `maximum_permitted_claim` и раскрытые ограничения.
 
-Отсутствие или несовместимость соседнего скилла не меняет доказательства и не ослабляет локальные gates. Legacy `selected_authorities` допускается только для проверки старого envelope; новый handoff использует `authority_cards`.
+Отсутствие или несовместимость соседнего скилла не меняет доказательства и не ослабляет локальные gates. Legacy v1 и `selected_authorities` допускаются только для аудита старого envelope и никогда не дают `drafting_ready`; новый handoff связывает исходный request и claim hashes, artifact-derived findings, `authority_cards`, selected proofs, normative bridge, human decision и validation report.

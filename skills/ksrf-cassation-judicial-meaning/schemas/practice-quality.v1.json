@@ -1,0 +1,723 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/practice-quality.v1.json",
+  "title": "Practice quality contracts",
+  "contract_version": "1.0",
+  "$defs": {
+    "trajectory": {"$ref": "#/definitions/chain_meaning_trajectory"},
+    "dimension": {"$ref": "#/definitions/uncertainty_dimension"}
+  },
+  "oneOf": [
+    {"$ref": "#/definitions/chain_stage_observation"},
+    {"$ref": "#/definitions/chain_meaning_trajectory"},
+    {"$ref": "#/definitions/chain_propagation_result"},
+    {"$ref": "#/definitions/uncertainty_profile"},
+    {"$ref": "#/definitions/coding_audit_plan"},
+    {"$ref": "#/definitions/coding_audit_decision"},
+    {"$ref": "#/definitions/coding_adjudication"},
+    {"$ref": "#/definitions/coding_reliability"},
+    {"$ref": "#/definitions/prefiling_refresh"}
+  ],
+  "definitions": {
+    "chain_stage_observation": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "observation_id", "chain_id", "source_stage",
+        "position_actor_stage", "evidence_role", "document_id",
+        "document_sha256", "official_url", "speaker", "proposition",
+        "quote", "quote_locator", "quote_verified", "full_text_reviewed",
+        "reading_family", "treatment_of_prior", "disposition",
+        "outcome_materiality", "alternative_grounds", "reviewer",
+        "reviewed_at", "human_review"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "observation_id": {"type": "string", "minLength": 1},
+        "chain_id": {"type": "string", "minLength": 1},
+        "source_stage": {
+          "type": "string",
+          "enum": ["first_instance", "appeal", "cassation", "supreme_court", "other"]
+        },
+        "position_actor_stage": {
+          "type": "string",
+          "enum": ["first_instance", "appeal", "cassation", "supreme_court", "other"]
+        },
+        "evidence_role": {
+          "type": "string",
+          "enum": ["actor_primary_text", "later_court_report"]
+        },
+        "document_id": {"type": "string", "minLength": 1},
+        "document_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "official_url": {"type": "string", "pattern": "^https?://"},
+        "speaker": {"type": "string", "minLength": 1},
+        "proposition": {"type": "string", "minLength": 1},
+        "quote": {"type": "string", "minLength": 1},
+        "quote_locator": {"type": "string", "minLength": 1},
+        "quote_verified": {"type": "boolean", "const": true},
+        "full_text_reviewed": {"type": "boolean", "const": true},
+        "reading_family": {"type": ["string", "null"]},
+        "treatment_of_prior": {
+          "type": "string",
+          "enum": [
+            "originates", "expressly_adopts", "follows", "limits",
+            "rejects", "does_not_reach", "leaves_result_without_endorsing",
+            "unclear"
+          ]
+        },
+        "disposition": {"type": "string", "minLength": 1},
+        "outcome_materiality": {
+          "type": "string",
+          "enum": [
+            "necessary_to_outcome", "independent_sufficient_ground",
+            "contextual", "unclear"
+          ]
+        },
+        "alternative_grounds": {"type": "array", "items": {"type": "object"}},
+        "reviewer": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "human_review": {"type": "string", "const": "approved"}
+      },
+      "additionalProperties": false
+    },
+    "chain_meaning_trajectory": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "chain_id", "observation_ids",
+        "observation_sha256s", "origin_stage", "origin_reading_family",
+        "reported_only_observation_ids", "cassation_treatment",
+        "cassation_express_adoption", "alternative_sufficient_ground_present",
+        "review_complete", "unresolved_reasons", "claim_limit", "trajectory_id"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "chain_id": {"type": "string", "minLength": 1},
+        "observation_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "observation_sha256s": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "origin_stage": {
+          "type": ["string", "null"],
+          "enum": ["first_instance", "appeal", "cassation", "supreme_court", "other", null]
+        },
+        "origin_reading_family": {"type": ["string", "null"]},
+        "reported_only_observation_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "cassation_treatment": {
+          "type": "string",
+          "enum": [
+            "expressly_adopts", "follows", "limits", "rejects",
+            "does_not_reach", "leaves_result_without_endorsing", "unclear"
+          ]
+        },
+        "cassation_express_adoption": {"type": "boolean"},
+        "alternative_sufficient_ground_present": {"type": "boolean"},
+        "review_complete": {"type": "boolean"},
+        "unresolved_reasons": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "claim_limit": {"type": "string", "minLength": 1},
+        "trajectory_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["review_complete"],
+            "properties": {"review_complete": {"const": true}}
+          },
+          "then": {"properties": {"unresolved_reasons": {"maxItems": 0}}}
+        },
+        {
+          "if": {
+            "required": ["cassation_express_adoption"],
+            "properties": {"cassation_express_adoption": {"const": true}}
+          },
+          "then": {
+            "properties": {
+              "cassation_treatment": {"const": "expressly_adopts"},
+              "review_complete": {"const": true},
+              "origin_stage": {"type": "string"},
+              "origin_reading_family": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "chain_propagation_result": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "observation_count", "observations_sha256", "chain_count",
+        "required_chain_ids", "trajectories", "unresolved",
+        "review_complete", "evidence_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "observation_count": {"type": "integer", "minimum": 0},
+        "observations_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "chain_count": {"type": "integer", "minimum": 0},
+        "required_chain_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "trajectories": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/trajectory"}
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["observation_id", "chain_id", "errors"],
+            "properties": {
+              "observation_id": {"type": ["string", "null"]},
+              "chain_id": {"type": ["string", "null"]},
+              "errors": {
+                "type": "array", "minItems": 1,
+                "items": {"type": "string", "minLength": 1}
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "review_complete": {"type": "boolean"},
+        "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["review_complete"],
+            "properties": {"review_complete": {"const": true}}
+          },
+          "then": {
+            "properties": {
+              "unresolved": {"maxItems": 0},
+              "trajectories": {
+                "items": {
+                  "properties": {
+                    "review_complete": {"const": true},
+                    "unresolved_reasons": {"maxItems": 0}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "$defs": {
+        "trajectory": {
+          "type": "object",
+          "required": [
+            "schema_version", "chain_id", "observation_ids",
+            "observation_sha256s", "origin_stage", "origin_reading_family",
+            "reported_only_observation_ids", "cassation_treatment",
+            "cassation_express_adoption", "alternative_sufficient_ground_present",
+            "review_complete", "unresolved_reasons", "claim_limit", "trajectory_id"
+          ],
+          "properties": {
+            "schema_version": {"type": "string", "const": "1.0"},
+            "chain_id": {"type": "string", "minLength": 1},
+            "observation_ids": {"type": "array", "items": {"type": "string"}},
+            "observation_sha256s": {
+              "type": "array",
+              "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "origin_stage": {"type": ["string", "null"]},
+            "origin_reading_family": {"type": ["string", "null"]},
+            "reported_only_observation_ids": {"type": "array", "items": {"type": "string"}},
+            "cassation_treatment": {"type": "string"},
+            "cassation_express_adoption": {"type": "boolean"},
+            "alternative_sufficient_ground_present": {"type": "boolean"},
+            "review_complete": {"type": "boolean"},
+            "unresolved_reasons": {"type": "array", "items": {"type": "string"}},
+            "claim_limit": {"type": "string", "minLength": 1},
+            "trajectory_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": ["review_complete"],
+                "properties": {"review_complete": {"const": true}}
+              },
+              "then": {"properties": {"unresolved_reasons": {"maxItems": 0}}}
+            },
+            {
+              "if": {
+                "required": ["cassation_express_adoption"],
+                "properties": {"cassation_express_adoption": {"const": true}}
+              },
+              "then": {
+                "properties": {
+                  "cassation_treatment": {"const": "expressly_adopts"},
+                  "review_complete": {"const": true},
+                  "origin_stage": {"type": "string"},
+                  "origin_reading_family": {"type": "string", "minLength": 1}
+                }
+              }
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "uncertainty_dimension": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "state", "chain_ids", "evidence_refs", "unknowns",
+        "claim_effect", "assessed", "usable_for_claim", "review_complete"
+      ],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "chain_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "unknowns": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "claim_effect": {"type": "string", "minLength": 1},
+        "assessed": {"type": "boolean"},
+        "usable_for_claim": {"type": "boolean"},
+        "review_complete": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "uncertainty_profile": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "fingerprint_sha256", "unit", "dimensions",
+        "profile_assessed", "claim_use_ready", "blocking_dimensions",
+        "profile_complete", "numeric_aggregation",
+        "constitutional_conclusion_permitted", "malformed_position_card_refs",
+        "malformed_trajectory_refs", "input_sha256s",
+        "claim_limit", "profile_id"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "unit": {"type": "string", "const": "independent_case_chain"},
+        "dimensions": {
+          "type": "object",
+          "required": [
+            "comparable_reading_plurality", "fact_sensitivity",
+            "court_distribution", "temporal_distribution", "chain_endorsement",
+            "outcome_materiality", "higher_authority_treatment",
+            "coverage_limits", "coding_reliability"
+          ],
+          "properties": {
+            "comparable_reading_plurality": {"$ref": "#/$defs/dimension"},
+            "fact_sensitivity": {"$ref": "#/$defs/dimension"},
+            "court_distribution": {"$ref": "#/$defs/dimension"},
+            "temporal_distribution": {"$ref": "#/$defs/dimension"},
+            "chain_endorsement": {"$ref": "#/$defs/dimension"},
+            "outcome_materiality": {"$ref": "#/$defs/dimension"},
+            "higher_authority_treatment": {"$ref": "#/$defs/dimension"},
+            "coverage_limits": {"$ref": "#/$defs/dimension"},
+            "coding_reliability": {"$ref": "#/$defs/dimension"}
+          },
+          "additionalProperties": false
+        },
+        "profile_assessed": {"type": "boolean"},
+        "claim_use_ready": {"type": "boolean"},
+        "blocking_dimensions": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "comparable_reading_plurality", "fact_sensitivity",
+              "court_distribution", "temporal_distribution", "chain_endorsement",
+              "outcome_materiality", "higher_authority_treatment",
+              "coverage_limits", "coding_reliability"
+            ]
+          }
+        },
+        "profile_complete": {"type": "boolean"},
+        "numeric_aggregation": {"type": "string", "const": "prohibited"},
+        "constitutional_conclusion_permitted": {"type": "boolean", "const": false},
+        "malformed_position_card_refs": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "malformed_trajectory_refs": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "input_sha256s": {
+          "type": "object",
+          "required": [
+            "applicant_relations", "coding_reliability", "comparisons",
+            "higher_authority_treatments", "position_cards",
+            "source_reconciliation", "temporal_analysis", "trajectories"
+          ],
+          "properties": {
+            "applicant_relations": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "coding_reliability": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "comparisons": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "higher_authority_treatments": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "position_cards": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "source_reconciliation": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "temporal_analysis": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "trajectories": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          },
+          "additionalProperties": false
+        },
+        "claim_limit": {"type": "string", "minLength": 1},
+        "profile_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["claim_use_ready"],
+            "properties": {"claim_use_ready": {"const": true}}
+          },
+          "then": {
+            "properties": {
+              "profile_assessed": {"const": true},
+              "profile_complete": {"const": true},
+              "blocking_dimensions": {"maxItems": 0},
+              "dimensions": {
+                "properties": {
+                  "comparable_reading_plurality": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "fact_sensitivity": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "court_distribution": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "temporal_distribution": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "chain_endorsement": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "outcome_materiality": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "higher_authority_treatment": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "coverage_limits": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  },
+                  "coding_reliability": {
+                    "properties": {"usable_for_claim": {"const": true}, "review_complete": {"const": true}}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["profile_complete"],
+            "properties": {"profile_complete": {"const": true}}
+          },
+          "then": {"properties": {"claim_use_ready": {"const": true}}}
+        }
+      ],
+      "$defs": {
+        "dimension": {
+          "type": "object",
+          "required": [
+            "state", "chain_ids", "evidence_refs", "unknowns", "claim_effect",
+            "assessed", "usable_for_claim", "review_complete"
+          ],
+          "properties": {
+            "state": {"type": "string", "minLength": 1},
+            "chain_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "unknowns": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "claim_effect": {"type": "string", "minLength": 1},
+            "assessed": {"type": "boolean"},
+            "usable_for_claim": {"type": "boolean"},
+            "review_complete": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_plan": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "plan_sha256", "screening_sha256",
+        "primary_coding_sha256", "selection_method", "sample_size",
+        "exclusion_sample_size", "sample_candidate_ids",
+        "exclusion_sample_candidate_ids", "required_candidate_ids",
+        "invalid_screening_record_ids", "invalid_primary_record_ids",
+        "frozen", "audit_plan_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "plan_sha256": {"type": "string", "minLength": 1},
+        "screening_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "invalid_screening_record_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "invalid_primary_record_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "selection_method": {"type": "string", "const": "canonical_sha256_rank"},
+        "sample_size": {"type": "integer", "minimum": 0},
+        "exclusion_sample_size": {"type": "integer", "minimum": 0},
+        "sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "exclusion_sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "frozen": {"type": "boolean", "const": true},
+        "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_decision": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "candidate_id", "primary_coding_sha256", "secondary_coding",
+        "secondary_coding_sha256"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding": {
+          "type": "object",
+          "required": [
+            "candidate_id", "coder", "human_review",
+            "quote_verified", "full_text_reviewed"
+          ],
+          "properties": {
+            "candidate_id": {"type": "string", "minLength": 1},
+            "coder": {"type": "string", "minLength": 1},
+            "human_review": {"type": "string", "const": "approved"},
+            "quote_verified": {"type": "boolean", "const": true},
+            "full_text_reviewed": {"type": "boolean", "const": true}
+          },
+          "minProperties": 5
+        },
+        "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_adjudication": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "candidate_id", "primary_coding_sha256", "secondary_coding_sha256",
+        "resolved_fields", "adjudicator", "reviewed_at", "human_review"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "resolved_fields": {"type": "object", "minProperties": 1},
+        "adjudicator": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "human_review": {"type": "string", "const": "approved"}
+      },
+      "additionalProperties": false
+    },
+    "coding_reliability": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "schema_version", "audit_plan_sha256", "audit_plan_frozen",
+        "audit_plan_digest_valid", "primary_coding_sha256",
+        "current_primary_coding_sha256", "required_candidate_ids",
+        "audited_candidate_ids", "missing_candidate_ids",
+        "same_reviewer_candidate_ids", "invalid_binding_candidate_ids",
+        "invalid_provenance_candidate_ids",
+        "invalid_screening_record_ids", "invalid_primary_record_ids",
+        "invalid_audit_record_ids", "invalid_adjudication_record_ids",
+        "field_disagreements", "false_exclusion_diagnostics",
+        "unresolved_candidate_ids", "stale", "complete", "evidence_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "audit_plan_sha256": {"type": ["string", "null"]},
+        "audit_plan_frozen": {"type": "boolean"},
+        "audit_plan_digest_valid": {"type": "boolean"},
+        "primary_coding_sha256": {"type": ["string", "null"]},
+        "current_primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "audited_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "missing_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "same_reviewer_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "invalid_binding_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "invalid_provenance_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "invalid_screening_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "invalid_primary_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "invalid_audit_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "invalid_adjudication_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "field_disagreements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "candidate_id", "fields", "primary_coding_sha256",
+              "secondary_coding_sha256", "resolved", "adjudication_sha256"
+            ],
+            "properties": {
+              "candidate_id": {"type": "string"},
+              "fields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+              "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "resolved": {"type": "boolean"},
+              "adjudication_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "false_exclusion_diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "primary_label", "secondary_label", "resolved"],
+            "properties": {
+              "candidate_id": {"type": "string"},
+              "primary_label": {"type": ["string", "null"]},
+              "secondary_label": {"type": ["string", "null"]},
+              "resolved": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "unresolved_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "stale": {"type": "boolean"},
+        "complete": {"type": "boolean"},
+        "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["complete"],
+            "properties": {"complete": {"const": true}}
+          },
+          "then": {
+            "properties": {
+              "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "audit_plan_frozen": {"const": true},
+              "audit_plan_digest_valid": {"const": true},
+              "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "required_candidate_ids": {"minItems": 1},
+              "audited_candidate_ids": {"minItems": 1},
+              "missing_candidate_ids": {"maxItems": 0},
+              "same_reviewer_candidate_ids": {"maxItems": 0},
+              "invalid_binding_candidate_ids": {"maxItems": 0},
+              "invalid_provenance_candidate_ids": {"maxItems": 0},
+              "invalid_screening_record_ids": {"maxItems": 0},
+              "invalid_primary_record_ids": {"maxItems": 0},
+              "invalid_audit_record_ids": {"maxItems": 0},
+              "invalid_adjudication_record_ids": {"maxItems": 0},
+              "unresolved_candidate_ids": {"maxItems": 0},
+              "stale": {"const": false}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "prefiling_refresh": {
+      "x-contract-version": "1.0",
+      "x-pairwise-disjoint": [
+        "pending_treatment_ids",
+        "verified_treatment_ids",
+        "rejected_treatment_ids"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "baseline_corpus_digest", "current_corpus_digest",
+        "subject_evidence_sha256", "refresh_plan_id", "refresh_plan_sha256",
+        "checked_through", "filing_cutoff", "reviewer", "reviewed_at",
+        "claim_ids", "affected_claim_ids", "treatments_sha256",
+        "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids",
+        "treatment_chronology_issue_ids", "stale_seed_ids",
+        "malformed_refresh_entry_ids", "malformed_coverage_gap_ids",
+        "coverage_gaps", "reasons", "status",
+        "complete", "refresh_id"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "baseline_corpus_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "current_corpus_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "subject_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "refresh_plan_id": {"type": ["string", "null"]},
+        "refresh_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "checked_through": {"type": "string", "format": "date-time"},
+        "filing_cutoff": {"type": "string", "format": "date-time"},
+        "reviewer": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "affected_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "treatments_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "pending_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "verified_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "rejected_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "treatment_chronology_issue_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "stale_seed_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "malformed_refresh_entry_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "malformed_coverage_gap_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "coverage_gaps": {"type": "array", "items": {"type": "object"}},
+        "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "status": {
+          "type": "string",
+          "enum": [
+            "current_no_material_change",
+            "bounded_current_with_disclosed_gaps",
+            "refresh_incomplete",
+            "material_change_requires_reanalysis"
+          ]
+        },
+        "complete": {"type": "boolean"},
+        "refresh_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "enum": ["refresh_incomplete", "material_change_requires_reanalysis"]
+              }
+            }
+          },
+          "then": {"properties": {"complete": {"const": false}}}
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "enum": ["current_no_material_change", "bounded_current_with_disclosed_gaps"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "complete": {"const": true},
+              "pending_treatment_ids": {"maxItems": 0},
+              "treatment_chronology_issue_ids": {"maxItems": 0},
+              "stale_seed_ids": {"maxItems": 0},
+              "malformed_refresh_entry_ids": {"maxItems": 0},
+              "malformed_coverage_gap_ids": {"maxItems": 0},
+              "affected_claim_ids": {"maxItems": 0}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

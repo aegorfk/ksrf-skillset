@@ -11,7 +11,7 @@ from judicial_meaning.casework import (
     compare_case_features,
     prepare_casework,
 )
-from judicial_meaning.handoff_workbench import create_handoff
+from judicial_meaning.handoff_workbench import bind_request_payload, create_handoff
 from judicial_meaning.reporting import derive_research_status, write_offline_report
 
 
@@ -87,7 +87,10 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         for name in sorted(expected):
             with self.subTest(definition=name):
                 definition = self.definitions[name]
-                self.assertEqual("1.0", definition["x-contract-version"])
+                self.assertEqual(
+                    "2.0" if name == "handoff_envelope" else "1.0",
+                    definition["x-contract-version"],
+                )
                 self.assertEqual("object", definition["type"])
                 self.assertTrue(definition["required"])
                 self.assertTrue(set(definition["required"]).issubset(definition["properties"]))
@@ -352,6 +355,19 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
 
         status = derive_research_status({"plan_frozen": False})
         self.assertSchemaValid("derived_status", status)
+        request_payload = bind_request_payload(
+            {
+                "drafting_ready": False,
+                "questions": ["Что показывает корпус?"],
+                "claim_bindings": [
+                    {
+                        "claim_id": "claim-1",
+                        "claim_sha256": "1" * 64,
+                        "source_locator": "жалоба.md#абзац-12",
+                    }
+                ],
+            }
+        )
         handoff = create_handoff(
             source_skill="ksrf-cassation-judicial-meaning",
             target_skill="ksrf-complaint-cycle",
@@ -359,7 +375,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             plan_sha256="c" * 64,
             evidence_sha256="d" * 64,
             payload_type="unproven_research_questions",
-            payload={"drafting_ready": False, "questions": ["Что показывает корпус?"]},
+            payload=request_payload,
             limitations=[],
             created_at="2026-08-27T12:00:00Z",
         )
@@ -426,10 +442,140 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
                 "unproven_research_questions",
                 "approved_bounded_findings",
                 "authority_cards",
-                "selected_authorities",
             },
             set(self.definitions["handoff_envelope"]["properties"]["payload_type"]["enum"]),
         )
+        payload = self.definitions["handoff_envelope"]["properties"]["payload"]
+        self.assertEqual(
+            {
+                "#/definitions/handoff_request_payload",
+                "#/definitions/handoff_approved_payload",
+                "#/definitions/handoff_authority_cards_payload",
+            },
+            {item["$ref"] for item in payload["oneOf"]},
+        )
+        for definition_name in (
+            "handoff_approved_payload",
+            "handoff_authority_cards_payload",
+        ):
+            definition = self.definitions[definition_name]
+            self.assertIn("quality_bindings", definition["required"])
+            quality = definition["properties"]["quality_bindings"]
+            self.assertEqual(4, quality["minItems"])
+            self.assertTrue(quality["uniqueItems"])
+
+    def test_handoff_quality_bindings_reference_closed_mirrored_contracts(self):
+        quality_definitions = {
+            "chain_stage_propagation": "chain_propagation_result",
+            "uncertainty_profile": "uncertainty_profile",
+            "coding_audit_plan": "coding_audit_plan",
+            "coding_reliability": "coding_reliability",
+            "prefiling_refresh": "prefiling_refresh",
+        }
+        for definition_name in {
+            "chain_meaning_trajectory",
+            "uncertainty_dimension",
+            *quality_definitions.values(),
+        }:
+            with self.subTest(definition=definition_name):
+                definition = self.definitions[definition_name]
+                self.assertEqual("1.0", definition["x-contract-version"])
+                self.assertIs(definition["additionalProperties"], False)
+
+        binding = self.definitions["handoff_quality_binding"]
+        artifact_refs = {
+            item["$ref"].removeprefix("#/definitions/")
+            for item in binding["properties"]["artifact"]["oneOf"]
+        }
+        self.assertEqual(set(quality_definitions.values()), artifact_refs)
+        conditional_refs = {
+            item["if"]["properties"]["quality_type"]["const"]:
+            item["then"]["properties"]["artifact"]["$ref"].removeprefix(
+                "#/definitions/"
+            )
+            for item in binding["allOf"]
+        }
+        self.assertEqual(quality_definitions, conditional_refs)
+
+        prefiling = self.definitions["prefiling_refresh"]
+        self.assertEqual(
+            [
+                "pending_treatment_ids",
+                "verified_treatment_ids",
+                "rejected_treatment_ids",
+            ],
+            prefiling["x-pairwise-disjoint"],
+        )
+        self.assertTrue(
+            {
+                "treatment_chronology_issue_ids",
+                "malformed_refresh_entry_ids",
+                "malformed_coverage_gap_ids",
+            }.issubset(prefiling["required"])
+        )
+        for key in ("baseline_corpus_digest", "current_corpus_digest"):
+            self.assertEqual(
+                "#/definitions/sha256",
+                prefiling["properties"][key]["$ref"],
+            )
+
+        self.assertIn(
+            "observations_sha256",
+            self.definitions["chain_propagation_result"]["required"],
+        )
+        self.assertTrue(
+            {"malformed_position_card_refs", "malformed_trajectory_refs"}.issubset(
+                self.definitions["uncertainty_profile"]["required"]
+            )
+        )
+        invalid_audit_fields = {
+            "invalid_screening_record_ids",
+            "invalid_primary_record_ids",
+        }
+        self.assertTrue(
+            invalid_audit_fields.issubset(
+                self.definitions["coding_audit_plan"]["required"]
+            )
+        )
+        self.assertTrue(
+            (
+                invalid_audit_fields
+                | {"invalid_audit_record_ids", "invalid_adjudication_record_ids"}
+            ).issubset(self.definitions["coding_reliability"]["required"])
+        )
+
+        audit_payload = {
+            "schema_version": "1.0",
+            "plan_sha256": "plan-1",
+            "screening_sha256": "1" * 64,
+            "primary_coding_sha256": "2" * 64,
+            "selection_method": "canonical_sha256_rank",
+            "sample_size": 1,
+            "exclusion_sample_size": 0,
+            "sample_candidate_ids": ["candidate-1"],
+            "exclusion_sample_candidate_ids": [],
+            "required_candidate_ids": ["candidate-1"],
+            "invalid_screening_record_ids": [],
+            "invalid_primary_record_ids": [],
+            "frozen": True,
+            "audit_plan_sha256": "3" * 64,
+        }
+        valid_binding = {
+            "quality_type": "coding_audit_plan",
+            "artifact_sha256": "4" * 64,
+            "artifact": audit_payload,
+        }
+        self.assertSchemaValid("handoff_quality_binding", valid_binding)
+        mislabeled = {**valid_binding, "quality_type": "prefiling_refresh"}
+        validator = Draft202012Validator(
+            {
+                "$schema": self.schema["$schema"],
+                "$ref": "#/definitions/handoff_quality_binding",
+                "definitions": self.definitions,
+            },
+            format_checker=FormatChecker(),
+        )
+        self.assertTrue(list(validator.iter_errors(mislabeled)))
 
     def test_public_cache_and_source_contract_enums_are_explicit(self):
         self.assertEqual(
