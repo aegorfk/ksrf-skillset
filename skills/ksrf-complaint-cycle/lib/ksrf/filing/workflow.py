@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any, Mapping, Optional, Sequence
@@ -291,6 +292,8 @@ class WorkflowRouter:
         *,
         approval_ledger: TrustedApprovalLedger | None = None,
         source_identity_verifier: SourceIdentityVerifier | None = None,
+        failure_private_root: str | Path | None = None,
+        failure_redaction_verifier: Any | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.matter = load_matter(self.workspace)
@@ -298,6 +301,23 @@ class WorkflowRouter:
         self.events = AppendOnlyJsonlLedger(self.workspace / "workflow" / "events.jsonl")
         self.source_root = self.workspace / "evidence" / "official-sources"
         self.failure_root = self.workspace / "evidence" / "failure-corpus"
+        configured_private_root = failure_private_root or os.environ.get(
+            "KSRF_PRIVATE_CORPUS_ROOT"
+        )
+        self.failure_private_root = (
+            Path(configured_private_root).expanduser().resolve()
+            if configured_private_root
+            else (self.workspace / "private" / "failure-corpus").resolve()
+        )
+        public_failure_root = self.failure_root.resolve()
+        if (
+            self.failure_private_root == public_failure_root
+            or self.failure_private_root in public_failure_root.parents
+            or public_failure_root in self.failure_private_root.parents
+        ):
+            raise WorkflowInputError(
+                "Приватный corpus root должен быть физически отделён от публичного failure-corpus root."
+            )
         self.evaluation_runs = AppendOnlyJsonlLedger(
             self.workspace / "evaluation" / "runs.jsonl"
         )
@@ -305,6 +325,41 @@ class WorkflowRouter:
             self.workspace / "trusted-approvals"
         )
         self.source_identity_verifier = source_identity_verifier
+        self.failure_redaction_verifier = failure_redaction_verifier
+
+    def _source_repository(self) -> SourceEvidenceRepository:
+        return SourceEvidenceRepository(
+            self.source_root,
+            approval_ledger=self.approvals,
+            identity_verifier=self.source_identity_verifier,
+        )
+
+    def _resolve_current_source_authority(
+        self,
+        evidence_id: str,
+    ) -> Optional[dict[str, Any]]:
+        repository = self._source_repository()
+        matches = [
+            item
+            for item in repository.evidence.records()
+            if str(item.get("evidence_id") or "") == str(evidence_id)
+        ]
+        if len(matches) != 1:
+            return None
+        evidence = matches[0]
+        return {
+            "evidence": evidence,
+            "authority": repository.current_filing_authority(evidence),
+        }
+
+    def _failure_corpus(self) -> FailureCorpus:
+        return FailureCorpus(
+            self.failure_root,
+            private_root=self.failure_private_root,
+            approval_ledger=self.approvals,
+            source_authority_resolver=self._resolve_current_source_authority,
+            redaction_verifier=self.failure_redaction_verifier,
+        )
 
     def _base_result(
         self,
@@ -362,15 +417,31 @@ class WorkflowRouter:
         complete["event_id"] = event["event_id"]
         return complete
 
-    def _latest_result(self, route: str) -> Optional[dict[str, Any]]:
+    def _latest_operation(
+        self, route: str
+    ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]]]:
         for event in reversed(self.events.records()):
             if event.get("route") != route or event.get("action") in {"status", "coverage"}:
                 continue
             raw = self.objects.read_bytes(_mapping(event.get("result_object"), label="result_object"))
             value = json.loads(raw)
-            if isinstance(value, dict):
-                return value
-        return None
+            if not isinstance(value, dict):
+                continue
+            payload: Optional[dict[str, Any]] = None
+            input_object = event.get("input_object")
+            if isinstance(input_object, Mapping):
+                input_raw = self.objects.read_bytes(
+                    _mapping(input_object, label="input_object")
+                )
+                input_value = json.loads(input_raw)
+                if isinstance(input_value, dict):
+                    payload = input_value
+            return value, payload
+        return None, None
+
+    def _latest_result(self, route: str) -> Optional[dict[str, Any]]:
+        result, _payload = self._latest_operation(route)
+        return result
 
     def dispatch(
         self,
@@ -446,11 +517,7 @@ class WorkflowRouter:
         *,
         allow_network: bool,
     ) -> dict[str, Any]:
-        repository = SourceEvidenceRepository(
-            self.source_root,
-            approval_ledger=self.approvals,
-            identity_verifier=self.source_identity_verifier,
-        )
+        repository = self._source_repository()
         if action == "status":
             coverage = dict(repository.coverage_report())
             observations = repository.observations.records()
@@ -673,25 +740,37 @@ class WorkflowRouter:
         self, action: str, payload: Optional[Mapping[str, Any]]
     ) -> dict[str, Any]:
         if action == "status":
-            latest = self._latest_result("application")
+            latest, latest_payload = self._latest_operation("application")
+            current = (
+                self._application("evaluate", latest_payload)
+                if latest is not None and latest_payload is not None
+                else None
+            )
             return self._base_result(
                 "application",
                 action,
-                state=(str(latest["state"]) if latest else "blocked"),
+                state=(str(current["state"]) if current else "blocked"),
                 implemented=True,
                 message=(
-                    "Показан последний доказательственный вывод о применении нормы."
-                    if latest
+                    "Последний вывод о применении нормы повторно проверен по текущим доказательствам и одобрениям."
+                    if current
                     else "Оценка применения нормы ещё не выполнялась."
                 ),
-                result={"latest": latest},
-                found=(("Последняя оценка применения",) if latest else ()),
-                missing=(() if latest else ("Оценка по полным текстам судебных актов",)),
+                result={
+                    "latest": current,
+                    "cached_result_reused_without_revalidation": False,
+                },
+                found=(tuple(current.get("found") or ()) if current else ()),
+                missing=(
+                    tuple(current.get("missing") or ())
+                    if current
+                    else ("Оценка по полным текстам судебных актов",)
+                ),
                 next_actions=(
-                    "Проверьте вывод и доказательственные локаторы вручную."
-                    if latest
-                    else "Передайте records[] в application evaluate."
-                ,),
+                    tuple(current.get("next_actions") or ())
+                    if current
+                    else ("Передайте records[] в application evaluate.",)
+                ),
             )
         if payload is None:
             raise WorkflowInputError("Для application evaluate нужен версионированный --payload.")
@@ -704,6 +783,22 @@ class WorkflowRouter:
         target = next((item for item in records if item.record_id == target_id), None)
         if target is None:
             raise WorkflowInputError(f"target_record_id не найден в records: {target_id}")
+        norm_version_passport = (
+            dict(_mapping(payload.get("norm_version_passport"), label="norm_version_passport"))
+            if payload.get("norm_version_passport") is not None
+            else None
+        )
+        preservation_rule_evidence = (
+            dict(
+                _mapping(
+                    payload.get("preservation_rule_evidence"),
+                    label="preservation_rule_evidence",
+                )
+            )
+            if payload.get("preservation_rule_evidence") is not None
+            else None
+        )
+        official_evidence_repository = self._source_repository()
         decision = evaluate_application_admissibility(
             target,
             chain,
@@ -722,6 +817,20 @@ class WorkflowRouter:
             approval_as_of=(
                 str(payload.get("approval_as_of"))
                 if payload.get("approval_as_of")
+                else None
+            ),
+            norm_version_passport=norm_version_passport,
+            norm_version_official_evidence_verifier=official_evidence_repository,
+            norm_version_approval_id=(
+                str(payload.get("norm_version_approval_id"))
+                if payload.get("norm_version_approval_id")
+                else None
+            ),
+            preservation_rule_evidence=preservation_rule_evidence,
+            preservation_rule_evidence_verifier=official_evidence_repository,
+            preservation_rule_approval_id=(
+                str(payload.get("preservation_rule_approval_id"))
+                if payload.get("preservation_rule_approval_id")
                 else None
             ),
         )
@@ -756,20 +865,37 @@ class WorkflowRouter:
         self, action: str, payload: Optional[Mapping[str, Any]]
     ) -> dict[str, Any]:
         if action == "status":
-            latest = self._latest_result("issues")
+            latest, latest_payload = self._latest_operation("issues")
+            current = (
+                self._issues("generate", latest_payload)
+                if latest is not None and latest_payload is not None
+                else None
+            )
             return self._base_result(
                 "issues",
                 action,
-                state=(str(latest["state"]) if latest else "blocked"),
+                state=(str(current["state"]) if current else "blocked"),
                 implemented=True,
                 message=(
-                    "Показан последний набор конституционно-правовых вариантов."
-                    if latest
+                    "Последний набор вариантов повторно проверен по текущим одобрениям и binding."
+                    if current
                     else "Варианты конституционно-правовой проблемы ещё не формировались."
                 ),
-                result={"latest": latest},
-                missing=(() if latest else ("Доказательственный seed для issue-кандидата",)),
-                next_actions=("Передайте seeds[] в issues generate.",),
+                result={
+                    "latest": current,
+                    "cached_result_reused_without_revalidation": False,
+                },
+                found=(tuple(current.get("found") or ()) if current else ()),
+                missing=(
+                    tuple(current.get("missing") or ())
+                    if current
+                    else ("Доказательственный seed для issue-кандидата",)
+                ),
+                next_actions=(
+                    tuple(current.get("next_actions") or ())
+                    if current
+                    else ("Передайте seeds[] в issues generate.",)
+                ),
             )
         if payload is None:
             raise WorkflowInputError("Для issues generate нужен версионированный --payload.")
@@ -833,7 +959,7 @@ class WorkflowRouter:
     def _failures(
         self, action: str, payload: Optional[Mapping[str, Any]]
     ) -> dict[str, Any]:
-        corpus = FailureCorpus(self.failure_root, approval_ledger=self.approvals)
+        corpus = self._failure_corpus()
         if action == "ingest":
             if payload is None:
                 raise WorkflowInputError("Для corpus ingest нужен версионированный --payload.")
@@ -1215,7 +1341,90 @@ class WorkflowRouter:
         input_object: Optional[Mapping[str, Any]],
     ) -> dict[str, Any]:
         if action == "status":
-            return self._operation_status("release", "Комплект для подачи ещё не собирался.")
+            latest, _latest_payload = self._latest_operation("release")
+            if latest is None:
+                return self._operation_status(
+                    "release", "Комплект для подачи ещё не собирался."
+                )
+            try:
+                from .release import verify_release_manifest
+            except ImportError as exc:
+                return self._optional_runtime_block("release", action, exc)
+            manifest_value = (latest.get("result") or {}).get("manifest")
+            if not isinstance(manifest_value, Mapping):
+                errors = ["release_manifest_missing"]
+                manifest = None
+            else:
+                manifest_path_value = str(manifest_value.get("manifest_path") or "").strip()
+                release_root = (self.workspace / "release").resolve()
+                try:
+                    manifest_path = Path(manifest_path_value).expanduser().resolve(strict=True)
+                except (OSError, RuntimeError):
+                    errors = ["release_manifest_file_missing"]
+                    manifest = dict(manifest_value)
+                else:
+                    if release_root not in manifest_path.parents:
+                        errors = ["release_manifest_path_outside_workspace"]
+                        manifest = dict(manifest_value)
+                    elif not manifest_path.is_file() or manifest_path.stat().st_size > MAX_PAYLOAD_BYTES:
+                        errors = ["release_manifest_file_invalid"]
+                        manifest = dict(manifest_value)
+                    else:
+                        try:
+                            loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+                        except (OSError, UnicodeError, json.JSONDecodeError):
+                            errors = ["release_manifest_json_invalid"]
+                            manifest = dict(manifest_value)
+                        else:
+                            if not isinstance(loaded, Mapping):
+                                errors = ["release_manifest_not_object"]
+                                manifest = dict(manifest_value)
+                            else:
+                                manifest = dict(loaded)
+                                errors = verify_release_manifest(
+                                    manifest,
+                                    approval_ledger=self.approvals,
+                                )
+            manifest_status = str((manifest or {}).get("status") or "blocked")
+            state = (
+                manifest_status
+                if not errors
+                and manifest_status
+                in {"ready_for_expert_review", "ready_for_human_signing_filing"}
+                else "blocked"
+            )
+            current = dict(latest)
+            current["state"] = state
+            current_result = dict(current.get("result") or {})
+            current_result["manifest"] = manifest
+            current_result["integrity_errors"] = list(errors)
+            current["result"] = current_result
+            current["message"] = (
+                "Комплект повторно проверен по текущим файлам, описи и одобрениям."
+                if state != "blocked"
+                else "Текущий комплект больше не проходит проверку файлов, описи или одобрений."
+            )
+            current["missing"] = list(errors)
+            return self._base_result(
+                "release",
+                action,
+                state=state,
+                implemented=True,
+                message=current["message"],
+                result={
+                    "latest": current,
+                    "cached_result_reused_without_revalidation": False,
+                },
+                found=(
+                    ("Текущий release manifest и его файлы повторно проверены",)
+                    if state != "blocked"
+                    else ()
+                ),
+                missing=tuple(errors),
+                next_actions=(
+                    "Исправьте указанные расхождения, пересоберите комплект и получите новые точные одобрения.",
+                ),
+            )
         if payload is None or input_object is None:
             raise WorkflowInputError(f"Для release {action} нужен версионированный --payload.")
         try:

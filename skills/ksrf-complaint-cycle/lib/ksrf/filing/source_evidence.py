@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import stat
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -421,28 +423,215 @@ class SourceEvidenceRepository:
             else lambda: datetime.now(timezone.utc)
         )
 
+    def _read_current_raw_object(
+        self,
+        evidence: Mapping[str, Any],
+        blockers: list[str],
+    ) -> tuple[Optional[bytes], str]:
+        raw = evidence.get("raw_object")
+        if not isinstance(raw, Mapping):
+            blockers.append("raw_object_record_invalid")
+            return None, ""
+
+        declared_sha256 = str(raw.get("sha256") or "").strip().lower()
+        path_value = str(raw.get("object_path") or "").strip()
+        declared_size = raw.get("size")
+        if len(declared_sha256) != 64 or any(
+            character not in "0123456789abcdef" for character in declared_sha256
+        ):
+            blockers.append("raw_object_record_invalid")
+            return None, declared_sha256
+        if (
+            not isinstance(declared_size, int)
+            or isinstance(declared_size, bool)
+            or declared_size < 0
+        ):
+            blockers.append("raw_object_size_mismatch")
+
+        expected_relative = (
+            Path("source-evidence")
+            / "objects"
+            / "sha256"
+            / declared_sha256[:2]
+            / declared_sha256
+        )
+        supplied_relative = Path(path_value)
+        if supplied_relative.is_absolute() or supplied_relative != expected_relative:
+            blockers.append("raw_object_path_invalid")
+            return None, declared_sha256
+
+        object_path = self.objects.root / supplied_relative
+        try:
+            metadata = object_path.lstat()
+        except FileNotFoundError:
+            blockers.append("raw_object_missing")
+            return None, declared_sha256
+        except OSError:
+            blockers.append("raw_object_unreadable")
+            return None, declared_sha256
+        if not stat.S_ISREG(metadata.st_mode):
+            blockers.append("raw_object_not_regular_file")
+            return None, declared_sha256
+        try:
+            resolved_path = object_path.resolve(strict=True)
+            resolved_path.relative_to(self.objects.root)
+        except (FileNotFoundError, OSError, ValueError):
+            blockers.append("raw_object_path_invalid")
+            return None, declared_sha256
+        if resolved_path != object_path:
+            blockers.append("raw_object_not_regular_file")
+            return None, declared_sha256
+        try:
+            content = object_path.read_bytes()
+        except OSError:
+            blockers.append("raw_object_unreadable")
+            return None, declared_sha256
+
+        observed_sha256 = hashlib.sha256(content).hexdigest()
+        if observed_sha256 != declared_sha256:
+            blockers.append("raw_object_sha256_mismatch")
+        if not isinstance(declared_size, int) or isinstance(declared_size, bool) or len(
+            content
+        ) != declared_size:
+            blockers.append("raw_object_size_mismatch")
+        return content, observed_sha256
+
+    def _current_observation(
+        self,
+        evidence: Mapping[str, Any],
+        blockers: list[str],
+    ) -> Optional[Dict[str, Any]]:
+        observation_id = str(evidence.get("observation_id") or "")
+        observation = self.observations.latest_by("observation_id", observation_id)
+        if not observation:
+            blockers.append("source_observation_missing")
+            return None
+        observation_body = {
+            key: observation.get(key)
+            for key in (
+                "schema_version",
+                "source_registry_version",
+                "source_id",
+                "issuer",
+                "authority_class",
+                "origin_url",
+                "requested_locator",
+                "bounded_scope",
+                "result_status",
+                "acquisition_transport",
+                "discovery_transport",
+                "redirect_chain",
+                "adapter_result_attempts",
+                "terminal_rule_verified",
+                "http_status",
+                "response_headers",
+                "error_code",
+                "error_detail",
+                "observed_at",
+            )
+        }
+        if stable_id("source-observation", observation_body) != observation_id:
+            blockers.append("source_observation_id_mismatch")
+        if (
+            observation.get("result_status") != "retrieved"
+            or observation.get("source_id") != evidence.get("source_id")
+            or observation.get("origin_url") != evidence.get("origin_url")
+            or observation.get("acquisition_transport")
+            != evidence.get("acquisition_transport")
+            or observation.get("discovery_transport") != evidence.get("discovery_transport")
+            or observation.get("redirect_chain") != evidence.get("redirect_chain")
+            or observation.get("observed_at") != evidence.get("retrieved_at")
+        ):
+            blockers.append("source_observation_binding_mismatch")
+        return observation
+
     def current_filing_authority(self, evidence: Mapping[str, Any]) -> Dict[str, Any]:
-        """Revalidate mutable authority dependencies instead of trusting stored flags."""
+        """Recompute content and current authority instead of trusting stored flags."""
 
         evidence_id = str(evidence.get("evidence_id") or "")
         blockers: list[str] = []
         if (
             evidence.get("filing_ready") is not True
             or evidence.get("filing_authority_state") != "verified_official"
+            or evidence.get("validation_state") != "verified"
         ):
             blockers.append("evidence_not_verified_official")
+
+        raw_bytes, observed_sha256 = self._read_current_raw_object(evidence, blockers)
+        raw_record = evidence.get("raw_object")
+        declared_sha256 = str(
+            (raw_record.get("sha256") if isinstance(raw_record, Mapping) else None) or ""
+        )
+        content_sha256 = observed_sha256 or declared_sha256
+        extracted_record = evidence.get("extracted_object")
+        if extracted_record is None:
+            extracted_sha256 = None
+        elif isinstance(extracted_record, Mapping) and str(
+            extracted_record.get("sha256") or ""
+        ):
+            extracted_sha256 = str(extracted_record.get("sha256"))
+        else:
+            extracted_sha256 = None
+            blockers.append("extracted_object_record_invalid")
+
+        source_id = str(evidence.get("source_id") or "")
+        origin_url = str(evidence.get("origin_url") or "")
+        expected_evidence_id = stable_id(
+            "source-evidence",
+            {
+                "source_id": source_id,
+                "origin_url": origin_url,
+                "raw_sha256": content_sha256,
+                "extracted_sha256": extracted_sha256,
+            },
+        )
+        if evidence_id != expected_evidence_id:
+            blockers.append("evidence_id_mismatch")
+        expected_revision_id = stable_id(
+            "source-verification",
+            {
+                "evidence_id": evidence_id,
+                "identity_checks": evidence.get("identity_checks"),
+                "derived_identity_checks": evidence.get("derived_identity_checks"),
+                "approval_ids": evidence.get("approval_ids"),
+                "trusted_approval_id": evidence.get("trusted_approval_id"),
+                "validation_state": evidence.get("validation_state"),
+            },
+        )
+        if str(evidence.get("verification_revision_id") or "") != expected_revision_id:
+            blockers.append("verification_revision_id_mismatch")
+
+        source: Optional[Dict[str, Any]] = None
+        try:
+            source = self.registry.get(source_id)
+        except KeyError:
+            blockers.append("current_source_registry_missing")
+        if source is not None:
+            if source.get("authority_class") not in {
+                "official_primary",
+                "official_derivative",
+            }:
+                blockers.append("current_source_not_official")
+            if (
+                evidence.get("issuer") != source.get("issuer")
+                or evidence.get("authority_class") != source.get("authority_class")
+            ):
+                blockers.append("source_registry_binding_mismatch")
+
+        locator = str(evidence.get("verified_official_locator") or "")
+        resolved_locator = self.registry.resolve_url(locator) if locator else None
+        if not resolved_locator or resolved_locator.get("source_id") != source_id:
+            blockers.append("official_locator_registry_mismatch")
+        reconstructed = source_identity_fingerprint(
+            source_id=source_id,
+            official_locator=locator,
+            content_sha256=content_sha256,
+        )
+        if reconstructed != str(evidence.get("identity_fingerprint") or ""):
+            blockers.append("source_identity_fingerprint_mismatch")
+
         mode = str(evidence.get("identity_verification_mode") or "")
         if mode == "trusted_approval":
-            source_id = str(evidence.get("source_id") or "")
-            locator = str(evidence.get("verified_official_locator") or "")
-            content_sha256 = str((evidence.get("raw_object") or {}).get("sha256") or "")
-            reconstructed = source_identity_fingerprint(
-                source_id=source_id,
-                official_locator=locator,
-                content_sha256=content_sha256,
-            )
-            if reconstructed != str(evidence.get("identity_fingerprint") or ""):
-                blockers.append("source_identity_fingerprint_mismatch")
             approval_id = str(evidence.get("trusted_approval_id") or "")
             if not approval_id:
                 blockers.append("approval_not_found")
@@ -461,7 +650,68 @@ class SourceEvidenceRepository:
                 )
                 if validation.get("valid") is not True:
                     blockers.append(str(validation.get("reason_code") or "approval_invalid"))
-        elif mode != "trusted_derived":
+        elif mode == "trusted_derived":
+            if (
+                evidence.get("acquisition_transport") != "direct_http"
+                or evidence.get("discovery_transport")
+            ):
+                blockers.append("trusted_derived_direct_transport_required")
+            observation = self._current_observation(evidence, blockers)
+            if self.identity_verifier is None:
+                blockers.append("host_identity_verifier_required")
+            elif raw_bytes is None or source is None or observation is None:
+                blockers.append("trusted_derived_revalidation_unavailable")
+            else:
+                try:
+                    request = AdapterRequest(
+                        source_id=source_id,
+                        locator=str(observation.get("requested_locator") or ""),
+                        bounded_scope=dict(observation.get("bounded_scope") or {}),
+                    )
+                    result = AdapterResult(
+                        status="retrieved",
+                        transport=str(evidence.get("acquisition_transport") or ""),
+                        origin_url=origin_url,
+                        raw_bytes=raw_bytes,
+                        content_type=evidence.get("content_type"),
+                        terminal_rule_verified=bool(
+                            observation.get("terminal_rule_verified")
+                        ),
+                        transform_chain=tuple(evidence.get("transform_chain") or ()),
+                        fetched_at=str(evidence.get("retrieved_at") or "") or None,
+                        attempt_count=int(observation.get("adapter_result_attempts") or 1),
+                        discovery_transport=evidence.get("discovery_transport"),
+                        redirect_chain=tuple(evidence.get("redirect_chain") or ()),
+                        derived_identity_checks=tuple(
+                            evidence.get("derived_identity_checks") or ()
+                        ),
+                    )
+                except (TypeError, ValueError):
+                    blockers.append("source_observation_invalid")
+                else:
+                    current_checks, verifier_blocker = _host_derived_identity_checks(
+                        self.identity_verifier,
+                        source=source,
+                        request=request,
+                        result=result,
+                        raw_bytes=raw_bytes,
+                        content_sha256=content_sha256,
+                    )
+                    if verifier_blocker:
+                        blockers.append(verifier_blocker)
+                    current_core = _core_identity_verification(
+                        registry=self.registry,
+                        source=source,
+                        request=request,
+                        result=result,
+                        checks=current_checks,
+                        content_sha256=content_sha256,
+                    )
+                    if current_core.get("verified") is not True:
+                        blockers.extend(current_core.get("blockers") or [])
+                    if str(current_core.get("official_locator") or "") != locator:
+                        blockers.append("trusted_derived_locator_mismatch")
+        else:
             blockers.append("current_identity_authority_missing")
         return {
             "evidence_id": evidence_id,

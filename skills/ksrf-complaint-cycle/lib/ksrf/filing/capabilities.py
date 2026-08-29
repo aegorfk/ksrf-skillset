@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import socket
 import urllib.error
@@ -31,6 +32,56 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MANIFEST_PATH = PROJECT_ROOT / "configs" / "ksrf_filing_capabilities.v1.json"
 LOCAL_SERVICE_HOSTS = {"localhost", "127.0.0.1", "::1"}
 MAX_PROBE_TIMEOUT_SECONDS = 5.0
+_CAPABILITY_FIELDS = {
+    "id",
+    "title",
+    "purpose",
+    "privacy",
+    "cost",
+    "dependency",
+    "remediation",
+    "profiles",
+    "dependent_gates",
+    "blocking_when_missing",
+    "probe",
+}
+_PROBE_FIELDS = {
+    "kind",
+    "executables",
+    "modules",
+    "alternatives",
+    "paths",
+    "environment",
+    "path",
+    "path_environment",
+    "verifier_id_environment",
+    "channel_environment",
+    "write_required",
+    "require_all",
+    "url",
+    "timeout_seconds",
+}
+_PROBE_KINDS = {
+    "executable",
+    "service",
+    "credential_presence",
+    "directory",
+    "python_module",
+    "renderer",
+    "ocr",
+    "browser",
+    "bounded_network",
+    "trusted_approval_verifier",
+    "manual",
+    "any_of",
+}
+_SAFETY_CONTRACT = {
+    "external_transmission_default": False,
+    "automatic_installation": False,
+    "automatic_account_creation": False,
+    "secret_values_reported": False,
+    "network_requires_explicit_authorization": True,
+}
 
 
 def load_capability_manifest(path: str | Path | None = None) -> dict[str, Any]:
@@ -43,21 +94,45 @@ def load_capability_manifest(path: str | Path | None = None) -> dict[str, Any]:
 def validate_capability_manifest(manifest: Mapping[str, Any]) -> None:
     require_fields(
         manifest,
-        ("schema_version", "manifest_id", "initial_state", "safety", "profiles", "capabilities"),
+        ("$schema", "schema_version", "manifest_id", "initial_state", "safety", "profiles", "capabilities"),
         label="Манифест возможностей",
     )
+    if set(manifest) != {
+        "$schema",
+        "schema_version",
+        "manifest_id",
+        "initial_state",
+        "safety",
+        "profiles",
+        "capabilities",
+    }:
+        raise ContractError("Состав полей манифеста возможностей не соответствует схеме.")
+    if Path(str(manifest["$schema"])).name != CAPABILITY_MANIFEST_SCHEMA:
+        raise ContractError("Манифест ссылается на неизвестную JSON-схему.")
     if manifest["schema_version"] != SCHEMA_VERSION:
         raise ContractError(
             f"Неподдерживаемая версия манифеста возможностей: {manifest['schema_version']}."
         )
     if manifest["initial_state"] != "skills_only":
         raise ContractError("Начальное состояние манифеста должно быть skills_only.")
+    if not str(manifest["manifest_id"] or "").strip():
+        raise ContractError("manifest_id не может быть пустым.")
+    if not isinstance(manifest["safety"], Mapping) or dict(manifest["safety"]) != _SAFETY_CONTRACT:
+        raise ContractError("Safety-контракт манифеста повреждён или ослаблен.")
     profiles = manifest["profiles"]
     if not isinstance(profiles, Mapping) or set(profiles) != set(SETUP_PROFILES):
         raise ContractError("Манифест должен определять профили basic, research и expert.")
+    for profile_id, profile in profiles.items():
+        if (
+            not isinstance(profile, Mapping)
+            or set(profile) != {"title", "purpose"}
+            or not str(profile.get("title") or "").strip()
+            or not str(profile.get("purpose") or "").strip()
+        ):
+            raise ContractError(f"Профиль {profile_id} не соответствует схеме.")
     capabilities = manifest["capabilities"]
-    if not isinstance(capabilities, list):
-        raise ContractError("Поле capabilities должно быть списком.")
+    if not isinstance(capabilities, list) or not capabilities:
+        raise ContractError("Поле capabilities должно быть непустым списком.")
     seen: set[str] = set()
     for capability in capabilities:
         if not isinstance(capability, Mapping):
@@ -74,14 +149,22 @@ def validate_capability_manifest(manifest: Mapping[str, Any]) -> None:
                 "remediation",
                 "profiles",
                 "dependent_gates",
+                "blocking_when_missing",
                 "probe",
             ),
             label="Описание возможности",
         )
+        if set(capability) != _CAPABILITY_FIELDS:
+            raise ContractError("Описание возможности содержит неизвестные или отсутствующие поля.")
         capability_id = str(capability["id"])
+        if re.fullmatch(r"[a-z][a-z0-9_]*", capability_id) is None:
+            raise ContractError(f"Идентификатор возможности недопустим: {capability_id!r}.")
         if capability_id in seen:
             raise ContractError(f"Возможность {capability_id} объявлена повторно.")
         seen.add(capability_id)
+        for field in ("title", "purpose", "privacy", "cost", "dependency", "remediation"):
+            if not isinstance(capability[field], str) or not capability[field].strip():
+                raise ContractError(f"Возможность {capability_id}: поле {field} не может быть пустым.")
         profile_map = capability["profiles"]
         if not isinstance(profile_map, Mapping) or set(profile_map) != set(SETUP_PROFILES):
             raise ContractError(
@@ -89,6 +172,49 @@ def validate_capability_manifest(manifest: Mapping[str, Any]) -> None:
             )
         if not set(profile_map.values()) <= set(CAPABILITY_REQUIREMENTS):
             raise ContractError(f"Возможность {capability_id} содержит неверный тип зависимости.")
+        if not isinstance(capability["dependent_gates"], list) or not all(
+            isinstance(item, str) and item.strip()
+            for item in capability["dependent_gates"]
+        ):
+            raise ContractError(f"Возможность {capability_id}: dependent_gates должен быть списком строк.")
+        if not isinstance(capability["blocking_when_missing"], bool):
+            raise ContractError(f"Возможность {capability_id}: blocking_when_missing должен быть boolean.")
+        _validate_probe(capability["probe"], capability_id=capability_id)
+
+
+def _validate_probe(probe: Any, *, capability_id: str) -> None:
+    if not isinstance(probe, Mapping) or set(probe) - _PROBE_FIELDS:
+        raise ContractError(f"Возможность {capability_id}: probe не соответствует схеме.")
+    kind = str(probe.get("kind") or "")
+    if kind not in _PROBE_KINDS:
+        raise ContractError(f"Возможность {capability_id}: неизвестный probe.kind {kind!r}.")
+    timeout = probe.get("timeout_seconds")
+    if timeout is not None and (
+        not isinstance(timeout, (int, float))
+        or isinstance(timeout, bool)
+        or not 0 < float(timeout) <= MAX_PROBE_TIMEOUT_SECONDS
+    ):
+        raise ContractError(f"Возможность {capability_id}: timeout_seconds вне допустимого диапазона.")
+    for key in ("executables", "modules", "paths", "environment"):
+        value = probe.get(key)
+        if value is not None and (
+            not isinstance(value, list)
+            or not all(isinstance(item, str) for item in value)
+        ):
+            raise ContractError(f"Возможность {capability_id}: probe.{key} должен быть списком строк.")
+    for key in ("write_required", "require_all"):
+        if key in probe and not isinstance(probe[key], bool):
+            raise ContractError(f"Возможность {capability_id}: probe.{key} должен быть boolean.")
+    alternatives = probe.get("alternatives")
+    if kind == "any_of":
+        if not isinstance(alternatives, list) or not alternatives:
+            raise ContractError(f"Возможность {capability_id}: any_of требует alternatives.")
+        for alternative in alternatives:
+            if isinstance(alternative, Mapping) and alternative.get("kind") == "any_of":
+                raise ContractError(f"Возможность {capability_id}: вложенный any_of запрещён.")
+            _validate_probe(alternative, capability_id=capability_id)
+    elif alternatives is not None:
+        raise ContractError(f"Возможность {capability_id}: alternatives допустим только для any_of.")
 
 
 def _timeout(probe: Mapping[str, Any]) -> float:
@@ -512,17 +638,22 @@ def diagnose_capabilities(
         )
         probe_state = probe_result["state"]
         state = probe_state
-        if (
+        blocks_profile = (
             requirement == "required"
             and probe_state != "ready"
             and bool(capability.get("blocking_when_missing", False))
-        ):
+        )
+        if blocks_profile:
             state = "blocked"
         if state not in CAPABILITY_STATES:
             state = "unknown"
-        if requirement == "required" and probe_state != "ready":
+        if blocks_profile:
             blocking.append(str(capability["id"]))
-        if requirement == "optional" and probe_state != "ready":
+        if (
+            requirement != "not_used"
+            and probe_state != "ready"
+            and not blocks_profile
+        ):
             optional_gaps.append(str(capability["id"]))
         evidence = probe_result.get("evidence", {})
         if evidence.get("request_sent") and evidence.get("external"):

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.1",
-  "generated_at": "2026-08-29T11:42:54Z",
+  "generated_at": "2026-08-29T12:15:45Z",
   "source": "~/.codex/skills canonical 14-package allowlist",
-  "remote_base_commit": "e655bda9f6d03736f651e39bb74e8fe1d3773b48",
+  "remote_base_commit": "fb820a9465817cd3806debe87cdb38ea74da42c7",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -16,8 +16,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 14,
   "total_files": 291,
-  "total_bytes": 7997211,
-  "tree_sha256": "1cd32e550c3705955abdad61c8e3f48d5eab3888198f132692cf9af9ab097586",
+  "total_bytes": 8105783,
+  "tree_sha256": "ef19979841cdc89cd93917daf660e22d5459b893fb3f19218a0b42626138686b",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 93,
-      "bytes": 1490853,
-      "tree_sha256": "ff1a26d57afbc0d4ec76cd601b1f11d0c176165f76831ef59265119f76951cfd"
+      "bytes": 1599425,
+      "tree_sha256": "1f6587b5e490aa148a8899fe3250e99049ed1f407bd4b0b1be85409c81ddad0c"
     },
     {
       "name": "ksrf-complaint-facts-demands",

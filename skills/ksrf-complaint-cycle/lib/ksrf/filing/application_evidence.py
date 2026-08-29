@@ -9,8 +9,14 @@ and can be consolidated after the neighbouring package contracts stabilise.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
+from .norm_versions import (
+    assess_norm_version_passport,
+    norm_version_passport_content_fingerprint,
+    official_evidence_references,
+    verify_official_evidence_reference,
+)
 from .storage import stable_id
 from .trusted_approvals import TrustedApprovalLedger
 
@@ -364,6 +370,191 @@ class AdmissibilityDecision:
     trusted_reviewer: str | None = None
 
 
+PRESERVATION_RULE_STATUSES = frozenset(
+    {"verified_required", "verified_not_required"}
+)
+_PRESERVATION_RULE_FIELDS = {
+    "schema_version",
+    "application_record_id",
+    "claim_id",
+    "norm_id",
+    "norm_version_id",
+    "rule_status",
+    "rule_citation",
+    "rule_statement",
+    "evidence_ids",
+    "record_preservation_exhaustion",
+    "content_fingerprint",
+    "rule_id",
+}
+EvidenceReferenceVerifier = Callable[
+    [Mapping[str, Any]], bool | Mapping[str, Any]
+]
+
+
+def preservation_rule_review_payload(
+    rule: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Canonical preservation/exhaustion rule content without self-identifiers."""
+
+    return {
+        key: value
+        for key, value in rule.items()
+        if key not in {"rule_id", "content_fingerprint"}
+    }
+
+
+def preservation_rule_content_fingerprint(rule: Mapping[str, Any]) -> str:
+    return stable_id(
+        "preservation-rule-content",
+        preservation_rule_review_payload(rule),
+    )
+
+
+def build_preservation_rule_evidence(
+    record: ApplicationEvidenceRecord,
+    *,
+    rule_status: str,
+    rule_citation: str,
+    rule_statement: str,
+    evidence_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Build a content-addressed current-law prerequisite for the application gate."""
+
+    if not isinstance(evidence_ids, Sequence) or isinstance(evidence_ids, (str, bytes)):
+        raise ValueError("evidence_ids must be a sequence")
+    evidence = sorted(
+        {str(item).strip() for item in evidence_ids if str(item).strip()}
+    )
+    payload: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "application_record_id": record.record_id,
+        "claim_id": record.claim_id,
+        "norm_id": record.norm_id,
+        "norm_version_id": record.norm_version_id,
+        "rule_status": str(rule_status),
+        "rule_citation": str(rule_citation).strip(),
+        "rule_statement": str(rule_statement).strip(),
+        "evidence_ids": evidence,
+        "record_preservation_exhaustion": record.preservation_exhaustion,
+    }
+    payload["content_fingerprint"] = preservation_rule_content_fingerprint(payload)
+    payload["rule_id"] = stable_id(
+        "preservation-rule",
+        {
+            "application_record_id": record.record_id,
+            "content_fingerprint": payload["content_fingerprint"],
+        },
+    )
+    return payload
+
+
+def preservation_rule_review_approval_request(
+    rule: Mapping[str, Any],
+) -> dict[str, Any]:
+    bindings = {
+        "rule_id": str(rule.get("rule_id") or ""),
+        "content_fingerprint": preservation_rule_content_fingerprint(rule),
+        "rule": preservation_rule_review_payload(rule),
+    }
+    return {
+        "purpose": "application",
+        "subject_type": "preservation_exhaustion_rule",
+        "subject_id": bindings["rule_id"],
+        "fingerprint": stable_id("preservation-rule-review", bindings),
+        "bindings": bindings,
+    }
+
+
+def _preservation_rule_assessment(
+    record: ApplicationEvidenceRecord,
+    rule: Mapping[str, Any] | None,
+    *,
+    evidence_verifier: EvidenceReferenceVerifier | Any | None,
+    approval_ledger: TrustedApprovalLedger | None,
+    approval_id: str | None,
+) -> tuple[list[str], tuple[str, ...], str | None]:
+    if not isinstance(rule, Mapping):
+        return ["preservation_rule_evidence_required"], (), None
+
+    blockers: list[str] = []
+    for field in sorted(set(rule) - _PRESERVATION_RULE_FIELDS):
+        blockers.append(f"unexpected_preservation_rule_field:{field}")
+    expected_bindings = {
+        "application_record_id": record.record_id,
+        "claim_id": record.claim_id,
+        "norm_id": record.norm_id,
+        "norm_version_id": record.norm_version_id,
+        "record_preservation_exhaustion": record.preservation_exhaustion,
+    }
+    if rule.get("schema_version") != "1.0.0":
+        blockers.append("preservation_rule_schema_invalid")
+    if any(rule.get(key) != value for key, value in expected_bindings.items()):
+        blockers.append("preservation_rule_record_binding_mismatch")
+    rule_status = str(rule.get("rule_status") or "")
+    if rule_status not in PRESERVATION_RULE_STATUSES:
+        blockers.append("preservation_rule_status_invalid")
+    if not str(rule.get("rule_citation") or "").strip():
+        blockers.append("preservation_rule_citation_missing")
+    if not str(rule.get("rule_statement") or "").strip():
+        blockers.append("preservation_rule_statement_missing")
+    raw_evidence_ids = rule.get("evidence_ids")
+    if not isinstance(raw_evidence_ids, Sequence) or isinstance(
+        raw_evidence_ids, (str, bytes)
+    ):
+        evidence_ids: tuple[str, ...] = ()
+    else:
+        evidence_ids = tuple(
+            sorted({str(item).strip() for item in raw_evidence_ids if str(item).strip()})
+        )
+        if list(raw_evidence_ids) != list(evidence_ids):
+            blockers.append("preservation_rule_evidence_ids_noncanonical")
+    if not evidence_ids:
+        blockers.append("preservation_rule_official_evidence_missing")
+    if rule.get("content_fingerprint") != preservation_rule_content_fingerprint(rule):
+        blockers.append("preservation_rule_content_fingerprint_mismatch")
+    expected_rule_id = stable_id(
+        "preservation-rule",
+        {
+            "application_record_id": record.record_id,
+            "content_fingerprint": preservation_rule_content_fingerprint(rule),
+        },
+    )
+    if rule.get("rule_id") != expected_rule_id:
+        blockers.append("preservation_rule_id_mismatch")
+
+    if evidence_ids and evidence_verifier is None:
+        blockers.append("preservation_rule_evidence_verifier_required")
+    elif evidence_verifier is not None:
+        for evidence_id in evidence_ids:
+            reference = {
+                "role": "preservation_exhaustion_rule",
+                "evidence_id": evidence_id,
+                "authority_class": "official_primary",
+            }
+            if not verify_official_evidence_reference(evidence_verifier, reference):
+                blockers.append(f"preservation_evidence_not_verified:{evidence_id}")
+
+    approval_validation: Mapping[str, Any] = {
+        "valid": False,
+        "reason_code": "approval_required",
+    }
+    if approval_ledger is not None and str(approval_id or "").strip():
+        approval_validation = approval_ledger.validate_approval(
+            str(approval_id),
+            **preservation_rule_review_approval_request(rule),
+        )
+    if approval_validation.get("valid") is not True:
+        if approval_ledger is None or not str(approval_id or "").strip():
+            blockers.append("trusted_preservation_rule_approval_required")
+        else:
+            blockers.append(
+                "trusted_preservation_rule_"
+                f"{approval_validation.get('reason_code') or 'approval_invalid'}"
+            )
+    return list(dict.fromkeys(blockers)), evidence_ids, rule_status or None
+
+
 def application_review_approval_request(
     record: ApplicationEvidenceRecord,
     chain: ChainAssessment,
@@ -371,11 +562,40 @@ def application_review_approval_request(
     norm_version_status: str,
     version_evidence_ids: Sequence[str],
     preservation_rule_status: str,
+    norm_version_passport: Mapping[str, Any] | None = None,
+    norm_version_approval_id: str | None = None,
+    preservation_rule_evidence: Mapping[str, Any] | None = None,
+    preservation_rule_approval_id: str | None = None,
 ) -> dict[str, Any]:
     """Build exact immutable bindings for a positive application gate."""
 
+    del norm_version_status, version_evidence_ids, preservation_rule_status
     classification = classify_application(record)
     record_content_fingerprint = application_record_content_fingerprint(record)
+    norm_binding = None
+    if isinstance(norm_version_passport, Mapping):
+        norm_binding = {
+            "passport_id": str(norm_version_passport.get("passport_id") or ""),
+            "passport_revision_id": str(
+                norm_version_passport.get("passport_revision_id") or ""
+            ),
+            "content_fingerprint": norm_version_passport_content_fingerprint(
+                norm_version_passport
+            ),
+            "official_evidence_references": official_evidence_references(
+                norm_version_passport
+            ),
+            "trusted_approval_id": str(norm_version_approval_id or ""),
+        }
+    preservation_binding = None
+    if isinstance(preservation_rule_evidence, Mapping):
+        preservation_binding = {
+            "rule_id": str(preservation_rule_evidence.get("rule_id") or ""),
+            "content_fingerprint": preservation_rule_content_fingerprint(
+                preservation_rule_evidence
+            ),
+            "trusted_approval_id": str(preservation_rule_approval_id or ""),
+        }
     bindings = {
         "record_id": record.record_id,
         "claim_id": record.claim_id,
@@ -396,9 +616,8 @@ def application_review_approval_request(
                 for record_id, fingerprint in chain.record_content_fingerprints
             ],
         },
-        "norm_version_status": str(norm_version_status),
-        "version_evidence_ids": list(version_evidence_ids),
-        "preservation_rule_status": str(preservation_rule_status),
+        "norm_version_prerequisite": norm_binding,
+        "preservation_rule_prerequisite": preservation_binding,
     }
     return {
         "purpose": "application",
@@ -919,6 +1138,12 @@ def evaluate_application_admissibility(
     approval_ledger: TrustedApprovalLedger | None = None,
     approval_id: str | None = None,
     approval_as_of: str | None = None,
+    norm_version_passport: Mapping[str, Any] | None = None,
+    norm_version_official_evidence_verifier: EvidenceReferenceVerifier | Any | None = None,
+    norm_version_approval_id: str | None = None,
+    preservation_rule_evidence: Mapping[str, Any] | None = None,
+    preservation_rule_evidence_verifier: EvidenceReferenceVerifier | Any | None = None,
+    preservation_rule_approval_id: str | None = None,
 ) -> AdmissibilityDecision:
     """Fail-closed applied-norm gate; candidate scores are intentionally ignored."""
 
@@ -930,14 +1155,59 @@ def evaluate_application_admissibility(
         "implicitly_applied_proven",
     }:
         blockers.append("judicial_norm_use_not_proven")
-    if norm_version_status != "passed" or not tuple(version_evidence_ids):
+    version_evidence: tuple[str, ...] = ()
+    if not isinstance(norm_version_passport, Mapping):
+        blockers.append("norm_version_passport_required")
         blockers.append("norm_version_not_verified")
+    else:
+        passport_gate = assess_norm_version_passport(
+            norm_version_passport,
+            official_evidence_verifier=norm_version_official_evidence_verifier,
+            approval_ledger=approval_ledger,
+            approval_id=norm_version_approval_id,
+        )
+        version_evidence = tuple(
+            sorted(
+                {
+                    str(item.get("evidence_id") or "")
+                    for item in official_evidence_references(norm_version_passport)
+                    if str(item.get("evidence_id") or "")
+                }
+            )
+        )
+        edition_ids = {
+            str(item.get("edition_id") or "")
+            for item in norm_version_passport.get("edition_segments") or ()
+            if isinstance(item, Mapping)
+        }
+        if (
+            norm_version_passport.get("norm_id") != record.norm_id
+            or record.norm_version_id not in edition_ids
+        ):
+            blockers.append("norm_version_record_binding_mismatch")
+        if passport_gate.get("filing_ready") is not True:
+            blockers.append("norm_version_not_verified")
+            blockers.extend(
+                f"norm_version:{item}"
+                for item in passport_gate.get("blockers") or ()
+            )
     if record.outcome_causation not in {"determinative", "contributory"}:
         blockers.append("causal_harm_not_proven")
-    if preservation_rule_status == "verified_required":
+
+    preservation_blockers, preservation_evidence, verified_rule_status = (
+        _preservation_rule_assessment(
+            record,
+            preservation_rule_evidence,
+            evidence_verifier=preservation_rule_evidence_verifier,
+            approval_ledger=approval_ledger,
+            approval_id=preservation_rule_approval_id,
+        )
+    )
+    blockers.extend(preservation_blockers)
+    if verified_rule_status == "verified_required":
         if record.preservation_exhaustion != "raised_and_reviewed":
             blockers.append("preservation_or_exhaustion_not_satisfied")
-    elif preservation_rule_status != "verified_not_required":
+    elif verified_rule_status != "verified_not_required":
         blockers.append("preservation_rule_not_verified")
     if chain.status not in {"survived", "incorporated", "concurrent"}:
         blockers.append("application_does_not_survive_final_chain")
@@ -963,6 +1233,10 @@ def evaluate_application_admissibility(
         norm_version_status=norm_version_status,
         version_evidence_ids=version_evidence_ids,
         preservation_rule_status=preservation_rule_status,
+        norm_version_passport=norm_version_passport,
+        norm_version_approval_id=norm_version_approval_id,
+        preservation_rule_evidence=preservation_rule_evidence,
+        preservation_rule_approval_id=preservation_rule_approval_id,
     )
     approval_validation: Mapping[str, Any] = {
         "valid": False,
@@ -986,7 +1260,8 @@ def evaluate_application_admissibility(
         application_status=classification.status,
         evidence_map={
             "application": classification.evidence_ids,
-            "version": tuple(version_evidence_ids),
+            "version": version_evidence,
+            "preservation": preservation_evidence,
             "chain": chain.evidence_ids,
         },
         trusted_approval_id=(
@@ -1013,7 +1288,11 @@ __all__ = [
     "application_record_review_payload",
     "application_review_approval_request",
     "assess_application_chain",
+    "build_preservation_rule_evidence",
     "classify_application",
     "evaluate_application_admissibility",
     "normalize_application_status",
+    "preservation_rule_content_fingerprint",
+    "preservation_rule_review_approval_request",
+    "preservation_rule_review_payload",
 ]

@@ -57,12 +57,12 @@
       "purpose": "Создавать реальный DOCX, читать PDF и проверять визуальные превью локально.",
       "privacy": "Библиотеки работают локально и не передают материалы дела наружу.",
       "cost": "Без обязательной оплаты.",
-      "dependency": "Без python-docx, pypdf и Pillow нельзя подтвердить сборку и проверку реальных файлов жалобы.",
-      "remediation": "Установите в выбранное локальное Python-окружение пакеты python-docx, pypdf и Pillow, затем повторите doctor; автоматическая установка не выполняется.",
+      "dependency": "Без python-docx, pypdf, Pillow, jsonschema и referencing нельзя подтвердить сборку, схему manifest и проверку реальных файлов жалобы.",
+      "remediation": "Установите в выбранное локальное Python-окружение пакеты python-docx, pypdf, Pillow, jsonschema и referencing, затем повторите doctor; автоматическая установка не выполняется.",
       "profiles": {"basic": "required", "research": "required", "expert": "required"},
-      "dependent_gates": ["draft_render", "pdf_release", "visual_qa"],
+      "dependent_gates": ["draft_render", "pdf_release", "visual_qa", "release_manifest_validation"],
       "blocking_when_missing": true,
-      "probe": {"kind": "python_module", "modules": ["docx", "pypdf", "PIL"]}
+      "probe": {"kind": "python_module", "modules": ["docx", "pypdf", "PIL", "jsonschema", "referencing"]}
     },
     {
       "id": "document_text_extraction",

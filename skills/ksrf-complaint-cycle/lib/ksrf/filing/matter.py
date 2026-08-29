@@ -249,7 +249,8 @@ def initialize_matter(
 
 
 def load_matter(workspace: str | Path) -> dict[str, Any]:
-    path = _workspace_path(workspace) / "matter.json"
+    root = _workspace_path(workspace)
+    path = root / "matter.json"
     try:
         matter = load_json_object(path)
         require_fields(
@@ -268,12 +269,57 @@ def load_matter(workspace: str | Path) -> dict[str, Any]:
         )
     except ContractError as exc:
         raise MatterWorkspaceError(f"Контракт рабочей папки повреждён: {exc}") from exc
+    expected_top_level = {
+        "$schema",
+        "schema_version",
+        "matter_id",
+        "workspace_id",
+        "matter_identifier",
+        "matter_identifier_normalized",
+        "setup_profile",
+        "state",
+        "created_at",
+        "privacy",
+        "artifact_paths",
+        "unresolved",
+        "human_controls",
+    }
+    if set(matter) != expected_top_level:
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: состав полей не соответствует схеме."
+        )
+    if matter.get("$schema") != MATTER_WORKSPACE_SCHEMA:
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: указан неизвестный идентификатор схемы."
+        )
     if matter["schema_version"] != SCHEMA_VERSION:
         raise MatterWorkspaceError(
             f"Контракт рабочей папки повреждён: версия {matter['schema_version']} не поддерживается."
         )
     if matter["setup_profile"] not in SETUP_PROFILES:
         raise MatterWorkspaceError("Контракт рабочей папки повреждён: неизвестный профиль.")
+    if matter.get("state") != "initialized" or not str(matter.get("created_at") or "").strip():
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: состояние или дата создания недопустимы."
+        )
+    try:
+        canonical_identifier = normalized_identifier(matter.get("matter_identifier"))
+    except ContractError as exc:
+        raise MatterWorkspaceError(
+            f"Контракт рабочей папки повреждён: {exc}"
+        ) from exc
+    if matter.get("matter_identifier_normalized") != canonical_identifier:
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: нормализованный идентификатор дела не совпадает."
+        )
+    if matter.get("matter_id") != stable_id("matter", canonical_identifier):
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: matter_id не связан с идентификатором дела."
+        )
+    if matter.get("workspace_id") != stable_id("workspace", canonical_identifier):
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: workspace_id не связан с идентификатором дела."
+        )
     privacy = matter["privacy"]
     safe_privacy = (
         isinstance(privacy, Mapping)
@@ -298,6 +344,45 @@ def load_matter(workspace: str | Path) -> dict[str, Any]:
         raise MatterWorkspaceError(
             "Контракт рабочей папки повреждён: подпись, оплата и подача — только действия человека."
         )
+    artifact_paths = matter["artifact_paths"]
+    if not isinstance(artifact_paths, Mapping) or dict(artifact_paths) != ARTIFACT_PATHS:
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: пути артефактов не совпадают с безопасным контрактом."
+        )
+    resolved_root = root.resolve()
+    directory_keys = {"input_registry", "input_objects", "release_artifacts", "audit_events"}
+    for key, relative in ARTIFACT_PATHS.items():
+        candidate = root / relative
+        resolved = candidate.resolve(strict=False)
+        if resolved != resolved_root and resolved_root not in resolved.parents:
+            raise MatterWorkspaceError(
+                f"Контракт рабочей папки повреждён: путь {key} выходит за пределы дела."
+            )
+        if key in directory_keys:
+            if not candidate.is_dir():
+                raise MatterWorkspaceError(
+                    f"Контракт рабочей папки повреждён: каталог {key} отсутствует."
+                )
+        elif not candidate.is_file():
+            raise MatterWorkspaceError(
+                f"Контракт рабочей папки повреждён: реестр {key} отсутствует."
+            )
+    unresolved = matter["unresolved"]
+    if not isinstance(unresolved, Mapping) or not set(UNRESOLVED_DEFAULTS).issubset(unresolved):
+        raise MatterWorkspaceError(
+            "Контракт рабочей папки повреждён: обязательные неизвестности дела отсутствуют."
+        )
+    required_unresolved_fields = {"state", "item", "why", "next_action"}
+    for code, item in unresolved.items():
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != required_unresolved_fields
+            or item.get("state") != "unknown"
+            or any(not str(item.get(field) or "").strip() for field in required_unresolved_fields - {"state"})
+        ):
+            raise MatterWorkspaceError(
+                f"Контракт рабочей папки повреждён: unresolved.{code} не соответствует схеме."
+            )
     return matter
 
 

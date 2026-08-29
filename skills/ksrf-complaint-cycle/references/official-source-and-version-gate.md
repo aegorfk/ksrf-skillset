@@ -56,6 +56,10 @@ Case-time редакция и current filing-time редакция не схло
 
 ГАРАНТ, Casus Legal, mirrors, doctrine, поисковые системы, embeddings и LLM помогают найти, сравнить или мониторить. Они не закрывают official-source gate самостоятельно. Конфликт provider/официального текста блокирует паспорт до ручного разрешения.
 
+## Stop rule для законодательной истории
+
+Поисковые запросы, перечень предполагаемых изменяющих актов, шаблон source pack и план исследования — только `candidate`/`planned`. Не помечай историю редакций, переходный режим или legislative intent как проверенные, пока в matter workspace не сохранены сами официальные документы с locator, raw SHA-256, identity evidence и связью с соответствующим `NormVersionPassport`. Если фактическая загрузка не состоялась, верни `ABSTAIN_PENDING_OFFICIAL_SOURCE` и перечисли недостающие акты; готовый шаблон исследования не считается покрытием источников.
+
 ## Pre-filing refresh
 
 Перед release повторно проверь official anchor, controlling edition, применимые формальные правила, актуальность позиции КС РФ и зависимые locators. При каждом status/coverage/freshness вызове заново проверь approval, его attestation, binding, expiry и revocation по trusted clock. Сохранённый `filing_ready=true` и caller-supplied `as_of` не являются authority; явный исторический срез маркируй `historical_audit`. Изменение инвалидирует конкретные sentence IDs и issue options, а не только общий timestamp.
