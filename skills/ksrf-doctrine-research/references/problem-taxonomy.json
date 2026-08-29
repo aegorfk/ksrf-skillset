@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Heuristic discovery labels only; the taxonomy is open and never establishes a legal defect.",
+  "categories": [
+    {
+      "id": "meaning_and_definition",
+      "label_ru": "содержание и определение понятия",
+      "markers_ru": ["понятие", "определение", "критерий", "содержание термина", "толкование", "оценочное понятие"],
+      "markers_en": ["definition", "meaning", "criterion", "interpretation", "open-textured"],
+      "candidate_localizations": ["text", "scope_boundary", "judicial_meaning"]
+    },
+    {
+      "id": "legal_uncertainty",
+      "label_ru": "неопределённость и предсказуемость",
+      "markers_ru": ["неопределенность", "неопределённость", "неясность", "двусмысленность", "предсказуемость", "правовая определенность", "правовая определённость"],
+      "markers_en": ["legal uncertainty", "ambiguity", "foreseeability"],
+      "candidate_localizations": ["text", "scope_boundary", "judicial_meaning"]
+    },
+    {
+      "id": "gap_and_omission",
+      "label_ru": "пробел или неполнота регулирования",
+      "markers_ru": ["пробел", "неполнота", "отсутствие регулирования", "законодательное упущение", "не урегулирован"],
+      "markers_en": ["legal gap", "omission", "under-regulation"],
+      "candidate_localizations": ["interaction", "procedure", "remedy"]
+    },
+    {
+      "id": "conflict_and_fragmentation",
+      "label_ru": "коллизия и несогласованность",
+      "markers_ru": ["коллизия", "противоречие норм", "несогласованность", "противоречивая практика", "неединообраз"],
+      "markers_en": ["conflict of norms", "inconsistency", "fragmentation", "divergent practice"],
+      "candidate_localizations": ["interaction", "judicial_meaning"]
+    },
+    {
+      "id": "delegation_and_discretion",
+      "label_ru": "делегирование и пределы усмотрения",
+      "markers_ru": ["усмотрение", "дискреция", "локальное регулирование", "делегирование", "пределы полномочий", "произвольность"],
+      "markers_en": ["discretion", "delegation", "arbitrariness", "margin of appreciation"],
+      "candidate_localizations": ["scope_boundary", "exception", "interaction", "judicial_meaning"]
+    },
+    {
+      "id": "equality_and_differentiation",
+      "label_ru": "равенство и допустимая дифференциация",
+      "markers_ru": ["равенство", "неравенство", "дискриминация", "дифференциация", "сопоставимые лица", "различие в обращении"],
+      "markers_en": ["equality", "inequality", "discrimination", "differentiation", "comparator"],
+      "candidate_localizations": ["text", "scope_boundary", "exception", "consequence"]
+    },
+    {
+      "id": "proportionality_and_balance",
+      "label_ru": "соразмерность и баланс интересов",
+      "markers_ru": ["соразмерность", "пропорциональность", "баланс интересов", "чрезмерное ограничение", "необходимость ограничения"],
+      "markers_en": ["proportionality", "balance of interests", "excessive restriction", "necessity"],
+      "candidate_localizations": ["exception", "consequence", "remedy"]
+    },
+    {
+      "id": "proof_and_presumptions",
+      "label_ru": "доказательства, презумпции и бремя",
+      "markers_ru": ["бремя доказывания", "предмет доказывания", "стандарт доказывания", "презумпция", "доказательственная", "доступ к доказательствам"],
+      "markers_en": ["burden of proof", "standard of proof", "presumption", "evidentiary access"],
+      "candidate_localizations": ["evidence", "procedure"]
+    },
+    {
+      "id": "procedure_and_access",
+      "label_ru": "процедура и доступ к защите",
+      "markers_ru": ["процессуальный механизм", "доступ к правосудию", "подведомственность", "подсудность", "срок обращения", "процедурная гарантия"],
+      "markers_en": ["procedural mechanism", "access to court", "limitation period", "procedural safeguard"],
+      "candidate_localizations": ["procedure", "transition"]
+    },
+    {
+      "id": "remedy_effectiveness",
+      "label_ru": "эффективность средства защиты",
+      "markers_ru": ["эффективность защиты", "способ защиты", "восстановление права", "компенсация", "неэффективность", "исполнимость"],
+      "markers_en": ["effective remedy", "redress", "compensation", "enforcement"],
+      "candidate_localizations": ["remedy", "procedure", "consequence"]
+    },
+    {
+      "id": "automatic_consequence",
+      "label_ru": "автоматизм и отсутствие индивидуализации",
+      "markers_ru": ["автоматическое последствие", "автоматизм", "без учета обстоятельств", "без учёта обстоятельств", "индивидуализация", "безусловное применение"],
+      "markers_en": ["automatic consequence", "individual assessment", "categorical rule"],
+      "candidate_localizations": ["consequence", "exception"]
+    },
+    {
+      "id": "temporal_and_transition",
+      "label_ru": "время действия и переходные гарантии",
+      "markers_ru": ["переходный период", "обратная сила", "редакция нормы", "действие во времени", "законные ожидания"],
+      "markers_en": ["retroactivity", "transitional period", "temporal application", "legitimate expectations"],
+      "candidate_localizations": ["transition", "interaction"]
+    },
+    {
+      "id": "implementation_effectiveness",
+      "label_ru": "реализуемость и эффективность регулирования",
+      "markers_ru": ["эффективность нормы", "проблемы реализации", "правоприменительная практика", "не применяется", "декларативность", "обход закона"],
+      "markers_en": ["effectiveness of law", "implementation problem", "enforcement gap", "evasion"],
+      "candidate_localizations": ["interaction", "procedure", "remedy", "judicial_meaning"]
+    }
+  ]
+}

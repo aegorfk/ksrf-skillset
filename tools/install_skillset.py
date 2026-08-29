@@ -68,7 +68,7 @@ def _validate_target(target: Path) -> Path:
 
 
 def copy_skillset(source_root: Path, target: Path) -> Path:
-    """Validate all paths, stage the exact payload, then replace 14 destinations."""
+    """Validate all paths, stage the exact payload, then replace canonical destinations."""
 
     source_root = source_root.resolve(strict=True)
     files_by_skill = _validate_source(source_root)

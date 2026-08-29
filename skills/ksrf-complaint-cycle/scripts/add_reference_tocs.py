@@ -290,7 +290,7 @@ def process_skillset(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Добавить раннее содержание из H2 в длинные references 14 KSRF skills; "
+            "Добавить раннее содержание из H2 в длинные references canonical KSRF skills; "
             "по умолчанию только показать план."
         )
     )

@@ -105,8 +105,8 @@ def _codes(report: dict[str, object]) -> set[str]:
 
 
 class KSRFSkillsetValidatorTests(unittest.TestCase):
-    def test_canonical_package_allowlist_has_exactly_fourteen_skills(self) -> None:
-        self.assertEqual(len(VALIDATOR.CANONICAL_KSRF_PACKAGES), 14)
+    def test_canonical_package_allowlist_has_exactly_fifteen_skills(self) -> None:
+        self.assertEqual(len(VALIDATOR.CANONICAL_KSRF_PACKAGES), 15)
         self.assertNotIn(
             "ksrf-complaint-cycle-workspace",
             VALIDATOR.CANONICAL_KSRF_PACKAGES,

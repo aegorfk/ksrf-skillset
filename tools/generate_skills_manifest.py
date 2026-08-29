@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the reproducible manifest for the 14 canonical KSRF skills."""
+"""Generate the reproducible manifest for the canonical KSRF skills."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
     return {
         "schema_version": "1.2",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "source": "~/.codex/skills canonical 14-package allowlist",
+        "source": "~/.codex/skills canonical 15-package allowlist",
         "remote_base_commit": base_commit,
         "exclusions": [
             ".DS_Store",

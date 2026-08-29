@@ -18,6 +18,7 @@ SKILL_NAMES = (
     "ksrf-complaint-qa",
     "ksrf-court-request-motion",
     "ksrf-decision-execution",
+    "ksrf-doctrine-research",
     "ksrf-echr-argumentation",
     "ksrf-exhaustion-planner",
     "ksrf-explore-arguments",

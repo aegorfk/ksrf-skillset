@@ -1,0 +1,33 @@
+{
+  "meta": {"count": 1, "page": 1, "per_page": 25},
+  "results": [
+    {
+      "id": "https://openalex.org/WTEST1",
+      "doi": "https://doi.org/10.5555/example.2024.1",
+      "display_name": "Неопределенность критерия в частноправовом регулировании",
+      "publication_year": 2024,
+      "language": "ru",
+      "type": "article",
+      "authorships": [
+        {"author": {"display_name": "Ирина Примерова"}}
+      ],
+      "abstract_inverted_index": {
+        "Автор": [0],
+        "сопоставляет": [1],
+        "толкование": [2],
+        "и": [3],
+        "правовую": [4],
+        "неопределенность": [5]
+      },
+      "primary_location": {
+        "landing_page_url": "https://example.invalid/article",
+        "source": {"display_name": "Журнал примеров", "issn": ["0000-0000"]}
+      },
+      "best_oa_location": {
+        "landing_page_url": "https://example.invalid/article",
+        "pdf_url": "https://example.invalid/article.pdf"
+      },
+      "cited_by_count": 3
+    }
+  ]
+}

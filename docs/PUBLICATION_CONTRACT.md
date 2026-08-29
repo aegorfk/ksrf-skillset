@@ -9,7 +9,7 @@
 ## Обязательный release workflow
 
 1. Создать чистый отдельный publish-worktree от актуального `origin/main`; проверить ожидаемый remote `aegorfk/ksrf-skillset` и отсутствие посторонних изменений.
-2. Запустить `tools/sync_global_skills.sh`. Скрипт до копирования проверит, что checkout чист и его HEAD равен свежему live SHA `refs/heads/main`, затем синхронизирует allowlist из 14 глобальных скиллов и регенерирует `skills-manifest.json`.
+2. Запустить `tools/sync_global_skills.sh`. Скрипт до копирования проверит, что checkout чист и его HEAD равен свежему live SHA `refs/heads/main`, затем синхронизирует allowlist из 15 глобальных скиллов и регенерирует `skills-manifest.json`.
 3. Проверить точный diff и убедиться, что runtime-файлы, секреты и несвязанные изменения не попали в release.
 4. Запустить структурные, поведенческие и доступные runtime-проверки skillset. Ошибка либо неизвестный критический результат блокируют публикацию.
 5. Сделать один scoped atomic commit только с согласованным release-манифестом и выполнить push в `main`.

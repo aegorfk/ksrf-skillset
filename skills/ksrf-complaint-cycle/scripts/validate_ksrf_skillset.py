@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed validation and publish-manifest builder for 14 KSRF skills.
+"""Fail-closed validation and publish-manifest builder for canonical KSRF skills.
 
 The script never installs dependencies, follows links outside the skillset,
 publishes files, or reads secret values from environment variables.
@@ -32,6 +32,7 @@ CANONICAL_KSRF_PACKAGES = (
     "ksrf-complaint-qa",
     "ksrf-court-request-motion",
     "ksrf-decision-execution",
+    "ksrf-doctrine-research",
     "ksrf-echr-argumentation",
     "ksrf-exhaustion-planner",
     "ksrf-explore-arguments",
@@ -1159,7 +1160,7 @@ def main(
     stderr: TextIO | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(
-        description="Проверить 14 глобальных KSRF skills и собрать безопасный publish manifest."
+        description="Проверить canonical KSRF skills и собрать безопасный publish manifest."
     )
     parser.add_argument(
         "--skills-root",
