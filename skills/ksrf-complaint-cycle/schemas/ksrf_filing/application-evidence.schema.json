@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/ksrf_filing/application-evidence.schema.json",
+  "title": "KSRF claim-level application evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "claim_id",
+    "norm_id",
+    "norm_version_id",
+    "normative_meaning_id",
+    "act_id",
+    "stage",
+    "stage_order",
+    "norm_use_status",
+    "outcome_causation",
+    "preservation_exhaustion",
+    "relation_to_prior",
+    "incorporated_record_ids",
+    "evidence",
+    "implicit_premises",
+    "affirmative_non_application",
+    "human_review",
+    "decision_rationale"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": "string", "minLength": 1},
+    "norm_id": {"type": "string", "minLength": 1},
+    "norm_version_id": {"type": "string", "minLength": 1},
+    "normative_meaning_id": {"type": "string", "minLength": 1},
+    "act_id": {"type": "string", "minLength": 1},
+    "stage": {"type": "string", "minLength": 1},
+    "stage_order": {"type": "integer", "minimum": 1},
+    "norm_use_status": {
+      "enum": [
+        "direct_reasoned_use",
+        "reasoning_linked_implicit",
+        "mentioned_only",
+        "reasoned_direct_use",
+        "reasoning_linked_implicit_use",
+        "mention_only",
+        "party_only",
+        "quoted_authority_only",
+        "reasoned_rejection",
+        "unclear"
+      ]
+    },
+    "outcome_causation": {
+      "enum": [
+        "determinative",
+        "contributory",
+        "independent_sufficient_ground",
+        "unclear"
+      ]
+    },
+    "preservation_exhaustion": {
+      "enum": [
+        "raised_and_reviewed",
+        "raised_but_not_addressed",
+        "not_raised",
+        "record_missing",
+        "unclear"
+      ]
+    },
+    "relation_to_prior": {
+      "enum": [
+        "initial",
+        "independent_reapplication",
+        "express_incorporation",
+        "affirmance_only",
+        "superseding_ground",
+        "concurrent_ground",
+        "unclear"
+      ]
+    },
+    "incorporated_record_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence_span"}
+    },
+    "implicit_premises": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/implicit_premise"}
+    },
+    "affirmative_non_application": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/affirmative_non_application"}
+      ]
+    },
+    "human_review": {"$ref": "#/$defs/human_review"},
+    "decision_rationale": {"type": "string"}
+  },
+  "$defs": {
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "evidence_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "claim_id",
+        "norm_id",
+        "act_id",
+        "stage",
+        "source_kind",
+        "locator",
+        "quote",
+        "speaker",
+        "reasoning_role",
+        "inference_status"
+      ],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "norm_id": {"type": "string", "minLength": 1},
+        "act_id": {"type": "string", "minLength": 1},
+        "stage": {"type": "string", "minLength": 1},
+        "source_kind": {
+          "enum": [
+            "full_act",
+            "case_metadata",
+            "party_document",
+            "official_publication",
+            "other"
+          ]
+        },
+        "locator": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/locator"}]
+        },
+        "quote": {"type": "string"},
+        "speaker": {
+          "enum": [
+            "court",
+            "party",
+            "disposition",
+            "metadata",
+            "quoted_authority",
+            "model",
+            "reviewer"
+          ]
+        },
+        "reasoning_role": {"type": "string", "minLength": 1},
+        "inference_status": {
+          "enum": ["observed", "inferred", "human_confirmed", "contradicted"]
+        }
+      }
+    },
+    "implicit_premise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["premise", "conclusion", "evidence_ids", "inference_status"],
+      "properties": {
+        "premise": {
+          "enum": [
+            "issue_before_court",
+            "operative_norm_logic",
+            "counterfactual_outcome_dependence",
+            "no_independent_sufficient_ground"
+          ]
+        },
+        "conclusion": {"type": "string", "minLength": 1},
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "inference_status": {
+          "enum": ["observed", "inferred", "human_confirmed", "contradicted"]
+        }
+      }
+    },
+    "affirmative_non_application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "evidence_ids"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "express_non_use",
+            "complete_independent_ground",
+            "operative_mismatch"
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "human_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reviewer", "reviewed_at", "note"],
+      "properties": {
+        "state": {"enum": ["pending", "approved", "rejected", "needs_changes"]},
+        "reviewer": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"]},
+        "note": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "approved"}}},
+          "then": {
+            "properties": {
+              "reviewer": {"type": "string", "minLength": 1},
+              "reviewed_at": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

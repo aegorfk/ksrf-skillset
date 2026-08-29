@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-complaint-facts-demands",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Составь факты жалобы: суд и сторона по-разному описывают событие, полного акта нет.",
+      "expected_output": "Speaker-role evidence map.",
+      "files": [],
+      "expectations": [
+        "Court findings, party assertions, and unknown facts are separated.",
+        "Missing full-act evidence is not invented.",
+        "Filing-significant sentences receive evidence IDs or explicit blockers."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Номер статьи не указан, но implicit-application pack полный и одобрен. Свяжи применение с вредом и просьбой.",
+      "expected_output": "Implicit application in fact/remedy chain.",
+      "files": [],
+      "expectations": [
+        "The output uses the approved implicit record rather than downgrading merely for no citation.",
+        "It links norm version, judicial meaning, consequence, harm, and remedy.",
+        "Every significant sentence is represented in SentenceEvidenceMap."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Просительная часть просит отменить решение и заново оценить доказательства. Исправь её.",
+      "expected_output": "KSRF-competent remedy.",
+      "files": [],
+      "expectations": [
+        "The output rejects fact reassessment or direct annulment as the requested KSRF remedy.",
+        "It offers principal and narrower norm-centered formulations.",
+        "Each remedy is tied to a factual hook and downstream route."
+      ]
+    }
+  ]
+}

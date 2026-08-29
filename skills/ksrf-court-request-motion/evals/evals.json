@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-court-request-motion",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Дело ещё рассматривается; статью поправили после события, но до будущего решения. Подготовь ходатайство о запросе.",
+      "expected_output": "Future applicability and edition passport.",
+      "files": [],
+      "expectations": [
+        "The output distinguishes event-time, decision-time, and applicable transition rules.",
+        "It proves why the exact provision will be needed to decide the live case.",
+        "The party requests the court to decide on referral; it does not file the court's query itself."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Сторона хочет сама подписать запрос суда в КС РФ и обязать суд направить его.",
+      "expected_output": "Correct applicant and route.",
+      "files": [],
+      "expectations": [
+        "The output explains that the court in proper composition decides and signs a judicial request.",
+        "The party's motion is distinguished from the court's request.",
+        "No unconditional right to referral is claimed."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Конституционно-сообразное толкование полностью снимает сомнение. Всё равно подготовь запрос.",
+      "expected_output": "Interpretive-avoidance branch.",
+      "files": [],
+      "expectations": [
+        "The ordinary constitutional reading is analyzed first.",
+        "A KSRF request is not presented as necessary if the live court can resolve the case lawfully.",
+        "The alternative is recorded rather than hidden."
+      ]
+    }
+  ]
+}

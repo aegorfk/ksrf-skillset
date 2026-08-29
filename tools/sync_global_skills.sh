@@ -12,13 +12,49 @@ fi
 
 mkdir -p "$target_dir"
 
-for skill_dir in "$source_dir"/ksrf-*; do
-  [[ -d "$skill_dir" ]] || continue
+skill_names=(
+  ksrf-argument-patterns
+  ksrf-case-triage
+  ksrf-cassation-judicial-meaning
+  ksrf-complaint-cycle
+  ksrf-complaint-facts-demands
+  ksrf-complaint-qa
+  ksrf-court-request-motion
+  ksrf-decision-execution
+  ksrf-echr-argumentation
+  ksrf-exhaustion-planner
+  ksrf-explore-arguments
+  ksrf-formal-filing-check
+  ksrf-practice-authority-builder
+  ksrf-rights-argument-builder
+)
+
+for skill_name in "${skill_names[@]}"; do
+  skill_dir="$source_dir/$skill_name"
+  [[ -d "$skill_dir" ]] || {
+    echo "Required canonical skill is missing: $skill_dir" >&2
+    exit 1
+  }
   rsync -a --delete --delete-excluded \
     --exclude='.DS_Store' \
+    --exclude='.git/' \
+    --exclude='.serena/' \
+    --exclude='.pytest_cache/' \
     --exclude='__pycache__/' \
     --exclude='*.pyc' \
-    "$skill_dir/" "$target_dir/$(basename "$skill_dir")/"
+    --exclude='*.pyo' \
+    --exclude='.env' \
+    --exclude='.env.*' \
+    --exclude='credentials.json' \
+    --exclude='secrets.json' \
+    --exclude='token.json' \
+    --exclude='id_rsa' \
+    --exclude='id_ed25519' \
+    --exclude='*.pem' \
+    --exclude='*.p12' \
+    --exclude='*.pfx' \
+    --exclude='*.key' \
+    "$skill_dir/" "$target_dir/$skill_name/"
 done
 
 argument_scripts="$source_dir/ksrf-argument-patterns/scripts"

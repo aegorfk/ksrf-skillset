@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Official-first найди supporting и adverse практику для issue option",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь Casus Legal findings по полному официальному тексту",
+    "should_trigger": true
+  },
+  {
+    "query": "Составь факты и просительную часть",
+    "should_trigger": false
+  },
+  {
+    "query": "Проверь полномочия представителя и пошлину",
+    "should_trigger": false
+  }
+]

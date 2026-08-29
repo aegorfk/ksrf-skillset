@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Из утверждённых options собери факты, вопрос, просьбу и evidence map",
+    "should_trigger": true
+  },
+  {
+    "query": "Свяжи доказанное имплицитное применение с вредом и узким remedy",
+    "should_trigger": true
+  },
+  {
+    "query": "Оцени допустимость дела с нуля",
+    "should_trigger": false
+  },
+  {
+    "query": "Проведи исследование кассационного корпуса",
+    "should_trigger": false
+  }
+]

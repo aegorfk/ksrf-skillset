@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/filing-package.schema.json",
+  "title": "KSRF Filing Package Manifest",
+  "type": "object",
+  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "artifacts", "render_qa", "blockers"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "matter_id": {"type": "string", "minLength": 1},
+    "draft_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["blocked", "ready_for_expert_review", "ready_for_human_signing_filing"]},
+    "filing_performed": {"const": false},
+    "human_only_actions": {
+      "type": "array",
+      "contains": {"const": "filing"}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path", "mime_type", "size", "sha256", "renderer", "renderer_version", "status"],
+        "properties": {
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "status": {"enum": ["complete", "failed", "blocked"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "render_qa": {"type": "object", "required": ["passed"]},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

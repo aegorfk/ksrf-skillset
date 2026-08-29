@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/ksrf_filing/constitutional-issue.schema.json",
+  "title": "KSRF constitutional issue candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "issue_id",
+    "seed_id",
+    "claim_id",
+    "object_of_review",
+    "theory_code",
+    "normative_meaning",
+    "application_proof",
+    "constitutional_benchmarks",
+    "rights_impairment",
+    "anti_fourth_instance_boundary",
+    "ksrf_authority_ids",
+    "adverse_authority",
+    "requested_remedy",
+    "strengths",
+    "weaknesses",
+    "source_gaps",
+    "model_rank",
+    "gates",
+    "human_selection"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "issue_id": {"type": "string", "minLength": 1},
+    "seed_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": "string", "minLength": 1},
+    "object_of_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["norm_id", "norm_version_id"],
+      "properties": {
+        "norm_id": {"type": "string", "minLength": 1},
+        "norm_version_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "theory_code": {"type": "string", "minLength": 1},
+    "normative_meaning": {"type": "string", "minLength": 1},
+    "application_proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_ids", "gate_passed"],
+      "properties": {
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "gate_passed": {"type": "boolean"}
+      }
+    },
+    "constitutional_benchmarks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "rights_impairment": {"type": "string", "minLength": 1},
+    "anti_fourth_instance_boundary": {"type": "string", "minLength": 1},
+    "ksrf_authority_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "adverse_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_ids", "summary", "delta"],
+      "properties": {
+        "authority_ids": {"$ref": "#/$defs/string_array"},
+        "summary": {"type": "string", "minLength": 1},
+        "delta": {"type": "string", "minLength": 1}
+      }
+    },
+    "requested_remedy": {"type": "string", "minLength": 1},
+    "strengths": {"$ref": "#/$defs/string_array"},
+    "weaknesses": {"$ref": "#/$defs/string_array"},
+    "source_gaps": {"$ref": "#/$defs/string_array"},
+    "model_rank": {"type": "integer", "minimum": 1},
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anti_fourth_instance",
+        "practice_claims",
+        "adverse_authority",
+        "remedy"
+      ],
+      "properties": {
+        "anti_fourth_instance": {"$ref": "#/$defs/gate"},
+        "practice_claims": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/practice_claim"}
+        },
+        "adverse_authority": {"$ref": "#/$defs/gate"},
+        "remedy": {"$ref": "#/$defs/gate"}
+      }
+    },
+    "human_selection": {"$ref": "#/$defs/human_selection"}
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "rationale",
+        "evidence_ids",
+        "reviewer",
+        "reviewed_at",
+        "requires_human_review"
+      ],
+      "properties": {
+        "state": {"enum": ["passed", "failed", "unknown"]},
+        "rationale": {"type": "string"},
+        "evidence_ids": {"$ref": "#/$defs/string_array"},
+        "reviewer": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"]},
+        "requires_human_review": {"type": "boolean"}
+      }
+    },
+    "practice_claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "statement",
+        "state",
+        "evidence_ids",
+        "authority_scope",
+        "authority_class",
+        "freshness_status",
+        "counterexample_ids",
+        "counterexample_review_status",
+        "human_decision",
+        "reviewer",
+        "reviewed_at"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "statement": {"type": "string", "minLength": 1},
+        "state": {
+          "enum": ["proven", "candidate_pattern", "unknown", "not_asserted"]
+        },
+        "evidence_ids": {"$ref": "#/$defs/string_array"},
+        "authority_scope": {"type": "string"},
+        "authority_class": {
+          "enum": [
+            "official_primary",
+            "official_judicial",
+            "verified_secondary",
+            "discovery_only",
+            "unknown"
+          ]
+        },
+        "freshness_status": {
+          "enum": ["current", "stale", "unknown", "not_applicable"]
+        },
+        "counterexample_ids": {"$ref": "#/$defs/string_array"},
+        "counterexample_review_status": {
+          "enum": [
+            "reviewed_none_found",
+            "reviewed_found",
+            "not_reviewed",
+            "unknown"
+          ]
+        },
+        "human_decision": {
+          "enum": ["approved", "rejected", "pending", "not_required"]
+        },
+        "reviewer": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"]}
+      }
+    },
+    "human_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reviewer", "reviewed_at", "note"],
+      "properties": {
+        "state": {
+          "enum": ["pending", "principal", "reserve", "experimental", "rejected"]
+        },
+        "reviewer": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"]},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

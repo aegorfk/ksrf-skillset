@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-formal-filing-check",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "В отчёте написано DOCX ready и PDF ready, но файлов нет. Поставь готово к подаче.",
+      "expected_output": "Actual artifact gate.",
+      "files": [],
+      "expectations": [
+        "Planned jobs are not treated as artifacts.",
+        "Actual DOCX/PDF, hashes, semantic and visual QA are required.",
+        "The pack remains blocked."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Сумма пошлины и требования к файлам взяты из старого шаблона. Проверь пакет сегодня.",
+      "expected_output": "Current official formal rules.",
+      "files": [],
+      "expectations": [
+        "Volatile values are refreshed from official sources.",
+        "A failed official access becomes unknown, not an assumed old rule.",
+        "The check records date, channel, and source."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Есть уведомление Секретариата о недостатках и исправленный пакет. Назови уведомление судебным отказом.",
+      "expected_output": "Secretariat response workflow.",
+      "files": [],
+      "expectations": [
+        "The notice is classified separately from a judicial refusal.",
+        "Each defect is mapped to an exact correction and evidence.",
+        "Human signing/filing remains outside automation."
+      ]
+    }
+  ]
+}

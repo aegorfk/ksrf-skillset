@@ -1,5 +1,13 @@
 # Контракт authority ledger
 
+## Содержание
+
+- [Назначение](#назначение)
+- [JSON-структура](#json-структура)
+- [Инварианты](#инварианты)
+- [Связь с KSRF artifacts](#связь-с-ksrf-artifacts)
+
+
 ## Назначение
 
 Храни ledger отдельно для каждого `case_id`. Публичный акт можно переиспользовать после новой проверки применимости; факты, документы и внутренние notes между делами не переносятся без sanitization decision.
@@ -26,7 +34,7 @@
     {
       "query_id": "Q1",
       "lane": "norm_and_meaning",
-      "tool": "casuslegal_search_practice",
+      "tool": "mcp__casuslegal__casuslegal_search_practice",
       "query": "юридический вопрос",
       "executed_at": "2026-08-15T12:00:00+03:00",
       "status": "completed",

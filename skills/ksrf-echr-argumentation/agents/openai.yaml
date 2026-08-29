@@ -1,4 +1,4 @@
 interface:
   display_name: "КСРФ — ЕСПЧ: аргументация"
-  short_description: "Превращать практику ЕСПЧ в проверяемые findings"
+  short_description: "Опциональный HUDOC research с российским якорем"
   default_prompt: "Используй $ksrf-echr-argumentation, чтобы проверить, как официальная практика ЕСПЧ меняет или ограничивает гипотезы по моему делу."

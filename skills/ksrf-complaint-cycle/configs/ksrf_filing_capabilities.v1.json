@@ -1,0 +1,345 @@
+{
+  "$schema": "../schemas/ksrf_filing/capability-manifest.setup-or-matter.v1.json",
+  "schema_version": "1.0.0",
+  "manifest_id": "ksrf-filing-capabilities-v1",
+  "initial_state": "skills_only",
+  "safety": {
+    "external_transmission_default": false,
+    "automatic_installation": false,
+    "automatic_account_creation": false,
+    "secret_values_reported": false,
+    "network_requires_explicit_authorization": true
+  },
+  "profiles": {
+    "basic": {
+      "title": "Базовый",
+      "purpose": "Локально принять материалы дела, проверить официальные источники, оценить допустимость и собрать проверяемый комплект DOCX/PDF."
+    },
+    "research": {
+      "title": "Исследовательский",
+      "purpose": "Добавить необязательные каналы поиска, историю редакций, ЕСПЧ, полнотекстовый поиск и проекции для расширения покрытия."
+    },
+    "expert": {
+      "title": "Экспертный",
+      "purpose": "Добавить изолированный корпус неудачных обращений, трассировку, оценки без знания последующего исхода и обязательную именную проверку человеком."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "local_matter_storage",
+      "title": "Локальное хранилище дела",
+      "purpose": "Хранить исходные документы и доказательственные артефакты внутри выбранной рабочей папки.",
+      "privacy": "Материалы остаются на компьютере пользователя; проверка ничего не создаёт.",
+      "cost": "Без оплаты.",
+      "dependency": "Без доступной локальной папки нельзя безопасно зарегистрировать материалы дела.",
+      "remediation": "Выберите отдельную доступную для чтения и записи локальную папку и повторите проверку.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["matter_init", "intake"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "directory", "path": ".", "write_required": true}
+    },
+    {
+      "id": "local_analysis_runtime",
+      "title": "Локальный аналитический контур",
+      "purpose": "Запускать детерминированные проверки допустимости и конституционно-правовой проблемы.",
+      "privacy": "Выполняется локально и не передаёт тексты дела.",
+      "cost": "Без оплаты.",
+      "dependency": "Нужен для локального анализа и проверки контрактов.",
+      "remediation": "Укажите доступный локальный Python 3; установка автоматически не выполняется.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["admissibility", "constitutional_issue"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "executable", "executables": ["python3", "python"]}
+    },
+    {
+      "id": "filing_python_libraries",
+      "title": "Python-библиотеки для сборки и проверки файлов",
+      "purpose": "Создавать реальный DOCX, читать PDF и проверять визуальные превью локально.",
+      "privacy": "Библиотеки работают локально и не передают материалы дела наружу.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Без python-docx, pypdf и Pillow нельзя подтвердить сборку и проверку реальных файлов жалобы.",
+      "remediation": "Установите в выбранное локальное Python-окружение пакеты python-docx, pypdf и Pillow, затем повторите doctor; автоматическая установка не выполняется.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["draft_render", "pdf_release", "visual_qa"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "python_module", "modules": ["docx", "pypdf", "PIL"]}
+    },
+    {
+      "id": "document_text_extraction",
+      "title": "Извлечение текста из документов",
+      "purpose": "Извлекать текст из PDF без отправки документа внешнему сервису.",
+      "privacy": "Локальная обработка.",
+      "cost": "Без оплаты.",
+      "dependency": "Без извлечённого текста нельзя надёжно привязать выводы к страницам и фрагментам акта.",
+      "remediation": "Настройте локальный извлекатель PDF, например pdftotext или pypdf, и повторите проверку.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["intake", "source_evidence"],
+      "blocking_when_missing": true,
+      "probe": {
+        "kind": "any_of",
+        "alternatives": [
+          {"kind": "executable", "executables": ["pdftotext"]},
+          {"kind": "python_module", "modules": ["pypdf"]}
+        ]
+      }
+    },
+    {
+      "id": "local_ocr",
+      "title": "Локальное распознавание сканов",
+      "purpose": "Распознавать отсканированные судебные акты, если в PDF нет текстового слоя.",
+      "privacy": "Изображения и текст остаются локально.",
+      "cost": "Без оплаты.",
+      "dependency": "Скан без распознанного текста не может подтверждать применение нормы по точному фрагменту.",
+      "remediation": "Сначала настройте локальный OCR-контур (OCRmyPDF или Tesseract); удалённую передачу документа не включайте без отдельного согласия.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["intake", "application_evidence"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "ocr", "executables": ["ocrmypdf", "tesseract"]}
+    },
+    {
+      "id": "official_source_browser",
+      "title": "Браузер для официальных источников",
+      "purpose": "Открывать официальные страницы и выполнять ручную проверку при CAPTCHA или интерактивном доступе.",
+      "privacy": "Браузерный переход раскрывает источнику обычные сетевые метаданные, но материалы дела не передаются автоматически.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Нужен для проверки официального якоря, когда прямой запрос невозможен.",
+      "remediation": "Укажите установленный Chrome/Chromium или используйте ручной импорт официального файла.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["official_source_verification", "norm_version"],
+      "blocking_when_missing": true,
+      "probe": {
+        "kind": "browser",
+        "executables": ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"],
+        "paths": [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium"
+        ]
+      }
+    },
+    {
+      "id": "official_ksrf_access",
+      "title": "Доступ к официальному сайту КС РФ",
+      "purpose": "Проверить техническую доступность официального источника актов КС РФ.",
+      "privacy": "Проверка отправляет только ограниченный технический запрос без текста дела и запускается лишь с явным разрешением.",
+      "cost": "Без оплаты.",
+      "dependency": "Недоступность источника оставляет проверку официального акта незавершённой, но не доказывает отсутствие акта.",
+      "remediation": "Разрешите ограниченную сетевую проверку либо вручную импортируйте официальный файл с адресом и датой получения.",
+      "profiles": {"basic": "optional", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["official_source_verification"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "bounded_network", "url": "https://ksrf.ru/", "timeout_seconds": 3}
+    },
+    {
+      "id": "docx_generation",
+      "title": "Сборка редактируемого документа",
+      "purpose": "Подготовить локальный редактируемый артефакт жалобы до экспертной проверки.",
+      "privacy": "Сборка выполняется локально.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Нужен для воспроизводимой сборки жалобы и описи приложений.",
+      "remediation": "Настройте объявленный локальный контур генерации DOCX и повторите проверку выпуска.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["draft_render"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "executable", "executables": ["python3", "python"]}
+    },
+    {
+      "id": "pdf_renderer",
+      "title": "Локальный рендерер PDF",
+      "purpose": "Преобразовать DOCX в PDF заявленным воспроизводимым инструментом.",
+      "privacy": "Документ остаётся локально.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Без фактического PDF нельзя считать комплект готовым к проверке или подаче.",
+      "remediation": "Настройте локальный LibreOffice/soffice или другой объявленный рендерер и повторите выпуск.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["pdf_release"],
+      "blocking_when_missing": true,
+      "probe": {
+        "kind": "renderer",
+        "executables": ["soffice", "libreoffice"],
+        "paths": ["/Applications/LibreOffice.app/Contents/MacOS/soffice"]
+      }
+    },
+    {
+      "id": "pdf_visual_qa",
+      "title": "Локальная визуальная проверка PDF",
+      "purpose": "Рендерить страницы для проверки обрезки, пустых страниц, таблиц и нумерации.",
+      "privacy": "Страницы остаются локально.",
+      "cost": "Без оплаты.",
+      "dependency": "Без визуальной проверки нельзя исключить материальные дефекты итогового файла.",
+      "remediation": "Настройте локальный рендерер страниц PDF, например pdftoppm, и повторите проверку.",
+      "profiles": {"basic": "required", "research": "required", "expert": "required"},
+      "dependent_gates": ["visual_qa", "release"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "renderer", "executables": ["pdftoppm", "mutool"]}
+    },
+    {
+      "id": "casus_discovery",
+      "title": "Дополнительный поиск судебных материалов",
+      "purpose": "Искать кандидатов и связанные дела в дополнительном правовом сервисе; найденное не становится официальным якорем автоматически.",
+      "privacy": "Не передавайте текст частного дела без отдельного согласия; проверяется только наличие настройки доступа.",
+      "cost": "Может требовать платную подписку.",
+      "dependency": "Расширяет покрытие поиска, но не нужен для базовой проверки по официальным источникам.",
+      "remediation": "Продолжите по официальным источникам либо отдельно авторизуйте доступ к выбранному правовому сервису.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["research_coverage"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "credential_presence", "environment": ["CASUSLEGAL_API_KEY", "CASUS_API_KEY"]}
+    },
+    {
+      "id": "firecrawl_discovery",
+      "title": "Дополнительный веб-сбор",
+      "purpose": "Получать поисковые копии и страницы как путь обнаружения или доставки, но не как источник юридического авторитета.",
+      "privacy": "Внешний сервис нельзя использовать для материалов дела без отдельного согласия на конкретную операцию.",
+      "cost": "Может иметь лимиты или платный тариф.",
+      "dependency": "Необязательный канал расширения поиска.",
+      "remediation": "Используйте прямой официальный или ручной импорт; внешний сбор подключайте только после отдельного разрешения.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["research_coverage"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "credential_presence", "environment": ["FIRECRAWL_API_KEY"]}
+    },
+    {
+      "id": "hudoc_echr_corpus",
+      "title": "Локальный корпус практики ЕСПЧ",
+      "purpose": "Искать релевантные стандарты ЕСПЧ в локально подготовленном корпусе с дальнейшей проверкой официальных HUDOC-якорей.",
+      "privacy": "Поиск по локальному корпусу не передаёт материалы дела.",
+      "cost": "Зависит от локального хранилища; обязательной подписки нет.",
+      "dependency": "Расширяет международно-правовую аргументацию, но не заменяет российскую конституционную проблему.",
+      "remediation": "Укажите путь к проверенному локальному корпусу HUDOC либо продолжите без этого необязательного слоя.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["echr_enrichment"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "directory", "path_environment": "HUDOC_CORPUS_ROOT"}
+    },
+    {
+      "id": "amendment_history_enrichment",
+      "title": "Дополнительная история редакций",
+      "purpose": "Сопоставлять версии нормы через авторизованный сервис, сохраняя обязательную привязку к официальной публикации.",
+      "privacy": "Проверяется только наличие настройки; текст дела не передаётся.",
+      "cost": "Может требовать платный доступ.",
+      "dependency": "Ускоряет поиск редакций, но официальный ручной импорт остаётся базовым путём.",
+      "remediation": "Импортируйте официальные тексты и акты о поправках вручную либо отдельно настройте авторизованный сервис истории редакций.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["norm_version"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "credential_presence", "environment": ["AMENDMENT_HISTORY_API_KEY", "GARANT_CONNECT_TOKEN"]}
+    },
+    {
+      "id": "official_court_bank_access",
+      "title": "Доступ к официальному банку судебных актов",
+      "purpose": "Технически проверить официальный канал получения актов нижестоящих судов.",
+      "privacy": "Ограниченный сетевой запрос запускается только с явным разрешением; документы дела не отправляются.",
+      "cost": "Без оплаты.",
+      "dependency": "Расширяет возможность проверить судебную цепочку; сбой доступа не доказывает отсутствие акта.",
+      "remediation": "Разрешите ограниченную проверку либо импортируйте официальный акт вручную с адресом и датой получения.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["court_chain", "application_evidence"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "bounded_network", "url": "https://sudrf.ru/", "timeout_seconds": 3}
+    },
+    {
+      "id": "full_text_search",
+      "title": "Локальный полнотекстовый поиск",
+      "purpose": "Детерминированно искать по локальным материалам и корпусам.",
+      "privacy": "Полностью локальная обработка.",
+      "cost": "Без оплаты.",
+      "dependency": "Ускоряет исследование, но не определяет авторитет источника.",
+      "remediation": "Используйте доступный локальный полнотекстовый поиск или продолжите ручной навигацией по материалам.",
+      "profiles": {"basic": "optional", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["research_coverage"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "executable", "executables": ["rg"]}
+    },
+    {
+      "id": "vector_projection",
+      "title": "Локальная векторная проекция",
+      "purpose": "Формировать кандидатов по сходству без повышения их доказательственного статуса.",
+      "privacy": "Проверяется локальный сервис; публикация или удалённая передача не выполняется.",
+      "cost": "Зависит от локальной инфраструктуры.",
+      "dependency": "Необязательное расширение поиска; не участвует в прохождении юридической проверки готовности.",
+      "remediation": "Продолжите детерминированным поиском либо отдельно запустите локальный векторный сервис.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["candidate_generation"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "service", "url": "http://127.0.0.1:6333/", "timeout_seconds": 1}
+    },
+    {
+      "id": "graph_projection",
+      "title": "Локальная графовая проекция",
+      "purpose": "Навигировать связи норм, актов и доводов как вспомогательный исследовательский слой.",
+      "privacy": "Проверяется только локальный сервис.",
+      "cost": "Зависит от локальной инфраструктуры.",
+      "dependency": "Необязательное расширение поиска; источник истины остаётся в версиях JSON-артефактов.",
+      "remediation": "Продолжите без графа либо отдельно запустите локальный графовый сервис.",
+      "profiles": {"basic": "not_used", "research": "optional", "expert": "optional"},
+      "dependent_gates": ["candidate_generation"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "service", "url": "http://127.0.0.1:7474/", "timeout_seconds": 1}
+    },
+    {
+      "id": "private_failure_corpus",
+      "title": "Изолированный корпус неудачных обращений",
+      "purpose": "Хранить согласованные частные жалобы и ответы Секретариата отдельно от публичного слоя.",
+      "privacy": "Требует отдельного локального корня, записи согласия и запрета межделового использования по умолчанию.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Нужен экспертному профилю для контролируемого анализа повторяющихся дефектов.",
+      "remediation": "Укажите изолированную локальную папку через KSRF_PRIVATE_CORPUS_ROOT; не переносите туда документы без записи согласия.",
+      "profiles": {"basic": "not_used", "research": "not_used", "expert": "required"},
+      "dependent_gates": ["private_corpus_intake", "failure_research"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "directory", "path_environment": "KSRF_PRIVATE_CORPUS_ROOT", "write_required": true}
+    },
+    {
+      "id": "langfuse_tracing",
+      "title": "Локальная трассировка экспериментов",
+      "purpose": "Фиксировать модель, подсказку, вход, выход и метаданные экспертных оценок.",
+      "privacy": "Проверяется только локальный сервис на 127.0.0.1.",
+      "cost": "Зависит от локальной инфраструктуры.",
+      "dependency": "Нужна для воспроизводимого выбора моделей и подсказок экспертного профиля.",
+      "remediation": "Запустите авторизованный локальный сервис трассировки и убедитесь, что он отвечает на 127.0.0.1:3001.",
+      "profiles": {"basic": "not_used", "research": "not_used", "expert": "required"},
+      "dependent_gates": ["expert_evaluation"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "service", "url": "http://127.0.0.1:3001/", "timeout_seconds": 1}
+    },
+    {
+      "id": "deepeval_grading",
+      "title": "Автоматизированная оценка качества",
+      "purpose": "Считать воспроизводимые метрики поверх сохранённых результатов экспертных экспериментов.",
+      "privacy": "Сама проверка локальна; политика конкретной модели-оценщика проверяется отдельно.",
+      "cost": "Зависит от выбранной judge-модели.",
+      "dependency": "Нужна для сравнения качества, но не заменяет юридическую проверку.",
+      "remediation": "Настройте локально доступную команду DeepEval; установка и подключение провайдера автоматически не выполняются.",
+      "profiles": {"basic": "not_used", "research": "not_used", "expert": "required"},
+      "dependent_gates": ["expert_evaluation"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "executable", "executables": ["deepeval"]}
+    },
+    {
+      "id": "outcome_blind_eval_cases",
+      "title": "Набор проверок без знания последующего исхода",
+      "purpose": "Сравнивать поведение на одинаковых входах без раскрытия последующего результата КС РФ.",
+      "privacy": "Используется локальный набор тестовых материалов.",
+      "cost": "Без обязательной оплаты.",
+      "dependency": "Нужен экспертному профилю до изменения подсказок и скиллов.",
+      "remediation": "Подготовьте локальную папку evals с версионированными сценариями и рубрикой.",
+      "profiles": {"basic": "not_used", "research": "not_used", "expert": "required"},
+      "dependent_gates": ["expert_evaluation"],
+      "blocking_when_missing": true,
+      "probe": {"kind": "directory", "path": "evals"}
+    },
+    {
+      "id": "named_human_reviewer",
+      "title": "Именной эксперт по делу",
+      "purpose": "Подтвердить применение нормы, выбрать конституционную проблему, разобрать неблагоприятную практику и утвердить просительную часть.",
+      "privacy": "Требуется явное назначение человека; система никого не назначает и ничего не отправляет.",
+      "cost": "Определяется пользователем и выбранным экспертом.",
+      "dependency": "Без именной проверки положительный вывод об имплицитном применении и выпуск не проходят.",
+      "remediation": "Назначьте эксперта по конкретному делу и зафиксируйте его решение в журнале; автоматическое одобрение запрещено.",
+      "profiles": {"basic": "optional", "research": "optional", "expert": "required"},
+      "dependent_gates": ["application_approval", "issue_selection", "release"],
+      "blocking_when_missing": false,
+      "probe": {"kind": "manual"}
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Outcome-blind проверь проект жалобы и смоделируй сильнейший отказ",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь hard gates, adverse и SentenceEvidenceMap перед release",
+    "should_trigger": true
+  },
+  {
+    "query": "Составь первый черновик без готового портфеля",
+    "should_trigger": false
+  },
+  {
+    "query": "Проверь только адрес КС РФ",
+    "should_trigger": false
+  }
+]

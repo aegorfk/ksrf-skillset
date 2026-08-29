@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "providers": [
+    {
+      "provider_id": "garant_connect",
+      "title": "ГАРАНТ Коннект",
+      "authority_class": "discovery_only",
+      "capabilities": ["edition_intervals", "revision_comparison", "changed_document_monitoring"],
+      "official_anchor_required": true,
+      "operational_status": "optional_not_configured",
+      "limits": ["provider_metadata_does_not_replace_official_publication", "monitoring_endpoint_has_provider_specific_range_and_batch_limits"]
+    },
+    {
+      "provider_id": "casus_legal",
+      "title": "Casus Legal",
+      "authority_class": "discovery_only",
+      "capabilities": ["document_discovery", "revision_discovery"],
+      "official_anchor_required": true,
+      "operational_status": "optional_not_configured",
+      "limits": ["discovery_result_requires_resolution_to_official_publication"]
+    }
+  ]
+}

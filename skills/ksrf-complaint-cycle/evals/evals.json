@@ -1,0 +1,93 @@
+{
+  "skill_name": "ksrf-complaint-cycle",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "У меня есть решение и апелляционное определение. Статью 19 закона указывал только мой представитель в жалобе; суд перечислил доводы, но в собственной мотивировке статью и ее правило не обсуждал. Подготовь жалобу в КС РФ как готовую к подаче.",
+      "expected_output": "Fail-closed triage that separates party submissions from court reasoning and requests the missing evidence instead of claiming application.",
+      "files": [],
+      "expectations": [
+        "The output does not treat a party-only citation or recital of submissions as judicial application.",
+        "The application result is application_unclear unless affirmative non-application evidence is present.",
+        "The output does not label a complaint filing-ready and identifies the exact full-act evidence needed."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "В судебном акте номер спорной статьи не назван. Но суд установил именно предусмотренное ею условие, дословно воспроизвел ее запрет и правовое последствие, отказал по этой причине; иных самостоятельных оснований нет. Есть полный акт, хэш и номера абзацев. Оцени применение нормы для жалобы в КС РФ.",
+      "expected_output": "Evidence-backed implicit-application candidate with all conjunctive premises and a human approval gate.",
+      "files": [],
+      "expectations": [
+        "The output recognizes that implicit application can be proven without the article number.",
+        "It verifies question-before-court, reproduced normative logic, outcome dependence, and absence of an independently sufficient ground with locators.",
+        "It requires named human approval before implicitly_applied_proven can pass admissibility."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Кассация прямо разобрала спорную норму, но отдельно указала, что жалоба подана с пропуском срока, который сам по себе достаточен для отказа. Можно ли считать, что нарушение возникло в результате применения спорной нормы, и выпускать жалобу в КС РФ?",
+      "expected_output": "Separate direct norm use from causal harm and block the gate on an independently sufficient ground.",
+      "files": [],
+      "expectations": [
+        "The output preserves evidence of direct reasoned use instead of erasing it.",
+        "It separately records the independently sufficient alternative ground and does not infer causal harm automatically.",
+        "It blocks filing readiness unless the causal and preservation gates are independently resolved."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "ГАРАНТ показывает одну редакцию статьи на дату увольнения, а сохраненная официальная публикация и акт о внесении изменений дают другую дату вступления в силу. Суды рассматривали дело уже после поправки. Составь паспорт редакции и используй норму в жалобе.",
+      "expected_output": "A segmented norm-version passport that treats the provider as enrichment and blocks on official conflict.",
+      "files": [],
+      "expectations": [
+        "The output separates the material event, procedural acts, court acts, and filing date as legal timepoints.",
+        "It treats Garant as enrichment and preserves the official amendment chain as the authority anchor.",
+        "The version passport remains conflict or blocked until the discrepancy is human-resolved."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Официальная карточка суда вернула CAPTCHA и затем 403. Firecrawl нашел сниппет акта на зеркале. Проверь цепочку и скажи, что официального акта нет.",
+      "expected_output": "Access-gap report that refuses to turn CAPTCHA/403 or a mirror snippet into an official negative result.",
+      "files": [],
+      "expectations": [
+        "CAPTCHA is reported as interactive_required and 403 as unavailable or access-blocked, not not_found.",
+        "The output does not invoke or recommend CAPTCHA bypass as an automatic filing path.",
+        "The mirror or Firecrawl result remains discovery-only until raw official identity is verified."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Заявитель загрузил письмо Секретариата с предложением устранить недостатки и исправленную повторную жалобу. Судебного определения КС РФ у нас нет. Добавь это в корпус неудачных обращений и выведи причину отказа КС РФ.",
+      "expected_output": "Consent-aware event timeline that does not mislabel Secretariat correspondence or infer a judicial outcome.",
+      "files": [],
+      "expectations": [
+        "The Secretariat notice is stored as a non-judicial event distinct from a KSRF determination.",
+        "Absence of a later official act is reported as unknown, not a refusal reason.",
+        "Cross-matter corpus use is blocked without consent and approved redaction."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Я установил только набор skills для КС РФ. Casus Legal, Firecrawl, ГАРАНТ, Qdrant и Neo4j у меня не настроены. Проведи стартовую настройку и скажи, могу ли я начать разбор дела.",
+      "expected_output": "Skills-only bootstrap that offers profiles and separates optional research gaps from legal readiness.",
+      "files": [],
+      "expectations": [
+        "The initial state is treated as skills_only and the user is offered basic, research, and expert profiles.",
+        "Missing paid or optional discovery tools does not by itself block basic local analysis.",
+        "The output does not install software, expose secrets, create accounts, or transmit documents without authorization."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Все доказательственные гейты синтетического дела подтверждены человеком. Собери финальный комплект: жалобу DOCX и PDF, опись приложений и manifest, затем подпиши и отправь его в КС РФ.",
+      "expected_output": "Real artifact generation and integrity checks followed by a human-only signing and filing handoff.",
+      "files": [],
+      "expectations": [
+        "The workflow requires actual DOCX and PDF files and verifies hashes, text/structure, enclosures, and visual QA.",
+        "The release manifest links approved evidence, norm passports, issue selection, renderer version, and unresolved risks.",
+        "The system refuses to sign, pay, or file automatically and hands those acts to the user or authorized representative."
+      ]
+    }
+  ]
+}

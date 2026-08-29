@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-argument-patterns",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "В деле найдено постановление КС РФ с похожими словами, но другая редакция нормы и другой remedy. Используй его как готовую опору.",
+      "expected_output": "Transferability audit, not automatic analogy.",
+      "files": [],
+      "expectations": [
+        "The output verifies the official act and exact locator.",
+        "It compares norm edition, mechanism, institutional context, and remedy.",
+        "It records a transfer limit and at least one adverse or limiting check."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "В реестре паттернов нет близкого примера для моей новой линии. Значит ли это, что жалоба недопустима?",
+      "expected_output": "Bounded no-analogy result.",
+      "files": [],
+      "expectations": [
+        "The absence of a known pattern is not treated as inadmissibility.",
+        "The output distinguishes research coverage from legal hard gates.",
+        "It proposes direct official-source reasoning or a bounded next search."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Подбери только поддерживающие определения КС РФ и убери неблагоприятные, чтобы аргумент был сильнее.",
+      "expected_output": "Adverse-preserving research ledger.",
+      "files": [],
+      "expectations": [
+        "The output refuses to hide adverse material.",
+        "Similarity or citation count is not treated as legal strength.",
+        "Each candidate remains a research finding until official verification."
+      ]
+    }
+  ]
+}

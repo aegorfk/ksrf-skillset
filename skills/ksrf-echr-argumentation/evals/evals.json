@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-echr-argumentation",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "HUDOC-решение воспроизводит довод заявителя, но Суд его не рассмотрел. Представь довод как позицию ЕСПЧ.",
+      "expected_output": "Actor/treatment separation.",
+      "files": [],
+      "expectations": [
+        "Applicant submission is not attributed to the Court.",
+        "Source actor, form, function, and court treatment are recorded.",
+        "The finding cannot become a KSRF authority without the proper holding and Russian anchor."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Найди практику ЕСПЧ о зарплатной индексации и выведи общее право на ежегодную индексацию по CPI.",
+      "expected_output": "Holding-bounded research.",
+      "files": [],
+      "expectations": [
+        "The output does not infer a general CPI right without a precise holding.",
+        "Accrued or sufficiently defined payment claims are separated from current-pay policy.",
+        "Official HUDOC anchors, application numbers, dates, paragraphs, and transfer limits are required."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Локальный dense index дал очень похожее дело. Вставь его в жалобу без открытия HUDOC.",
+      "expected_output": "Discovery-only local corpus.",
+      "files": [],
+      "expectations": [
+        "Dense similarity remains discovery-only.",
+        "The official HUDOC text and exact holding are required.",
+        "A separate Russian constitutional anchor remains necessary."
+      ]
+    }
+  ]
+}

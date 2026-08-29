@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/redaction-record.v1.schema.json",
+  "title": "Failure Corpus Redaction Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "private_record_id", "consent_id", "source_sha256", "derived_sha256",
+    "automated_check_status", "unresolved_spans", "reviewer", "human_review_status",
+    "reviewed_at", "blockers", "redaction_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "private_record_id": {"type": "string", "minLength": 1},
+    "consent_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "derived_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "automated_check_status": {"enum": ["passed", "blocked"]},
+    "unresolved_spans": {"type": "array", "items": {"type": "string"}},
+    "reviewer": {"type": ["string", "null"]},
+    "human_review_status": {"enum": ["pending", "approved"]},
+    "reviewed_at": {"type": ["string", "null"]},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "redaction_id": {"type": "string", "minLength": 1}
+  }
+}

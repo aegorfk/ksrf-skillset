@@ -1,6 +1,6 @@
 interface:
   display_name: "Исследовать аргументы для КС РФ"
-  short_description: "Сравнивать конкурирующие правовые гипотезы"
-  default_prompt: "Используй $ksrf-explore-arguments после проверки допустимости, чтобы построить варианты конституционно-правовой проблемы, сравнить их и представить мне готовый выбор principal/reserve."
+  short_description: "Version-aware варианты проблемы и refusal-first критика"
+  default_prompt: "Используй $ksrf-explore-arguments после evidence-backed допустимости, чтобы outcome-blind построить 1–4 варианта конституционно-правовой проблемы, проверить отказные аналоги и представить готовый выбор principal/reserve."
 policy:
   allow_implicit_invocation: true

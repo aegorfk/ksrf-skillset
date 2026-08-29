@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/refusal-private-submission-episode.v1.schema.json",
+  "title": "Private Submission Timeline Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "matter_id", "event_type", "event_at", "evidence_id", "parent_event_id", "recorded_at", "event_id"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "matter_id": {"type": "string", "minLength": 1},
+    "event_type": {"enum": ["complaint", "secretariat_notice", "cure", "resubmission", "judicial_disposition"]},
+    "event_at": {"type": "string", "minLength": 1},
+    "evidence_id": {"type": "string", "minLength": 1},
+    "parent_event_id": {"type": ["string", "null"]},
+    "recorded_at": {"type": "string", "minLength": 1},
+    "event_id": {"type": "string", "minLength": 1}
+  }
+}

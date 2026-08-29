@@ -1,9 +1,13 @@
 ---
 name: ksrf-practice-authority-builder
-description: Находить через CasusLegal MCP, проверять и органично встраивать практику КС РФ, ВС РФ и ВАС РФ в аргументацию жалобы в Конституционный Суд РФ. Используй для подкрепления исследуемой или утвержденной гипотезы практикой, доказательства устойчивого судебного смысла нормы, поиска adverse/refusal-позиций, подготовки authority ledger и drafting blocks, а также аудита ссылок и цитат в готовом проекте жалобы.
+description: Скилл official-first находит, проверяет и органично встраивает практику КС РФ, ВС РФ и ВАС РФ в аргументацию жалобы в Конституционный Суд РФ; CasusLegal используется лишь как необязательный discovery-канал. Он применяется для проверки гипотезы, судебного смысла нормы, adverse/refusal-позиций, authority ledger, drafting blocks и аудита цитат.
 ---
 
 # Проверяемая опора на практику для жалобы в КС РФ
+
+## Official-first provider contract
+
+Следуй `../ksrf-complaint-cycle/references/official-source-and-version-gate.md`: authority class не равна acquisition transport. Casus Legal, Firecrawl и иные providers генерируют кандидатов; ключевой тезис проходит только после official full-text resolution, raw/extracted hashes, locator, edition check и adverse pass. Недоступность подписки снижает coverage, но не basic capability и не доказывает отсутствие позиции.
 
 ## Роль
 
@@ -46,11 +50,11 @@ description: Находить через CasusLegal MCP, проверять и �
 
 Прочитай `references/tool-routing.md` перед первым поиском. По умолчанию:
 
-- начни с `casuslegal_search_practice` для смысловой карты и иерархических блоков;
-- используй `casuslegal_find_term` для дословной формулы, нормы или устойчивого термина;
-- после выбора опорного акта используй `casuslegal_find_similar` для аналогий и контрпримеров;
-- открывай `casuslegal_get_case_details` только для ключевых актов и точной цитаты;
-- используй `casuslegal_browse_practice` с сортировкой по дате, если нужен действительно последний акт;
+- начни с `mcp__casuslegal__casuslegal_search_practice` для смысловой карты и иерархических блоков;
+- используй `mcp__casuslegal__casuslegal_find_term` для дословной формулы, нормы или устойчивого термина;
+- после выбора опорного акта используй `mcp__casuslegal__casuslegal_find_similar` для аналогий и контрпримеров;
+- открывай `mcp__casuslegal__casuslegal_get_case_details` только для ключевых актов и точной цитаты;
+- используй `mcp__casuslegal__casuslegal_browse_practice` с сортировкой по дате, если нужен действительно последний акт;
 - следуй `_response_format_hint` и используй возвращенный `url` дословно в исследовательском ответе.
 
 ### 4. Назначь акту юридическую функцию

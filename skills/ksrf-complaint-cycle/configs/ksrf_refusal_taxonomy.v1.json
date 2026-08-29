@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "categories": [
+    {"code": "jurisdiction_or_object_defect", "title": "Дефект компетенции или объекта проверки"},
+    {"code": "norm_application_absent_or_uncertain", "title": "Применение нормы отсутствует или не доказано"},
+    {"code": "exhaustion_or_deadline_defect", "title": "Неисчерпание средств защиты или пропуск срока"},
+    {"code": "fourth_instance_request", "title": "Требование о переоценке фактов или судебных актов"},
+    {"code": "abstract_or_hypothetical_review", "title": "Абстрактный или гипотетический контроль"},
+    {"code": "insufficient_constitutional_substantiation", "title": "Недостаточное конституционное обоснование"},
+    {"code": "request_or_remedy_defect", "title": "Дефект требования или способа защиты"},
+    {"code": "applicant_status_defect", "title": "Дефект статуса заявителя"},
+    {"code": "document_or_form_defect", "title": "Дефект документов или формы"},
+    {"code": "settled_position_or_repetition", "title": "Повтор вопроса или наличие сохраняющей силу позиции"},
+    {"code": "other_explicit_ground", "title": "Иное прямо установленное основание"}
+  ]
+}

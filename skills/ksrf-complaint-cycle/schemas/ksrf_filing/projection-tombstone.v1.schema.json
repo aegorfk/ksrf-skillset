@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/projection-tombstone.v1.schema.json",
+  "title": "Failure Corpus Projection Tombstone",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "consent_id", "derivative_ids", "projection_ids", "tombstoned_at",
+    "purge_status", "dependent_finding_status", "source_deletion_requires_separate_authorization",
+    "tombstone_id", "status"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "consent_id": {"type": "string", "minLength": 1},
+    "derivative_ids": {"type": "array", "items": {"type": "string"}},
+    "projection_ids": {"type": "array", "items": {"type": "string"}},
+    "tombstoned_at": {"type": "string", "minLength": 1},
+    "purge_status": {"enum": ["not_applicable", "purged", "purge_required_before_projection_rebuild"]},
+    "dependent_finding_status": {"const": "invalidated"},
+    "source_deletion_requires_separate_authorization": {"const": true},
+    "tombstone_id": {"type": "string", "minLength": 1},
+    "status": {"const": "tombstoned"}
+  }
+}

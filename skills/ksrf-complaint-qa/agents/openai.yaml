@@ -1,4 +1,4 @@
 interface:
   display_name: "КС РФ: проверка жалобы"
-  short_description: "Проверить hard gates и портфель аргументов"
-  default_prompt: "Используй $ksrf-complaint-qa, чтобы сначала перепроверить допустимость и полноту UID-досье, затем principal/reserve аргументы и рекомендацию по маршруту перед формальной подачей."
+  short_description: "Outcome-blind отказная проверка hard gates и текста"
+  default_prompt: "Используй $ksrf-complaint-qa как независимого outcome-blind reviewer: перепроверь допустимость, source/version/application evidence, adverse аналоги, SentenceEvidenceMap и remedy перед release."

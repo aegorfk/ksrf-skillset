@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/source-evidence.v1.schema.json",
+  "title": "KSRF Immutable Source Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "observation_id", "source_id", "issuer", "authority_class", "origin_url",
+    "acquisition_transport", "retrieved_at", "content_type", "raw_object", "extracted_object",
+    "identity_checks", "transform_chain", "filing_authority_state", "filing_ready",
+    "validation_state", "supersedes_evidence_id", "evidence_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "source_id": {"type": "string", "minLength": 1},
+    "issuer": {"type": ["string", "null"]},
+    "authority_class": {"enum": ["official_primary", "official_derivative", "discovery_only", "user_supplied_unverified"]},
+    "origin_url": {"type": "string", "minLength": 1},
+    "acquisition_transport": {"type": "string", "minLength": 1},
+    "retrieved_at": {"type": "string", "minLength": 1},
+    "content_type": {"type": ["string", "null"]},
+    "raw_object": {"$ref": "#/$defs/object"},
+    "extracted_object": {"oneOf": [{"$ref": "#/$defs/object"}, {"type": "null"}]},
+    "identity_checks": {"type": "array", "items": {"type": "object"}},
+    "transform_chain": {"type": "array", "items": {"type": "object"}},
+    "filing_authority_state": {"enum": ["verified_official", "identity_unverified", "non_official"]},
+    "filing_ready": {"type": "boolean"},
+    "validation_state": {"enum": ["verified", "pending_identity_review"]},
+    "supersedes_evidence_id": {"type": ["string", "null"]},
+    "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "size", "object_path"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 0},
+        "object_path": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

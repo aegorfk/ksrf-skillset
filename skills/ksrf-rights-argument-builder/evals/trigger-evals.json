@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Из approved options и application records собери principal/reserve разделы",
+    "should_trigger": true
+  },
+  {
+    "query": "Свяжи official authorities и adverse response с SentenceEvidenceMap",
+    "should_trigger": true
+  },
+  {
+    "query": "Сделай первичный intake дела по УИД",
+    "should_trigger": false
+  },
+  {
+    "query": "Проверь PDF визуально перед подачей",
+    "should_trigger": false
+  }
+]

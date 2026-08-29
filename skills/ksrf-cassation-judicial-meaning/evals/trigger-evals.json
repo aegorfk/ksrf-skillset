@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Исследуй, какой смысл кассационные суды придают этой редакции нормы",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь split и adverse-практику до тезиса о системности",
+    "should_trigger": true
+  },
+  {
+    "query": "Найди один официальный акт КС РФ по номеру",
+    "should_trigger": false
+  },
+  {
+    "query": "Собери DOCX финальной жалобы",
+    "should_trigger": false
+  }
+]

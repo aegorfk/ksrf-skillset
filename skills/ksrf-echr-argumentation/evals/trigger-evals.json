@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Проверь официальный HUDOC holding и перенеси его с российским якорем",
+    "should_trigger": true
+  },
+  {
+    "query": "Найди adverse ЕСПЧ по positive obligation и effective remedy",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь только российскую редакцию нормы",
+    "should_trigger": false
+  },
+  {
+    "query": "Собери опись приложений жалобы",
+    "should_trigger": false
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "query": "После hard gates предложи несколько конституционных issue options",
+    "should_trigger": true
+  },
+  {
+    "query": "Сравни отказные аналоги и disconfirmation для principal/reserve",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь только формальные реквизиты готового пакета",
+    "should_trigger": false
+  },
+  {
+    "query": "Определи последствия уже вынесенного постановления КС РФ",
+    "should_trigger": false
+  }
+]

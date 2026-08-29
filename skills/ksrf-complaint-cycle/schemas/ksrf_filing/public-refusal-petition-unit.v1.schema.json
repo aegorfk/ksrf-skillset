@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/public-refusal-petition-unit.v1.schema.json",
+  "title": "KSRF Public Refusal Petition Unit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "petition_unit_id", "petition_claim_source", "source_evidence_id", "source_sha256",
+    "official_url", "act_number", "act_date", "extractor_version", "extraction_method", "unit_locator", "applicant_category", "dispute_category",
+    "challenged_norm_signature", "applicant_claim", "ksrf_reframed_question", "actually_answered_question",
+    "disputed_meaning", "application_pattern", "constitutional_benchmarks", "requested_remedy",
+    "procedural_disposition", "positive_remainder", "repair_delta", "inference_confidence",
+    "review_status", "ingested_at", "refusal_reasons", "record_id", "supersedes_record_id", "record_object"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "petition_unit_id": {"type": "string", "minLength": 1},
+    "petition_claim_source": {"const": "ksrf_act_summary"},
+    "source_evidence_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "official_url": {"type": ["string", "null"]},
+    "act_number": {"type": "string", "minLength": 1},
+    "act_date": {"type": "string", "format": "date"},
+    "extractor_version": {"type": "string", "minLength": 1},
+    "extraction_method": {"type": "string", "minLength": 1},
+    "unit_locator": {"type": "string", "minLength": 1},
+    "applicant_category": {"type": "string"},
+    "dispute_category": {"type": "string"},
+    "challenged_norm_signature": {"type": "object", "required": ["norm_ids"], "properties": {"norm_ids": {"type": "array", "items": {"type": "string"}}, "edition_ids": {"type": "array", "items": {"type": "string"}}}},
+    "applicant_claim": {"type": ["string", "null"]},
+    "ksrf_reframed_question": {"type": ["string", "null"]},
+    "actually_answered_question": {"type": ["string", "null"]},
+    "disputed_meaning": {"type": ["string", "null"]},
+    "application_pattern": {"type": ["string", "null"]},
+    "constitutional_benchmarks": {"type": "array", "items": {"type": "string"}},
+    "requested_remedy": {"type": ["string", "null"]},
+    "procedural_disposition": {"type": ["string", "null"]},
+    "positive_remainder": {"type": ["string", "null"]},
+    "repair_delta": {"type": ["string", "null"]},
+    "inference_confidence": {"type": ["string", "number", "null"]},
+    "review_status": {"enum": ["unreviewed", "approved", "corrected", "rejected", "blocked_for_source"]},
+    "ingested_at": {"type": "string", "minLength": 1},
+    "refusal_reasons": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/reason"}},
+    "record_id": {"type": "string", "minLength": 1},
+    "supersedes_record_id": {"type": ["string", "null"]},
+    "record_object": {"$ref": "#/$defs/object"}
+  },
+  "$defs": {
+    "reason": {
+      "type": "object",
+      "required": ["code", "role", "decisiveness", "statement", "locator", "taxonomy_version", "extraction_status", "reason_id"],
+      "properties": {
+        "code": {"type": "string"},
+        "role": {"enum": ["primary", "ancillary"]},
+        "decisiveness": {"type": "string"},
+        "statement": {"type": "string", "minLength": 1},
+        "locator": {"type": "string", "minLength": 1},
+        "taxonomy_version": {"type": "string"},
+        "extraction_status": {"type": "string"},
+        "reason_id": {"type": "string"}
+      }
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "size", "object_path"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1},
+        "object_path": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

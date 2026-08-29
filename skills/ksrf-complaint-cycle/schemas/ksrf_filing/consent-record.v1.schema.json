@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/consent-record.v1.schema.json",
+  "title": "Failure Corpus Consent Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "consent_version", "contributor", "matter_id", "document_roles", "covered_sha256", "permitted_uses",
+    "access_scope", "granted_at", "expires_at", "retention_review_at", "evidence_ref",
+    "schema_version", "status", "recorded_at", "consent_id"
+  ],
+  "properties": {
+    "consent_version": {"type": "string", "minLength": 1},
+    "contributor": {
+      "type": "object",
+      "required": ["contributor_id", "authority_attested", "third_party_personal_data_present"],
+      "properties": {
+        "contributor_id": {"type": "string", "minLength": 1},
+        "authority_attested": {"const": true},
+        "third_party_personal_data_present": {"type": "boolean"}
+      }
+    },
+    "matter_id": {"type": "string", "minLength": 1},
+    "document_roles": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "covered_sha256": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "permitted_uses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["same_matter", "cross_matter_retrieval", "evaluation", "model_training", "anonymized_publication"],
+      "properties": {
+        "same_matter": {"const": true},
+        "cross_matter_retrieval": {"type": "boolean"},
+        "evaluation": {"type": "boolean"},
+        "model_training": {"type": "boolean"},
+        "anonymized_publication": {"type": "boolean"}
+      }
+    },
+    "access_scope": {"type": "string", "minLength": 1},
+    "granted_at": {"type": "string", "minLength": 1},
+    "expires_at": {"type": ["string", "null"]},
+    "retention_review_at": {"type": ["string", "null"]},
+    "evidence_ref": {"type": "string", "minLength": 1},
+    "schema_version": {"const": "1.0.0"},
+    "status": {"const": "active"},
+    "recorded_at": {"type": "string", "minLength": 1},
+    "consent_id": {"type": "string", "minLength": 1}
+  }
+}

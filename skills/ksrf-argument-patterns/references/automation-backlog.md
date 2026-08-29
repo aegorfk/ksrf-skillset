@@ -1,5 +1,34 @@
 # Бэклог автоматизации для паттернов аргументации КС РФ
 
+## Содержание
+
+- [practice-split](#practice-split)
+- [legal-certainty](#legal-certainty)
+- [constitutional-meaning](#constitutional-meaning)
+- [proportionality and interest-balance](#proportionality-and-interest-balance)
+- [effective-remedy and procedural-guarantees](#effective-remedy-and-procedural-guarantees)
+- [legitimate-expectations and retroactivity](#legitimate-expectations-and-retroactivity)
+- [non-mechanical-application and liability-fairness](#non-mechanical-application-and-liability-fairness)
+- [property-compensation](#property-compensation)
+- [reconsideration-execution](#reconsideration-execution)
+- [complaint-methodology-gate](#complaint-methodology-gate)
+- [secretariat-return-precheck](#secretariat-return-precheck)
+- [constitutional-record-preservation-checker](#constitutional-record-preservation-checker)
+- [complaint-attachments-checker](#complaint-attachments-checker)
+- [methodology-source-crawler](#methodology-source-crawler)
+- [zakon-rubric-methodology-ingestor](#zakon-rubric-methodology-ingestor)
+- [ksrf-publication-radar](#ksrf-publication-radar)
+- [telegram-practice-claim-validator](#telegram-practice-claim-validator)
+- [bill-history-passport-builder](#bill-history-passport-builder)
+- [academic-training-source-ingestor](#academic-training-source-ingestor)
+- [institutional-currentness-checker](#institutional-currentness-checker)
+- [course-transcript-methodology-ingestor](#course-transcript-methodology-ingestor)
+- [complaint-qa-assertion-ledger](#complaint-qa-assertion-ledger)
+- [secretariat-red-team-simulator](#secretariat-red-team-simulator)
+- [complaint-argument-scoring-rubric](#complaint-argument-scoring-rubric)
+- [ksrf-skill-eval-loop](#ksrf-skill-eval-loop)
+
+
 Это идеи реализации, которые помогают применять паттерны в новых делах.
 
 ## practice-split

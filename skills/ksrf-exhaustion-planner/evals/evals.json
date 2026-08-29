@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-exhaustion-planner",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Суд имплицитно применил норму, хотя заявитель номер статьи не называл. Значит исчерпание автоматически есть.",
+      "expected_output": "Separate application and preservation.",
+      "files": [],
+      "expectations": [
+        "Implicit judicial use and preservation/exhaustion are assessed separately.",
+        "The current official preservation rule is checked.",
+        "No automatic exhaustion is inferred from norm use alone."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Нет полного кассационного акта, но карточка показывает дату отказа. Посчитай путь исчерпанным.",
+      "expected_output": "Missing record is not exhaustion.",
+      "files": [],
+      "expectations": [
+        "The card does not replace the full act for reasons and norm use.",
+        "The stage is record_missing or unknown.",
+        "The exact act and bounded retrieval task are identified."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Последний акт датирован, но неизвестно, был ли он финальным для этой категории. Рассчитай окончательный срок.",
+      "expected_output": "Route-aware deadline.",
+      "files": [],
+      "expectations": [
+        "The actual procedure category and highest required route are established first.",
+        "Deadline confidence is not overstated.",
+        "Unknown finality blocks a filing-ready date conclusion."
+      ]
+    }
+  ]
+}

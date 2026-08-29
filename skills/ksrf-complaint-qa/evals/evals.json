@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-complaint-qa",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Суд прямо применил норму, но отказ также полностью основан на пропуске срока. Проект называет причинность доказанной.",
+      "expected_output": "Causal-harm refusal-first review.",
+      "files": [],
+      "expectations": [
+        "Direct use is preserved as evidence.",
+        "The independent sufficient ground blocks automatic causal-harm passage.",
+        "The verdict is not ready until the causal gap is resolved."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Проект называет письмо Секретариата отказным определением КС РФ и цитирует его как holding.",
+      "expected_output": "Evidence-role correction.",
+      "files": [],
+      "expectations": [
+        "A Secretariat notice is not treated as a judicial determination.",
+        "The alleged holding fails source-role QA.",
+        "Missing later outcome remains unknown."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Текст красивый, но три правовых предложения не имеют locator и source hash. Поставь высокий score и пропусти.",
+      "expected_output": "No style compensation.",
+      "files": [],
+      "expectations": [
+        "Style or scalar score does not compensate for evidence defects.",
+        "Unsupported sentence IDs are identified.",
+        "The release remains blocked or requires rewrite/source tasks."
+      ]
+    }
+  ]
+}

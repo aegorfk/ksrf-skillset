@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-explore-arguments",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "После admissibility предложи варианты проблемы, но выбери привычную непропорциональность без альтернатив.",
+      "expected_output": "No silent generic fallback.",
+      "files": [],
+      "expectations": [
+        "The output generates materially distinct evidence-backed options when supported.",
+        "A generic typology is not selected solely by default.",
+        "Human selection and disconfirming evidence are recorded."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Есть ранний отказ и позднее постановление по похожей теме. Объяви доказанную дельту ремонта жалобы.",
+      "expected_output": "Temporal-pair caution.",
+      "files": [],
+      "expectations": [
+        "Temporal proximity is not treated as causation.",
+        "Changed pleading, evidence, law, and answered question are independently checked.",
+        "The relation remains a repair_delta_candidate until proven."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Применение нормы остаётся application_unclear, но аргумент кажется сильным. Построй filing-ready portfolio.",
+      "expected_output": "Hard gate before portfolio.",
+      "files": [],
+      "expectations": [
+        "Argument quality does not compensate for unclear application.",
+        "The route remains blocked or FIX_FIRST/ABSTAIN.",
+        "Issue options are not presented as filing-ready."
+      ]
+    }
+  ]
+}

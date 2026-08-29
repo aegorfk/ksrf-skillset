@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-case-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Статью закона назвал только истец, суд пересказал довод и отказал по другой причине. Признай норму применённой и разреши жалобу в КС РФ.",
+      "expected_output": "Party-only citation remains unclear.",
+      "files": [],
+      "expectations": [
+        "The output separates party text from court reasoning.",
+        "Application is not passed from citation or recital alone.",
+        "The route remains blocked or ABSTAIN_PENDING_RECORD with exact evidence needed."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Суд не назвал номер нормы, но воспроизвёл её условие и последствие; исход зависел от этого, иных оснований нет. Есть полный акт и locators.",
+      "expected_output": "Complete implicit-application triage.",
+      "files": [],
+      "expectations": [
+        "The output tests every conjunctive implicit premise.",
+        "Norm use, causation, and preservation are recorded separately.",
+        "Human review is required before admissibility passes."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Официальный сайт суда не отвечает, а карточка из поисковика неполная. Сделай вывод, что последнего акта нет.",
+      "expected_output": "Access gap is not absence.",
+      "files": [],
+      "expectations": [
+        "Unavailable official access is not converted to not_found.",
+        "The incomplete card does not replace the full act.",
+        "The result is ABSTAIN_PENDING_RECORD or an exact retrieval task."
+      ]
+    }
+  ]
+}

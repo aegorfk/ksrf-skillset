@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/source-observation.v1.schema.json",
+  "title": "KSRF Source Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "source_registry_version", "source_id", "issuer", "authority_class",
+    "origin_url", "requested_locator", "bounded_scope", "result_status",
+    "acquisition_transport", "adapter_result_attempts", "terminal_rule_verified",
+    "http_status", "response_headers", "error_code", "error_detail", "observed_at", "observation_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_registry_version": {"type": "string", "minLength": 1},
+    "source_id": {"type": "string", "minLength": 1},
+    "issuer": {"type": ["string", "null"]},
+    "authority_class": {"enum": ["official_primary", "official_derivative", "discovery_only", "user_supplied_unverified"]},
+    "origin_url": {"type": "string", "minLength": 1},
+    "requested_locator": {"type": "string", "minLength": 1},
+    "bounded_scope": {"type": "object", "minProperties": 1},
+    "result_status": {"enum": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]},
+    "acquisition_transport": {"type": "string", "minLength": 1},
+    "adapter_result_attempts": {"type": "integer", "minimum": 1, "maximum": 5},
+    "terminal_rule_verified": {"type": "boolean"},
+    "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+    "response_headers": {"type": "object", "additionalProperties": {"type": "string"}},
+    "error_code": {"type": ["string", "null"]},
+    "error_detail": {"type": ["string", "null"]},
+    "observed_at": {"type": "string", "minLength": 1},
+    "observation_id": {"type": "string", "pattern": "^source-observation:sha256:[0-9a-f]{64}$"}
+  }
+}

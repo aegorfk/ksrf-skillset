@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-cassation-judicial-meaning",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Нашли три похожих определения кассации. Напиши, что сложилась устойчивая практика и норма неконституционна.",
+      "expected_output": "Bounded corpus claim.",
+      "files": [],
+      "expectations": [
+        "Three documents are not automatically called settled practice.",
+        "Independent case chains and coverage/adverse limits are checked.",
+        "Practice meaning is separated from individual norm application and unconstitutionality."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Апелляция оставила решение без изменения и ничего не сказала о мотивировке. Считай, что она приняла применение нормы первой инстанцией.",
+      "expected_output": "No automatic incorporation.",
+      "files": [],
+      "expectations": [
+        "Affirmance alone does not inherit every lower-court reason.",
+        "A specific incorporation locator is required.",
+        "Chain status remains unclear or preserves stages separately."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Корпус смешивает акты до и после поправки к статье. Построй единый тезис о динамике.",
+      "expected_output": "Edition-aware corpus analysis.",
+      "files": [],
+      "expectations": [
+        "Acts are segmented by norm edition and legal timepoint.",
+        "The current text does not replace historical text.",
+        "A cross-edition thesis remains bounded until comparability is proven."
+      ]
+    }
+  ]
+}

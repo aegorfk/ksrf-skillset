@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ks-parser.local/schemas/ksrf-filing/capability-report.setup-or-matter.v1.json",
+  "title": "Отчёт ksrf doctor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "manifest_id",
+    "profile",
+    "state",
+    "checked_at",
+    "network_probe_authorized",
+    "external_transmission_performed",
+    "blocking_capabilities",
+    "optional_gaps",
+    "capabilities",
+    "found",
+    "missing",
+    "next_actions",
+    "expert_review",
+    "human_filing"
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"type": "string"},
+    "profile": {"enum": ["basic", "research", "expert"]},
+    "state": {"enum": ["ready", "degraded", "blocked"]},
+    "checked_at": {"type": "string"},
+    "network_probe_authorized": {"type": "boolean"},
+    "external_transmission_performed": {"type": "boolean"},
+    "blocking_capabilities": {"type": "array", "items": {"type": "string"}},
+    "optional_gaps": {"type": "array", "items": {"type": "string"}},
+    "capabilities": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/capabilityResult"}
+    },
+    "found": {"type": "array", "items": {"type": "string"}},
+    "missing": {"type": "array", "items": {"$ref": "#/$defs/missingItem"}},
+    "next_actions": {"type": "array", "items": {"type": "string"}},
+    "expert_review": {"$ref": "#/$defs/expertReview"},
+    "human_filing": {"$ref": "#/$defs/humanFiling"}
+  },
+  "$defs": {
+    "state": {
+      "enum": ["ready", "degraded", "blocked", "unknown", "unavailable", "interactive_required"]
+    },
+    "capabilityResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_id",
+        "title",
+        "requirement",
+        "state",
+        "probe_state",
+        "message",
+        "evidence",
+        "last_checked_at",
+        "dependent_gates",
+        "purpose",
+        "privacy",
+        "cost",
+        "dependency",
+        "remediation"
+      ],
+      "properties": {
+        "capability_id": {"type": "string"},
+        "title": {"type": "string"},
+        "requirement": {"enum": ["required", "optional", "not_used"]},
+        "state": {"$ref": "#/$defs/state"},
+        "probe_state": {"$ref": "#/$defs/state"},
+        "message": {"type": "string"},
+        "evidence": {"type": "object"},
+        "last_checked_at": {"type": "string"},
+        "dependent_gates": {"type": "array", "items": {"type": "string"}},
+        "purpose": {"type": "string"},
+        "privacy": {"type": "string"},
+        "cost": {"type": "string"},
+        "dependency": {"type": "string"},
+        "remediation": {"type": "string"}
+      }
+    },
+    "missingItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "item", "why", "next_action", "state"],
+      "properties": {
+        "capability_id": {"type": "string"},
+        "item": {"type": "string"},
+        "why": {"type": "string"},
+        "next_action": {"type": "string"},
+        "state": {"$ref": "#/$defs/state"}
+      }
+    },
+    "expertReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_before_release", "message"],
+      "properties": {
+        "required_before_release": {"const": true},
+        "message": {"type": "string"}
+      }
+    },
+    "humanFiling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["automated", "message"],
+      "properties": {
+        "automated": {"const": false},
+        "message": {"type": "string"}
+      }
+    }
+  }
+}

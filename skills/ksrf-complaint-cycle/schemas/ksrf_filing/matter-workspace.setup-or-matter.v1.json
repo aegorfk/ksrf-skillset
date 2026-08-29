@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ks-parser.local/schemas/ksrf-filing/matter-workspace.setup-or-matter.v1.json",
+  "title": "Рабочая папка дела для жалобы в КС РФ",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "matter_id",
+    "workspace_id",
+    "matter_identifier",
+    "matter_identifier_normalized",
+    "setup_profile",
+    "state",
+    "created_at",
+    "privacy",
+    "artifact_paths",
+    "unresolved",
+    "human_controls"
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": "1.0.0"},
+    "matter_id": {"type": "string", "pattern": "^matter_[a-f0-9]{20}$"},
+    "workspace_id": {"type": "string", "pattern": "^workspace_[a-f0-9]{20}$"},
+    "matter_identifier": {"type": "string", "minLength": 1},
+    "matter_identifier_normalized": {"type": "string", "minLength": 1},
+    "setup_profile": {"enum": ["basic", "research", "expert"]},
+    "state": {"const": "initialized"},
+    "created_at": {"type": "string"},
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_class",
+        "external_transmission_allowed",
+        "cross_matter_index_allowed",
+        "corpus_consent"
+      ],
+      "properties": {
+        "default_class": {"const": "local_confidential"},
+        "external_transmission_allowed": {"const": false},
+        "cross_matter_index_allowed": {"const": false},
+        "corpus_consent": {"const": false}
+      }
+    },
+    "artifact_paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_registry",
+        "input_objects",
+        "source_evidence",
+        "norm_version_passports",
+        "claim_application_ledger",
+        "constitutional_issue_candidates",
+        "adverse_material",
+        "draft_evidence_map",
+        "release_artifacts",
+        "audit_events"
+      ],
+      "properties": {
+        "input_registry": {"type": "string"},
+        "input_objects": {"type": "string"},
+        "source_evidence": {"type": "string"},
+        "norm_version_passports": {"type": "string"},
+        "claim_application_ledger": {"type": "string"},
+        "constitutional_issue_candidates": {"type": "string"},
+        "adverse_material": {"type": "string"},
+        "draft_evidence_map": {"type": "string"},
+        "release_artifacts": {"type": "string"},
+        "audit_events": {"type": "string"}
+      }
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/unresolvedItem"},
+      "required": [
+        "official_sources",
+        "norm_versions",
+        "norm_application",
+        "admissibility",
+        "constitutional_issue",
+        "release"
+      ]
+    },
+    "human_controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expert_review_required",
+        "signature_automated",
+        "payment_automated",
+        "filing_automated"
+      ],
+      "properties": {
+        "expert_review_required": {"const": true},
+        "signature_automated": {"const": false},
+        "payment_automated": {"const": false},
+        "filing_automated": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "unresolvedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "item", "why", "next_action"],
+      "properties": {
+        "state": {"const": "unknown"},
+        "item": {"type": "string", "minLength": 1},
+        "why": {"type": "string", "minLength": 1},
+        "next_action": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

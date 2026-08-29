@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "source_id": "ksrf_decisions",
+      "title": "Официальные акты Конституционного Суда Российской Федерации",
+      "issuer": "Конституционный Суд Российской Федерации",
+      "authority_class": "official_primary",
+      "domains": ["ksrf.ru", "www.ksrf.ru"],
+      "access_methods": ["direct_http", "browser", "manual_import"],
+      "expected_identifiers": ["act_number", "act_date", "official_document_id"],
+      "freshness": {"mode": "pre_filing_revalidate", "max_age_days": 30},
+      "operational_status": "bounded_adapter_or_manual_import",
+      "result_statuses": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]
+    },
+    {
+      "source_id": "pravo_publication",
+      "title": "Официальное опубликование правовых актов",
+      "issuer": "Официальный интернет-портал правовой информации",
+      "authority_class": "official_primary",
+      "domains": ["pravo.gov.ru", "www.pravo.gov.ru", "publication.pravo.gov.ru"],
+      "access_methods": ["direct_http", "browser", "manual_import"],
+      "expected_identifiers": ["publication_number", "publication_date", "document_number"],
+      "freshness": {"mode": "pre_filing_revalidate", "max_age_days": 30},
+      "coverage_limits": ["open_data_90_day_feed_is_not_complete_history"],
+      "operational_status": "bounded_adapter_or_manual_import",
+      "result_statuses": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]
+    },
+    {
+      "source_id": "sudrf_court_bank",
+      "title": "Официальные сайты судов общей юрисдикции и ГАС Правосудие",
+      "issuer": "Компетентный суд / ГАС Российской Федерации Правосудие",
+      "authority_class": "official_primary",
+      "domains": ["sudrf.ru", "*.sudrf.ru"],
+      "access_methods": ["direct_http", "browser", "manual_import"],
+      "expected_identifiers": ["court_id", "case_number", "act_date"],
+      "freshness": {"mode": "case_bound_revalidate", "max_age_days": 30},
+      "operational_status": "contract_only_not_wired",
+      "result_statuses": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]
+    },
+    {
+      "source_id": "vsrf_bank",
+      "title": "Официальный банк судебных актов Верховного Суда Российской Федерации",
+      "issuer": "Верховный Суд Российской Федерации",
+      "authority_class": "official_primary",
+      "domains": ["vsrf.ru", "www.vsrf.ru"],
+      "access_methods": ["browser", "manual_import"],
+      "expected_identifiers": ["case_number", "act_date", "document_id"],
+      "freshness": {"mode": "pre_filing_revalidate", "max_age_days": 30},
+      "operational_status": "contract_only_not_wired",
+      "result_statuses": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]
+    },
+    {
+      "source_id": "kad_arbitr",
+      "title": "Картотека арбитражных дел",
+      "issuer": "Арбитражные суды Российской Федерации",
+      "authority_class": "official_derivative",
+      "domains": ["kad.arbitr.ru"],
+      "access_methods": ["browser", "manual_import"],
+      "expected_identifiers": ["case_number", "act_id", "act_date"],
+      "freshness": {"mode": "case_bound_revalidate", "max_age_days": 30},
+      "operational_status": "contract_only_not_wired",
+      "result_statuses": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "query": "По УИД восстанови путь и проверь сохранение довода и срок",
+    "should_trigger": true
+  },
+  {
+    "query": "Отдельно проверь implicit use и preservation в кассации",
+    "should_trigger": true
+  },
+  {
+    "query": "Найди сравнительные аргументы ЕСПЧ",
+    "should_trigger": false
+  },
+  {
+    "query": "Отрендери PDF жалобы",
+    "should_trigger": false
+  }
+]

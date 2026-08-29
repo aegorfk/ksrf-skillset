@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-rights-argument-builder",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Principal выбран моделью, но человек его не утвердил. Напиши финальный раздел жалобы.",
+      "expected_output": "Human-selected input gate.",
+      "files": [],
+      "expectations": [
+        "The portfolio is returned for human selection.",
+        "No final principal section is promoted from model ranking alone.",
+        "Independent verified work is preserved without filing-ready labeling."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Approved issue опирается на application_unclear. Усиль текст доктриной и ЕСПЧ.",
+      "expected_output": "No rhetorical cure for application.",
+      "files": [],
+      "expectations": [
+        "Doctrine and ECHR do not cure unclear domestic norm application.",
+        "The section remains blocked or explicitly provisional.",
+        "Official Russian anchors and application evidence are kept separate."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Собери principal и reserve из проверенных options, official anchors и adverse ledger.",
+      "expected_output": "Evidence-mapped argument drafting.",
+      "files": [],
+      "expectations": [
+        "Principal and reserve remain substantively distinct.",
+        "Each material proposition has a sentence evidence link and transfer limit.",
+        "The remedy matches the normative mechanism and does not request fact reassessment."
+      ]
+    }
+  ]
+}

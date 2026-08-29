@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-decision-execution",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Я не был заявителем, но нахожусь в похожем положении. Обещай автоматический пересмотр после постановления КС РФ.",
+      "expected_output": "No automatic non-applicant reopening.",
+      "files": [],
+      "expectations": [
+        "The output separates general normative meaning from individual reopening.",
+        "Current sectoral procedure and operative part are required.",
+        "No automatic reversal is promised."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "КС РФ признал норму соответствующей только в выявленном смысле. Составь план применения и пересмотра.",
+      "expected_output": "Saving-construction execution.",
+      "files": [],
+      "expectations": [
+        "The binding constitutional meaning is extracted from the official act.",
+        "Normative, application, individual, and organizational effects are separated.",
+        "The exact downstream process and status of the user are verified."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "После прошлого плана изменился процессуальный кодекс. Используй старый маршрут без проверки.",
+      "expected_output": "Freshness invalidation.",
+      "files": [],
+      "expectations": [
+        "The old plan is marked stale.",
+        "Current official procedural law and decision text are refreshed.",
+        "Dependent deadlines and documents are recomputed rather than copied."
+      ]
+    }
+  ]
+}

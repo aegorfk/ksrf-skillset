@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/norm-version-passport.v1.schema.json",
+  "title": "KSRF Norm Version Passport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "norm_id", "canonical_citation", "issuing_authority",
+    "official_publication_identity", "amendment_acts", "legal_timepoints", "edition_segments",
+    "provider_assertions", "unresolved_conflicts", "human_review", "created_at", "passport_id",
+    "timepoint_edition_map", "gate", "passport_revision_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "norm_id": {"type": "string", "minLength": 1},
+    "canonical_citation": {"type": "string", "minLength": 1},
+    "issuing_authority": {"type": "string", "minLength": 1},
+    "official_publication_identity": {"type": "object", "minProperties": 1},
+    "amendment_acts": {"type": "array", "items": {"type": "object"}},
+    "legal_timepoints": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/timepoint"}},
+    "edition_segments": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/edition"}},
+    "provider_assertions": {"type": "array", "items": {"type": "object"}},
+    "unresolved_conflicts": {"type": "array", "items": {"type": "object"}},
+    "human_review": {"type": "object"},
+    "created_at": {"type": "string", "minLength": 1},
+    "updated_at": {"type": "string", "minLength": 1},
+    "passport_id": {"type": "string", "pattern": "^norm-passport:sha256:[0-9a-f]{64}$"},
+    "timepoint_edition_map": {"type": "array", "items": {"type": "object"}},
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "blockers", "human_review_required", "human_review_status", "filing_ready"],
+      "properties": {
+        "status": {"enum": ["blocked", "ready_for_human_review", "passed"]},
+        "blockers": {"type": "array", "items": {"type": "string"}},
+        "human_review_required": {"const": true},
+        "human_review_status": {"enum": ["pending", "approved"]},
+        "filing_ready": {"type": "boolean"}
+      }
+    },
+    "passport_revision_id": {"type": "string", "pattern": "^norm-passport-revision:sha256:[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "timepoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timepoint_id", "kind", "date", "reason", "source_evidence_id"],
+      "properties": {
+        "timepoint_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["material_event", "procedural_act", "judicial_act", "filing"]},
+        "date": {"type": "string", "format": "date"},
+        "reason": {"type": "string", "minLength": 1},
+        "source_evidence_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "edition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edition_id", "effective_from", "effective_to_exclusive", "controlling_text",
+        "official_text_sha256", "official_anchor", "governing_reason", "transitional_provisions"
+      ],
+      "properties": {
+        "edition_id": {"type": "string", "minLength": 1},
+        "effective_from": {"type": "string", "format": "date"},
+        "effective_to_exclusive": {"type": ["string", "null"], "format": "date"},
+        "controlling_text": {"type": "string"},
+        "official_text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "official_anchor": {"type": "object", "minProperties": 2},
+        "governing_reason": {"type": "string", "minLength": 1},
+        "transitional_provisions": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  }
+}

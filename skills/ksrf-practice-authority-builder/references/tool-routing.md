@@ -6,11 +6,11 @@
 
 ## Tools
 
-### `casuslegal_stats` и `casuslegal_subscription_status`
+### `mcp__casuslegal__casuslegal_stats` и `mcp__casuslegal__casuslegal_subscription_status`
 
 Используй для preflight, если доступ или состав корпуса вызывают сомнение. Не включай данные подписки и секреты в case ledger.
 
-### `casuslegal_search_practice`
+### `mcp__casuslegal__casuslegal_search_practice`
 
 Используй первым для содержательного вопроса. Формулируй запрос по-русски как юридический механизм, а не как длинный пересказ фактов. По умолчанию запрашивай 15-20 результатов и читай все иерархические блоки ответа:
 
@@ -21,7 +21,7 @@
 
 Следуй `_routing_hint` и `_response_format_hint`. Semantic ranking не равен хронологической новизне и не доказывает переносимость.
 
-### `casuslegal_find_term`
+### `mcp__casuslegal__casuslegal_find_term`
 
 Используй для:
 
@@ -32,7 +32,7 @@
 
 После term hit все равно открой контекст: совпадение строки не подтверждает proposition.
 
-### `casuslegal_find_similar`
+### `mcp__casuslegal__casuslegal_find_similar`
 
 Используй после выбора seed act. Ищи не только поддерживающие аналоги, но и:
 
@@ -44,17 +44,17 @@
 
 Similarity остается discovery signal.
 
-### `casuslegal_get_case_details`
+### `mcp__casuslegal__casuslegal_get_case_details`
 
 Открывай для ключевых актов, когда нужна точная цитата, locator или проверка контекста. Не вызывай для каждого результата. Обычно достаточно основного акта и до 3-5 наиболее профильных источников.
 
 Цитируй только из полного текста/sections. Для КС РФ используй доступное полное поле position/doctrine, но для финальной ключевой цитаты все равно сверяй официальный акт.
 
-### `casuslegal_browse_practice`
+### `mcp__casuslegal__casuslegal_browse_practice`
 
 Используй, когда вопрос зависит от полного фильтрованного ряда или действительно последнего акта. Для последнего акта обязательно сортируй по дате; не полагайся на порядок semantic search.
 
-### `casuslegal_export_cases`
+### `mcp__casuslegal__casuslegal_export_cases`
 
 Используй только по просьбе сделать каталог или выгрузку без анализа. В таком режиме передай собранные ids и верни созданную сервисом ссылку. Не подменяй substantive authority ledger каталогом.
 

@@ -1,0 +1,38 @@
+{
+  "skill_name": "ksrf-practice-authority-builder",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Casus Legal нашёл официальный URL и дал summary. Сразу процитируй summary как позицию КС РФ.",
+      "expected_output": "Authority versus transport.",
+      "files": [],
+      "expectations": [
+        "Casus Legal remains discovery/acquisition metadata.",
+        "Official full text, raw identity, locator, and exact holding are required.",
+        "The summary is not quoted as KSRF reasoning."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Подписки Casus Legal нет. Значит исследование практики и жалоба заблокированы.",
+      "expected_output": "Optional provider degradation.",
+      "files": [],
+      "expectations": [
+        "Missing subscription is a coverage gap, not a basic legal hard gate.",
+        "Official/manual paths remain available.",
+        "No search is fabricated."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Найди только поддерживающие акты ВС РФ и назови пять решений устойчивой практикой.",
+      "expected_output": "Adverse and bounded practice claim.",
+      "files": [],
+      "expectations": [
+        "Adverse/limiting searches are required.",
+        "Five documents do not automatically prove five independent chains or settled practice.",
+        "A claim-level coverage and human-review gate limits the wording."
+      ]
+    }
+  ]
+}

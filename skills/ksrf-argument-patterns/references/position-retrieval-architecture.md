@@ -1,5 +1,23 @@
 # Retrieval похожих позиций КС РФ
 
+## Содержание
+
+- [Стек](#стек)
+- [Что индексировать](#что-индексировать)
+- [Оперативные источники обнаружения](#оперативные-источники-обнаружения)
+- [Метаданные чанка](#метаданные-чанка)
+- [Граф нормы и Конституции](#граф-нормы-и-конституции)
+- [Балансирование норм](#балансирование-норм)
+- [Пайплайн поиска](#пайплайн-поиска)
+- [Локальная реализация в ksparserlowercourtmarker](#локальная-реализация-в-ksparserlowercourtmarker)
+- [MCP-доступ к базам](#mcp-доступ-к-базам)
+- [Оценка retrieval](#оценка-retrieval)
+- [Enrichment-слой корпуса](#enrichment-слой-корпуса)
+- [Профиль новой жалобы](#профиль-новой-жалобы)
+- [Формат ответа по похожей позиции](#формат-ответа-по-похожей-позиции)
+- [Правило осторожности](#правило-осторожности)
+
+
 Этот справочник описывает целевую архитектуру поиска похожих правовых позиций КС РФ для новых жалоб. Он привязан к проектному OpenSpec change `build-ksrf-position-retrieval`.
 
 ## Стек
@@ -161,15 +179,15 @@ CLI-поиск объединяет Qdrant, локальный lexical leg по 
 - `ksrf-qdrant`: `tools/mcp/ksrf_qdrant_server.py`;
 - `ksrf-neo4j`: `tools/mcp/ksrf_neo4j_server.py`.
 
-Используй MCP-инструменты так:
+Точные callable MCP-имена этих локальных серверов в переносимом skillset не зафиксированы. Следующие обозначения являются только концептуальными operation IDs, а не исполнимыми именами инструментов; перед вызовом сопоставь их с фактическим списком tools текущей среды и не вызывай обозначения буквально:
 
-- `qdrant_status` - проверить коллекции и counts;
-- `qdrant_collection_info` - проверить vector store metadata;
-- `qdrant_sample_points` - посмотреть payload по постановлению или секции;
-- `qdrant_search_text` - найти похожие chunks по тексту;
-- `neo4j_status` - проверить labels, relationship types и counts;
-- `neo4j_decision_graph` - получить граф по номеру постановления;
-- `neo4j_readonly_cypher` - выполнить read-only Cypher.
+- `conceptual.qdrant_status` - проверить коллекции и counts;
+- `conceptual.qdrant_collection_info` - проверить vector store metadata;
+- `conceptual.qdrant_sample_points` - посмотреть payload по постановлению или секции;
+- `conceptual.qdrant_search_text` - найти похожие chunks по тексту;
+- `conceptual.neo4j_status` - проверить labels, relationship types и counts;
+- `conceptual.neo4j_decision_graph` - получить граф по номеру постановления;
+- `conceptual.neo4j_readonly_cypher` - выполнить read-only Cypher.
 
 Для визуального просмотра:
 

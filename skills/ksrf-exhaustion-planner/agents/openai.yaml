@@ -1,4 +1,4 @@
 interface:
   display_name: "КС РФ: исчерпание"
-  short_description: "Проверить применение нормы, исчерпание и срок"
-  default_prompt: "Используй $ksrf-exhaustion-planner. По UID или материалам самостоятельно восстанови цепочку актов и проверь применение нормы, исчерпание и срок для жалобы в КС РФ."
+  short_description: "Раздельно проверить применение, сохранение, путь и срок"
+  default_prompt: "Используй $ksrf-exhaustion-planner. По УИД или материалам восстанови цепочку актов и отдельно проверь judicial norm use, causal role, preservation/exhaustion и срок для жалобы в КС РФ."
