@@ -2,7 +2,8 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-target="${CODEX_HOME:-$HOME/.codex}/skills"
+canonical_target="${CODEX_HOME:-$HOME/.codex}/skills"
+target="$canonical_target"
 
 usage() {
   cat <<'EOF'
@@ -36,72 +37,28 @@ done
 
 [[ -n "$target" ]] || { echo "Install target must not be empty" >&2; exit 2; }
 
-mkdir -p "$target"
+command -v python3 >/dev/null 2>&1 || {
+  echo "python3 is required for publication-safe installation" >&2
+  exit 1
+}
 
-skill_names=(
-  ksrf-argument-patterns
-  ksrf-case-triage
-  ksrf-cassation-judicial-meaning
-  ksrf-complaint-cycle
-  ksrf-complaint-facts-demands
-  ksrf-complaint-qa
-  ksrf-court-request-motion
-  ksrf-decision-execution
-  ksrf-echr-argumentation
-  ksrf-exhaustion-planner
-  ksrf-explore-arguments
-  ksrf-formal-filing-check
-  ksrf-practice-authority-builder
-  ksrf-rights-argument-builder
-)
-
-for bundled_dir in "$repo_dir"/skills/ksrf-*; do
-  [[ -d "$bundled_dir" ]] || continue
-  bundled_name="$(basename "$bundled_dir")"
-  case " ${skill_names[*]} " in
-    *" $bundled_name "*) ;;
-    *)
-      echo "Refusing undeclared bundled skill: $bundled_name" >&2
-      exit 1
-      ;;
-  esac
-done
-
-for skill_name in "${skill_names[@]}"; do
-  skill_dir="$repo_dir/skills/$skill_name"
-  [[ -f "$skill_dir/SKILL.md" ]] || {
-    echo "Required bundled skill is missing: $skill_dir" >&2
-    exit 1
-  }
-  destination="$target/$skill_name"
-  if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete "$skill_dir/" "$destination/"
-  else
-    command -v python3 >/dev/null 2>&1 || {
-      echo "python3 is required when rsync is unavailable" >&2
-      exit 1
-    }
-    python3 - "$skill_dir" "$destination" "$target" <<'PY'
+resolved_target="$(python3 - "$target" <<'PY'
 from pathlib import Path
-import shutil
 import sys
-
-source = Path(sys.argv[1]).resolve(strict=True)
-destination = Path(sys.argv[2]).resolve(strict=False)
-target = Path(sys.argv[3]).resolve(strict=True)
-if target == Path(target.anchor) or target == Path.home():
-    raise SystemExit("Refusing a broad install target")
-if destination.parent != target or destination.name != source.name:
-    raise SystemExit("Install destination escaped the declared skills root")
-if destination.is_symlink():
-    raise SystemExit("Refusing to replace a symlinked skill destination")
-if destination.exists():
-    if not destination.is_dir():
-        raise SystemExit("Skill destination exists and is not a directory")
-    shutil.rmtree(destination)
-shutil.copytree(source, destination)
+print(Path(sys.argv[1]).expanduser().resolve(strict=False))
 PY
-  fi
-done
+)"
+resolved_canonical_target="$(python3 - "$canonical_target" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve(strict=False))
+PY
+)"
 
-echo "Installed KSRF skills into $target"
+if [[ "$resolved_target" == "$resolved_canonical_target" ]]; then
+  python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir"
+else
+  echo "Custom-target clean-room install: canonical global skills will not be changed"
+fi
+
+python3 "$repo_dir/tools/install_skillset.py" --repo "$repo_dir" --target "$target"

@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.1",
-  "generated_at": "2026-08-29T12:15:45Z",
+  "schema_version": "1.2",
+  "generated_at": "2026-08-29T13:37:09Z",
   "source": "~/.codex/skills canonical 14-package allowlist",
-  "remote_base_commit": "fb820a9465817cd3806debe87cdb38ea74da42c7",
+  "remote_base_commit": "08a6317260a2c0bb645de143820ffe36266ec132",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -102,6 +102,57 @@
       "files": 12,
       "bytes": 179234,
       "tree_sha256": "64b89cdac32bb0e88ea16a05072ebb53732d22120a68a8661fb20ff137cda003"
+    }
+  ],
+  "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
+  "total_release_files": 9,
+  "total_release_bytes": 185419,
+  "release_tree_sha256": "5426927de1d01fadb3c9ad610b5e69f29d85afa84e78102ac5f2eb1251c9b118",
+  "release_files": [
+    {
+      "path": "install.sh",
+      "bytes": 1623,
+      "sha256": "fa0e5be2794266503e1da8f15d9b71d1171329c885864cac2952d237a569cb13"
+    },
+    {
+      "path": "tools/generate_skills_manifest.py",
+      "bytes": 4215,
+      "sha256": "d440a578842c0c2c06bcf3b67488b21f770bdfa653b2dc83a5928f610584a996"
+    },
+    {
+      "path": "tools/install_skillset.py",
+      "bytes": 5284,
+      "sha256": "a6b8a3fabae510d562560491b215deb5158aa2d746e842a65ede694b869f7075"
+    },
+    {
+      "path": "tools/skillset_file_contract.py",
+      "bytes": 4447,
+      "sha256": "69639b03534a4ac3b9645eeabf0cc706da9e54f0295fae9551251a1a3bf39caa"
+    },
+    {
+      "path": "tools/sync_global_skills.sh",
+      "bytes": 2413,
+      "sha256": "262ba761785d7546ceaaf19f89c470fb2342aa07b26f1cbb28e1a5ec3c37bbd4"
+    },
+    {
+      "path": "tools/verify_publication_state.py",
+      "bytes": 9946,
+      "sha256": "41d20ead5157e8d4c1b5b9d0541576bb6c04cb16b5f902904b71dbe5814c86d6"
+    },
+    {
+      "path": "tools/build_constitutionalist_authority_corpus.py",
+      "bytes": 88029,
+      "sha256": "eb7b862b27927f99d10e1d81321555975fd581ceb0850a7976a2c4d12d7e7449"
+    },
+    {
+      "path": "tools/enrich_ksrf_argument_patterns.py",
+      "bytes": 54872,
+      "sha256": "c5581c091cf62bb1042ea921b694b63b5da4e9c2c4508b9acffd4d34c039ffa6"
+    },
+    {
+      "path": "tools/extract_ksrf_argument_patterns.py",
+      "bytes": 14590,
+      "sha256": "cef29d616962463bf1c65b32956a9fdd21a0adbf8ed358670aed63e9cac38cff"
     }
   ]
 }

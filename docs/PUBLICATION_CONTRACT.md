@@ -1,0 +1,61 @@
+# Контракт публикации KSRF skillset
+
+## Инвариант
+
+Работа над KSRF skillset не заканчивается локальной правкой. Любое изменение глобального скилла, reference, script, schema, fixture, eval, router, документации, release-tool или манифеста должно попасть в публичный `aegorfk/ksrf-skillset:main` в рамках той же задачи. Подтверждение завершённости — SHA точного атомарного commit, полученный свежим запросом к live remote.
+
+Каноническая рабочая копия скиллов находится в `~/.codex/skills/ksrf-*`. Этот репозиторий является публичной release-копией. Синхронизация не заменяет validation, commit, push и проверку live SHA.
+
+## Обязательный release workflow
+
+1. Создать чистый отдельный publish-worktree от актуального `origin/main`; проверить ожидаемый remote `aegorfk/ksrf-skillset` и отсутствие посторонних изменений.
+2. Запустить `tools/sync_global_skills.sh`. Скрипт до копирования проверит, что checkout чист и его HEAD равен свежему live SHA `refs/heads/main`, затем синхронизирует allowlist из 14 глобальных скиллов и регенерирует `skills-manifest.json`.
+3. Проверить точный diff и убедиться, что runtime-файлы, секреты и несвязанные изменения не попали в release.
+4. Запустить структурные, поведенческие и доступные runtime-проверки skillset. Ошибка либо неизвестный критический результат блокируют публикацию.
+5. Сделать один scoped atomic commit только с согласованным release-манифестом и выполнить push в `main`.
+6. После push получить live SHA напрямую и сопоставить его с локальным release HEAD:
+
+   ```bash
+   local_sha="$(git rev-parse HEAD)"
+   remote_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+   test -n "$remote_sha" && test "$local_sha" = "$remote_sha"
+   ```
+
+7. В итоговом отчёте указать SHA, список опубликованных файлов и выполненные проверки.
+
+`tools/verify_publication_state.py` автоматизирует проверку expected remote, чистоты checkout, live SHA и соответствия манифесту как дерева `skills/`, так и исполняемых release-tools. Самореферентный `skills-manifest.json` не включает собственный digest; его точную опубликованную версию вместе с документацией, тестами и OpenSpec связывает проверка `clean HEAD == live main`.
+
+Поле `remote_base_commit` — это полный lowercase 40-hex SHA live `main`, от которого началась синхронизация release-кандидата. При проверке он обязан существовать как commit и точно равняться первому родителю release HEAD (`HEAD^`). Каждый release, включая docs/tool-only изменение, поэтому регенерирует manifest от live `main` и публикуется ровно одним atomic commit; дополнительный commit требует нового manifest/release. Root commit без родителя блокируется.
+
+Три зеркальных tools из `ksrf-argument-patterns/scripts` перечислены в явном active allowlist. Переименование или удаление требует сначала обновить active/retired allowlist: отсутствие active source блокирует sync до изменений, а автоматически удалить можно только точное имя из versioned retired-list.
+
+## Защита глобальной установки
+
+Обычный `./install.sh` пишет в `${CODEX_HOME:-$HOME/.codex}/skills` и поэтому до любых изменений запускает publication guard. Установка блокируется, если checkout:
+
+- грязный или содержит untracked-файлы;
+- имеет HEAD, отличный от live `origin/main`;
+- связан с другим публичным репозиторием;
+- не может проверить remote из-за сети или доступа;
+- содержит дерево скиллов, не совпадающее с `skills-manifest.json`.
+- содержит исполняемые release-tools, не совпадающие с `skills-manifest.json`, либо недействительный `remote_base_commit`.
+
+Каноническая и clean-room установка используют один `skillset_file_contract.py`: `.env`, credentials/private keys, `*.pyc`, `__pycache__` и другие runtime/secret-файлы не копируются и не участвуют в payload; `.env.example` остаётся разрешённым публичным примером. Перед первой записью запрещаются `/`, home, symlinked target/skill destination и файл вместо каталога.
+
+Для проверки старой версии без риска перезаписи глобальных скиллов разрешён только явно заданный отдельный каталог:
+
+```bash
+./install.sh --target /tmp/ksrf-skills-clean-room
+```
+
+Такая проверка не доказывает публикацию и не повышает кандидатную версию до stable.
+
+## Если публикация заблокирована
+
+Не удалять и не откатывать подготовленные изменения автоматически. Итог должен прямо сказать, что публикация незавершена, и включать:
+
+- `git status --short` и точный список непубликованных файлов;
+- результаты validation/test команд;
+- локальный HEAD и live remote SHA, если он был доступен;
+- этап отказа: sync, manifest, validation, commit, push или live verification;
+- следующий безопасный шаг.

@@ -5,74 +5,27 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Iterable
+import re
 
-
-SKILL_NAMES = (
-    "ksrf-argument-patterns",
-    "ksrf-case-triage",
-    "ksrf-cassation-judicial-meaning",
-    "ksrf-complaint-cycle",
-    "ksrf-complaint-facts-demands",
-    "ksrf-complaint-qa",
-    "ksrf-court-request-motion",
-    "ksrf-decision-execution",
-    "ksrf-echr-argumentation",
-    "ksrf-exhaustion-planner",
-    "ksrf-explore-arguments",
-    "ksrf-formal-filing-check",
-    "ksrf-practice-authority-builder",
-    "ksrf-rights-argument-builder",
+from skillset_file_contract import (
+    FileContractError,
+    RELEASE_FILE_PATHS,
+    SKILL_NAMES,
+    file_digest,
+    payload_files,
+    tree_digest,
 )
-RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
-RUNTIME_NAMES = {".DS_Store"}
-RUNTIME_SUFFIXES = {".pyc", ".pyo"}
-SECRET_NAMES = {
-    ".env",
-    "credentials.json",
-    "secrets.json",
-    "token.json",
-    "id_rsa",
-    "id_ed25519",
-}
-SECRET_SUFFIXES = {".pem", ".p12", ".pfx", ".key"}
 
 
-def _excluded(path: Path) -> bool:
-    lowered = path.name.lower()
-    return (
-        any(part in RUNTIME_PARTS for part in path.parts)
-        or path.name in RUNTIME_NAMES
-        or path.suffix.lower() in RUNTIME_SUFFIXES
-        or lowered in SECRET_NAMES
-        or (lowered.startswith(".env.") and lowered != ".env.example")
-        or path.suffix.lower() in SECRET_SUFFIXES
-    )
-
-
-def _files(root: Path) -> list[Path]:
-    return sorted(
-        (path for path in root.rglob("*") if path.is_file() and not _excluded(path.relative_to(root))),
-        key=lambda path: path.relative_to(root).as_posix(),
-    )
-
-
-def _tree_digest(root: Path, files: Iterable[Path]) -> str:
-    digest = sha256()
-    for path in files:
-        relative = path.relative_to(root).as_posix().encode("utf-8")
-        content = path.read_bytes()
-        digest.update(len(relative).to_bytes(4, "big"))
-        digest.update(relative)
-        digest.update(len(content).to_bytes(8, "big"))
-        digest.update(content)
-    return digest.hexdigest()
+def _validate_base_commit(base_commit: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{40}", base_commit) is None:
+        raise SystemExit("--base-commit must be a full lowercase 40-hex Git commit SHA")
 
 
 def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
+    _validate_base_commit(base_commit)
     skills_root = repo_root / "skills"
     skill_rows: list[dict[str, object]] = []
     all_files: list[Path] = []
@@ -80,18 +33,37 @@ def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
         skill_root = skills_root / name
         if not (skill_root / "SKILL.md").is_file():
             raise SystemExit(f"Missing canonical skill: {skill_root}")
-        files = _files(skill_root)
+        try:
+            files = payload_files(skill_root)
+        except FileContractError as exc:
+            raise SystemExit(str(exc)) from exc
         all_files.extend(files)
         skill_rows.append(
             {
                 "name": name,
                 "files": len(files),
                 "bytes": sum(path.stat().st_size for path in files),
-                "tree_sha256": _tree_digest(skill_root, files),
+                "tree_sha256": tree_digest(skill_root, files),
+            }
+        )
+
+    release_files: list[Path] = []
+    release_rows: list[dict[str, object]] = []
+    for relative_name in RELEASE_FILE_PATHS:
+        relative = Path(relative_name)
+        path = repo_root / relative
+        if not path.is_file() or path.is_symlink():
+            raise SystemExit(f"Missing or symlinked release file: {path}")
+        release_files.append(path)
+        release_rows.append(
+            {
+                "path": relative.as_posix(),
+                "bytes": path.stat().st_size,
+                "sha256": file_digest(path),
             }
         )
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "source": "~/.codex/skills canonical 14-package allowlist",
         "remote_base_commit": base_commit,
@@ -112,8 +84,16 @@ def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
         "total_skills": len(SKILL_NAMES),
         "total_files": len(all_files),
         "total_bytes": sum(path.stat().st_size for path in all_files),
-        "tree_sha256": _tree_digest(skills_root, all_files),
+        "tree_sha256": tree_digest(skills_root, all_files),
         "skills": skill_rows,
+        "release_files_note": (
+            "Executable release surface excluding this self-referential manifest; "
+            "clean HEAD == live main binds all remaining versioned files"
+        ),
+        "total_release_files": len(release_files),
+        "total_release_bytes": sum(path.stat().st_size for path in release_files),
+        "release_tree_sha256": tree_digest(repo_root, release_files),
+        "release_files": release_rows,
     }
 
 
