@@ -7,11 +7,11 @@ description: Скилл превращает утверждённый портф
 
 ## Вход filing-readiness v1
 
-Принимай только выбранные человеком issue options, verified `NormVersionPassport`, reviewed per-stage application records и adverse delta. Строй разделы с `SentenceEvidenceMap` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`; unsupported proposition не расширяй риторикой и не передавай в release draft.
+Принимай только выбранные человеком issue options, verified `NormVersionPassport`, reviewed per-stage application records и adverse delta. Для filing-significant drafting selection/application/adverse gates должны иметь заранее созданные host-attested approvals полного содержимого по `../ksrf-complaint-cycle/references/router-and-state-machine.md`; raw human fields остаются диагностикой. Строй разделы с `SentenceEvidenceMap` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`; unsupported proposition не расширяй риторикой и не передавай в release draft.
 
 ## Вход
 
-Работай от `ArgumentPortfolio`, созданного через `ksrf-explore-arguments`. Если портфель отсутствует, сначала верни дело в автономное исследование, которое само выводит кандидатов права и последствия из материалов; не проси пользователя выбрать конституционную статью или готовую квалификацию. Если principal выбран без human approval, верни портфель на утверждение. Не выбирай ближайший паттерн вместо этого шага.
+Работай от `ArgumentPortfolio`, созданного через `ksrf-explore-arguments`. Если портфель отсутствует, сначала верни дело в автономное исследование, которое само выводит кандидатов права и последствия из материалов; не проси пользователя выбрать конституционную статью или готовую квалификацию. Если principal выбран без валидного host-attested approval полного candidate fingerprint, верни портфель на утверждение через центральный trusted-approval gate. Не выбирай ближайший паттерн вместо этого шага.
 
 Обязательные входы:
 

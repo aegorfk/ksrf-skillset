@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/filing-gate-approval-decision.v1.schema.json",
+  "title": "Filing-Significant Gate Approval Decision",
+  "description": "Generic decision projection for non-source filing gates. Raw human-looking fields remain diagnostic-only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "gate", "subject_id", "state", "blockers",
+    "trusted_approval", "raw_reviewer_diagnostic",
+    "raw_approved_diagnostic", "raw_human_decision_diagnostic"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "gate": {
+      "enum": [
+        "application", "issue_selection", "practice_claim", "adverse_authority",
+        "remedy", "anti_fourth_instance", "release", "public_refusal_review",
+        "private_redaction", "shared_promotion"
+      ]
+    },
+    "subject_id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["pending", "approved", "rejected", "blocked"]},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "trusted_approval": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"}
+      ]
+    },
+    "raw_reviewer_diagnostic": {
+      "type": ["string", "null"],
+      "description": "Caller-supplied reviewer text; never approval authority."
+    },
+    "raw_approved_diagnostic": {
+      "type": ["boolean", "null"],
+      "description": "Caller-supplied approval flag; never approval authority."
+    },
+    "raw_human_decision_diagnostic": {
+      "type": ["string", "null"],
+      "description": "Caller-supplied human_decision value; never approval authority."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"state": {"const": "approved"}},
+        "required": ["state"]
+      },
+      "then": {
+        "properties": {"trusted_approval": {"type": "object"}}
+      }
+    },
+    {
+      "if": {"properties": {"gate": {"const": "application"}, "state": {"const": "approved"}}, "required": ["gate", "state"]},
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/application_approval"}}}
+    },
+    {
+      "if": {"properties": {"gate": {"const": "issue_selection"}, "state": {"const": "approved"}}, "required": ["gate", "state"]},
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/issue_selection_approval"}}}
+    },
+    {
+      "if": {"properties": {"gate": {"const": "practice_claim"}, "state": {"const": "approved"}}, "required": ["gate", "state"]},
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/practice_approval"}}}
+    },
+    {
+      "if": {
+        "properties": {"gate": {"enum": ["adverse_authority", "remedy", "anti_fourth_instance"]}, "state": {"const": "approved"}},
+        "required": ["gate", "state"]
+      },
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/issue_gate_approval"}}}
+    },
+    {
+      "if": {"properties": {"gate": {"const": "release"}, "state": {"const": "approved"}}, "required": ["gate", "state"]},
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/release_approval"}}}
+    },
+    {
+      "if": {"properties": {"gate": {"const": "public_refusal_review"}, "state": {"const": "approved"}}, "required": ["gate", "state"]},
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/public_review_approval"}}}
+    },
+    {
+      "if": {
+        "properties": {"gate": {"enum": ["private_redaction", "shared_promotion"]}, "state": {"const": "approved"}},
+        "required": ["gate", "state"]
+      },
+      "then": {"properties": {"trusted_approval": {"$ref": "#/$defs/private_derivative_approval"}}}
+    }
+  ],
+  "$defs": {
+    "application_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "application"}, "subject_type": {"const": "application_admissibility"}}}}}
+      ]
+    },
+    "issue_selection_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "issue"}, "subject_type": {"const": "constitutional_issue_selection"}}}}}
+      ]
+    },
+    "practice_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "issue"}, "subject_type": {"const": "practice_claim"}}}}}
+      ]
+    },
+    "issue_gate_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "issue"}, "subject_type": {"const": "constitutional_issue_gate"}}}}}
+      ]
+    },
+    "release_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "release"}, "subject_type": {"const": "filing_release_pack"}}}}}
+      ]
+    },
+    "public_review_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "issue"}, "subject_type": {"const": "public_refusal_review"}}}}}
+      ]
+    },
+    "private_derivative_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {"properties": {"approval_request": {"properties": {"purpose": {"const": "issue"}, "subject_type": {"const": "private_redacted_derivative"}}}}}
+      ]
+    }
+  }
+}

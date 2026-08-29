@@ -295,7 +295,15 @@ def _page_image_findings(path: Path) -> list[dict[str, Any]]:
         coverage = dark_count / max(width * height, 1)
         findings: list[dict[str, Any]] = []
         if coverage < 0.0005:
-            findings.append({"code": "unexpected_blank_page", "material": True})
+            findings.append(
+                {
+                    "code": "unexpected_blank_page",
+                    "material": True,
+                    "message_ru": "Страница предпросмотра практически пуста.",
+                    "action_ru": "Проверить разрыв страницы и повторно сформировать PDF.",
+                    "ink_coverage": round(coverage, 6),
+                }
+            )
         edges = (
             image.crop((0, 0, width, min(3, height))),
             image.crop((0, max(height - 3, 0), width, height)),
@@ -303,8 +311,407 @@ def _page_image_findings(path: Path) -> list[dict[str, Any]]:
             image.crop((max(width - 3, 0), 0, width, height)),
         )
         if any(sum(edge.histogram()[:245]) for edge in edges):
-            findings.append({"code": "content_touches_page_edge", "material": True})
+            findings.append(
+                {
+                    "code": "content_touches_page_edge",
+                    "material": True,
+                    "message_ru": "Содержимое касается края страницы и может быть обрезано.",
+                    "action_ru": "Исправить поля или масштаб и заново проверить предпросмотр.",
+                }
+            )
+        if width < 700 or height < 900:
+            findings.append(
+                {
+                    "code": "preview_resolution_unreadable",
+                    "material": True,
+                    "message_ru": "Разрешение предпросмотра недостаточно для надежной визуальной проверки.",
+                    "action_ru": "Отрисовать PDF с разрешением не ниже 120 dpi.",
+                    "width": width,
+                    "height": height,
+                }
+            )
+
+        # Long dark rules are a deterministic proxy for a rendered table grid.
+        # Text strokes are far shorter and therefore do not cross these thresholds.
+        pixels = list(image.getdata())
+        row_counts = [0] * height
+        column_counts = [0] * width
+        for offset, value in enumerate(pixels):
+            if value < 96:
+                y, x = divmod(offset, width)
+                row_counts[y] += 1
+                column_counts[x] += 1
+
+        def longest_row_run(y: int) -> int:
+            longest = current = 0
+            offset = y * width
+            for x in range(width):
+                if pixels[offset + x] < 96:
+                    current += 1
+                    longest = max(longest, current)
+                else:
+                    current = 0
+            return longest
+
+        def longest_column_run(x: int) -> int:
+            longest = current = 0
+            for y in range(height):
+                if pixels[y * width + x] < 96:
+                    current += 1
+                    longest = max(longest, current)
+                else:
+                    current = 0
+            return longest
+
+        row_run_lengths = [longest_row_run(y) for y in range(height)]
+        column_run_lengths = [longest_column_run(x) for x in range(width)]
+
+        def grouped(indices: Iterable[int]) -> list[list[int]]:
+            groups: list[list[int]] = []
+            for index in indices:
+                if not groups or index > groups[-1][-1] + 1:
+                    groups.append([index])
+                else:
+                    groups[-1].append(index)
+            return groups
+
+        horizontal_rules = grouped(
+            index
+            for index, run_length in enumerate(row_run_lengths)
+            if run_length >= max(20, int(width * 0.25))
+        )
+        vertical_rules = grouped(
+            index
+            for index, run_length in enumerate(column_run_lengths)
+            if run_length >= max(20, int(height * 0.12))
+        )
+        horizontal_count = len(horizontal_rules)
+        vertical_count = len(vertical_rules)
+        horizontal_coordinates = [max(group, key=lambda index: row_run_lengths[index]) for group in horizontal_rules]
+        vertical_coordinates = [max(group, key=lambda index: column_run_lengths[index]) for group in vertical_rules]
+
+        def has_intersection(x: int, y: int) -> bool:
+            for check_y in range(max(0, y - 2), min(height, y + 3)):
+                row_offset = check_y * width
+                for check_x in range(max(0, x - 2), min(width, x + 3)):
+                    if pixels[row_offset + check_x] < 96:
+                        return True
+            return False
+
+        intersection_count = sum(
+            has_intersection(x, y)
+            for y in horizontal_coordinates
+            for x in vertical_coordinates
+        )
+        expected_intersections = horizontal_count * vertical_count
+        table_geometry_observed = (
+            intersection_count >= 2
+            and (
+                (horizontal_count >= 2 and vertical_count >= 1)
+                or (horizontal_count >= 1 and vertical_count >= 2)
+            )
+        )
+        broken_grid = table_geometry_observed and (
+            horizontal_count < 2
+            or vertical_count < 2
+            or intersection_count < expected_intersections
+        )
+        if broken_grid:
+            findings.append(
+                {
+                    "code": "broken_table_grid",
+                    "material": True,
+                    "message_ru": "В предпросмотре обнаружена неполная сетка таблицы.",
+                    "action_ru": "Проверить границы, перенос строк и разрыв таблицы между страницами.",
+                    "detected_horizontal_rules": horizontal_count,
+                    "detected_vertical_rules": vertical_count,
+                    "detected_intersections": intersection_count,
+                    "expected_intersections": expected_intersections,
+                }
+            )
         return findings
+
+
+def _text_layout_findings(
+    *,
+    page_number: int,
+    text_runs: Iterable[dict[str, Any]],
+    page_lines: Iterable[str],
+    headings: Iterable[str],
+    page_size: tuple[float, float] | None = None,
+) -> list[dict[str, Any]]:
+    """Return conservative findings from PDF text coordinates and font metadata."""
+
+    findings: list[dict[str, Any]] = []
+    occupied: dict[tuple[float, float], dict[str, Any]] = {}
+    for run in text_runs:
+        text = normalize_text(str(run.get("text") or ""))
+        if not text:
+            continue
+        try:
+            font_size = float(run.get("font_size") or 0)
+        except (TypeError, ValueError):
+            font_size = 0
+        font_name = normalize_text(str(run.get("font_name") or ""))
+        if font_size < 9.0:
+            findings.append(
+                {
+                    "code": "unreadable_font_size",
+                    "material": True,
+                    "message_ru": "В PDF найден текст размером менее 9 пунктов.",
+                    "action_ru": "Увеличить шрифт и повторно сформировать документ.",
+                    "page": page_number,
+                    "font_size": round(font_size, 3),
+                    "text_sample": text[:80],
+                }
+            )
+        if not font_name:
+            findings.append(
+                {
+                    "code": "font_metadata_missing",
+                    "material": True,
+                    "message_ru": "Для текстового фрагмента PDF не удалось подтвердить шрифт.",
+                    "action_ru": "Встроить или заменить шрифт и заново сформировать PDF.",
+                    "page": page_number,
+                    "text_sample": text[:80],
+                }
+            )
+        x_value = run.get("x")
+        y_value = run.get("y")
+        try:
+            if x_value is None or y_value is None:
+                raise ValueError("missing text coordinate")
+            position = (round(float(x_value), 1), round(float(y_value), 1))
+        except (TypeError, ValueError):
+            continue
+        if page_size is not None:
+            page_width, page_height = page_size
+            # A deliberately conservative width approximation is enough to
+            # identify content wholly outside the MediaBox without treating
+            # ordinary font-metric variation as clipping.
+            longest_line = max((len(line) for line in str(run.get("text") or "").splitlines()), default=1)
+            estimated_width = max(font_size * 0.25, font_size * 0.25 * longest_line)
+            estimated_height = max(font_size, 1.0)
+            x, y = position
+            wholly_outside = (
+                x >= page_width
+                or x + estimated_width <= 0
+                or y - estimated_height >= page_height
+                or y + estimated_height <= 0
+            )
+            partially_outside = (
+                x < 0
+                or x + estimated_width > page_width
+                or y - estimated_height < 0
+                or y > page_height
+            )
+            if wholly_outside:
+                findings.append(
+                    {
+                        "code": "text_run_off_page",
+                        "material": True,
+                        "message_ru": "Текстовый фрагмент целиком расположен вне границ страницы PDF.",
+                        "action_ru": "Исправить координаты, поля или плавающий объект и повторно сформировать PDF.",
+                        "page": page_number,
+                        "position": [x, y],
+                        "page_size": [round(page_width, 1), round(page_height, 1)],
+                        "text_sample": text[:80],
+                    }
+                )
+            elif partially_outside:
+                findings.append(
+                    {
+                        "code": "text_run_clipped_by_page",
+                        "material": True,
+                        "message_ru": "Часть текстового фрагмента выходит за границы страницы PDF.",
+                        "action_ru": "Исправить поля, отступ или ширину блока и повторно проверить PDF.",
+                        "page": page_number,
+                        "position": [x, y],
+                        "page_size": [round(page_width, 1), round(page_height, 1)],
+                        "text_sample": text[:80],
+                    }
+                )
+        previous = occupied.get(position)
+        if previous is not None and normalize_text(str(previous.get("text") or "")) != text:
+            findings.append(
+                {
+                    "code": "overlapping_text_runs",
+                    "material": True,
+                    "message_ru": "Два разных текстовых фрагмента отрисованы в одной координате.",
+                    "action_ru": "Проверить наложение абзацев, колонтитулов и плавающих объектов.",
+                    "page": page_number,
+                    "position": [position[0], position[1]],
+                    "text_samples": [normalize_text(str(previous.get("text") or ""))[:60], text[:60]],
+                }
+            )
+        else:
+            occupied[position] = run
+
+    normalized_headings = {normalize_text(item) for item in headings if normalize_text(item)}
+    meaningful_lines = [
+        normalize_text(line)
+        for line in page_lines
+        if normalize_text(line) and not normalize_text(line).isdigit()
+    ]
+    if meaningful_lines and meaningful_lines[-1] in normalized_headings:
+        findings.append(
+            {
+                "code": "orphan_heading",
+                "material": True,
+                "message_ru": "Заголовок остался последней содержательной строкой страницы.",
+                "action_ru": "Перенести заголовок вместе минимум с одним абзацем следующего раздела.",
+                "page": page_number,
+                "heading": meaningful_lines[-1],
+            }
+        )
+    return findings
+
+
+def _pagination_findings(
+    *,
+    pdf_page_sizes: Iterable[tuple[float, float]],
+    preview_paths: Iterable[Path],
+    page_lines: Iterable[Iterable[str]],
+) -> list[dict[str, Any]]:
+    """Validate one-to-one, ordered and geometrically consistent pagination."""
+
+    sizes = list(pdf_page_sizes)
+    previews = list(preview_paths)
+    lines_by_page = [list(lines) for lines in page_lines]
+    findings: list[dict[str, Any]] = []
+
+    if not sizes:
+        findings.append(
+            {
+                "code": "pdf_has_no_pages",
+                "material": True,
+                "message_ru": "PDF не содержит страниц.",
+                "action_ru": "Повторно сформировать PDF из исходного DOCX.",
+            }
+        )
+    rounded_sizes = {(round(width, 1), round(height, 1)) for width, height in sizes}
+    if len(rounded_sizes) > 1:
+        findings.append(
+            {
+                "code": "inconsistent_pdf_page_size",
+                "material": True,
+                "message_ru": "Страницы PDF имеют разный формат.",
+                "action_ru": "Привести все разделы документа к единому размеру страницы.",
+                "page_sizes": sorted([list(item) for item in rounded_sizes]),
+            }
+        )
+
+    preview_dimensions: list[tuple[int, int]] = []
+    for path in previews:
+        with Image.open(path) as image:
+            preview_dimensions.append(image.size)
+    if len(set(preview_dimensions)) > 1:
+        findings.append(
+            {
+                "code": "inconsistent_preview_dimensions",
+                "material": True,
+                "message_ru": "Страницы предпросмотра имеют разные размеры.",
+                "action_ru": "Повторно отрисовать все страницы с единым dpi и форматом.",
+                "preview_dimensions": [list(item) for item in preview_dimensions],
+            }
+        )
+
+    observed_numbers: list[int] = []
+    for path in previews:
+        match = re.fullmatch(r"page-(\d+)\.png", path.name)
+        if match:
+            observed_numbers.append(int(match.group(1)))
+    expected_numbers = list(range(1, len(sizes) + 1))
+    if len(previews) != len(sizes) or observed_numbers != expected_numbers:
+        findings.append(
+            {
+                "code": "preview_page_sequence_mismatch",
+                "material": True,
+                "message_ru": "Нумерация или количество страниц предпросмотра не совпадает с PDF.",
+                "action_ru": "Очистить каталог предпросмотра и заново отрисовать весь PDF.",
+                "expected": expected_numbers,
+                "observed": observed_numbers,
+            }
+        )
+
+    if len(lines_by_page) != len(sizes):
+        findings.append(
+            {
+                "code": "pdf_text_page_count_mismatch",
+                "material": True,
+                "message_ru": "Текстовая проверка охватила не все страницы PDF.",
+                "action_ru": "Повторить извлечение текста и визуальную проверку PDF.",
+                "expected": len(sizes),
+                "observed": len(lines_by_page),
+            }
+        )
+    for page_number, lines in enumerate(lines_by_page, start=1):
+        standalone_numbers = [normalize_text(line) for line in lines if normalize_text(line).isdigit()]
+        if str(page_number) not in standalone_numbers:
+            findings.append(
+                {
+                    "code": "page_number_mismatch",
+                    "material": True,
+                    "message_ru": "Номер страницы в PDF отсутствует или не соответствует позиции страницы.",
+                    "action_ru": "Исправить поле номера страницы в колонтитуле и повторно сформировать PDF.",
+                    "page": page_number,
+                    "observed_numbers": standalone_numbers,
+                }
+            )
+    return findings
+
+
+def _pdf_layout_findings(
+    pdf_path: str | Path,
+    preview_paths: Iterable[Path],
+    *,
+    headings: Iterable[str],
+) -> list[dict[str, Any]]:
+    reader = PdfReader(str(pdf_path))
+    page_sizes: list[tuple[float, float]] = []
+    page_lines: list[list[str]] = []
+    findings: list[dict[str, Any]] = []
+    for page_number, page in enumerate(reader.pages, start=1):
+        page_size = (float(page.mediabox.width), float(page.mediabox.height))
+        page_sizes.append(page_size)
+        runs: list[dict[str, Any]] = []
+
+        def visitor_text(text: str, cm: Any, tm: Any, font_dict: Any, font_size: Any) -> None:
+            if not normalize_text(text):
+                return
+            font_name = ""
+            if font_dict is not None:
+                font_name = str(font_dict.get("/BaseFont") or "")
+            runs.append(
+                {
+                    "text": text,
+                    "x": float(tm[4]) + float(cm[4]),
+                    "y": float(tm[5]) + float(cm[5]),
+                    "font_size": font_size,
+                    "font_name": font_name,
+                }
+            )
+
+        extracted = page.extract_text(visitor_text=visitor_text) or ""
+        lines = [str(line) for line in extracted.splitlines()]
+        page_lines.append(lines)
+        findings.extend(
+            _text_layout_findings(
+                page_number=page_number,
+                text_runs=runs,
+                page_lines=lines,
+                headings=headings,
+                page_size=page_size,
+            )
+        )
+    findings.extend(
+        _pagination_findings(
+            pdf_page_sizes=page_sizes,
+            preview_paths=list(preview_paths),
+            page_lines=page_lines,
+        )
+    )
+    return findings
 
 
 def render_pdf_previews(
@@ -327,7 +734,11 @@ def render_pdf_previews(
         text=True,
         timeout=timeout_seconds,
     )
-    pages = sorted(destination.glob("page-*.png"))
+    def page_number(path: Path) -> tuple[int, str]:
+        match = re.fullmatch(r"page-(\d+)\.png", path.name)
+        return (int(match.group(1)), path.name) if match else (10**9, path.name)
+
+    pages = sorted(destination.glob("page-*.png"), key=page_number)
     if completed.returncode != 0 or not pages:
         detail = normalize_text(completed.stderr or completed.stdout)
         raise RuntimeError(f"Не удалось отрисовать страницы PDF: {detail or 'unknown error'}")
@@ -357,14 +768,34 @@ def validate_rendered_pair(
     for index, page in enumerate(pages, start=1):
         for finding in _page_image_findings(page):
             visual_findings.append({"page": index, **finding})
+    visual_findings.extend(
+        _pdf_layout_findings(
+            pdf_path,
+            pages,
+            headings=[section.heading for section in complaint.sections],
+        )
+    )
+
+    pagination_codes = {
+        "pdf_has_no_pages",
+        "inconsistent_pdf_page_size",
+        "inconsistent_preview_dimensions",
+        "preview_page_sequence_mismatch",
+        "pdf_text_page_count_mismatch",
+        "page_number_mismatch",
+    }
 
     checks = {
+        "qa_profile": "deterministic_visual_v1",
         "docx_semantic_match": not missing_in_docx,
         "pdf_semantic_match": not missing_in_pdf,
         "page_count": page_count,
         "preview_count": len(pages),
         "placeholders": placeholders,
         "visual_findings": visual_findings,
+        "pagination_consistent": not any(
+            item.get("code") in pagination_codes for item in visual_findings
+        ),
     }
     checks["passed"] = (
         checks["docx_semantic_match"]

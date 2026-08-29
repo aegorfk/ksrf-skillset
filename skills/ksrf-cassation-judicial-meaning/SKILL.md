@@ -9,7 +9,7 @@ description: "Скилл исследует материалы дела заяв
 
 Этот skill доказывает наблюдаемый судебный смысл в корпусе, но не статус применения к заявителю. На входе и выходе сохраняй `NormVersionPassport`; в handoff передавай authority/practice evidence, а per-stage `NormApplicationEvidence` формирует complaint cycle по полным актам заявителя. Повторяемость толкования, similarity и оставление акта без изменения не заменяют conjunctive implicit-application test из `../ksrf-complaint-cycle/references/implicit-application-gate.md`.
 
-Этот скилл запускается **до** формулирования тезиса о кассационной практике. Он автономно работает на Python 3.10+ без проектной БД, API-ключей и платных сервисов: инвентаризирует акты заявителя, строит fingerprint дела, замораживает нейтральный поиск, ведёт публичный корпус, сравнивает полнотекстовые позиции и допускает в жалобу только ограниченный вывод, одобренный человеком.
+Этот скилл запускается **до** формулирования тезиса о кассационной практике. Он автономно работает на Python 3.10+ без проектной БД, API-ключей и платных сервисов: инвентаризирует акты заявителя, строит fingerprint дела, замораживает нейтральный поиск, ведёт публичный корпус и сравнивает полнотекстовые позиции. Его локально одобренный bounded result остаётся исследовательским handoff; в жалобу он входит только после центрального host-attested approval полного issue/practice/adverse binding.
 
 ## Неподвижное правило
 
@@ -27,7 +27,7 @@ description: "Скилл исследует материалы дела заяв
 6. **Закрой четыре adverse-корзины.** Для каждой нужны выполненные query IDs, отсутствие неразрешённых сегментов и влияние пробела на `maximum_permitted_claim`.
 7. **Проверь качество наблюдения.** По `references/practice-quality.md` отдельно построй межинстанционную траекторию смысла, девятимерный профиль неопределённости и frozen coding-reliability audit. Не считай оставление результата без изменения принятием мотивировки и не сворачивай измерения в score.
 8. **Проверь нормативный мост и актуальность.** Свяжи смысл в деле заявителя, ограниченное наблюдение корпуса и конкретное конституционное последствие; отдельно объясни обычное средство защиты и выполни pre-filing refresh по official routes, закону, higher authority, verified и pending treatments.
-9. **Только после проверки сформируй handoff.** `drafting_ready` требует текущие хеши fingerprint/плана/evidence/quality/refresh, человеческое одобрение и формулировку не сильнее `maximum_permitted_claim`. Reviewed v2 result строится CLI из текущих одобренных артефактов по selectors; произвольный findings payload запрещён. Получатель допускает его в drafting лишь после `handoff check` с этим source workspace и ожидаемым target: bundle без внешнего trust anchor остаётся audit-only, потому что SHA-256 не является подписью.
+9. **Только после проверки сформируй handoff.** Локальный compatibility-статус `drafting_ready` требует текущие хеши fingerprint/плана/evidence/quality/refresh, человеческую проверку и формулировку не сильнее `maximum_permitted_claim`, но означает лишь готовность evidence bundle к центральному gate. Reviewed v2 result строится CLI из текущих одобренных артефактов по selectors; произвольный findings payload запрещён. Получатель сначала выполняет `handoff check` с этим source workspace и ожидаемым target, затем требует pre-existing host-attested approval полного issue/practice/adverse binding. Bundle без внешнего anchor остаётся audit-only; filesystem anchor и SHA-256 не являются подписью или filing authority.
 
 Минимальный старт из любого каталога:
 

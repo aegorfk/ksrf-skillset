@@ -96,7 +96,25 @@
         {"$ref": "#/$defs/affirmative_non_application"}
       ]
     },
-    "human_review": {"$ref": "#/$defs/human_review"},
+    "human_review": {
+      "$ref": "#/$defs/human_review",
+      "description": "Backward-compatible raw review fields. Diagnostic-only without trusted_approval."
+    },
+    "trusted_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "application"},
+                "subject_type": {"const": "application_admissibility"}
+              }
+            }
+          }
+        }
+      ]
+    },
     "decision_rationale": {"type": "string"}
   },
   "$defs": {
@@ -212,8 +230,14 @@
       "required": ["state", "reviewer", "reviewed_at", "note"],
       "properties": {
         "state": {"enum": ["pending", "approved", "rejected", "needs_changes"]},
-        "reviewer": {"type": ["string", "null"]},
-        "reviewed_at": {"type": ["string", "null"]},
+        "reviewer": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy value only; not authenticated actor provenance."
+        },
+        "reviewed_at": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy value only; trusted approval time comes from the approval ledger."
+        },
         "note": {"type": "string"}
       },
       "allOf": [

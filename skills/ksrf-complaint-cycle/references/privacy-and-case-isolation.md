@@ -38,7 +38,7 @@
 
 ## Withdrawal и deletion
 
-Отзыв согласия немедленно исключает запись и производные projections из retrieval и инвалидирует зависимые findings. Удаление исходного файла выполняется только по отдельному явному указанию и с точным target manifest; audit tombstone сохраняет факт отзыва без private text.
+Отзыв согласия немедленно исключает запись и производные projections из retrieval и инвалидирует зависимые findings. Отзыв или expiry доверенного approval также немедленно блокирует promotion/shared use при следующей проверке. Удаление исходного файла выполняется только по отдельному явному указанию и с точным target manifest; audit tombstone сохраняет факт отзыва без private text.
 
 ## Publication guard
 

@@ -47,7 +47,7 @@
 3. исход контрфактически зависит от этого смысла;
 4. нет полного самостоятельного основания, удерживающего тот же исход;
 5. для каждого звена есть полный акт, speaker role, locator, quote window и document hash;
-6. именованный reviewer одобрил exact record.
+6. существует заранее созданный host-attested approval полного канонического record и fingerprints всех использованных записей цепочки.
 
 Нет хотя бы одного звена → `application_unclear`.
 
@@ -68,4 +68,4 @@
 
 ## Admissibility gate
 
-Express use само по себе недостаточно. Нужны judicial norm use, causal harm без полного independent ground, требуемое preservation/exhaustion, правильная редакция, survival в цепочке и human approval. Regex, keyword, RAG и similarity остаются candidate generation.
+Express use само по себе недостаточно. Нужны judicial norm use, causal harm без полного independent ground, требуемое preservation/exhaustion, правильная редакция, survival в цепочке и доверенное одобрение. Оно связывает не только IDs, но и цитату, locator, speaker/role, premises, causation, preservation, meaning, independent grounds и каждую supporting chain record. Любое изменение требует нового approval; raw `reviewer`/`approved` поля остаются диагностикой. Regex, keyword, RAG и similarity остаются candidate generation.

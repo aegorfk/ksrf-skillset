@@ -19,7 +19,7 @@ description: "Скилл организует полный цикл обраще
 
 ### 1. Собери record
 
-Если дан УИД, используй его как первый вход, но не обещай полноту provider layer, которой нет. Инвентаризируй переданные файлы, raw hashes, роли и стадии; выполни OCR/visual check для сканов. Официальный endpoint, вернувший CAPTCHA/403/timeout, оставляет access gap, а не `not_found`.
+Если дан УИД, сначала прочитай [UID-first workflow](references/uid-first-case-workflow.md) и используй УИД как первый вход, но не обещай полноту provider layer, которой нет. Инвентаризируй переданные файлы, raw hashes, роли и стадии; выполни OCR/visual check для сканов. Официальный endpoint, вернувший CAPTCHA/403/timeout, оставляет access gap, а не `not_found`.
 
 Маршрутизируй первичную проверку в `ksrf-case-triage`, а процессуальную цепочку — в `ksrf-exhaustion-planner`. Для живого дела отдельно оцени `ksrf-court-request-motion`.
 
@@ -36,7 +36,7 @@ description: "Скилл организует полный цикл обраще
 - `norm_use_status`;
 - `outcome_causation`;
 - `preservation_exhaustion`;
-- full-act locators и human review.
+- full-act locators и human review, подтверждённый заранее созданным host-attested approval полного record/chain fingerprint.
 
 Итоговые статусы: `explicitly_applied`, `implicitly_applied_proven`, `application_unclear`, `not_applied`; `directly_applied` — только legacy alias. Простое упоминание, довод стороны, тематическое сходство, исход дела или оставление акта без изменения не доказывают применения.
 
@@ -50,9 +50,9 @@ description: "Скилл организует полный цикл обраще
 
 Используй `ksrf-explore-arguments` для одного–четырёх существенно разных `ConstitutionalIssueOptions`; не выбирай generic proportionality/certainty fallback молча. При empirical practice claim включи `ksrf-cassation-judicial-meaning` и claim-level gate.
 
-Используй `ksrf-practice-authority-builder` official-first. Для отказной проверки прочитай [контракт корпуса](references/failed-complaint-corpus.md): официальный акт КС РФ, оригинальная жалоба и письмо Секретариата имеют разные evidence roles. Private cross-matter retrieval требует consent/redaction/human approval. Неполное покрытие не даёт отрицательного вывода.
+Используй `ksrf-practice-authority-builder` official-first. Для отказной проверки прочитай [контракт корпуса](references/failed-complaint-corpus.md): официальный акт КС РФ, оригинальная жалоба и письмо Секретариата имеют разные evidence roles. Private cross-matter retrieval требует consent/redaction и заранее созданного host-attested approval точного производного файла. Неполное покрытие не даёт отрицательного вывода.
 
-Покажи варианты заявителю/юристу и зафиксируй human selection principal/reserve. Модельный ranking остаётся advisory.
+Покажи варианты заявителю/юристу и зафиксируй human selection principal/reserve. Для filing-significant перехода свяжи полный выбранный candidate и все его gates с заранее созданным host-attested approval. Модельный ranking и raw selection fields остаются advisory.
 
 ### 6. Составь жалобу
 
@@ -64,7 +64,7 @@ description: "Скилл организует полный цикл обраще
 
 `ksrf-complaint-qa` работает outcome-blind как независимый refusal-first reviewer. После его прохода `ksrf-formal-filing-check` проверяет актуальные официальные правила и реальный `FilingPackageManifest`.
 
-Прочитай [release contract](references/filing-package-and-release.md) и выполни `scripts/ksrf_filing_pack.py`. Первая сборка может дать только `ready_for_expert_review`. Лишь отдельное именованное одобрение неизменившегося fingerprint через `scripts/ksrf.py release approve` переводит комплект в `ready_for_human_signing_filing`; для этого должны существовать DOCX/PDF, совпасть hashes, пройти semantic/visual QA, опись, свежесть и все юридические approvals.
+Прочитай [release contract](references/filing-package-and-release.md) и выполни `scripts/ksrf_filing_pack.py`. Первая сборка может дать только `ready_for_expert_review`. В `ready_for_human_signing_filing` комплект переводит только заранее созданный host-attested approval, связанный с полным неизменившимся release basis; для этого должны существовать DOCX/PDF, совпасть hashes, пройти semantic/visual QA, опись, свежесть и все юридические approvals. Строка с именем reviewer, caller-supplied JSON, обычный TTY и самозаявленный `verifier_id` остаются диагностикой и не повышают статус.
 
 Подписание, пошлина, УКЭП и отправка остаются человеческими действиями. После фактического акта КС РФ используй `ksrf-decision-execution`.
 
@@ -86,7 +86,7 @@ description: "Скилл организует полный цикл обраще
 
 - `unavailable` не равно отсутствию источника.
 - `application_unclear` не равно применению и не равно доказанному неприменению.
-- Human approval не лечит legal/evidence gate.
+- Human approval не лечит legal/evidence gate; без настроенного host verifier filing-significant approval остаётся недоверенным.
 - Не смешивай данные разных дел и public/private corpus.
 - Не называй similarity, corpus frequency, число ссылок или eval score юридическим выводом.
 - Перед процессуальным действием освежай официальные нормы и ссылки.
@@ -100,6 +100,8 @@ description: "Скилл организует полный цикл обраще
 - `references/practice-analysis-integration.md` — empirical claim gate;
 - `references/docx-first-page-layout.md` — макет первой страницы;
 - `references/science-support-pack.md` — роль доктрины/эмпирики;
+- `references/crystal-themis-mootcourt-patterns.md` — учебный парный стресс-тест жалобы и возможного отзыва, только после закрытия evidence gates;
+- `references/crystal-themis-argument-examples.md` — учебные примеры конкретных конституционных тестов по совпавшей тематике, не authority и не готовый текст;
 - профильные references специализированного skill, который выполняет текущую стадию.
 
 После изменения набора выполни `scripts/verify_offline_self_containment.py`, behavioral/trigger evals и clean-room validation.

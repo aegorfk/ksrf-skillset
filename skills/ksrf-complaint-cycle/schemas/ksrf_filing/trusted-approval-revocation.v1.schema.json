@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/trusted-approval-revocation.v1.schema.json",
+  "title": "Trusted Human Approval Revocation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "approval_id", "actor_id", "actor_provenance",
+    "reason", "revoked_at", "host_attestation", "revocation_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "approval_id": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"},
+    "actor_id": {"type": "string", "minLength": 1},
+    "actor_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel", "session_id", "authenticated_at", "verification_method",
+        "assertion_id", "host_verifier_id"
+      ],
+      "properties": {
+        "channel": {"enum": ["interactive_tty", "authenticated_server"]},
+        "session_id": {"type": "string", "minLength": 1},
+        "authenticated_at": {"type": "string", "format": "date-time"},
+        "verification_method": {"type": "string", "minLength": 1},
+        "assertion_id": {"type": "string", "minLength": 1},
+        "host_verifier_id": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "reason": {"type": "string", "minLength": 1},
+    "revoked_at": {"type": "string", "format": "date-time"},
+    "host_attestation": {
+      "oneOf": [
+        {"type": "object", "minProperties": 1},
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "revocation_id": {"type": "string", "pattern": "^trusted-approval-revocation:sha256:[0-9a-f]{64}$"}
+  }
+}

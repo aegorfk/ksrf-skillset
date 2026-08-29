@@ -27,7 +27,48 @@
       }
     },
     "render_qa": {"type": "object", "required": ["passed"]},
+    "release_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "type": "object",
+          "required": ["status", "basis_sha256"],
+          "properties": {
+            "status": {"const": "approved"},
+            "basis_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "release"},
+                "subject_type": {"const": "filing_release_pack"}
+              }
+            },
+            "reviewer": {
+              "type": ["string", "null"],
+              "description": "Display-only reviewer name copied from the validated ledger record."
+            },
+            "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+            "raw_reviewer_diagnostic": {
+              "type": ["string", "null"],
+              "description": "Caller-supplied diagnostic value; never approval authority."
+            },
+            "raw_reviewed_at_diagnostic": {
+              "type": ["string", "null"],
+              "description": "Caller-supplied diagnostic value; never approval authority."
+            }
+          }
+        }
+      ]
+    },
     "blockers": {"type": "array", "items": {"type": "string"}}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "ready_for_human_signing_filing"}},
+        "required": ["status"]
+      },
+      "then": {"required": ["release_approval"]}
+    }
+  ],
   "additionalProperties": true
 }

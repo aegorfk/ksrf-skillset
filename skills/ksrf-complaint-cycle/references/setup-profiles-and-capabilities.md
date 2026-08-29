@@ -20,6 +20,8 @@
 
 Отсутствие Casus Legal, Firecrawl, ГАРАНТ, HUDOC, Qdrant, Neo4j, Langfuse или DeepEval не блокирует первичный local-basic анализ.
 
+Host verifier доверенных одобрений в `basic` необязателен для анализа и черновика. Но без него источник, имплицитное применение, выбор проблемы, promotion корпуса и release не получают положительную filing-significant authority: итог остаётся не выше `ready_for_expert_review`.
+
 ## `research`
 
 Включает `basic` и необязательные расширения:
@@ -40,7 +42,10 @@
 - outcome-blind input-only benchmark;
 - независимый clean-context reviewer;
 - consent-controlled private corpus;
-- именованный human reviewer для promotion и release.
+- именованный human reviewer для promotion и release;
+- host verifier, который аутентифицирует reviewer, ставит attestation на полное каноническое тело одобрения и повторно проверяет её при каждом зависимом gate.
+
+Само имя эксперта, запись в JSONL, raw CLI-поля, обычный интерактивный терминал или переданный caller-ом `verifier_id` не являются таким verifier. Для `expert` отсутствие capability `trusted_approval_verifier` блокирует положительные filing-significant переходы.
 
 ## Статусы проверки
 

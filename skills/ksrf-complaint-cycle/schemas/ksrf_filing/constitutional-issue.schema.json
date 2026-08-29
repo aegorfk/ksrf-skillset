@@ -126,9 +126,16 @@
         "state": {"enum": ["passed", "failed", "unknown"]},
         "rationale": {"type": "string"},
         "evidence_ids": {"$ref": "#/$defs/string_array"},
-        "reviewer": {"type": ["string", "null"]},
-        "reviewed_at": {"type": ["string", "null"]},
-        "requires_human_review": {"type": "boolean"}
+        "reviewer": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy field; not authenticated approval provenance."
+        },
+        "reviewed_at": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy field; not the trusted approval validation time."
+        },
+        "requires_human_review": {"type": "boolean"},
+        "trusted_approval": {"$ref": "#/$defs/issue_gate_approval"}
       }
     },
     "practice_claim": {
@@ -178,10 +185,15 @@
           ]
         },
         "human_decision": {
-          "enum": ["approved", "rejected", "pending", "not_required"]
+          "enum": ["approved", "rejected", "pending", "not_required"],
+          "description": "Backward-compatible diagnostic decision; approved does not pass without trusted_approval."
         },
-        "reviewer": {"type": ["string", "null"]},
-        "reviewed_at": {"type": ["string", "null"]}
+        "reviewer": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy field; not authenticated actor provenance."
+        },
+        "reviewed_at": {"type": ["string", "null"]},
+        "trusted_approval": {"$ref": "#/$defs/practice_claim_approval"}
       }
     },
     "human_selection": {
@@ -192,10 +204,59 @@
         "state": {
           "enum": ["pending", "principal", "reserve", "experimental", "rejected"]
         },
-        "reviewer": {"type": ["string", "null"]},
+        "reviewer": {
+          "type": ["string", "null"],
+          "description": "Diagnostic legacy field; not authenticated actor provenance."
+        },
         "reviewed_at": {"type": ["string", "null"]},
-        "note": {"type": "string"}
+        "note": {"type": "string"},
+        "trusted_approval": {"$ref": "#/$defs/issue_selection_approval"}
       }
+    },
+    "issue_gate_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "issue"},
+                "subject_type": {"const": "constitutional_issue_gate"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "practice_claim_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "issue"},
+                "subject_type": {"const": "practice_claim"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "issue_selection_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "issue"},
+                "subject_type": {"const": "constitutional_issue_selection"}
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

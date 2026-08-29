@@ -16,6 +16,8 @@ from .renderer import (
     render_docx,
     validate_rendered_pair,
 )
+from .storage import stable_id
+from .trusted_approvals import TrustedApprovalLedger
 
 
 REQUIRED_APPROVALS = (
@@ -86,42 +88,34 @@ def _formal_check_ready(formal_check: Mapping[str, Any]) -> tuple[bool, list[str
 
 
 def _release_basis_payload(manifest: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "schema_version": manifest.get("schema_version"),
-        "matter_id": manifest.get("matter_id"),
-        "draft_id": manifest.get("draft_id"),
-        "source_versions": list(manifest.get("source_versions", ())),
-        "norm_passport_ids": list(manifest.get("norm_passport_ids", ())),
-        "issue_option_id": manifest.get("issue_option_id"),
-        "approvals": dict(manifest.get("approvals", {})),
-        "formal_check": dict(manifest.get("formal_check", {})),
-        "sentence_evidence_map": list(manifest.get("sentence_evidence_map", ())),
-        "artifacts": [
-            {
-                key: item.get(key)
-                for key in (
-                    "kind",
-                    "sha256",
-                    "size",
-                    "status",
-                    "renderer",
-                    "renderer_version",
-                    "page_count",
-                )
-            }
-            for item in manifest.get("artifacts", ())
-        ],
-        "enclosures": [
-            {
-                key: item.get(key)
-                for key in ("number", "sha256", "size", "status")
-            }
-            for item in manifest.get("enclosures", ())
-        ],
-        "render_qa": dict(manifest.get("render_qa", {})),
-        "blockers": list(manifest.get("blockers", ())),
-        "missing_approvals": list(manifest.get("missing_approvals", ())),
+    # Bind every stable manifest field, including future substantive additions.
+    # Only approval/projection fields that necessarily change during approval and
+    # machine-local locators are excluded from the release basis.
+    excluded_top_level = {
+        "status",
+        "release_approval",
+        "release_basis_sha256",
+        "manifest_path",
+        "manifest_sha256",
     }
+    payload = {
+        key: value
+        for key, value in manifest.items()
+        if key not in excluded_top_level
+    }
+    payload["artifacts"] = [
+        {key: value for key, value in item.items() if key != "path"}
+        for item in manifest.get("artifacts", ())
+    ]
+    payload["enclosures"] = [
+        {
+            key: value
+            for key, value in item.items()
+            if key not in {"path", "source"}
+        }
+        for item in manifest.get("enclosures", ())
+    ]
+    return payload
 
 
 def release_basis_sha256(manifest: Mapping[str, Any]) -> str:
@@ -132,6 +126,22 @@ def release_basis_sha256(manifest: Mapping[str, Any]) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return sha256(canonical).hexdigest()
+
+
+def release_approval_request(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    basis_sha256 = release_basis_sha256(manifest)
+    bindings = {
+        "matter_id": str(manifest.get("matter_id") or ""),
+        "draft_id": str(manifest.get("draft_id") or ""),
+        "release_basis_sha256": basis_sha256,
+    }
+    return {
+        "purpose": "release",
+        "subject_type": "filing_release_pack",
+        "subject_id": bindings["draft_id"],
+        "fingerprint": stable_id("release-approval", bindings),
+        "bindings": bindings,
+    }
 
 
 def build_release_pack(
@@ -233,16 +243,17 @@ def build_release_pack(
 def approve_release_pack(
     manifest_path: str | Path,
     *,
-    reviewer: str,
+    approval_ledger: TrustedApprovalLedger | None = None,
+    approval_id: str | None = None,
+    approval_as_of: str | None = None,
+    reviewer: str | None = None,
     reviewed_at: str | None = None,
 ) -> dict[str, Any]:
     """Именно и явно одобрить неизменившийся реальный пакет после визуальной проверки."""
 
+    del approval_as_of
     path = Path(manifest_path).resolve()
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    reviewer_name = str(reviewer or "").strip()
-    if not reviewer_name:
-        raise ValueError("Для выпуска нужен именованный проверяющий")
     if manifest.get("status") == "blocked" or manifest.get("blockers"):
         raise ValueError("Заблокированный пакет нельзя одобрить")
     if manifest.get("missing_approvals"):
@@ -255,11 +266,27 @@ def approve_release_pack(
     observed_basis = release_basis_sha256(manifest)
     if manifest.get("release_basis_sha256") != observed_basis:
         raise ValueError("Основание выпуска изменилось; пакет нужно пересобрать и проверить заново")
+    if approval_ledger is None or not str(approval_id or "").strip():
+        raise ValueError("Для выпуска нужен заранее созданный trusted approval_id")
+    validation = approval_ledger.validate_approval(
+        str(approval_id),
+        **release_approval_request(manifest),
+    )
+    if validation.get("valid") is not True:
+        raise ValueError(
+            "Trusted approval выпуска недействителен: "
+            + str(validation.get("reason_code") or "approval_invalid")
+        )
+    approval_record = validation["approval"]
     manifest["release_approval"] = {
         "status": "approved",
-        "reviewer": reviewer_name,
-        "reviewed_at": reviewed_at or _now(),
+        "approval_id": approval_record["approval_id"],
+        "reviewer": approval_record["actor_display_name"],
+        "reviewed_at": approval_record["approved_at"],
         "basis_sha256": observed_basis,
+        "actor_provenance": dict(approval_record["actor_provenance"]),
+        "raw_reviewer_diagnostic": str(reviewer or "").strip() or None,
+        "raw_reviewed_at_diagnostic": reviewed_at,
     }
     manifest["status"] = "ready_for_human_signing_filing"
     _write_json(path, manifest)
@@ -268,7 +295,11 @@ def approve_release_pack(
     return manifest
 
 
-def verify_release_manifest(manifest: Mapping[str, Any]) -> list[str]:
+def verify_release_manifest(
+    manifest: Mapping[str, Any],
+    *,
+    approval_ledger: TrustedApprovalLedger | None = None,
+) -> list[str]:
     """Return integrity errors without mutating the filing pack."""
 
     errors: list[str] = []
@@ -291,9 +322,24 @@ def verify_release_manifest(manifest: Mapping[str, Any]) -> list[str]:
         approval = manifest.get("release_approval") or {}
         if (
             approval.get("status") != "approved"
+            or not approval.get("approval_id")
             or not approval.get("reviewer")
             or not approval.get("reviewed_at")
             or approval.get("basis_sha256") != observed_basis
+            or (approval.get("actor_provenance") or {}).get("channel")
+            != "authenticated_server"
         ):
             errors.append("release_approval_missing_or_stale")
+        elif approval_ledger is None:
+            errors.append("release_approval_host_verifier_required")
+        else:
+            validation = approval_ledger.validate_approval(
+                str(approval.get("approval_id")),
+                **release_approval_request(manifest),
+            )
+            if validation.get("valid") is not True:
+                errors.append(
+                    "release_approval_invalid:"
+                    + str(validation.get("reason_code") or "approval_invalid")
+                )
     return errors

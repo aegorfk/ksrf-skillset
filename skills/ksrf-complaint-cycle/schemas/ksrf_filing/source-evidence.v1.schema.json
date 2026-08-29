@@ -7,8 +7,12 @@
   "required": [
     "schema_version", "observation_id", "source_id", "issuer", "authority_class", "origin_url",
     "acquisition_transport", "retrieved_at", "content_type", "raw_object", "extracted_object",
-    "identity_checks", "transform_chain", "filing_authority_state", "filing_ready",
-    "validation_state", "supersedes_evidence_id", "evidence_id"
+    "identity_checks", "derived_identity_checks", "identity_fingerprint",
+    "identity_verification_mode", "identity_verification_blockers",
+    "verified_official_locator", "human_identity_reviewer", "approval_ids",
+    "trusted_approval_id", "transform_chain",
+    "filing_authority_state", "filing_ready", "validation_state",
+    "supersedes_evidence_id", "evidence_id", "verification_revision_id"
   ],
   "properties": {
     "schema_version": {"const": "1.0.0"},
@@ -18,17 +22,35 @@
     "authority_class": {"enum": ["official_primary", "official_derivative", "discovery_only", "user_supplied_unverified"]},
     "origin_url": {"type": "string", "minLength": 1},
     "acquisition_transport": {"type": "string", "minLength": 1},
+    "discovery_transport": {"type": ["string", "null"]},
+    "redirect_chain": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
     "retrieved_at": {"type": "string", "minLength": 1},
     "content_type": {"type": ["string", "null"]},
     "raw_object": {"$ref": "#/$defs/object"},
     "extracted_object": {"oneOf": [{"$ref": "#/$defs/object"}, {"type": "null"}]},
     "identity_checks": {"type": "array", "items": {"type": "object"}},
+    "derived_identity_checks": {"type": "array", "items": {"type": "object"}},
+    "identity_fingerprint": {"type": "string", "pattern": "^source-identity:sha256:[0-9a-f]{64}$"},
+    "identity_verification_mode": {"enum": ["trusted_derived", "trusted_approval", "unverified"]},
+    "identity_verification_blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "verified_official_locator": {"type": ["string", "null"]},
+    "human_identity_reviewer": {"type": ["string", "null"]},
+    "approval_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"},
+      "uniqueItems": true
+    },
+    "trusted_approval_id": {
+      "type": ["string", "null"],
+      "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"
+    },
     "transform_chain": {"type": "array", "items": {"type": "object"}},
     "filing_authority_state": {"enum": ["verified_official", "identity_unverified", "non_official"]},
     "filing_ready": {"type": "boolean"},
     "validation_state": {"enum": ["verified", "pending_identity_review"]},
     "supersedes_evidence_id": {"type": ["string", "null"]},
-    "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+    "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+    "verification_revision_id": {"type": "string", "pattern": "^source-verification:sha256:[0-9a-f]{64}$"}
   },
   "$defs": {
     "object": {

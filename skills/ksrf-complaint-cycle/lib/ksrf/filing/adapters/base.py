@@ -60,6 +60,9 @@ class AdapterResult:
     transform_chain: tuple[Mapping[str, Any], ...] = ()
     fetched_at: Optional[str] = None
     attempt_count: int = 1
+    discovery_transport: Optional[str] = None
+    redirect_chain: tuple[str, ...] = ()
+    derived_identity_checks: tuple[Mapping[str, Any], ...] = ()
 
     def with_attempt_count(self, count: int) -> "AdapterResult":
         return replace(self, attempt_count=count)

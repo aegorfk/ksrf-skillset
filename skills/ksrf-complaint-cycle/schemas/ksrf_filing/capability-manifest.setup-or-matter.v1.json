@@ -87,6 +87,7 @@
             "ocr",
             "browser",
             "bounded_network",
+            "trusted_approval_verifier",
             "manual",
             "any_of"
           ]
@@ -102,6 +103,8 @@
         "environment": {"type": "array", "items": {"type": "string"}},
         "path": {"type": "string"},
         "path_environment": {"type": "string"},
+        "verifier_id_environment": {"type": "string"},
+        "channel_environment": {"type": "string"},
         "write_required": {"type": "boolean"},
         "require_all": {"type": "boolean"},
         "url": {"type": "string"},

@@ -340,6 +340,23 @@
       "dependent_gates": ["application_approval", "issue_selection", "release"],
       "blocking_when_missing": false,
       "probe": {"kind": "manual"}
+    },
+    {
+      "id": "trusted_approval_verifier",
+      "title": "Доверенная проверка решений эксперта",
+      "purpose": "Проверять подписанное сервером решение аутентифицированного эксперта по точному отпечатку источника, вывода или комплекта.",
+      "privacy": "Проверка читает только несекретные признаки локальной настройки; утверждения и подписи проверяются host verifier при каждом юридически значимом шлюзе.",
+      "cost": "Зависит от выбранного пользователем контура аутентификации; автоматическая установка и создание учётной записи запрещены.",
+      "dependency": "Одного имени эксперта или интерактивного терминала недостаточно: без host verifier решение не повышает готовность к подаче.",
+      "remediation": "Настройте в доверенном приложении host verifier и аутентифицированный серверный канал; не передавайте ключи в CLI payload и не создавайте учётную запись автоматически.",
+      "profiles": {"basic": "optional", "research": "optional", "expert": "required"},
+      "dependent_gates": ["source_identity", "application_approval", "issue_selection", "release"],
+      "blocking_when_missing": true,
+      "probe": {
+        "kind": "trusted_approval_verifier",
+        "verifier_id_environment": "KSRF_TRUSTED_APPROVAL_VERIFIER_ID",
+        "channel_environment": "KSRF_AUTHENTICATED_REVIEW_CHANNEL"
+      }
     }
   ]
 }

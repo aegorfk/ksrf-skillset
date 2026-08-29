@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/trusted-approval.v1.schema.json",
+  "title": "Reusable Trusted Human Approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "purpose", "subject_type", "subject_id", "fingerprint",
+    "bindings", "actor_id", "actor_display_name", "actor_provenance",
+    "approved_at", "expires_at", "host_attestation", "approval_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Exact approval purpose. Filing-significant purposes are source_identity, application, issue, and release."
+    },
+    "subject_type": {"type": "string", "minLength": 1},
+    "subject_id": {"type": "string", "minLength": 1},
+    "fingerprint": {"type": "string", "minLength": 1},
+    "bindings": {"type": "object", "minProperties": 1},
+    "actor_id": {"type": "string", "minLength": 1},
+    "actor_display_name": {"type": "string", "minLength": 1},
+    "actor_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel", "session_id", "authenticated_at", "verification_method",
+        "assertion_id", "host_verifier_id"
+      ],
+      "properties": {
+        "channel": {"enum": ["interactive_tty", "authenticated_server"]},
+        "session_id": {"type": "string", "minLength": 1},
+        "authenticated_at": {"type": "string", "format": "date-time"},
+        "verification_method": {"type": "string", "minLength": 1},
+        "assertion_id": {"type": "string", "minLength": 1},
+        "host_verifier_id": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "approved_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "host_attestation": {
+      "oneOf": [
+        {"type": "object", "minProperties": 1},
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "approval_id": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "purpose": {
+            "enum": ["source_identity", "application", "issue", "release"]
+          }
+        },
+        "required": ["purpose"]
+      },
+      "then": {
+        "properties": {
+          "actor_provenance": {
+            "properties": {
+              "channel": {"const": "authenticated_server"},
+              "host_verifier_id": {"type": "string", "minLength": 1}
+            }
+          },
+          "host_attestation": {"not": {"type": "null"}}
+        }
+      }
+    }
+  ]
+}

@@ -430,6 +430,35 @@ def run_probe(
         )
     if kind == "credential_presence":
         return _credential_probe(probe, environment)
+    if kind == "trusted_approval_verifier":
+        verifier_env = str(
+            probe.get("verifier_id_environment") or "KSRF_TRUSTED_APPROVAL_VERIFIER_ID"
+        )
+        channel_env = str(
+            probe.get("channel_environment") or "KSRF_AUTHENTICATED_REVIEW_CHANNEL"
+        )
+        verifier_id = str(environment.get(verifier_env) or "").strip()
+        channel = str(environment.get(channel_env) or "").strip()
+        configured = bool(verifier_id and channel == "authenticated_server")
+        return {
+            "probe_kind": kind,
+            "state": "ready" if configured else "not_configured",
+            "message": (
+                "Объявлены признаки host verifier и аутентифицированного серверного канала; каждое решение всё равно проверяется криптографически."
+                if configured
+                else "Host verifier и аутентифицированный серверный канал не настроены."
+            ),
+            "evidence": {
+                "configured": configured,
+                "verifier_id": verifier_id or None,
+                "channel": channel or None,
+                "checked": [verifier_env, channel_env],
+                "request_sent": False,
+                "automatic_installation_performed": False,
+                "automatic_account_creation_performed": False,
+                "named_human_reviewer_alone_sufficient": False,
+            },
+        }
     if kind == "directory":
         return _directory_probe(probe, environment)
     if kind in {"service", "bounded_network"}:

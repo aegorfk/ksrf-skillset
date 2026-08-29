@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/source-prefiling-freshness-report.v1.schema.json",
+  "title": "KSRF Pre-filing Source Freshness Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "checked_at", "report_mode", "authoritative_for_current_filing",
+    "freshness_state", "pre_filing_ready",
+    "claim_coverage", "invalidated_claim_ids", "invalidated_sentence_ids", "claims"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "checked_at": {"type": "string", "minLength": 1},
+    "report_mode": {"enum": ["current_filing_validation", "historical_audit"]},
+    "authoritative_for_current_filing": {"type": "boolean"},
+    "freshness_state": {"enum": ["current", "stale", "unknown", "invalidated"]},
+    "pre_filing_ready": {"type": "boolean"},
+    "claim_coverage": {"type": "object"},
+    "invalidated_claim_ids": {"$ref": "#/$defs/stringList"},
+    "invalidated_sentence_ids": {"$ref": "#/$defs/stringList"},
+    "claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/claim"}
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id", "source_id", "freshness_mode", "max_age_days",
+        "effective_checked_at", "state"
+      ],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "source_id": {"type": "string", "minLength": 1},
+        "freshness_mode": {"type": ["string", "null"]},
+        "max_age_days": {"type": ["integer", "null"], "minimum": 0},
+        "effective_checked_at": {"type": ["string", "null"]},
+        "state": {"enum": ["current", "stale", "unknown", "superseded"]}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id", "dependent_sentence_ids", "freshness_state",
+        "effective_checked_at", "evidence", "blockers"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "dependent_sentence_ids": {"$ref": "#/$defs/stringList"},
+        "freshness_state": {"enum": ["current", "stale", "unknown", "invalidated"]},
+        "effective_checked_at": {"type": ["string", "null"]},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "blockers": {"$ref": "#/$defs/stringList"}
+      }
+    }
+  }
+}

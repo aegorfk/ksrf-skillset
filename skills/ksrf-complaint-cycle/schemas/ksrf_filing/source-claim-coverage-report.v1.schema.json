@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/source-claim-coverage-report.v1.schema.json",
+  "title": "KSRF Claim-level Source Coverage Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "claim_count", "supported_claim_count", "coverage_state",
+    "filing_ready", "claims"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "claim_count": {"type": "integer", "minimum": 0},
+    "supported_claim_count": {"type": "integer", "minimum": 0},
+    "coverage_state": {"enum": ["complete", "partial", "unknown"]},
+    "filing_ready": {"type": "boolean"},
+    "claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/claim"}
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id", "dependent_sentence_ids", "required_support", "support_class",
+        "scope_review_status", "linked_evidence_ids", "verified_official_evidence_ids",
+        "party_supplied_evidence_ids", "discovery_or_unverified_evidence_ids",
+        "missing_evidence_ids", "support_gate_passed", "blockers"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "dependent_sentence_ids": {"$ref": "#/$defs/stringList"},
+        "required_support": {"enum": ["official", "recorded"]},
+        "support_class": {"enum": ["official", "party_supplied", "inferred", "pending"]},
+        "scope_review_status": {"enum": ["passed", "overclaimed", "unknown"]},
+        "linked_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "verified_official_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "party_supplied_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "discovery_or_unverified_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "missing_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "support_gate_passed": {"type": "boolean"},
+        "blockers": {"$ref": "#/$defs/stringList"}
+      }
+    }
+  }
+}

@@ -1006,6 +1006,48 @@ def _validate_markdown_mcp_references(
             )
 
 
+def _validate_unique_skill_entrypoints(
+    findings: list[dict[str, Any]],
+    skills_root: Path,
+    packages: Sequence[str],
+) -> None:
+    """Reject hidden snapshots that redeclare a canonical skill name.
+
+    Package allowlists protect publication, but agent discovery can recurse more
+    broadly than the publisher.  A workspace nested below the skills root must
+    therefore never contain a second entrypoint with a canonical name.
+    """
+
+    expected = {
+        package: (skills_root / package / "SKILL.md").resolve()
+        for package in packages
+    }
+    for skill_file in sorted(skills_root.rglob("SKILL.md")):
+        try:
+            text = skill_file.read_text(encoding="utf-8")
+            frontmatter, _ = _frontmatter(text)
+        except Exception:
+            continue
+        name = frontmatter.get("name")
+        if not isinstance(name, str) or name not in expected:
+            continue
+        if skill_file.resolve() == expected[name]:
+            continue
+        findings.append(
+            _finding(
+                "error",
+                "NESTED_SKILL_DUPLICATE",
+                "Внутри skills root найден второй SKILL.md с именем канонического пакета.",
+                package=name,
+                path=_relative(skill_file, skills_root),
+                evidence={
+                    "canonical_path": _relative(expected[name], skills_root),
+                    "duplicate_path": _relative(skill_file, skills_root),
+                },
+            )
+        )
+
+
 def validate_skillset(
     skills_root: str | Path,
     *,
@@ -1032,6 +1074,7 @@ def validate_skillset(
                 "В allowlist пакетов есть повторения.",
             )
         )
+    _validate_unique_skill_entrypoints(findings, root, packages)
     validated_packages: list[str] = []
     for package in packages:
         package_dir = root / package

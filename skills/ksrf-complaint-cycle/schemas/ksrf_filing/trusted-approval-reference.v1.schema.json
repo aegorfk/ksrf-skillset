@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json",
+  "title": "Validated Trusted Approval Reference",
+  "description": "Validated snapshot of a pre-existing append-only approval; never an instruction to create one.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "approval_id", "approval_request", "actor_provenance",
+    "approved_at", "expires_at", "validated_at", "validation_state"
+  ],
+  "properties": {
+    "approval_id": {
+      "type": "string",
+      "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"
+    },
+    "approval_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "subject_type", "subject_id", "fingerprint", "bindings"],
+      "properties": {
+        "purpose": {
+          "enum": ["source_identity", "application", "issue", "release"]
+        },
+        "subject_type": {"type": "string", "minLength": 1},
+        "subject_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "minLength": 1},
+        "bindings": {"type": "object", "minProperties": 1}
+      }
+    },
+    "actor_id": {"type": "string", "minLength": 1},
+    "actor_display_name": {"type": "string", "minLength": 1},
+    "actor_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel", "session_id", "authenticated_at", "verification_method",
+        "assertion_id", "host_verifier_id"
+      ],
+      "properties": {
+        "channel": {"const": "authenticated_server"},
+        "session_id": {"type": "string", "minLength": 1},
+        "authenticated_at": {"type": "string", "format": "date-time"},
+        "verification_method": {"type": "string", "minLength": 1},
+        "assertion_id": {"type": "string", "minLength": 1},
+        "host_verifier_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "approved_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "validated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Trusted host-clock time for existence, exact-binding, provenance, expiry, and revocation validation; never caller supplied."
+    },
+    "validation_state": {"const": "valid"}
+  }
+}

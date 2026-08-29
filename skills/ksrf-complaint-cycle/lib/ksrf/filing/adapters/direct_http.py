@@ -5,10 +5,19 @@ from __future__ import annotations
 import socket
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from collections.abc import Callable
 from typing import Any
 
 from .base import AdapterRequest, AdapterResult
+
+
+def _domain_matches(host: str, declared: str) -> bool:
+    expected = declared.lower().strip()
+    if expected.startswith("*."):
+        suffix = expected[2:]
+        return host == suffix or host.endswith(f".{suffix}")
+    return host == expected
 
 
 class DirectHttpAdapter:
@@ -71,6 +80,27 @@ class DirectHttpAdapter:
                 error_detail=str(exc),
             )
 
+        redirect_chain = tuple(dict.fromkeys((request.locator, origin_url)))
+        final_host = (urlparse(origin_url).hostname or "").lower()
+        allowed_domains = tuple(
+            str(item).lower()
+            for item in (request.metadata.get("allowed_domains") or [])
+            if str(item).strip()
+        )
+        if not allowed_domains:
+            initial_host = (urlparse(request.locator).hostname or "").lower()
+            allowed_domains = (initial_host,) if initial_host else ()
+        if not final_host or not any(_domain_matches(final_host, item) for item in allowed_domains):
+            return AdapterResult(
+                status="conflict",
+                transport="direct_http",
+                origin_url=origin_url,
+                http_status=status,
+                response_headers=headers,
+                error_code="final_origin_registry_mismatch",
+                error_detail="Конечный адрес после перенаправления не относится к выбранному официальному источнику.",
+                redirect_chain=redirect_chain,
+            )
         if status >= 400:
             return AdapterResult(
                 status="unavailable",
@@ -79,6 +109,7 @@ class DirectHttpAdapter:
                 http_status=status,
                 response_headers=headers,
                 error_code="unexpected_http_status",
+                redirect_chain=redirect_chain,
             )
         if not content:
             return AdapterResult(
@@ -88,6 +119,7 @@ class DirectHttpAdapter:
                 http_status=status,
                 response_headers=headers,
                 error_code="empty_response",
+                redirect_chain=redirect_chain,
             )
         if len(content) > maximum:
             return AdapterResult(
@@ -98,6 +130,7 @@ class DirectHttpAdapter:
                 response_headers=headers,
                 error_code="response_too_large",
                 error_detail=f"> {maximum}",
+                redirect_chain=redirect_chain,
             )
         lowered = content[:512_000].lower()
         if any(marker in lowered for marker in (b"captcha", b"recaptcha", b"verify you are human")):
@@ -109,6 +142,7 @@ class DirectHttpAdapter:
                 response_headers=headers,
                 error_code="interactive_control",
                 error_detail="Получена интерактивная проверка; автоматический обход запрещён.",
+                redirect_chain=redirect_chain,
             )
         return AdapterResult(
             status="retrieved",
@@ -118,4 +152,5 @@ class DirectHttpAdapter:
             content_type=headers.get("Content-Type") or headers.get("content-type"),
             http_status=status,
             response_headers=headers,
+            redirect_chain=redirect_chain,
         )

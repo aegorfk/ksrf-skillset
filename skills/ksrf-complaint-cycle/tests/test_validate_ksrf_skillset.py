@@ -112,6 +112,27 @@ class KSRFSkillsetValidatorTests(unittest.TestCase):
             VALIDATOR.CANONICAL_KSRF_PACKAGES,
         )
 
+    def test_nested_snapshot_cannot_duplicate_a_canonical_skill_entrypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            nested = (
+                root
+                / "ksrf-test-workspace"
+                / "skill-snapshot"
+                / "ksrf-test"
+                / "SKILL.md"
+            )
+            _write(nested, (skill / "SKILL.md").read_text(encoding="utf-8"))
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+            )
+
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("NESTED_SKILL_DUPLICATE", _codes(report))
+
     def test_valid_package_passes_and_publish_manifest_is_relative_and_clean(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

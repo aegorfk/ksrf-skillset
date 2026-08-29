@@ -45,7 +45,7 @@
   },
   "$defs": {
     "state": {
-      "enum": ["ready", "degraded", "blocked", "unknown", "unavailable", "interactive_required"]
+      "enum": ["ready", "degraded", "blocked", "unknown", "unavailable", "not_configured", "interactive_required"]
     },
     "capabilityResult": {
       "type": "object",

@@ -7,7 +7,7 @@ description: Скилл независимо проверяет проект ж�
 
 ## Независимый refusal-first режим
 
-QA получает input-only record, действующие official anchors, adverse records и draft, но не скрытый последующий исход исторического дела. Оригинальная жалоба, пересказ заявительского тезиса в акте КС РФ и уведомление Секретариата имеют разные evidence roles по `../ksrf-complaint-cycle/references/failed-complaint-corpus.md`. Проверяй реальные sentence IDs и FilingPackageManifest; eval score и human approval не закрывают hard gate.
+QA получает input-only record, действующие official anchors, adverse records и draft, но не скрытый последующий исход исторического дела. Оригинальная жалоба, пересказ заявительского тезиса в акте КС РФ и уведомление Секретариата имеют разные evidence roles по `../ksrf-complaint-cycle/references/failed-complaint-corpus.md`. Проверяй реальные sentence IDs и FilingPackageManifest; eval score и любое human approval не закрывают legal/evidence gate, а filing-significant ReleaseGate принимает только pre-existing host-attested approval полного binding по `../ksrf-complaint-cycle/references/router-and-state-machine.md`.
 
 ## Порядок работы
 

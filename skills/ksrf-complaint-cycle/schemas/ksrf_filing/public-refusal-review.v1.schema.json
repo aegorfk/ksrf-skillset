@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/public-refusal-review.v1.schema.json",
+  "title": "KSRF Public Refusal Review Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "record_id", "decision", "reviewer", "reviewed_at",
+    "approval_id", "approval_request", "raw_reviewer_diagnostic", "reason",
+    "corrections", "review_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "minLength": 1},
+    "decision": {
+      "enum": ["approved", "corrected", "rejected", "blocked_for_source"]
+    },
+    "reviewer": {
+      "type": ["string", "null"],
+      "description": "Display-only value copied from the ledger for a positive review."
+    },
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "approval_id": {
+      "type": ["string", "null"],
+      "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"
+    },
+    "approval_request": {"$ref": "#/$defs/public_review_approval_request"},
+    "trusted_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {"$ref": "#/$defs/public_review_approval_request"}
+          }
+        }
+      ],
+      "description": "Optional validated provenance snapshot; the immutable ledger remains authoritative."
+    },
+    "raw_reviewer_diagnostic": {
+      "type": ["string", "null"],
+      "description": "Caller-supplied diagnostic value; never approval authority."
+    },
+    "reason": {"type": ["string", "null"]},
+    "corrections": {"type": "object"},
+    "review_id": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"decision": {"enum": ["approved", "corrected"]}},
+        "required": ["decision"]
+      },
+      "then": {
+        "required": ["approval_id", "approval_request"],
+        "properties": {"approval_id": {"type": "string"}}
+      }
+    }
+  ],
+  "$defs": {
+    "public_review_approval_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "subject_type", "subject_id", "fingerprint", "bindings"],
+      "properties": {
+        "purpose": {"const": "issue"},
+        "subject_type": {"const": "public_refusal_review"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "minLength": 1},
+        "bindings": {"type": "object", "minProperties": 1}
+      }
+    }
+  }
+}

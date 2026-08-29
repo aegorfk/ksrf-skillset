@@ -53,6 +53,8 @@ Release pack содержит реальные:
 
 Изменение source hash, NormVersionPassport, application record, issue selection, sentence text, enclosure или formal-rule freshness отменяет прежний release approval и требует нового manifest.
 
+Release approval связывается с fingerprint полного стабильного manifest: source/passport/issue bindings, approvals, formal check, sentence evidence map, hashes и metadata артефактов, опись, visual QA, blockers, `human_only_actions` и `filing_performed`. Исключаются только самохэши, approval projection и локальные пути. Approval должен существовать до проверки, иметь host attestation аутентифицированного reviewer и проходить повторную проверку binding, expiry и revocation по trusted clock. Caller-supplied reviewer, JSONL без проверяемой attestation, обычный TTY и самозаявленный verifier не повышают статус.
+
 ## Человеческая граница
 
 Skill не применяет УКЭП, не платит пошлину, не отправляет пакет, не утверждает факт подачи. Финал — проверенный комплект и checklist для заявителя/представителя. Внешнее событие фиксируется только после фактического подтверждения человеком.

@@ -33,7 +33,7 @@ Firecrawl может доставить официальный URL, но transpo
 
 CAPTCHA означает `interactive_required`; не используй solver в filing-readiness контуре. `403`, timeout и DNS error не являются нулевым результатом.
 
-Полученный документ хранит origin URL, transport, HTTP/content type при наличии, raw/extracted hashes, identity checks, tool versions, transform chain, locator и visual check.
+Полученный документ хранит origin URL, transport, HTTP/content type при наличии, raw/extracted hashes, identity checks, tool versions, transform chain, locator и visual check. Ответ доверенного direct adapter может подтвердить identity только после проверки финального host после redirect и байтов самим adapter-ом. Discovery/manual import не может самозавериться caller-полями: для promotion нужен ранее созданный host-attested approval, связанный с source ID, locator и raw hash.
 
 ## NormVersionPassport
 
@@ -58,4 +58,4 @@ Case-time редакция и current filing-time редакция не схло
 
 ## Pre-filing refresh
 
-Перед release повторно проверь official anchor, controlling edition, применимые формальные правила, актуальность позиции КС РФ и зависимые locators. Изменение инвалидирует конкретные sentence IDs и issue options, а не только общий timestamp.
+Перед release повторно проверь official anchor, controlling edition, применимые формальные правила, актуальность позиции КС РФ и зависимые locators. При каждом status/coverage/freshness вызове заново проверь approval, его attestation, binding, expiry и revocation по trusted clock. Сохранённый `filing_ready=true` и caller-supplied `as_of` не являются authority; явный исторический срез маркируй `historical_audit`. Изменение инвалидирует конкретные sentence IDs и issue options, а не только общий timestamp.

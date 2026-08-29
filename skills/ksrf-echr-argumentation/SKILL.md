@@ -7,7 +7,7 @@ description: Скилл исследует официальную практик
 
 ## Capability boundary
 
-Этот skill относится к `research` профилю из `../ksrf-complaint-cycle/references/setup-profiles-and-capabilities.md`. Его отсутствие не блокирует basic KSRF analysis. Local HUDOC/embedding — discovery; filing claim требует официальный HUDOC anchor, application number/date, precise holding/paragraphs, transfer limit и отдельный российский официальный конституционный anchor.
+Этот skill относится к `research` профилю из `../ksrf-complaint-cycle/references/setup-profiles-and-capabilities.md`. Его отсутствие не блокирует basic KSRF analysis. Local HUDOC/embedding — discovery; filing claim требует официальный HUDOC anchor, application number/date, precise holding/paragraphs, transfer limit, отдельный российский официальный конституционный anchor и центральный host-attested approval полного issue/adverse binding. Локальная review или sanitization сама filing authority не создаёт.
 
 ## Назначение
 

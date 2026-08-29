@@ -9,6 +9,8 @@ description: Скилл official-first находит, проверяет и о�
 
 Следуй `../ksrf-complaint-cycle/references/official-source-and-version-gate.md`: authority class не равна acquisition transport. Casus Legal, Firecrawl и иные providers генерируют кандидатов; ключевой тезис проходит только после official full-text resolution, raw/extracted hashes, locator, edition check и adverse pass. Недоступность подписки снижает coverage, но не basic capability и не доказывает отсутствие позиции.
 
+Локальные `human-decision.json`, reviewer fields, SHA-256 и успешный validator подтверждают исследовательскую целостность, но не дают filing authority. Перед включением bounded authority/practice claim в жалобу центральный issue gate по `../ksrf-complaint-cycle/references/router-and-state-machine.md` должен повторно проверить заранее созданный host-attested approval полного candidate, practice и adverse bindings.
+
 ## Роль
 
 Используй CasusLegal как канал discovery и inspection, а не как самостоятельный источник права. Правовую опору образуют сами акты и содержащиеся в них проверенные позиции. Для ключевой цитаты открой полный текст, зафиксируй locator и сверь официальный источник.
@@ -20,7 +22,7 @@ description: Скилл official-first находит, проверяет и о�
 ## Выбери режим
 
 - `research`: найти supporting, weakening, distinguishing и blocking authorities для одной или нескольких гипотез.
-- `drafting`: превратить проверенные authority records в аргументативные блоки после human approval.
+- `drafting`: превратить проверенные authority records в аргументативные блоки после содержательной проверки и центрального host-attested approval полного связанного candidate.
 - `audit`: проверить акты, тезисы, цитаты, locators, актуальность и необработанную adverse-практику в существующем проекте.
 
 ## Порядок работы
@@ -101,12 +103,14 @@ KSRF_SKILLS_ROOT=/path/to/installed/skills
 python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" path/to/authority-ledger.json
 ```
 
-Перед передачей в drafting потребуй human approval:
+Перед передачей в drafting сначала зафиксируй локальное reviewed-решение и проверь структуру ledger:
 
 ```bash
 KSRF_SKILLS_ROOT=/path/to/installed/skills
 python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" --require-drafting path/to/authority-ledger.json
 ```
+
+Этот результат означает лишь `research_bundle_ready_for_central_gate`. Он не разрешает filing-significant drafting сам по себе: получи и проверь отдельный pre-existing host-attested approval полного issue/practice/adverse binding; при отсутствии host verifier оставь claim в `ready_for_expert_review` или `audit_only`.
 
 Перед публикацией обезличенного ledger проверь утечку токенизированных URL:
 

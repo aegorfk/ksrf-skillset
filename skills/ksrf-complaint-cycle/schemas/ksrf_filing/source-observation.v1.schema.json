@@ -21,6 +21,8 @@
     "bounded_scope": {"type": "object", "minProperties": 1},
     "result_status": {"enum": ["retrieved", "not_found", "unavailable", "interactive_required", "invalid_response", "conflict"]},
     "acquisition_transport": {"type": "string", "minLength": 1},
+    "discovery_transport": {"type": ["string", "null"]},
+    "redirect_chain": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
     "adapter_result_attempts": {"type": "integer", "minimum": 1, "maximum": 5},
     "terminal_rule_verified": {"type": "boolean"},
     "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},

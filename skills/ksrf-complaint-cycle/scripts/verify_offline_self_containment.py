@@ -203,7 +203,15 @@ def main() -> int:
 
     validate_uid_scenarios(errors)
 
-    skill_dirs = sorted(path for path in SKILLS_ROOT.glob("ksrf-*") if path.is_dir())
+    # Runtime matter/workspace directories may intentionally share the
+    # ``ksrf-*`` prefix.  A package participates in this check only when it has
+    # the required skill entrypoint; workspace contents are neither skills nor
+    # publication inputs.
+    skill_dirs = sorted(
+        path
+        for path in SKILLS_ROOT.glob("ksrf-*")
+        if path.is_dir() and (path / "SKILL.md").is_file()
+    )
     skill_files = [skill_dir / "SKILL.md" for skill_dir in skill_dirs]
     if not skill_files:
         errors.append("no KSRF skills found")

@@ -17,10 +17,68 @@
     "derived_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "automated_check_status": {"enum": ["passed", "blocked"]},
     "unresolved_spans": {"type": "array", "items": {"type": "string"}},
-    "reviewer": {"type": ["string", "null"]},
-    "human_review_status": {"enum": ["pending", "approved"]},
+    "reviewer": {
+      "type": ["string", "null"],
+      "description": "Display-only value copied from a validated approval; raw caller identity is diagnostic-only."
+    },
+    "human_review_status": {
+      "enum": ["pending", "approved"],
+      "description": "Approved is effective only with the exact pre-existing approval_id and approval_request."
+    },
     "reviewed_at": {"type": ["string", "null"]},
+    "approval_id": {
+      "type": ["string", "null"],
+      "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"
+    },
+    "approval_request": {"$ref": "#/$defs/redaction_approval_request"},
+    "trusted_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {"$ref": "#/$defs/redaction_approval_request"}
+          }
+        }
+      ],
+      "description": "Optional validated provenance snapshot; approval_id still resolves to the append-only ledger."
+    },
+    "raw_reviewer_diagnostic": {
+      "type": ["string", "null"],
+      "description": "Caller-supplied diagnostic value; never approval authority."
+    },
+    "raw_approved_diagnostic": {
+      "type": "boolean",
+      "description": "Caller-supplied diagnostic value; never approval authority."
+    },
     "blockers": {"type": "array", "items": {"type": "string"}},
     "redaction_id": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"human_review_status": {"const": "approved"}},
+        "required": ["human_review_status"]
+      },
+      "then": {
+        "required": ["approval_id", "approval_request"],
+        "properties": {
+          "approval_id": {"type": "string"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "redaction_approval_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "subject_type", "subject_id", "fingerprint", "bindings"],
+      "properties": {
+        "purpose": {"const": "issue"},
+        "subject_type": {"const": "private_redacted_derivative"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "minLength": 1},
+        "bindings": {"type": "object", "minProperties": 1}
+      }
+    }
   }
 }

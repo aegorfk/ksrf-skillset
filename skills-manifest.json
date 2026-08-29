@@ -1,8 +1,8 @@
 {
   "schema_version": "1.1",
-  "generated_at": "2026-08-29T09:53:50Z",
+  "generated_at": "2026-08-29T11:26:33Z",
   "source": "~/.codex/skills canonical 14-package allowlist",
-  "remote_base_commit": "a837d2ad7378d388d1a21b3815325abb2155703d",
+  "remote_base_commit": "81a853eb64b8f50143bf08b1f90b3a015816ec38",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -15,15 +15,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 14,
-  "total_files": 281,
-  "total_bytes": 7812369,
-  "tree_sha256": "ab5357f49ba8e1aabd3f4d1611fac0141e0c02f5392c4d646593985cb16a38a3",
+  "total_files": 291,
+  "total_bytes": 7996073,
+  "tree_sha256": "be48cf1658625804466255b28c2bd2681264424fc6ad44947078da16281c21f1",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
       "files": 43,
-      "bytes": 4313296,
-      "tree_sha256": "c7903bfce8e7bc3b810c9bda469f2559ca134bb1f52e1efb509e713e2e19d602"
+      "bytes": 4313670,
+      "tree_sha256": "96768dbe68c5af79c0fc827f6ab14e2e722f8c4ff50182caccef558da40bab70"
     },
     {
       "name": "ksrf-case-triage",
@@ -34,26 +34,26 @@
     {
       "name": "ksrf-cassation-judicial-meaning",
       "files": 65,
-      "bytes": 1275871,
-      "tree_sha256": "5d85d0e72f2c9ef9c3b6f8db613d56e3da43df3bcb1fcc7a940b271562e7ef81"
+      "bytes": 1276269,
+      "tree_sha256": "080f361357650091a5af0f5f29262a89e53a350b8f01c9ce67ea0b2b40c1696a"
     },
     {
       "name": "ksrf-complaint-cycle",
-      "files": 83,
-      "bytes": 1310065,
-      "tree_sha256": "b6c119f31fa6f075af041a57696876fd4ff93db941993edeb3ff21d082fa2c4c"
+      "files": 93,
+      "bytes": 1489715,
+      "tree_sha256": "34a1bf3f502502218ddaa8150e667e2c91814b41c2833570a0d1cd40c07bb6d9"
     },
     {
       "name": "ksrf-complaint-facts-demands",
       "files": 11,
-      "bytes": 143858,
-      "tree_sha256": "dc1f11d171c5f9b2cf354d2aae82c39c93e399f28fd68452a67498acc136a63c"
+      "bytes": 144284,
+      "tree_sha256": "9c362a2e57f98ba928d9351c7158f12cb75afb23c0d4e581307076c554e92fad"
     },
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 96999,
-      "tree_sha256": "ea8767fb3521f00962a4b75f32d60aa33ee4d67a6d340010670eeaf6a4cae922"
+      "bytes": 97216,
+      "tree_sha256": "0e7fb52f619d4600c3c549071639f9b73e3b3fbb959042170b1451894c06096a"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -70,8 +70,8 @@
     {
       "name": "ksrf-echr-argumentation",
       "files": 11,
-      "bytes": 66417,
-      "tree_sha256": "a470411a2277fdf72ef108274b4d269f098a49fe900b6083d268cd41a3dde942"
+      "bytes": 66594,
+      "tree_sha256": "84dd88fae0280d1423f6288f1be73fd1d24d6725eb7e80f25d75402d4b561a0e"
     },
     {
       "name": "ksrf-exhaustion-planner",
@@ -82,26 +82,26 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 9,
-      "bytes": 71057,
-      "tree_sha256": "2c6b5c860e18c284b64ffa2ee467ab99454b3cc188e8a18f8f5c9663c61cef0f"
+      "bytes": 71663,
+      "tree_sha256": "8e1b94ec248f710e87d902f70cd93c5eb5aadc7834c6c9a7edaff3ea2b934d92"
     },
     {
       "name": "ksrf-formal-filing-check",
       "files": 5,
-      "bytes": 35272,
-      "tree_sha256": "4540d2479cea493c7aa25638b3d7d54e5f4efa267309ce00c19c6142a44b17d9"
+      "bytes": 35481,
+      "tree_sha256": "423a85fc811dfaa2b3bffae06550f2d615a95b6bf67d1087f3123855d1d3bbde"
     },
     {
       "name": "ksrf-practice-authority-builder",
       "files": 11,
-      "bytes": 111514,
-      "tree_sha256": "73b150ab64063c7ffe84a89cc8102ae23b265d3dfde1b979b4cf7d2714f024c4"
+      "bytes": 112719,
+      "tree_sha256": "ced98920b8fd780327ed3b67ba821aa6ebc6c9a85c2ef27f6039b309de0d84a5"
     },
     {
       "name": "ksrf-rights-argument-builder",
       "files": 12,
-      "bytes": 178792,
-      "tree_sha256": "e38e1b15f77153cd12a849a2bbf766ec8fb75ad900c206ff9e5ded1701da5f37"
+      "bytes": 179234,
+      "tree_sha256": "64b89cdac32bb0e88ea16a05072ebb53732d22120a68a8661fb20ff137cda003"
     }
   ]
 }

@@ -118,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
         "sources": ["source"],
         "application": ["norm-application"],
         "issues": ["issue"],
-        "failures": ["failure-research"],
+        "failures": ["failure-research", "corpus"],
         "evaluate": ["eval"],
         "render": [],
         "release": [],

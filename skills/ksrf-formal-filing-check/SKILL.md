@@ -7,7 +7,7 @@ description: "Скилл проверяет актуальные формаль�
 
 ## Реальный release gate
 
-Проверяй не planned export jobs, а `FilingPackageManifest` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`: существующие DOCX/PDF, hashes, semantic/visual QA, опись и freshness. Статус `готово к подаче` означает только `ready_for_human_signing_filing`; УКЭП, платёж и отправка выполняются человеком.
+Проверяй не planned export jobs, а `FilingPackageManifest` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`: существующие DOCX/PDF, hashes, semantic/visual QA, опись и freshness. Статус `готово к подаче` означает только `ready_for_human_signing_filing` после повторной проверки pre-existing host-attested approval полного release basis; имя reviewer, raw JSON, TTY или caller verifier этот статус не создают. УКЭП, платёж и отправка выполняются человеком.
 
 ## Порядок работы
 

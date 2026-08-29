@@ -11,6 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from .storage import stable_id
+from .trusted_approvals import TrustedApprovalLedger
+
 
 NORM_USE_STATUSES = frozenset(
     {
@@ -307,6 +310,25 @@ class ApplicationEvidenceRecord:
         }
 
 
+def application_record_review_payload(
+    record: ApplicationEvidenceRecord,
+) -> dict[str, Any]:
+    """Canonical reviewable content, excluding caller-supplied review diagnostics."""
+
+    payload = record.to_dict()
+    payload.pop("human_review", None)
+    return payload
+
+
+def application_record_content_fingerprint(
+    record: ApplicationEvidenceRecord,
+) -> str:
+    return stable_id(
+        "application-evidence-content",
+        application_record_review_payload(record),
+    )
+
+
 @dataclass(frozen=True)
 class ApplicationClassification:
     status: str
@@ -326,6 +348,7 @@ class ChainAssessment:
     supporting_record_ids: tuple[str, ...] = ()
     evidence_ids: tuple[str, ...] = ()
     reason_codes: tuple[str, ...] = ()
+    record_content_fingerprints: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         _require_member(self.status, CHAIN_STATUSES, "chain status")
@@ -337,6 +360,53 @@ class AdmissibilityDecision:
     blockers: tuple[str, ...]
     application_status: str
     evidence_map: Mapping[str, tuple[str, ...]]
+    trusted_approval_id: str | None = None
+    trusted_reviewer: str | None = None
+
+
+def application_review_approval_request(
+    record: ApplicationEvidenceRecord,
+    chain: ChainAssessment,
+    *,
+    norm_version_status: str,
+    version_evidence_ids: Sequence[str],
+    preservation_rule_status: str,
+) -> dict[str, Any]:
+    """Build exact immutable bindings for a positive application gate."""
+
+    classification = classify_application(record)
+    record_content_fingerprint = application_record_content_fingerprint(record)
+    bindings = {
+        "record_id": record.record_id,
+        "claim_id": record.claim_id,
+        "norm_id": record.norm_id,
+        "norm_version_id": record.norm_version_id,
+        "act_id": record.act_id,
+        "application_status": classification.status,
+        "application_evidence_ids": list(classification.evidence_ids),
+        "record_content_fingerprint": record_content_fingerprint,
+        "chain_assessment": {
+            "status": chain.status,
+            "final_record_id": chain.final_record_id,
+            "supporting_record_ids": list(chain.supporting_record_ids),
+            "evidence_ids": list(chain.evidence_ids),
+            "reason_codes": list(chain.reason_codes),
+            "record_content_fingerprints": [
+                {"record_id": record_id, "fingerprint": fingerprint}
+                for record_id, fingerprint in chain.record_content_fingerprints
+            ],
+        },
+        "norm_version_status": str(norm_version_status),
+        "version_evidence_ids": list(version_evidence_ids),
+        "preservation_rule_status": str(preservation_rule_status),
+    }
+    return {
+        "purpose": "application",
+        "subject_type": "application_admissibility",
+        "subject_id": record.record_id,
+        "fingerprint": stable_id("application-review", bindings),
+        "bindings": bindings,
+    }
 
 
 def application_record_from_dict(payload: Mapping[str, Any]) -> ApplicationEvidenceRecord:
@@ -679,9 +749,27 @@ def assess_application_chain(
             reason_codes=("no_stage_records",),
         )
     ordered = tuple(sorted(records, key=lambda item: item.stage_order))
-    final = ordered[-1]
-    if not _same_chain_scope(ordered):
+    record_content_fingerprints = tuple(
+        (record.record_id, application_record_content_fingerprint(record))
+        for record in ordered
+    )
+
+    def assessment(**values: Any) -> ChainAssessment:
         return ChainAssessment(
+            **values,
+            record_content_fingerprints=record_content_fingerprints,
+        )
+
+    final = ordered[-1]
+    record_ids = tuple(record.record_id for record in ordered)
+    if len(record_ids) != len(set(record_ids)):
+        return assessment(
+            status="unclear",
+            final_record_id=final.record_id,
+            reason_codes=("duplicate_chain_record_id",),
+        )
+    if not _same_chain_scope(ordered):
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             reason_codes=("chain_scope_mismatch",),
@@ -699,13 +787,13 @@ def assess_application_chain(
 
     if len(ordered) == 1:
         if final.record_id in positive and final.outcome_causation != "independent_sufficient_ground":
-            return ChainAssessment(
+            return assessment(
                 status="survived",
                 final_record_id=final.record_id,
                 supporting_record_ids=(final.record_id,),
                 reason_codes=("application_proven_in_final_act",),
             )
-        return ChainAssessment(
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             supporting_record_ids=tuple(positive),
@@ -726,14 +814,14 @@ def assess_application_chain(
             if record_id in earlier_positive
         )
         if incorporation_evidence and incorporated:
-            return ChainAssessment(
+            return assessment(
                 status="incorporated",
                 final_record_id=final.record_id,
                 supporting_record_ids=incorporated + (final.record_id,),
                 evidence_ids=incorporation_evidence,
                 reason_codes=("express_incorporation_proven",),
             )
-        return ChainAssessment(
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             supporting_record_ids=earlier_positive,
@@ -741,7 +829,7 @@ def assess_application_chain(
         )
 
     if final.relation_to_prior == "affirmance_only" and final.record_id not in positive:
-        return ChainAssessment(
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             supporting_record_ids=earlier_positive,
@@ -763,14 +851,14 @@ def assess_application_chain(
         )
     ):
         if final.outcome_causation == "independent_sufficient_ground" and independent_ground_evidence:
-            return ChainAssessment(
+            return assessment(
                 status="superseded",
                 final_record_id=final.record_id,
                 supporting_record_ids=earlier_positive + (final.record_id,),
                 evidence_ids=independent_ground_evidence,
                 reason_codes=("later_independent_ground_supersedes",),
             )
-        return ChainAssessment(
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             supporting_record_ids=earlier_positive,
@@ -783,13 +871,13 @@ def assess_application_chain(
             and final.record_id in positive
             and final.outcome_causation in {"determinative", "contributory"}
         ):
-            return ChainAssessment(
+            return assessment(
                 status="concurrent",
                 final_record_id=final.record_id,
                 supporting_record_ids=earlier_positive + (final.record_id,),
                 reason_codes=("concurrent_operation_proven",),
             )
-        return ChainAssessment(
+        return assessment(
             status="unclear",
             final_record_id=final.record_id,
             supporting_record_ids=earlier_positive,
@@ -799,20 +887,20 @@ def assess_application_chain(
     if final.record_id in positive:
         first_meaning = ordered[0].normative_meaning_id
         if final.normative_meaning_id != first_meaning and earlier_positive:
-            return ChainAssessment(
+            return assessment(
                 status="superseded",
                 final_record_id=final.record_id,
                 supporting_record_ids=earlier_positive + (final.record_id,),
                 reason_codes=("normative_meaning_replaced",),
             )
-        return ChainAssessment(
+        return assessment(
             status="survived",
             final_record_id=final.record_id,
             supporting_record_ids=(final.record_id,),
             reason_codes=("application_independently_proven_in_final_act",),
         )
 
-    return ChainAssessment(
+    return assessment(
         status="unclear",
         final_record_id=final.record_id,
         supporting_record_ids=earlier_positive,
@@ -828,10 +916,13 @@ def evaluate_application_admissibility(
     version_evidence_ids: Sequence[str],
     preservation_rule_status: str,
     discovery_score: float | None = None,
+    approval_ledger: TrustedApprovalLedger | None = None,
+    approval_id: str | None = None,
+    approval_as_of: str | None = None,
 ) -> AdmissibilityDecision:
     """Fail-closed applied-norm gate; candidate scores are intentionally ignored."""
 
-    del discovery_score
+    del discovery_score, approval_as_of
     classification = classify_application(record)
     blockers: list[str] = []
     if classification.status not in {
@@ -852,9 +943,43 @@ def evaluate_application_admissibility(
         blockers.append("application_does_not_survive_final_chain")
     elif record.record_id not in chain.supporting_record_ids:
         blockers.append("record_not_supported_by_chain")
-    if not record.human_review.is_named_approval:
+    else:
+        chain_fingerprints = dict(chain.record_content_fingerprints)
+        required_chain_record_ids = {
+            str(chain.final_record_id or ""),
+            *chain.supporting_record_ids,
+        } - {""}
+        if not required_chain_record_ids or not required_chain_record_ids.issubset(
+            chain_fingerprints
+        ):
+            blockers.append("chain_content_fingerprints_missing")
+        elif chain_fingerprints.get(record.record_id) != (
+            application_record_content_fingerprint(record)
+        ):
+            blockers.append("record_content_fingerprint_mismatch")
+    approval_request = application_review_approval_request(
+        record,
+        chain,
+        norm_version_status=norm_version_status,
+        version_evidence_ids=version_evidence_ids,
+        preservation_rule_status=preservation_rule_status,
+    )
+    approval_validation: Mapping[str, Any] = {
+        "valid": False,
+        "reason_code": "trusted_approval_required",
+        "approval": None,
+    }
+    if approval_ledger is not None and str(approval_id or "").strip():
+        approval_validation = approval_ledger.validate_approval(
+            str(approval_id),
+            **approval_request,
+        )
+    if approval_validation.get("valid") is not True:
         blockers.append("human_application_review_required")
+        reason_code = str(approval_validation.get("reason_code") or "approval_invalid")
+        blockers.append(f"trusted_application_{reason_code}")
     blockers = list(dict.fromkeys(blockers))
+    trusted_approval = approval_validation.get("approval") or {}
     return AdmissibilityDecision(
         passed=not blockers,
         blockers=tuple(blockers),
@@ -864,6 +989,12 @@ def evaluate_application_admissibility(
             "version": tuple(version_evidence_ids),
             "chain": chain.evidence_ids,
         },
+        trusted_approval_id=(
+            str(trusted_approval.get("approval_id")) if trusted_approval else None
+        ),
+        trusted_reviewer=(
+            str(trusted_approval.get("actor_display_name")) if trusted_approval else None
+        ),
     )
 
 
@@ -877,7 +1008,10 @@ __all__ = [
     "FullActLocator",
     "HumanReview",
     "ImplicitPremiseProof",
+    "application_record_content_fingerprint",
     "application_record_from_dict",
+    "application_record_review_payload",
+    "application_review_approval_request",
     "assess_application_chain",
     "classify_application",
     "evaluate_application_admissibility",

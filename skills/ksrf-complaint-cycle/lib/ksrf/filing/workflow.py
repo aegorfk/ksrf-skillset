@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict
 import json
 from pathlib import Path
+import re
 from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import urlparse
 
@@ -32,7 +33,11 @@ from .issue_options import (
     generate_issue_candidates,
 )
 from .matter import load_matter
-from .source_evidence import SourceEvidenceRepository, execute_bounded_retrieval
+from .source_evidence import (
+    SourceEvidenceRepository,
+    SourceIdentityVerifier,
+    execute_bounded_retrieval,
+)
 from .storage import (
     AppendOnlyJsonlLedger,
     ContentAddressedStore,
@@ -40,6 +45,7 @@ from .storage import (
     stable_id,
     utc_now,
 )
+from .trusted_approvals import TrustedApprovalLedger
 
 
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
@@ -62,22 +68,36 @@ SUPPORTED_ACTIONS = {
         {
             "browser",
             "browser-handoff",
+            "claim-coverage",
+            "approve-identity",
             "fetch",
             "import",
             "manual-import",
             "manual_import",
+            "pre-filing-freshness",
             "status",
         }
     ),
     "application": frozenset({"evaluate", "status"}),
     "issues": frozenset({"generate", "status"}),
-    "failures": frozenset({"search", "coverage"}),
+    "failures": frozenset({"ingest", "search", "coverage"}),
+    "evaluate": frozenset({"run", "status"}),
     "render": frozenset({"build", "status"}),
     "release": frozenset({"approve", "build", "check", "validate", "status"}),
 }
 _SECRET_KEYS = frozenset(
     {"token", "api_key", "apikey", "secret", "password", "authorization", "cookie"}
 )
+_POST_FILING_OUTCOME_KEYS = frozenset(
+    {
+        "actual_outcome",
+        "court_outcome",
+        "ksrf_disposition",
+        "post_filing_outcome",
+        "published_outcome",
+    }
+)
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class WorkflowError(ValueError):
@@ -100,6 +120,22 @@ def _reject_secret_fields(value: Any, *, path: str = "payload") -> None:
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         for index, item in enumerate(value):
             _reject_secret_fields(item, path=f"{path}[{index}]")
+
+
+def _reject_post_filing_outcome_fields(value: Any, *, path: str = "payload") -> None:
+    """Keep drafting/evaluation packets blind to later KSRF dispositions."""
+
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            normalized = str(key).strip().lower().replace("-", "_")
+            if normalized in _POST_FILING_OUTCOME_KEYS:
+                raise WorkflowInputError(
+                    f"Поле {path}.{key} раскрывает последующий исход и запрещено в outcome-blind оценке."
+                )
+            _reject_post_filing_outcome_fields(item, path=f"{path}.{key}")
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for index, item in enumerate(value):
+            _reject_post_filing_outcome_fields(item, path=f"{path}[{index}]")
 
 
 def validate_versioned_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -249,13 +285,26 @@ def _issue_seed(payload: Any) -> IssueSeed:
 class WorkflowRouter:
     """One local router over already implemented filing-readiness modules."""
 
-    def __init__(self, workspace: str | Path) -> None:
+    def __init__(
+        self,
+        workspace: str | Path,
+        *,
+        approval_ledger: TrustedApprovalLedger | None = None,
+        source_identity_verifier: SourceIdentityVerifier | None = None,
+    ) -> None:
         self.workspace = Path(workspace).resolve()
         self.matter = load_matter(self.workspace)
         self.objects = ContentAddressedStore(self.workspace, "workflow")
         self.events = AppendOnlyJsonlLedger(self.workspace / "workflow" / "events.jsonl")
         self.source_root = self.workspace / "evidence" / "official-sources"
         self.failure_root = self.workspace / "evidence" / "failure-corpus"
+        self.evaluation_runs = AppendOnlyJsonlLedger(
+            self.workspace / "evaluation" / "runs.jsonl"
+        )
+        self.approvals = approval_ledger or TrustedApprovalLedger(
+            self.workspace / "trusted-approvals"
+        )
+        self.source_identity_verifier = source_identity_verifier
 
     def _base_result(
         self,
@@ -382,6 +431,8 @@ class WorkflowRouter:
             return self._issues(action, payload)
         if route == "failures":
             return self._failures(action, payload)
+        if route == "evaluate":
+            return self._evaluate(action, payload)
         if route == "render":
             return self._render(action, payload, input_object)
         if route == "release":
@@ -395,7 +446,11 @@ class WorkflowRouter:
         *,
         allow_network: bool,
     ) -> dict[str, Any]:
-        repository = SourceEvidenceRepository(self.source_root)
+        repository = SourceEvidenceRepository(
+            self.source_root,
+            approval_ledger=self.approvals,
+            identity_verifier=self.source_identity_verifier,
+        )
         if action == "status":
             coverage = dict(repository.coverage_report())
             observations = repository.observations.records()
@@ -410,7 +465,7 @@ class WorkflowRouter:
                     "manual_import_cannot_prove_official_absence",
                 ]
             evidence = repository.evidence.records()
-            verified = [item for item in evidence if item.get("filing_ready") is True]
+            verified = repository.current_verified_official_evidence()
             state = "ready_for_expert_review" if verified else "blocked"
             message = (
                 "Есть официальные источники с проверенной идентичностью."
@@ -438,6 +493,73 @@ class WorkflowRouter:
             )
         if payload is None:
             raise WorkflowInputError(f"Для sources {action} нужен версионированный --payload.")
+        if action == "approve-identity":
+            return self._base_result(
+                "sources",
+                action,
+                state="blocked",
+                implemented=True,
+                message=(
+                    "JSON-вход и неинтерактивный CLI не могут создать одобрение от имени человека."
+                ),
+                result={
+                    "reason_code": "trusted_approval_channel_required",
+                    "approval_created": False,
+                },
+                missing=("Интерактивный TTY или аутентифицированный серверный контекст",),
+                next_actions=(
+                    "Создайте approval через trusted approval API после реальной аутентификации человека."
+                ,),
+            )
+        if action in {"claim-coverage", "pre-filing-freshness"}:
+            claims = payload.get("claims")
+            if not isinstance(claims, Sequence) or isinstance(claims, (str, bytes)):
+                raise WorkflowInputError("claims должен быть списком тезисов с evidence_ids.")
+            if not all(isinstance(item, Mapping) for item in claims):
+                raise WorkflowInputError("Каждый тезис должен быть JSON-объектом.")
+            try:
+                if action == "claim-coverage":
+                    report = repository.claim_source_coverage_report(claims)
+                    ready = report["filing_ready"] is True
+                    message = (
+                        "Каждый тезис связан с достаточным проверенным источником."
+                        if ready
+                        else "Не все тезисы имеют достаточную подтверждённую опору."
+                    )
+                else:
+                    report = repository.pre_filing_freshness_report(
+                        claims,
+                        as_of=(str(payload.get("as_of")) if payload.get("as_of") else None),
+                    )
+                    ready = report["pre_filing_ready"] is True
+                    message = (
+                        "Зависимые источники тезисов актуальны на момент проверки."
+                        if ready
+                        else "Перед подачей нужно обновить или повторно проверить зависимые источники."
+                    )
+            except ValueError as exc:
+                raise WorkflowInputError(str(exc)) from exc
+            blocked_claims = [
+                item["claim_id"]
+                for item in report["claims"]
+                if (
+                    item.get("support_gate_passed") is False
+                    or item.get("freshness_state") != "current"
+                )
+            ]
+            return self._base_result(
+                "sources",
+                action,
+                state="ready_for_expert_review" if ready else "blocked",
+                implemented=True,
+                message=message,
+                result=report,
+                found=((f"Проверено тезисов: {len(report['claims'])}",) if report["claims"] else ()),
+                missing=tuple(f"Источник или актуальность тезиса {claim_id}" for claim_id in blocked_claims),
+                next_actions=(
+                    "Разрешите все blockers по тезисам и повторите проверку непосредственно перед подачей."
+                ,),
+            )
         locator = _required_text(payload, "locator")
         parsed = urlparse(locator)
         bounded_scope = _mapping(payload.get("bounded_scope"), label="bounded_scope")
@@ -446,8 +568,13 @@ class WorkflowRouter:
             raise WorkflowInputError("identity_checks должен быть списком.")
         if not all(isinstance(item, Mapping) for item in identity_checks):
             raise WorkflowInputError("Каждая identity check должна быть JSON-объектом.")
+        approval_ids = payload.get("approval_ids") or []
+        if not isinstance(approval_ids, Sequence) or isinstance(approval_ids, (str, bytes)):
+            raise WorkflowInputError("approval_ids должен быть списком immutable approval_id.")
+        request_source_id = _required_text(payload, "source_id")
+        source_config = repository.registry.get(request_source_id)
         request = AdapterRequest(
-            source_id=_required_text(payload, "source_id"),
+            source_id=request_source_id,
             locator=locator,
             bounded_scope=bounded_scope,
             max_attempts=int(payload.get("max_attempts") or 1),
@@ -455,6 +582,7 @@ class WorkflowRouter:
             metadata={
                 "max_bytes": int(payload.get("max_bytes") or 25 * 1024 * 1024),
                 "terminal_rule_verified": payload.get("terminal_rule_verified") is True,
+                "allowed_domains": list(source_config.get("domains") or []),
             },
         )
         is_url = parsed.scheme in {"http", "https"}
@@ -495,6 +623,7 @@ class WorkflowRouter:
             request,
             acquired,
             identity_checks=[dict(item) for item in identity_checks],
+            approval_ids=[str(item) for item in approval_ids],
         )
         ready = bool(evidence and evidence.get("filing_ready") is True)
         if acquired.status == "interactive_required":
@@ -586,6 +715,15 @@ class WorkflowRouter:
                 if payload.get("discovery_score") is not None
                 else None
             ),
+            approval_ledger=self.approvals,
+            approval_id=(
+                str(payload.get("approval_id")) if payload.get("approval_id") else None
+            ),
+            approval_as_of=(
+                str(payload.get("approval_as_of"))
+                if payload.get("approval_as_of")
+                else None
+            ),
         )
         classifications = {
             record.record_id: asdict(classify_application(record)) for record in records
@@ -642,9 +780,27 @@ class WorkflowRouter:
         maximum = int(payload.get("max_candidates") or 4)
         generated = generate_issue_candidates(seeds, max_candidates=maximum)
         candidates = [candidate.to_dict() for candidate in generated.candidates]
-        decisions = [asdict(evaluate_issue_gates(candidate)) for candidate in generated.candidates]
+        raw_approval_ids = _mapping(payload.get("approval_ids") or {}, label="approval_ids")
+        decisions = [
+            asdict(
+                evaluate_issue_gates(
+                    candidate,
+                    approval_ledger=self.approvals,
+                    approval_ids=_mapping(
+                        raw_approval_ids.get(candidate.issue_id) or {},
+                        label=f"approval_ids.{candidate.issue_id}",
+                    ),
+                    approval_as_of=(
+                        str(payload.get("approval_as_of"))
+                        if payload.get("approval_as_of")
+                        else None
+                    ),
+                )
+            )
+            for candidate in generated.candidates
+        ]
         release_ready = [
-            candidate["issue_option_id"]
+            candidate["issue_id"]
             for candidate, decision in zip(candidates, decisions)
             if decision["passed"] is True
         ]
@@ -677,7 +833,77 @@ class WorkflowRouter:
     def _failures(
         self, action: str, payload: Optional[Mapping[str, Any]]
     ) -> dict[str, Any]:
-        corpus = FailureCorpus(self.failure_root)
+        corpus = FailureCorpus(self.failure_root, approval_ledger=self.approvals)
+        if action == "ingest":
+            if payload is None:
+                raise WorkflowInputError("Для corpus ingest нужен версионированный --payload.")
+            item_type = str(payload.get("corpus_item_type") or "public_refusal").strip()
+            if item_type == "public_refusal":
+                refusal = payload.get("public_refusal") or payload.get("record") or payload
+                result = corpus.ingest_public_refusal(
+                    _mapping(refusal, label="public_refusal")
+                )
+                result["eligible_for_adverse_gate"] = False
+                result["coverage"] = corpus.coverage_report()
+                return self._base_result(
+                    "failures",
+                    action,
+                    state="ready_for_expert_review",
+                    implemented=True,
+                    message=(
+                        "Публичный официальный отказ зарегистрирован локально; его petition units "
+                        "не допускаются в adverse gate до именованной проверки."
+                    ),
+                    result=result,
+                    found=(f"Зарегистрировано petition units: {result['inserted_count']}",),
+                    missing=("Именованная проверка извлечённых единиц корпуса",),
+                    next_actions=(
+                        "Проверьте локаторы, роли причин отказа и каждую единицу перед одобрением.",
+                    ),
+                )
+            if item_type == "private_document":
+                source_value = _required_text(payload, "document_path")
+                parsed = urlparse(source_value)
+                if parsed.scheme and parsed.scheme != "file":
+                    raise WorkflowInputError(
+                        "Частный документ принимается только из локального файла; сеть не используется."
+                    )
+                source = Path(parsed.path if parsed.scheme == "file" else source_value).expanduser()
+                if not source.is_file():
+                    raise WorkflowInputError(f"Локальный частный документ не найден: {source}")
+                size = source.stat().st_size
+                if size <= 0 or size > MAX_PAYLOAD_BYTES:
+                    raise WorkflowInputError(
+                        f"Размер частного документа должен быть от 1 до {MAX_PAYLOAD_BYTES} байт."
+                    )
+                record = corpus.register_private_document(
+                    matter_id=str(self.matter["matter_id"]),
+                    document_role=_required_text(payload, "document_role"),
+                    content=source.read_bytes(),
+                    consent_id=(str(payload.get("consent_id")) if payload.get("consent_id") else None),
+                )
+                return self._base_result(
+                    "failures",
+                    action,
+                    state="completed_with_limits",
+                    implemented=True,
+                    message=(
+                        "Частный документ зарегистрирован только для этого дела и не включён "
+                        "в межделовой поиск."
+                    ),
+                    result={
+                        "record": record,
+                        "eligible_for_cross_matter_retrieval": False,
+                        "coverage": corpus.coverage_report(),
+                    },
+                    found=("Локальный частный документ зарегистрирован",),
+                    next_actions=(
+                        "Для общего корпуса отдельно оформите согласие, обезличивание и именованное одобрение производного материала.",
+                    ),
+                )
+            raise WorkflowInputError(
+                "corpus_item_type должен быть public_refusal или private_document."
+            )
         if action == "coverage":
             coverage = corpus.coverage_report()
             state = "completed_with_limits" if coverage["coverage_state"] != "unknown" else "blocked"
@@ -717,6 +943,194 @@ class WorkflowRouter:
                 else ()
             ),
             next_actions=("Сопоставьте каждый материальный аналог и сформулируйте отличие дела.",),
+        )
+
+    def _evaluate(
+        self, action: str, payload: Optional[Mapping[str, Any]]
+    ) -> dict[str, Any]:
+        if action == "status":
+            records = self.evaluation_runs.records()
+            if not records:
+                return self._base_result(
+                    "evaluate",
+                    action,
+                    state="blocked",
+                    implemented=True,
+                    message="Outcome-blind прогоны ещё не зарегистрированы.",
+                    result={"run_count": 0, "human_review": {"status": "pending"}},
+                    missing=("Сопоставимые baseline и candidate прогоны",),
+                    next_actions=("Передайте локальный eval bundle в evaluate run.",),
+                )
+            case_ids = sorted({str(item["case_id"]) for item in records})
+            return self._base_result(
+                "evaluate",
+                action,
+                state="ready_for_expert_review",
+                implemented=True,
+                message="Локальные outcome-blind прогоны зарегистрированы; человеческая оценка не подменена.",
+                result={
+                    "run_count": len(records),
+                    "case_ids": case_ids,
+                    "human_review": {"status": "pending"},
+                },
+                found=(f"Зарегистрировано прогонов: {len(records)}",),
+                missing=("Именованная человеческая оценка",),
+                next_actions=("Откройте review artifact и зафиксируйте человеческую оценку отдельно.",),
+            )
+
+        if payload is None:
+            raise WorkflowInputError("Для evaluate run нужен версионированный --payload.")
+        if payload.get("outcome_blind") is not True:
+            raise WorkflowInputError("outcome_blind должен быть явно равен true.")
+        _reject_post_filing_outcome_fields(payload)
+        experiment_version = _required_text(payload, "experiment_version")
+        dataset_version = _required_text(payload, "dataset_version")
+        rubric_version = _required_text(payload, "rubric_version")
+        runs_value = payload.get("runs")
+        if not isinstance(runs_value, list) or not runs_value:
+            raise WorkflowInputError("runs должен быть непустым массивом baseline/candidate прогонов.")
+
+        required_run_fields = (
+            "target_skill_snapshot",
+            "model",
+            "provider",
+            "reasoning_effort",
+            "prompt",
+            "grader_model",
+            "run_timestamp",
+        )
+        by_case: dict[str, dict[str, dict[str, Any]]] = {}
+        normalized_runs: list[dict[str, Any]] = []
+        for index, raw_run in enumerate(runs_value):
+            run = dict(_mapping(raw_run, label=f"runs[{index}]"))
+            case_id = _required_text(run, "case_id")
+            variant = _required_text(run, "variant")
+            if variant not in {"baseline", "candidate"}:
+                raise WorkflowInputError(
+                    f"runs[{index}].variant должен быть baseline или candidate."
+                )
+            evidence_hash = _required_text(run, "evidence_packet_sha256")
+            if not _SHA256_RE.fullmatch(evidence_hash):
+                raise WorkflowInputError(
+                    f"runs[{index}].evidence_packet_sha256 должен быть SHA-256."
+                )
+            for field in required_run_fields:
+                _required_text(run, field)
+            if "output" not in run:
+                raise WorkflowInputError(f"runs[{index}].output обязателен.")
+            if not isinstance(run.get("tool_calls"), list):
+                raise WorkflowInputError(f"runs[{index}].tool_calls должен быть массивом.")
+            _mapping(run.get("usage"), label=f"runs[{index}].usage")
+            _mapping(run.get("scores"), label=f"runs[{index}].scores")
+            variants = by_case.setdefault(case_id, {})
+            if variant in variants:
+                raise WorkflowInputError(
+                    f"Для case_id={case_id} повторяется вариант {variant}."
+                )
+            variants[variant] = run
+            normalized_runs.append(run)
+
+        for case_id, variants in by_case.items():
+            if set(variants) != {"baseline", "candidate"}:
+                raise WorkflowInputError(
+                    f"Для case_id={case_id} нужны оба варианта baseline и candidate."
+                )
+            hashes = {
+                str(run["evidence_packet_sha256"])
+                for run in variants.values()
+            }
+            if len(hashes) != 1:
+                raise WorkflowInputError(
+                    f"Для case_id={case_id} baseline и candidate получили разные evidence packet."
+                )
+            prompts = {str(run["prompt"]) for run in variants.values()}
+            if len(prompts) != 1:
+                raise WorkflowInputError(
+                    f"Для case_id={case_id} baseline и candidate получили разные prompt."
+                )
+
+        stored_runs: list[dict[str, Any]] = []
+        for run in normalized_runs:
+            output_value = run["output"]
+            output_bytes = (
+                output_value.encode("utf-8")
+                if isinstance(output_value, str)
+                else canonical_json_bytes(output_value)
+            )
+            output_object = self.objects.put_bytes(output_bytes)
+            record_body = {
+                "schema_version": SCHEMA_VERSION,
+                "experiment_version": experiment_version,
+                "dataset_version": dataset_version,
+                "rubric_version": rubric_version,
+                "outcome_blind": True,
+                "case_id": run["case_id"],
+                "variant": run["variant"],
+                "evidence_packet_sha256": run["evidence_packet_sha256"],
+                "target_skill_snapshot": run["target_skill_snapshot"],
+                "model": run["model"],
+                "provider": run["provider"],
+                "reasoning_effort": run["reasoning_effort"],
+                "prompt": run["prompt"],
+                "inputs": run.get("inputs"),
+                "tool_calls": run["tool_calls"],
+                "latency_ms": run.get("latency_ms"),
+                "usage": run["usage"],
+                "grader_model": run["grader_model"],
+                "scores": run["scores"],
+                "run_timestamp": run["run_timestamp"],
+                "output_object": output_object,
+            }
+            record = dict(record_body)
+            record["run_id"] = stable_id("outcome-blind-eval-run", record_body)
+            existing = self.evaluation_runs.latest_by("run_id", record["run_id"])
+            if existing is None:
+                self.evaluation_runs.append(record)
+                stored_runs.append(record)
+            else:
+                stored_runs.append(existing)
+
+        bundle_id = stable_id(
+            "outcome-blind-eval-bundle",
+            {
+                "experiment_version": experiment_version,
+                "dataset_version": dataset_version,
+                "rubric_version": rubric_version,
+                "run_ids": sorted(item["run_id"] for item in stored_runs),
+            },
+        )
+        result = {
+            "bundle_id": bundle_id,
+            "outcome_blind": True,
+            "equal_input_verified": True,
+            "run_count": len(stored_runs),
+            "case_count": len(by_case),
+            "runs": stored_runs,
+            "human_review": {
+                "status": "pending",
+                "required": True,
+                "authority_not_inferred_from_model_scores": True,
+            },
+            "production_promotion_authorized": False,
+        }
+        return self._base_result(
+            "evaluate",
+            action,
+            state="ready_for_expert_review",
+            implemented=True,
+            message=(
+                "Outcome-blind baseline/candidate прогоны зарегистрированы на одинаковых входах; "
+                "оценки модели не заменяют человеческое решение о продвижении."
+            ),
+            result=result,
+            found=(
+                f"Сопоставимых сценариев: {len(by_case)}",
+                f"Зарегистрировано прогонов: {len(stored_runs)}",
+            ),
+            missing=("Именованная человеческая оценка review artifact",),
+            next_actions=(
+                "Проведите слепое человеческое сравнение и зафиксируйте reviewer, время и материальные ошибки.",
+            ),
         )
 
     def _render(
@@ -817,7 +1231,10 @@ class WorkflowRouter:
                 raise WorkflowInputError(
                     "Одобрять можно только manifest из release-каталога текущего дела."
                 )
-            reviewer = _required_text(payload, "reviewer")
+            approval_id = _required_text(payload, "approval_id")
+            reviewer = (
+                str(payload["reviewer"]).strip() if payload.get("reviewer") else None
+            )
             reviewed_at = (
                 str(payload["reviewed_at"]).strip()
                 if payload.get("reviewed_at")
@@ -826,10 +1243,19 @@ class WorkflowRouter:
             try:
                 manifest = approve_release_pack(
                     manifest_path,
+                    approval_ledger=self.approvals,
+                    approval_id=approval_id,
+                    approval_as_of=(
+                        str(payload.get("approval_as_of"))
+                        if payload.get("approval_as_of")
+                        else None
+                    ),
                     reviewer=reviewer,
                     reviewed_at=reviewed_at,
                 )
-                integrity_errors = verify_release_manifest(manifest)
+                integrity_errors = verify_release_manifest(
+                    manifest, approval_ledger=self.approvals
+                )
             except Exception as exc:
                 return self._base_result(
                     "release",
@@ -876,7 +1302,7 @@ class WorkflowRouter:
                 except (OSError, UnicodeError, json.JSONDecodeError) as exc:
                     raise WorkflowInputError(f"Не удалось прочитать release manifest: {exc}") from exc
             manifest = dict(_mapping(manifest_value, label="manifest"))
-            errors = verify_release_manifest(manifest)
+            errors = verify_release_manifest(manifest, approval_ledger=self.approvals)
             state = str(manifest.get("status") or "blocked") if not errors else "blocked"
             if state not in {"ready_for_expert_review", "ready_for_human_signing_filing"}:
                 state = "blocked"
@@ -910,7 +1336,9 @@ class WorkflowRouter:
                 soffice_path=payload.get("soffice_path"),
                 pdftoppm_path=payload.get("pdftoppm_path"),
             )
-            integrity_errors = verify_release_manifest(manifest)
+            integrity_errors = verify_release_manifest(
+                manifest, approval_ledger=self.approvals
+            )
         except ImportError as exc:
             return self._optional_runtime_block("release", action, exc)
         except Exception as exc:

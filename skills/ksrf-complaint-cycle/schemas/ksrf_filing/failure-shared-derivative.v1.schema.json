@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ksrf/failure-shared-derivative.v1.schema.json",
+  "title": "Approved Failure Corpus Shared Derivative",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "consent_id", "redaction_id", "source_sha256",
+    "derived_object", "permitted_uses", "promoted_at", "projection_ids",
+    "approval_id", "approval_request", "derivative_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "consent_id": {"type": "string", "minLength": 1},
+    "redaction_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "derived_object": {
+      "type": "object",
+      "required": ["sha256", "size", "object_path"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1},
+        "object_path": {"type": "string", "minLength": 1}
+      }
+    },
+    "permitted_uses": {"type": "object", "minProperties": 1},
+    "promoted_at": {"type": "string", "format": "date-time"},
+    "projection_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "approval_id": {
+      "type": "string",
+      "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"
+    },
+    "approval_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "subject_type", "subject_id", "fingerprint", "bindings"],
+      "properties": {
+        "purpose": {"const": "issue"},
+        "subject_type": {"const": "private_redacted_derivative"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "minLength": 1},
+        "bindings": {"type": "object", "minProperties": 1}
+      }
+    },
+    "trusted_approval": {
+      "allOf": [
+        {"$ref": "https://example.local/ksrf/trusted-approval-reference.v1.schema.json"},
+        {
+          "properties": {
+            "approval_request": {
+              "properties": {
+                "purpose": {"const": "issue"},
+                "subject_type": {"const": "private_redacted_derivative"}
+              }
+            }
+          }
+        }
+      ],
+      "description": "Optional current validation snapshot; retrieval must still recheck revocation and expiry."
+    },
+    "derivative_id": {"type": "string", "minLength": 1}
+  }
+}

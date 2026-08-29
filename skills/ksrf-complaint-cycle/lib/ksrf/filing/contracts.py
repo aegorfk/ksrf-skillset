@@ -24,6 +24,7 @@ CAPABILITY_STATES = (
     "blocked",
     "unknown",
     "unavailable",
+    "not_configured",
     "interactive_required",
 )
 PROGRESS_STATES = ("blocked", "degraded", "expert_review", "human_filing")

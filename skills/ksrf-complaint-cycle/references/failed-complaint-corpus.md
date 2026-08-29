@@ -50,7 +50,7 @@
 
 ## Anonymized promotion
 
-Автоматический redaction check + именованный human reviewer одобряют exact derivative hash. В shared layer попадает только производный файл, не private original. Реальные private bytes никогда не входят в bundled skillset; допустимы только schemas, validators и synthetic fixtures.
+Автоматический redaction check + заранее созданный host-attested approval одобряют exact derivative hash и разрешённую цель promotion. Attestation, binding, expiry и revocation проверяются заново перед shared retrieval; строка reviewer или одноразовое CLI-подтверждение недостаточны. В shared layer попадает только производный файл, не private original. Реальные private bytes никогда не входят в bundled skillset; допустимы только schemas, validators и synthetic fixtures.
 
 ## Retrieval и delta
 
