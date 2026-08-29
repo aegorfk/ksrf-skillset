@@ -42,7 +42,7 @@ Host verifier доверенных одобрений в `basic` необяза�
 - outcome-blind input-only benchmark;
 - независимый clean-context reviewer;
 - consent-controlled private corpus;
-- именованный human reviewer для promotion и release;
+- аутентифицированный host verifier-ом human reviewer для promotion и release;
 - host verifier, который аутентифицирует reviewer, ставит attestation на полное каноническое тело одобрения и повторно проверяет её при каждом зависимом gate.
 
 Само имя эксперта, запись в JSONL, raw CLI-поля, обычный интерактивный терминал или переданный caller-ом `verifier_id` не являются таким verifier. Для `expert` отсутствие capability `trusted_approval_verifier` блокирует положительные filing-significant переходы.

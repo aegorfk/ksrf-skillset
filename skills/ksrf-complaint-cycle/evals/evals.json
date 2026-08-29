@@ -15,12 +15,12 @@
     {
       "id": 2,
       "prompt": "В судебном акте номер спорной статьи не назван. Но суд установил именно предусмотренное ею условие, дословно воспроизвел ее запрет и правовое последствие, отказал по этой причине; иных самостоятельных оснований нет. Есть полный акт, хэш и номера абзацев. Оцени применение нормы для жалобы в КС РФ.",
-      "expected_output": "Evidence-backed implicit-application candidate with all conjunctive premises and a human approval gate.",
+      "expected_output": "Evidence-backed implicit-application candidate with all conjunctive premises and a pre-existing host-attested approval gate over the complete current binding.",
       "files": [],
       "expectations": [
         "The output recognizes that implicit application can be proven without the article number.",
         "It verifies question-before-court, reproduced normative logic, outcome dependence, and absence of an independently sufficient ground with locators.",
-        "It requires named human approval before implicitly_applied_proven can pass admissibility."
+        "It requires a pre-existing host-attested approval of the complete current binding before implicitly_applied_proven can pass admissibility; a reviewer name, raw JSON, plain TTY, or self-attestation is insufficient."
       ]
     },
     {

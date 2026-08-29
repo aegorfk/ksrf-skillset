@@ -43,3 +43,24 @@ def test_legacy_plain_human_promotion_phrase_does_not_return() -> None:
     for package in AFFECTED_DIRECT_SKILLS:
         text = (SKILLS_ROOT / package / "SKILL.md").read_text(encoding="utf-8")
         assert forbidden not in text, package
+
+
+def test_behavior_eval_requires_host_attested_approval() -> None:
+    evals = (
+        SKILLS_ROOT / "ksrf-complaint-cycle" / "evals" / "evals.json"
+    ).read_text(encoding="utf-8")
+    assert "pre-existing host-attested approval" in evals
+    assert "named human approval before" not in evals
+
+
+def test_user_facing_corpus_promotion_does_not_offer_plain_named_approval() -> None:
+    workflow = (
+        SKILLS_ROOT
+        / "ksrf-complaint-cycle"
+        / "lib"
+        / "ksrf"
+        / "filing"
+        / "workflow.py"
+    ).read_text(encoding="utf-8")
+    assert "host-attested approval точного производного материала" in workflow
+    assert "именованное одобрение производного материала" not in workflow

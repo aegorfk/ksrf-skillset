@@ -852,7 +852,8 @@ class WorkflowRouter:
                     implemented=True,
                     message=(
                         "Публичный официальный отказ зарегистрирован локально; его petition units "
-                        "не допускаются в adverse gate до именованной проверки."
+                        "не допускаются в adverse gate до локальной проверки и центрального "
+                        "host-attested approval полного текущего binding."
                     ),
                     result=result,
                     found=(f"Зарегистрировано petition units: {result['inserted_count']}",),
@@ -898,7 +899,8 @@ class WorkflowRouter:
                     },
                     found=("Локальный частный документ зарегистрирован",),
                     next_actions=(
-                        "Для общего корпуса отдельно оформите согласие, обезличивание и именованное одобрение производного материала.",
+                        "Для общего корпуса отдельно оформите согласие, обезличивание и "
+                        "host-attested approval точного производного материала.",
                     ),
                 )
             raise WorkflowInputError(
