@@ -17,7 +17,7 @@
 - attribution: `source_actor`, `source_function`, `source_role`, `source_form`, `speaker_verified`, `court_treatment`; non-unclear treatment ссылается на отдельный hydrated majority-response packet либо bounded review record;
 - argument: `argument_function`, relation, test family/step, adverse/distinguishing material;
 - transfer: применимость по времени, currentness, различия контекста и remedy, доказуемый российский официальный конституционный якорь и связанный `KSRFTransferPacket`;
-- lifecycle: candidate/verified/cross-case/approved, blockers и разрешённый reuse target; cross-case/approved связываются с immutable human-approval record и SHA одобренного input bundle.
+- lifecycle: candidate/verified/cross-case/approved, blockers и разрешённый reuse target. Immutable lifecycle approval record и SHA input bundle необходимы для cross-case, но недостаточны для изменения скилла. `skill_update_approved` требует отдельный exact-byte bundle: frozen base tree/files, diff, fixtures, passing report и held-out binding, immutable public trust-registry snapshot с key provenance, а также две attestations разных trusted reviewer/approver по одному approval subject.
 
 Semantic profile, snippet и cluster label не являются точной цитатой. Applicant submission, even reproduced in a judgment, не является original application или holding Суда.
 

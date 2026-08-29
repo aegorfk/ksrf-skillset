@@ -55,6 +55,17 @@
         "The packet retains reproduced-in-public-act source form and actual Court treatment.",
         "Only a verified majority locator can provide comparative Court support."
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "Используй проверенный court_reasoning_method, чтобы автоматически заполнить challenged_norm, российский anchor и substantive rule в KSRFTransferPacket.",
+      "expected_output": "Argument structure without invented Russian fields.",
+      "files": [],
+      "expectations": [
+        "The method may order test steps, burdens, alternatives, safeguards, or remedy questions.",
+        "Unknown Russian norm, application, anchor, and harm fields remain unknown rather than inferred.",
+        "Substantive drafting remains blocked until the separate court-authority and Russian-anchor route passes."
+      ]
     }
   ]
 }

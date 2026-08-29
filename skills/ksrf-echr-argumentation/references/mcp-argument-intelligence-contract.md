@@ -71,6 +71,11 @@ court_treatment_review_ref:
 argument_function:
 relation:
 test_family_and_step:
+result_class:  # applicant_pleading_move|court_reasoning_method|court_authority|case_example_only
+method_signature:
+authority_status:
+substantive_rule_changed:
+substantive_russian_rule_changed:
 temporal_effect:
 currentness_review:
 adverse_and_distinguishing:
@@ -90,6 +95,36 @@ human_approval_record_id:
 human_approval_input_sha256:
 human_approval_scope:
 human_approval_at:
+held_out_binding:
+  report_id:
+  manifest_sha256:
+  input_sha256:
+  run_sha256:
+  report_sha256:
+  report_envelope_sha256:
+skill_approval_bundle:  # только для skill_update_approved
+  promotion_contract_version:
+  approval_subject_sha256:
+  bundle_sha256:
+  trusted_registry_binding:
+    registry_id:
+    registry_version:
+    snapshot_sha256:
+    snapshot_artifact_sha256:
+    valid_from:
+    valid_until:
+  base_manifest_artifact_sha256:
+  base_tree_sha256:
+  base_skill_blob_sha256:
+  base_file_artifact_sha256_by_path:
+  diff_artifact_sha256:
+  fixture_manifest_artifact_sha256:
+  fixture_artifact_sha256_by_id:
+  validation_report_artifact_sha256:
+  reviewer_attestation_artifact_sha256:
+  reviewer_human_id:
+  approver_attestation_artifact_sha256:
+  approver_human_id:
 blockers:
 ```
 
@@ -153,10 +188,15 @@ adverse/currentness/temporal review, transfer limit, действующий ро
 Статус российского anchor не самодостаточен: для drafting reuse обязательны
 его стабильный evidence ref, официальный URL, реквизиты, locator и дата
 проверки, а также ссылка на связанный `KSRFTransferPacket`. Аналогично
-`cross_case_reusable` и `skill_update_approved` нельзя выставить одним enum:
-нужен неизменяемый human-approval record с id, scope, timestamp и SHA-256 ровно
-того input bundle, который человек одобрил. Несовпадение SHA, отсутствующая
-связь или более узкий scope возвращают пакет в `blocked`.
+`cross_case_reusable` и `skill_update_approved` нельзя выставить одним enum.
+Immutable lifecycle approval record с id/scope/timestamp и SHA-256 input bundle
+необходим для `cross_case_reusable`, но сам по себе недостаточен для изменения
+скилла. `skill_update_approved` дополнительно требует типизированный
+`skill_approval_bundle` из пакета выше: exact bytes и content-addressed SHA
+base tree/files, diff, fixtures, passing report, frozen held-out, immutable
+public trust-registry snapshot и две attestations разных доверенных людей.
+Несовпадение bytes, identity, key provenance, subject либо scope возвращает
+пакет в `blocked`.
 
 Приём заявителя веди отдельно как `applicant_pleading_move`. Method-only reuse
 требует того же приёма минимум в двух независимых matters, точного публичного
@@ -170,6 +210,31 @@ gate действует только при одновременных:
 
 Отсутствие любого значения возвращает полный Russian-anchor gate. Ни один
 method-only приём не может менять substantive drafting rule.
+
+Метод рассуждения большинства веди отдельно как `court_reasoning_method`, а не
+как `court_authority`. Для межделового reuse нужны exact majority locators как
+минимум в двух независимых matters, совпадающий method signature, passing
+held-out, adverse/currentness/temporal/transfer review и отдельное human
+approval. Разрешённая классификация фиксирована:
+
+- `authority_status=comparative_authority`;
+- `reuse_target=research_checklist_or_argument_structure_only`;
+- `substantive_rule_changed=false`;
+- `substantive_russian_rule_changed=false`.
+
+Такой объект может добавить вопрос, порядок test steps, burden, alternative,
+safeguard или remedy в исследовательский checklist. Он не создаёт российскую
+норму, официальный российский anchor, универсальный holding ЕСПЧ или готовое
+правило для жалобы.
+
+Для `skill_update_approved` generic approval record, одной строки с именем,
+одного input-bundle SHA или одного `diff_sha256` недостаточно.
+Approval bundle обязан хранить exact bytes и SHA базового skill manifest, diff,
+fixture manifest и passing validation report; отчёт должен быть связан с теми
+же base/diff/fixture SHA и frozen held-out. Reviewer и approver подтверждают
+один approval-subject разными immutable attestations и не могут быть одним
+лицом. Несовпадение любых bytes, identity либо scope возвращает пакет в
+`blocked`.
 
 ## KSRF transfer boundary
 

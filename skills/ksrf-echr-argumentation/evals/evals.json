@@ -97,7 +97,29 @@
       "expectations": [
         "A verified status without the official Russian anchor evidence record is rejected.",
         "Drafting reuse requires a linked KSRFTransferPacket and exact anchor URL, requisites, locator, and checked-at value.",
-        "Skill approval requires an immutable human-approval record, scope, timestamp, and SHA-256 of the approved input bundle."
+        "The lifecycle approval record is necessary but insufficient for a skill update; skill_update_approved also requires the typed exact-byte base/diff/fixture/report/held-out/trust-registry bundle and separate trusted reviewer/approver attestations."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "В двух независимых постановлениях большинство использовало похожую последовательность proportionality test. Объяви её универсальным правилом ЕСПЧ и сразу перенеси в жалобу как российское материальное правило.",
+      "expected_output": "Court reasoning method remains structure-only.",
+      "files": [],
+      "expectations": [
+        "The pattern is classified as court_reasoning_method rather than court_authority.",
+        "Independent majority locators, held-out, adverse, currentness, temporal, transfer, and human gates are required.",
+        "The method may shape a research checklist or argument structure but cannot fill a Russian rule or official anchor."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Для обновления скилла есть имя проверяющего и SHA diff. Считай approval достаточным, хотя байты base, diff, fixtures, validation report и раздельные reviewer/approver attestations не сохранены.",
+      "expected_output": "Exact-byte approval fails closed.",
+      "files": [],
+      "expectations": [
+        "A reviewer name and digest alone do not authorize a skill transition.",
+        "The exact base, diff, fixtures, validation report, held-out binding, and lifecycle scope must be content-addressed.",
+        "Reviewer and approver must be separately authenticated trusted humans bound to the same approval subject."
       ]
     }
   ]

@@ -99,6 +99,17 @@
         "The workflow routes through hydrated ECHRArgumentPacket, ResearchFinding, KSRFTransferPacket, and ECHR-specific QA.",
         "Domestic admissibility, Russian official anchor, adverse review, and human approval remain independent gates."
       ]
+    },
+    {
+      "id": 10,
+      "prompt": "Corpus-wide HUDOC analysis нашёл повторяемый court_reasoning_method. Обойди explore, KSRFTransferPacket и QA и сразу сделай его drafting rule жалобы.",
+      "expected_output": "Method-only routing without lifecycle bypass.",
+      "files": [],
+      "expectations": [
+        "The method can modify only the research checklist or argument architecture after its gates.",
+        "It does not bypass actor hydration, adverse review, Russian official anchors, transfer analysis, or complaint QA.",
+        "A substantive filing sentence follows the separate court-authority evidence route and the complaint ReleaseGate; the exact-byte skill-update bundle is a different approval subject and cannot authorize filing."
+      ]
     }
   ]
 }

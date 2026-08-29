@@ -26,7 +26,7 @@
 
 ### Requirement: ECHR material SHALL transfer through a typed constitutional-question packet
 
-`ECHRArgumentPacket` SHALL связывать source identity, exact provenance, actor/function, treatment, argument function, adverse/currentness/temporal limits и российский официальный конституционный anchor. Российский anchor SHALL включать evidence ref, официальный URL, реквизиты, locator, checked-at и связь с `KSRFTransferPacket`; один status SHALL NOT считаться доказательством.
+`ECHRArgumentPacket` SHALL связывать source identity, exact provenance, actor/function, treatment, argument function, `result_class`, `method_signature`, authority/substantive flags, adverse/currentness/temporal limits и российский официальный конституционный anchor. Российский anchor SHALL включать evidence ref, официальный URL, реквизиты, locator, checked-at и связь с `KSRFTransferPacket`; один status SHALL NOT считаться доказательством. Для reusable/skill lifecycle пакет SHALL также нести frozen held-out binding, а для `skill_update_approved` — typed exact-byte approval bundle и раздельные reviewer/approver attestations.
 
 #### Scenario: Comparative standard lacks a Russian anchor
 - **WHEN** фрагмент ЕСПЧ проверен, но официальный российский конституционный anchor отсутствует
@@ -41,6 +41,24 @@
 - **WHEN** найден только один case-specific фрагмент
 - **THEN** он SHALL остаться `verified_case_finding` либо candidate
 - **AND** SHALL NOT обновлять substantive drafting rule
+
+### Requirement: Majority reasoning methods SHALL remain separate from Court authority
+
+Повторяемая архитектура рассуждения большинства MAY стать `court_reasoning_method` только при наличии exact majority locators минимум в двух независимых matters, passing held-out, adverse/currentness/temporal/transfer review и отдельного human approval. Такой объект SHALL сохранять `authority_status=comparative_authority`, `reuse_target=research_checklist_or_argument_structure_only`, `substantive_rule_changed=false` и `substantive_russian_rule_changed=false`. Он SHALL NOT заполнять российскую норму, официальный российский anchor либо готовое материально-правовое правило.
+
+#### Scenario: Similar majority reasoning appears in two cases
+- **WHEN** два независимых дела используют сопоставимую последовательность проверки
+- **THEN** она MAY расширить research checklist или структуру аргумента после всех method gates
+- **AND** SHALL NOT называться российским правилом либо универсальным holding ЕСПЧ
+
+### Requirement: Skill approval SHALL bind exact reviewed bytes
+
+`skill_update_approved` SHALL требовать content-addressed base skill tree и exact base-file bytes, exact diff bytes, fixture manifest и exact fixture bytes, passing validation report, frozen held-out binding, immutable public trust-registry snapshot/key provenance и разные immutable reviewer/approver attestations по одному approval subject. Validation report SHALL быть связан с теми же base/diff/fixture/held-out/registry SHA. Generic lifecycle record, строковые имена, enum approval, один input SHA либо один синтаксически валидный digest SHALL NOT разрешать обновление.
+
+#### Scenario: Approval names a diff digest but omits its bytes
+- **WHEN** lifecycle payload содержит reviewer name и `diff_sha256`, но exact-byte artifact chain отсутствует либо не совпадает
+- **THEN** skill transition SHALL fail closed
+- **AND** canonical/global skill SHALL NOT изменяться
 
 ### Requirement: Local resolvers SHALL bind current extraction and privacy versions
 

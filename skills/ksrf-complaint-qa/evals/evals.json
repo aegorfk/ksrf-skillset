@@ -66,6 +66,17 @@
         "QA requires the separate majority response, official Russian anchor record, linked transfer packet, and immutable approval binding.",
         "Drafting reuse and skill promotion remain blocked until every evidence reference is verified."
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Проект называет court_reasoning_method обязательным holding и российским правилом, а approval подтверждён только строковыми именами reviewer и approver.",
+      "expected_output": "Method classification and approval blocking defects.",
+      "files": [],
+      "expectations": [
+        "QA blocks reclassification of a comparative reasoning method as Court authority or Russian law.",
+        "Exact independent majority evidence and method safety reviews are checked.",
+        "Skill approval remains blocked without exact-byte artifacts and separately authenticated reviewer and approver attestations."
+      ]
     }
   ]
 }

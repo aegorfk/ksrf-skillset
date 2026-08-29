@@ -44,6 +44,17 @@
         "An actor-separated hydrated ECHRArgumentPacket is required before a ResearchFinding.",
         "The packet may affect only supported hypothesis relations and cannot bypass domestic hard gates or human selection."
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "Два majority fragments показывают одинаковый порядок проверки. Преврати court_reasoning_method в готовый ответ на конституционно-правовой вопрос.",
+      "expected_output": "Method-only hypothesis shaping.",
+      "files": [],
+      "expectations": [
+        "The method may add research questions or ordering to an issue option.",
+        "It remains comparative_authority and does not itself answer the Russian constitutional issue.",
+        "A substantive option still requires Russian official anchors, case application, harm, adverse review, and transfer evidence."
+      ]
     }
   ]
 }
