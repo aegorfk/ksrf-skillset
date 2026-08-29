@@ -24,11 +24,6 @@ while IFS= read -r tool_name; do
   [[ -n "$tool_name" ]] && mirrored_tools+=("$tool_name")
 done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --active-mirrored-tools)
 
-retired_mirrored_tools=()
-while IFS= read -r tool_name; do
-  [[ -n "$tool_name" ]] && retired_mirrored_tools+=("$tool_name")
-done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --retired-mirrored-tools)
-
 # Validate all mirrored tools before changing either skills/ or tools/.
 for tool_name in "${mirrored_tools[@]}"; do
   source_tool="$argument_scripts/$tool_name"
@@ -53,12 +48,13 @@ for tool_name in "${mirrored_tools[@]}"; do
 done
 
 # Only explicitly retired first-party mirrors may be removed automatically.
-for tool_name in "${retired_mirrored_tools[@]}"; do
+while IFS= read -r tool_name; do
+  [[ -n "$tool_name" ]] || continue
   stale_tool="$repo_dir/tools/$tool_name"
   if [[ -e "$stale_tool" || -L "$stale_tool" ]]; then
     rm -f "$stale_tool"
   fi
-done
+done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --retired-mirrored-tools)
 
 python3 "$repo_dir/tools/generate_skills_manifest.py" \
   --repo "$repo_dir" \

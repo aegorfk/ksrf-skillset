@@ -33,6 +33,39 @@
         "Unsupported sentence IDs are identified.",
         "The release remains blocked or requires rewrite/source tasks."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Проект цитирует негидратированный HUDOC snippet, атрибутирует его Суду, хотя это довод заявителя, и не даёт российского якоря. Поставь готово.",
+      "expected_output": "Blocking ECHR quote and attribution defect.",
+      "files": [],
+      "expectations": [
+        "The verdict is blocked until case-detail hydration and exact provenance are supplied.",
+        "Applicant source actor/form/treatment is corrected and is not treated as a Court holding.",
+        "A current Russian official constitutional anchor and adverse/currentness review are required before drafting reuse."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Формула взята из особого мнения ЕСПЧ, но проект называет её выводом Суда и не показывает majority paragraph.",
+      "expected_output": "Separate-opinion source-role block.",
+      "files": [],
+      "expectations": [
+        "The separate opinion is classified as a research signal or counterargument.",
+        "The alleged majority holding fails source-role QA.",
+        "The project must supply a verified majority locator or narrow the claim."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "ECHR packet объявляет довод заявителя принятым Судом, российский якорь проверенным, а технику одобренной для скилла, но не содержит majority-response packet, anchor evidence ref, KSRFTransferPacket или human-approval binding.",
+      "expected_output": "Forged status blocking defect.",
+      "files": [],
+      "expectations": [
+        "Bare treatment, anchor, and lifecycle enums do not satisfy evidence gates.",
+        "QA requires the separate majority response, official Russian anchor record, linked transfer packet, and immutable approval binding.",
+        "Drafting reuse and skill promotion remain blocked until every evidence reference is verified."
+      ]
     }
   ]
 }

@@ -58,7 +58,7 @@ description: "Скилл организует полный цикл обраще
 
 Используй `ksrf-complaint-facts-demands`, затем `ksrf-rights-argument-builder`. Каждый значимый факт и правовой тезис получает stable sentence ID, evidence refs, locator и предел формулировки. Unsupported/overclaimed sentence остаётся blocker или явным placeholder.
 
-Практика ЕСПЧ через `ksrf-echr-argumentation` — optional research capability: нужен официальный HUDOC anchor, точный holding/transfer limit и отдельный российский конституционный якорь.
+Практика ЕСПЧ через `ksrf-echr-argumentation` — optional research capability. Маршрут: coverage-aware HUDOC connector/FTS -> hydrated actor-separated `ECHRArgumentPacket` -> `ResearchFinding` и влияние на `ConstitutionalIssueOptions` -> проверенный `KSRFTransferPacket` в builder -> отдельный ECHR pass в `ksrf-complaint-qa`. Нужны официальный HUDOC anchor, точный majority holding/transfer limit и отдельный российский конституционный якорь. Applicant/separate-opinion method signals и raw/vector candidates не лечат domestic admissibility gates и не становятся drafting rule автоматически.
 
 ### 7. Проверь и выпусти
 

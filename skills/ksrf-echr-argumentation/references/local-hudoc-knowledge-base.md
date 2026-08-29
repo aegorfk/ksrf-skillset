@@ -1,6 +1,6 @@
 # Локальная knowledge base HUDOC: interface-only workflow
 
-Этот файл описывает поиск по локальной source-backed проекции. Он не добавляет новые substantive rules ЕСПЧ или КС РФ.
+Этот файл описывает поиск по локальной source-backed проекции. Он не добавляет новые substantive rules ЕСПЧ или КС РФ. Для connector-first маршрута, `ECHRArgumentPacket` и exact-quote gate сначала прочитай `mcp-argument-intelligence-contract.md`.
 
 ## Когда использовать
 
@@ -10,24 +10,25 @@ Runtime по умолчанию задаётся через `HUDOC_ARCHIVE_ROOT`
 
 - DB: `$HUDOC_ARCHIVE_ROOT/knowledge/v3/hudoc_knowledge_v3.sqlite3`;
 - progress: `$HUDOC_ARCHIVE_ROOT/knowledge/v3/knowledge_progress.json`;
-- стабильный resolver CLI: `scripts/hudoc_kb_cli.py` внутри текущего skill; он принимает `HUDOC_KB_CLI`, затем `HUDOC_KS_PARSER_REPO`, локальный repository candidate и его Git worktrees и запускает только связку `hudoc-knowledge-indexer-v3.7` + `hudoc-research-extractive-v6`;
-- hybrid resolver CLI: `scripts/hudoc_vector_cli.py` внутри текущего skill; он принимает `HUDOC_VECTOR_CLI`, использует тот же repository/worktree discovery, проверяет `hudoc-vector-indexer-v2` + `hudoc-vector-evaluator-v2` + KB v3.7 + research v6 и использует отдельный HUDOC Qdrant на `127.0.0.1:6335`. Чужие Qdrant collections не выбирать.
+- стабильный resolver CLI: `scripts/hudoc_kb_cli.py` внутри текущего skill; он принимает `HUDOC_KB_CLI`, затем `HUDOC_KS_PARSER_REPO`, локальный repository candidate и его Git worktrees и запускает только связку `hudoc-knowledge-indexer-v3.8` + `hudoc-research-extractive-v7` + `hudoc-knowledge-privacy-sanitizer-v2`;
+- hybrid resolver CLI: `scripts/hudoc_vector_cli.py` внутри текущего skill; он принимает `HUDOC_VECTOR_CLI`, использует тот же repository/worktree discovery, проверяет `hudoc-vector-indexer-v2` + `hudoc-vector-evaluator-v2` + KB v3.8 + research v7 + privacy v2 и использует отдельный HUDOC Qdrant на `127.0.0.1:6335`. Чужие Qdrant collections не выбирать.
 
-Сначала вызови `--help`, затем `status` и `coverage`, передав `--db` до подкоманды. До полного v3.7 cycle, нулевых stale/failure/coverage deltas и privacy gate считай runtime `branch-local pilot`, а не полной базой. В поиск входят только current-v3.7 `ready`, построенные из `hudoc-research-extractive-v6`; историческая v5-проекция и неуспешный v3.6 pilot остаются provenance-only и не принимаются resolver'ами, поиском или reuse. `qa_required`/`quarantine` и старые research versions нельзя использовать содержательно. Если индекс ещё строится, явно сообщи фактическое покрытие.
+При доступном connector сначала получи stats по `mcp-argument-intelligence-contract.md`. Для CLI fallback сначала вызови `--help`, затем `status` и `coverage`, передав `--db` до подкоманды. Зафиксируй generation, версии, `current/searchable/stale`, errors, FTS/privacy gates и semantic blockers. До полного v3.8 cycle, нулевых stale/failure/coverage deltas и privacy-v2 gate считай runtime partial discovery, а не полной базой. В поиск входят только current-v3.8 `ready`, построенные из `hudoc-research-extractive-v7` и прошедшие `hudoc-knowledge-privacy-sanitizer-v2`; прежние research/knowledge/privacy versions остаются provenance-only и не принимаются resolver'ами, поиском или reuse. `qa_required`/`quarantine` нельзя использовать содержательно. Если индекс ещё строится, разрешён bounded FTS с точными counters; dense/hybrid остаётся blocked.
 
 ## Минимальный порядок
 
 1. `search`/`find-term` с фильтрами `family`, `language`, `actor`, `function`, `source-role`, `article`, `atom-type`, `matter-key` или `itemid`. Actor/function/source-role filters ищут только explicit sentence candidates; assertion-derived `source_role` проверяется отдельно от `paragraph_source_role_v13`. Нефильтрованный результат является paragraph candidate. `speaker_verified=false` блокирует окончательную атрибуцию.
-   Если exact/FTS формулировки недостаточно, после успешных readiness/privacy/retrieval gates используй hybrid `search`: FTS top-N сохраняет точные identifiers, dense top-N ищет многоязычные смысловые аналоги, а RRF объединяет их. Evidence всегда гидратируется из SQLite; Qdrant payload не является источником цитаты.
+   Если exact/FTS формулировки недостаточно, используй hybrid `search` только при `semantic_discovery_status=ready_unpromoted` и полном generation-bound audit: FTS top-N сохраняет точные identifiers, dense top-N ищет многоязычные смысловые аналоги, а RRF объединяет их. Evidence всегда гидратируется из SQLite; Qdrant payload и semantic profile не являются источником цитаты.
 2. `matter` для проверки всех variants и application numbers.
 3. `citations`, `representatives`, `courts` — только как source-backed реестры; последние два ограничены v13 Russia-title candidate, но respondent/роль всё равно проверяются человеком; контакты автоматически не собирать.
-4. Вернуться по official anchor и локатору к PDF/TXT/page JSONL; проверить speaker, контекст и статус документа.
-5. Перенести результат в `ResearchFinding`, а не непосредственно в текст жалобы или skill rule.
+4. Гидратировать опорный акт, затем вернуться по official anchor и локатору к PDF/TXT/page JSONL; проверить speaker, контекст, document family, source/artifact SHA и статус документа. Search snippet не является точной цитатой.
+5. Создать actor-separated `ECHRArgumentPacket`, а затем перенести проверенный пакет в `ResearchFinding`, не непосредственно в текст жалобы или skill rule.
 6. Для повторного использования пройти `verified_case_finding -> cross_case_reusable -> skill_update_approved` с российским официальным якорем, adverse search, temporal/currentness и transfer limits.
 
 ## Обязательные ограничения
 
 - `promotion_eligible=false` и `permitted_use=discovery_only` — блокирующие поля, не комментарий.
+- Отсутствующая или устаревшая `hudoc-knowledge-privacy-sanitizer-v2` блокирует строку как current safe discovery result.
 - BM25, frequency, variant count и cluster size не доказывают позицию Суда.
 - Dense similarity, vector rank и RRF score также не доказывают позицию Суда и не создают `ResearchFinding`.
 - `applicant_submission` — воспроизведение в публичном акте, а не оригинальная application form.

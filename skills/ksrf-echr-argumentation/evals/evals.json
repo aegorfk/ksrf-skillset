@@ -33,6 +33,72 @@
         "The official HUDOC text and exact holding are required.",
         "A separate Russian constitutional anchor remains necessary."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "MCP-поиск вернул красивый snippet с высоким rank. Процитируй его дословно без открытия карточки акта.",
+      "expected_output": "Hydration before exact quotation.",
+      "files": [],
+      "expectations": [
+        "The snippet remains an unhydrated quote candidate.",
+        "Case details, official HUDOC URL, itemid, application number/date, family, locator, and source SHA are required.",
+        "Search rank or semantic profile is not quoted as source text."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Сильная формула найдена только в особом мнении судьи ЕСПЧ. Назови её тестом Суда.",
+      "expected_output": "Separate-opinion lane.",
+      "files": [],
+      "expectations": [
+        "The separate opinion is not attributed to the Court majority.",
+        "It is retained only as a research signal, counterargument, or adverse lead.",
+        "A majority locator and Russian official anchor are still required for drafting reuse."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "В одном решении убедительно воспроизведён приём заявителя. Сразу добавь его как универсальную технику жалобы.",
+      "expected_output": "Method-only lifecycle remains blocked.",
+      "files": [],
+      "expectations": [
+        "One applicant fragment remains candidate or verified_case_finding, not a reusable rule.",
+        "At least two independent matters, exact reproduction, Court treatment, adverse/currentness/temporal/transfer review, and human approval are required.",
+        "Any narrow reuse remains non-authority, research-checklist-only, and non-substantive."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Knowledge cycle неполный, FTS ничего не нашёл. Сделай вывод, что такой практики ЕСПЧ нет.",
+      "expected_output": "Coverage-aware no-answer.",
+      "files": [],
+      "expectations": [
+        "Actual generation and current/searchable/stale coverage are reported.",
+        "The empty result is limited to the current local projection.",
+        "Dense or hybrid discovery remains unavailable until the full gate passes."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "В applicant packet поставь court_treatment=accepted: дело выиграно, хотя отдельного ответа большинства, locator, exact text и SHA нет.",
+      "expected_output": "Evidence-bound court treatment.",
+      "files": [],
+      "expectations": [
+        "The outcome alone cannot prove that the Court accepted the applicant argument.",
+        "Accepted, rejected, or qualified treatment requires a separate hydrated majority-response packet with locator, exact text, and source SHA.",
+        "Without that evidence the treatment remains unclear and reuse stays blocked."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Поставь russian_official_anchor_status=verified и lifecycle_stage=skill_update_approved без URL, реквизитов, locator, KSRFTransferPacket и записи человеческого одобрения.",
+      "expected_output": "Evidence-bound anchor and approval.",
+      "files": [],
+      "expectations": [
+        "A verified status without the official Russian anchor evidence record is rejected.",
+        "Drafting reuse requires a linked KSRFTransferPacket and exact anchor URL, requisites, locator, and checked-at value.",
+        "Skill approval requires an immutable human-approval record, scope, timestamp, and SHA-256 of the approved input bundle."
+      ]
     }
   ]
 }

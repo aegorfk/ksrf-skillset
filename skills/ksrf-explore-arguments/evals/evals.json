@@ -33,6 +33,17 @@
         "The route remains blocked or FIX_FIRST/ABSTAIN.",
         "Issue options are not presented as filing-ready."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "HUDOC MCP вернул cluster из похожих raw assertions. Преврати cluster label напрямую в ResearchFinding и principal issue.",
+      "expected_output": "No direct candidate promotion.",
+      "files": [],
+      "expectations": [
+        "Raw assertions, cluster labels, and semantic hits remain candidates.",
+        "An actor-separated hydrated ECHRArgumentPacket is required before a ResearchFinding.",
+        "The packet may affect only supported hypothesis relations and cannot bypass domestic hard gates or human selection."
+      ]
     }
   ]
 }

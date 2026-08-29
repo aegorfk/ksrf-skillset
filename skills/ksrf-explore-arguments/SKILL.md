@@ -76,6 +76,8 @@ description: Скилл исследует и сравнивает нескол�
 
 Если выбрано доктринальное или сравнительное направление, открой `../ksrf-argument-patterns/references/constitutionalist-authority-corpus.md`, выбери тематический маршрут и зафиксируй уровень готовности каждого автора. Для рабочего тезиса отдай приоритет `method_integrated`, `full_text_available` или `triangulated_academic`; запись `discovery_only` допускается только как lead к первичной публикации. По возможности проверь не только поддерживающего автора, но и конкурирующий метод или институциональный контраргумент.
 
+Если направление использует ЕСПЧ, вызови `ksrf-echr-argumentation` и принимай в ledger только actor-separated `ECHRArgumentPacket` по `../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md`. До поиска сохрани coverage/generation; при incomplete cycle используй только bounded FTS и не выводи отсутствие практики из пустой выдачи. Applicant, government, majority и separate-opinion lanes не склеивай. Raw assertion, semantic hit или cluster label может создать только candidate research task и не повышается напрямую в `ResearchFinding` или `ConstitutionalIssueOption`.
+
 ### 3. Веди журнал findings
 
 Каждый повторно используемый вывод оформляй по `references/artifact-contracts.md`. Finding обязан указывать:
@@ -85,6 +87,8 @@ description: Скилл исследует и сравнивает нескол�
 - какую гипотезу он поддерживает, ослабляет, отличает или блокирует;
 - предел переноса и возможное альтернативное объяснение;
 - статус проверки.
+
+Для HUDOC finding дополнительно сохрани packet id, exact hydrated quote provenance, actor/function/form/treatment, document family, temporal/currentness/adverse review, российский anchor status и lifecycle blockers. Пакет без majority locator либо российского официального anchor может породить, ослабить или отличить гипотезу, но не становится drafting-ready comparative rule.
 
 Сохраняй отрицательные результаты. Не повторяй поиск, уже закрытый проверенным finding, если не появился новый источник или новая формулировка вопроса.
 
@@ -162,6 +166,7 @@ description: Скилл исследует и сравнивает нескол�
 - `Hard gates`: pass/fail/unknown с доказательствами;
 - `Профиль дела`: наблюдаемые факты без типологического вывода;
 - `Research ledger`: новые и отрицательные findings;
+- `ECHR packet effect`: coverage, actor lanes, supporting/adverse relation и влияние только на те `ConstitutionalIssueOptions`, которые пакет действительно проверяет;
 - `Активные гипотезы`: различия, evidence for/against, falsifier, remedy;
 - `Critic report`: контрпримеры, пределы переноса, отказная логика;
 - `Argument attack ledger`: четыре семейства атак и их relation/status;

@@ -21,7 +21,7 @@
 - `text/<year>/<itemid>.txt` — UTF-8, границы страниц отмечены form-feed;
 - `pages/<year>/<itemid>.jsonl` — страницы/абзацы, source roles, offsets и extraction provenance;
 - `analysis/<year>/<itemid>.json` — только extractive candidates;
-- `research/v1/` — отдельная candidate-only проекция; для нового прохода допускается только `hudoc-research-extractive-v6` с совпадающими source/artifact SHA, а v5 и записи прежних research versions остаются stale provenance-only и не участвуют в promotion;
+- `research/v1/` — отдельная candidate-only проекция; для нового прохода допускается только `hudoc-research-extractive-v7` с совпадающими source/artifact SHA, а v6 и записи прежних research versions остаются stale provenance-only и не участвуют в promotion;
 - `findings/<year>/<finding_id>.json` — вручную проверенные findings;
 - `metadata/corpus_progress.json` и `metadata/hudoc_corpus_processing.log` — прогресс и журнал.
 

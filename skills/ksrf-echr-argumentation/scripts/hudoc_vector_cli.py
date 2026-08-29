@@ -12,8 +12,9 @@ from pathlib import Path
 
 EXPECTED_INDEXER = "hudoc-vector-indexer-v2"
 EXPECTED_EVALUATOR = "hudoc-vector-evaluator-v2"
-EXPECTED_KNOWLEDGE = "hudoc-knowledge-indexer-v3.7"
-EXPECTED_RESEARCH = "hudoc-research-extractive-v6"
+EXPECTED_KNOWLEDGE = "hudoc-knowledge-indexer-v3.8"
+EXPECTED_RESEARCH = "hudoc-research-extractive-v7"
+EXPECTED_PRIVACY = "hudoc-knowledge-privacy-sanitizer-v2"
 REPOSITORY_ENV = "HUDOC_KS_PARSER_REPO"
 
 
@@ -108,6 +109,11 @@ def is_expected_version(cli: Path) -> bool:
             "RESEARCH_EXTRACTOR_VERSION",
         )
         == EXPECTED_RESEARCH
+        and module_version(
+            repository / "src" / "hudoc_knowledge_base.py",
+            "PRIVACY_SANITIZER_VERSION",
+        )
+        == EXPECTED_PRIVACY
     )
 
 
@@ -127,7 +133,8 @@ def main() -> None:
     raise SystemExit(
         "No version-checked HUDOC vector CLI found. Set HUDOC_VECTOR_CLI or "
         f"{REPOSITORY_ENV} to a repository with {EXPECTED_INDEXER}, "
-        f"{EXPECTED_EVALUATOR}, {EXPECTED_KNOWLEDGE}, and {EXPECTED_RESEARCH}."
+        f"{EXPECTED_EVALUATOR}, {EXPECTED_KNOWLEDGE}, {EXPECTED_RESEARCH}, and "
+        f"{EXPECTED_PRIVACY}."
     )
 
 

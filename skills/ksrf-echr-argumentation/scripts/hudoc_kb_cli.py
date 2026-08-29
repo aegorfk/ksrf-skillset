@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 
 
-EXPECTED_INDEXER = "hudoc-knowledge-indexer-v3.7"
-EXPECTED_RESEARCH = "hudoc-research-extractive-v6"
+EXPECTED_INDEXER = "hudoc-knowledge-indexer-v3.8"
+EXPECTED_RESEARCH = "hudoc-research-extractive-v7"
+EXPECTED_PRIVACY = "hudoc-knowledge-privacy-sanitizer-v2"
 REPOSITORY_ENV = "HUDOC_KS_PARSER_REPO"
 
 
@@ -96,6 +97,11 @@ def is_expected_version(cli: Path) -> bool:
             "RESEARCH_EXTRACTOR_VERSION",
         )
         == EXPECTED_RESEARCH
+        and module_version(
+            repository / "src" / "hudoc_knowledge_base.py",
+            "PRIVACY_SANITIZER_VERSION",
+        )
+        == EXPECTED_PRIVACY
     )
 
 
@@ -115,7 +121,7 @@ def main() -> None:
     raise SystemExit(
         "No version-checked HUDOC knowledge CLI found. Set HUDOC_KB_CLI or "
         f"{REPOSITORY_ENV} to a repository with {EXPECTED_INDEXER} and "
-        f"{EXPECTED_RESEARCH}."
+        f"{EXPECTED_RESEARCH} under {EXPECTED_PRIVACY}."
     )
 
 

@@ -1,5 +1,15 @@
 # Контракты исследовательских артефактов
 
+## Содержание
+
+- [ResearchFinding](#researchfinding)
+- [ECHR extension](#echr-extension)
+- [ArgumentHypothesis](#argumenthypothesis)
+- [ArgumentPortfolio](#argumentportfolio)
+- [ConstitutionalIssueOption](#constitutionalissueoption)
+- [KSRFRouteRecommendation](#ksrfrouterecommendation)
+- [Case isolation](#case-isolation)
+
 ## ResearchFinding
 
 Обязательные поля:
@@ -18,6 +28,39 @@
 - `contains_sensitive_data`: признак конфиденциального содержания.
 
 Finding не равен цитате. `thesis` должен точно соответствовать объёму подтверждения, а `limitations` — показывать, чего источник не доказывает.
+
+### ECHR extension
+
+Если finding получен из HUDOC, сначала создай actor-separated
+`ECHRArgumentPacket` по
+`../../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md`.
+В `ResearchFinding` дополнительно обязательны:
+
+- `echr_packet_id`, `itemid`, `matter_key`, application number/date и document
+  family;
+- официальный HUDOC URL, source/artifact SHA, page/paragraph и
+  sentence-or-char locator;
+- `source_actor`, `source_function`, `source_role`, `source_form`,
+  `speaker_verified` и `court_treatment`;
+- для `court_treatment=accepted|rejected|qualified` — отдельный hydrated
+  majority-response packet id, locator, exact text и source SHA; для
+  `not_addressed` — review ref с охватом акта;
+- `argument_function`, temporal/currentness status, adverse/distinguishing
+  review и transfer limit;
+- российский official-anchor evidence ref, URL, реквизиты, locator, checked-at
+  и связанный `ksrf_transfer_packet_id` либо явный blocking status;
+- `lifecycle_stage`, `reuse_target`, `promotion_eligible`, blockers, а для
+  `cross_case_reusable|skill_update_approved` — human approval record id,
+  scope, timestamp и SHA-256 одобренного input bundle.
+
+Точная цитата допустима только из hydrated case details. Search snippet,
+semantic profile, raw assertion и cluster label остаются `candidate`. Applicant
+submission, even reproduced in a judgment, не является original application
+или holding Суда; отдельное мнение остаётся research signal/counterargument.
+Если отсутствует российский официальный anchor, ECHR finding может изменить
+исследовательскую гипотезу, но его drafting reuse блокируется.
+Голые enum `court_treatment`, `russian_official_anchor_status` и
+`lifecycle_stage` доказательствами не являются и не проходят promotion gate.
 
 ## ArgumentHypothesis
 

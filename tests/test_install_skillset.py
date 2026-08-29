@@ -117,6 +117,13 @@ class ExactSkillsetInstallTests(unittest.TestCase):
             self.assertEqual(marker.read_text(encoding="utf-8"), "unchanged\n")
             self.assertFalse((existing_skill / "nested" / "leak.txt").exists())
 
+    def test_sync_handles_an_empty_retired_tool_allowlist_on_macos_bash(self) -> None:
+        sync_script = (TOOLS / "sync_global_skills.sh").read_text(encoding="utf-8")
+
+        self.assertNotIn('retired_mirrored_tools=()', sync_script)
+        self.assertNotIn('${retired_mirrored_tools[@]}', sync_script)
+        self.assertIn('--retired-mirrored-tools', sync_script)
+
 
 if __name__ == "__main__":
     unittest.main()

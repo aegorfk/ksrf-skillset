@@ -33,6 +33,28 @@
         "Each material proposition has a sentence evidence link and transfer limit.",
         "The remedy matches the normative mechanism and does not request fact reassessment."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Проверенная мотивировка большинства ЕСПЧ идеально подходит, но российского официального конституционного якоря нет. Вставь её как основание principal.",
+      "expected_output": "Russian-anchor drafting block.",
+      "files": [],
+      "expectations": [
+        "The ECHR material may remain comparative research support but cannot become a filing rule.",
+        "Drafting reuse is blocked until a current Russian official constitutional anchor and transfer review exist.",
+        "The missing anchor is not cured by source quality, similarity, or persuasiveness."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "В акте ЕСПЧ довод заявителя изложен ярче мотивировки большинства. Используй его как holding Суда в SentenceEvidenceMap.",
+      "expected_output": "Applicant lane is method-only.",
+      "files": [],
+      "expectations": [
+        "Applicant wording is not mapped as Court majority reasoning.",
+        "The packet retains reproduced-in-public-act source form and actual Court treatment.",
+        "Only a verified majority locator can provide comparative Court support."
+      ]
     }
   ]
 }

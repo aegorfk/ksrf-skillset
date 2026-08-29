@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-08-29T13:37:09Z",
+  "generated_at": "2026-08-29T15:26:29Z",
   "source": "~/.codex/skills canonical 14-package allowlist",
-  "remote_base_commit": "08a6317260a2c0bb645de143820ffe36266ec132",
+  "remote_base_commit": "8268bd637ab7950e9d4e2dec139584d0ebbdcd1c",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -15,9 +15,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 14,
-  "total_files": 291,
-  "total_bytes": 8105783,
-  "tree_sha256": "ef19979841cdc89cd93917daf660e22d5459b893fb3f19218a0b42626138686b",
+  "total_files": 292,
+  "total_bytes": 8138003,
+  "tree_sha256": "9538155b0ead132837a61ee7b83a3c30544473baf3330d174949117ef53a3f67",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 93,
-      "bytes": 1599425,
-      "tree_sha256": "1f6587b5e490aa148a8899fe3250e99049ed1f407bd4b0b1be85409c81ddad0c"
+      "bytes": 1600627,
+      "tree_sha256": "b785071f18d77459ef0e0f5f611e2fb962360bdbad2241dfbcd2c8e9dbd96aee"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 97216,
-      "tree_sha256": "0e7fb52f619d4600c3c549071639f9b73e3b3fbb959042170b1451894c06096a"
+      "bytes": 101340,
+      "tree_sha256": "b7fedadc0f4f6e9383c3512f374924157032fbce5f1eb252d3c8b768fd541874"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -69,9 +69,9 @@
     },
     {
       "name": "ksrf-echr-argumentation",
-      "files": 11,
-      "bytes": 66594,
-      "tree_sha256": "84dd88fae0280d1423f6288f1be73fd1d24d6725eb7e80f25d75402d4b561a0e"
+      "files": 12,
+      "bytes": 85548,
+      "tree_sha256": "83fe03f078bf492d617592b87b937436bb4e5c50be58b50f17f4394baebd3a01"
     },
     {
       "name": "ksrf-exhaustion-planner",
@@ -82,8 +82,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 9,
-      "bytes": 71663,
-      "tree_sha256": "8e1b94ec248f710e87d902f70cd93c5eb5aadc7834c6c9a7edaff3ea2b934d92"
+      "bytes": 76230,
+      "tree_sha256": "935fd0bec5f4db0db661f67a36cffed69ee6fafddf30426bd2c77bad392c99f8"
     },
     {
       "name": "ksrf-formal-filing-check",
@@ -100,14 +100,14 @@
     {
       "name": "ksrf-rights-argument-builder",
       "files": 12,
-      "bytes": 179234,
-      "tree_sha256": "64b89cdac32bb0e88ea16a05072ebb53732d22120a68a8661fb20ff137cda003"
+      "bytes": 182607,
+      "tree_sha256": "8eb73c753eb07138f1fa3c7b80dc6a84f13ea642740464d46663278ac7582327"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 185419,
-  "release_tree_sha256": "5426927de1d01fadb3c9ad610b5e69f29d85afa84e78102ac5f2eb1251c9b118",
+  "total_release_bytes": 185305,
+  "release_tree_sha256": "0d43d9fb4de296de320f436c809692255dac3896064156ac2545357ceb72ca8d",
   "release_files": [
     {
       "path": "install.sh",
@@ -131,8 +131,8 @@
     },
     {
       "path": "tools/sync_global_skills.sh",
-      "bytes": 2413,
-      "sha256": "262ba761785d7546ceaaf19f89c470fb2342aa07b26f1cbb28e1a5ec3c37bbd4"
+      "bytes": 2299,
+      "sha256": "70871cc0110150d43654b0ce8218cfcca16a9f827c5a28f3828a1d928c689125"
     },
     {
       "path": "tools/verify_publication_state.py",

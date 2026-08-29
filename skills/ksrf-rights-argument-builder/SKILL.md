@@ -18,6 +18,7 @@ description: Скилл превращает утверждённый портф
 - hard gates по норме, применению, делу, исчерпанию и сроку;
 - principal и, если есть, reserve hypothesis;
 - supporting/adverse findings с locators;
+- actor-separated `ECHRArgumentPacket` и `KSRFTransferPacket`, если портфель использует практику ЕСПЧ;
 - authority ledger из `ksrf-practice-authority-builder`, если использовалась практика высших судов или CasusLegal;
 - refusal model, falsifier и ограничения переноса;
 - предполагаемая просительная формула.
@@ -44,6 +45,7 @@ description: Скилл превращает утверждённый портф
    Если линия касается официального электронного обращения, конфиденциальности, критики должностного лица или квалификации сообщения как публичного распространения по части второй статьи 128.1 УК РФ, используй `references/citizen-appeal-confidentiality-and-criticism.md`. Отдельно проверяй канал и круг доступа, ложность/порочащий характер, злоупотребление и применённую норму; использование Интернета само по себе не отвечает на все эти вопросы.
    Если срабатывает российский Lawinfo-триггер, открой `../ksrf-argument-patterns/references/lawinfo-constitutional-methods-2023-2026.md`. Для ограничения прав верни раздельные поля `цель/пригодность/менее обременительная альтернатива/баланс`; для ценности и достоинства потребуй официальный якорь, защищаемое благо, носителя, конкурирующую гарантию, конкретный вред и remedy. Риторические слова без этой цепочки пометь `rhetorical_only`. При заявленной абсолютности примени LI-M15: разведи статью 56, общий режим ограничений и точный категорический аспект, собери supporting/qualifying официальные акты и не разрешай конфликт научных моделей автоматически.
    Если линия использует историческую модель компенсации, соразмерности, правовой определённости либо экспертного заключения, дополнительно примени JH-M04/M09/M10 из `../ksrf-complaint-cycle/references/lawinfo-historical-complaint-procedure-2009-2024.md`. Сохраняй конкурирующие модели параллельно: ни компенсация, ни отраслевой пример не становятся универсальным тестом КС РФ.
+5.1. Если используется ЕСПЧ, проверь packet по `../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md`. Comparative support для filing sentence допускается только из hydrated и проверенной мотивировки большинства с official HUDOC anchor, itemid/application/date, document family, exact locator, source/artifact SHA, currentness/adverse/temporal review и пределом holding. Applicant submission и separate opinion могут дать только method/counterargument signal; не называй их позицией Суда. `court_treatment=accepted|rejected|qualified` учитывай только при отдельном hydrated majority-response packet. Для каждого перенесённого шага сохрани российский официальный конституционный anchor с evidence ref/URL/requisites/locator/checked-at, relation к `KSRFTransferPacket` и `SentenceEvidenceMap`. Cross-case/skill approval требует immutable human-approval record, scope, timestamp и SHA одобренного input bundle. Отсутствующий российский anchor, majority locator или review оставляет блок `research_only`, даже если фрагмент убедителен или semantic rank высок.
 6. Если подходящего паттерна нет, построй аргумент непосредственно от нормы, официальных конституционных принципов, причинности и предлагаемой гарантии. Отсутствие аналогии укажи как transferability risk.
 7. Для споров о доказывании заполни `references/evidence-impact-method.md`: классифицируй индивидуальные, содержательные законодательные, процедурные и процессуальные факты; укажи предмет, бремя, стандарт, доступ к информации, временную актуальность, возможность опровержения, последствие недоказанности и нормативный носитель. Не спорь только с весом отдельного доказательства и не смешивай доказываемое специальное основание с усмотрением по итоговому решению.
    Если довод касается социального права, доступности гарантии, институциональной сдержанности или фактической эффективности защиты, дополнительно заполни `references/social-rights-institutional-evidence.md`: разнеси reason, российскую официальную authority и social facts, проверь индикаторы, access funnel и individual bridge. Сравнительная методика не заменяет российский критерий и при неполных данных должна завершаться abstain.
@@ -61,6 +63,7 @@ description: Скилл превращает утверждённый портф
 - `Основной раздел` с evidence traceability;
 - `Резервный раздел` либо причина его отсутствия;
 - `Карта аналогий и пределов переноса`;
+- `ECHR transfer block`: actor lane, hydrated quote provenance, majority/applicant/separate-opinion status, российский anchor и drafting blockers;
 - `Adverse findings и ответы`;
 - `Refusal model`;
 - `Primary/narrower remedy`;
@@ -71,11 +74,13 @@ description: Скилл превращает утверждённый портф
 - Не выдавай constitutional test за обязательный только потому, что он есть в справочнике.
 - Не считай corpus frequency, semantic similarity или число ссылок качеством аргумента.
 - Не используй научный, международный или состязательный материал как замену российской правовой опоре.
+- Не повышай applicant wording, separate opinion, raw assertion, search snippet или semantic profile до holding либо drafting rule.
 - Не скрывай факт, что независимый critic не использовался или source locator не проверен.
 
 ## Справочники
 
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная архитектура аргумента, safety-valve, determinacy и evidence-role тесты.
+- `../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md` — connector-first, exact hydration, actor lanes, `ECHRArgumentPacket` и method-only lifecycle.
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — государственная связка частного спора, профессиональные гарантии и внешний эффект решения.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и реестр источников.
 - `references/workflow-reference.md` — возможные тесты и формы раздела.
