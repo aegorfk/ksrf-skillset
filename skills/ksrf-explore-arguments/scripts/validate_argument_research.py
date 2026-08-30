@@ -50,6 +50,15 @@ def missing_fields(item: dict[str, Any], required: set[str]) -> list[str]:
     return sorted(required - item.keys())
 
 
+def _string_id_list(value: Any, label: str, errors: list[str]) -> list[str]:
+    """Return a safe ID list and report malformed containers without coercion."""
+
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        errors.append(f"{label} must be an array of strings")
+        return []
+    return value
+
+
 def validate(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     case_id = payload.get("case_id")
@@ -77,19 +86,25 @@ def validate(payload: dict[str, Any]) -> list[str]:
         for field in missing_fields(finding, FINDING_FIELDS):
             errors.append(f"findings[{index}] missing {field}")
         finding_id = finding.get("finding_id")
-        if isinstance(finding_id, str):
+        if "finding_id" in finding and not isinstance(finding_id, str):
+            errors.append(f"findings[{index}].finding_id must be a string")
+        elif isinstance(finding_id, str):
             if finding_id in finding_ids:
                 errors.append(f"duplicate finding_id: {finding_id}")
             finding_ids.add(finding_id)
+        _string_id_list(finding.get("hypothesis_ids", []), f"findings[{index}].hypothesis_ids", errors)
         if finding.get("case_id") != case_id:
             errors.append(f"findings[{index}] crosses case scope")
-        if finding.get("relation") not in RELATIONS:
+        relation = finding.get("relation")
+        if not isinstance(relation, str) or relation not in RELATIONS:
             errors.append(f"findings[{index}] has invalid relation")
-        if finding.get("verification_status") not in VERIFICATION:
+        verification_status = finding.get("verification_status")
+        if not isinstance(verification_status, str) or verification_status not in VERIFICATION:
             errors.append(f"findings[{index}] has invalid verification_status")
-        if finding.get("confidence") not in CONFIDENCE:
+        confidence = finding.get("confidence")
+        if not isinstance(confidence, str) or confidence not in CONFIDENCE:
             errors.append(f"findings[{index}] has invalid confidence")
-        if finding.get("verification_status") == "verified" and not finding.get("locator"):
+        if verification_status == "verified" and not finding.get("locator"):
             errors.append(f"findings[{index}] verified without locator")
 
     hypothesis_ids: set[str] = set()
@@ -100,31 +115,46 @@ def validate(payload: dict[str, Any]) -> list[str]:
         for field in missing_fields(hypothesis, HYPOTHESIS_FIELDS):
             errors.append(f"hypotheses[{index}] missing {field}")
         hypothesis_id = hypothesis.get("hypothesis_id")
-        if isinstance(hypothesis_id, str):
+        if "hypothesis_id" in hypothesis and not isinstance(hypothesis_id, str):
+            errors.append(f"hypotheses[{index}].hypothesis_id must be a string")
+        elif isinstance(hypothesis_id, str):
             if hypothesis_id in hypothesis_ids:
                 errors.append(f"duplicate hypothesis_id: {hypothesis_id}")
             hypothesis_ids.add(hypothesis_id)
-        if hypothesis.get("status") not in HYPOTHESIS_STATUS:
+        status = hypothesis.get("status")
+        if not isinstance(status, str) or status not in HYPOTHESIS_STATUS:
             errors.append(f"hypotheses[{index}] has invalid status")
-        referenced = set(hypothesis.get("supporting_finding_ids", [])) | set(
-            hypothesis.get("adverse_finding_ids", [])
+        supporting_finding_ids = _string_id_list(
+            hypothesis.get("supporting_finding_ids", []),
+            f"hypotheses[{index}].supporting_finding_ids",
+            errors,
         )
+        adverse_finding_ids = _string_id_list(
+            hypothesis.get("adverse_finding_ids", []),
+            f"hypotheses[{index}].adverse_finding_ids",
+            errors,
+        )
+        referenced = set(supporting_finding_ids) | set(adverse_finding_ids)
         unknown = sorted(referenced - finding_ids)
         if unknown:
             errors.append(f"hypotheses[{index}] references unknown findings: {unknown}")
 
     approval = portfolio.get("human_approval")
-    if approval not in APPROVAL:
+    if not isinstance(approval, str) or approval not in APPROVAL:
         errors.append("portfolio.human_approval is invalid")
     principal = portfolio.get("principal_hypothesis_id")
-    if principal is not None and principal not in hypothesis_ids:
+    if principal is not None and not isinstance(principal, str):
+        errors.append("portfolio.principal_hypothesis_id must be a string or null")
+        principal = None
+    elif principal is not None and principal not in hypothesis_ids:
         errors.append("portfolio principal references unknown hypothesis")
     if approval != "approved" and principal is not None:
         errors.append("principal hypothesis requires human_approval=approved")
     if approval == "approved" and not portfolio.get("approved_by"):
         errors.append("approved portfolio requires approved_by")
     for key in ("reserve_hypothesis_ids", "experimental_hypothesis_ids", "rejected_hypothesis_ids"):
-        unknown = sorted(set(portfolio.get(key, [])) - hypothesis_ids)
+        hypothesis_ids_for_role = _string_id_list(portfolio.get(key, []), f"portfolio.{key}", errors)
+        unknown = sorted(set(hypothesis_ids_for_role) - hypothesis_ids)
         if unknown:
             errors.append(f"portfolio.{key} references unknown hypotheses: {unknown}")
 

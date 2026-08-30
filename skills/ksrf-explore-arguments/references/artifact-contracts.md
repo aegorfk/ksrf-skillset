@@ -78,6 +78,19 @@ submission, even reproduced in a judgment, не является original applic
 
 Статусы: `active`, `promoted`, `reserve`, `experimental`, `rejected`.
 
+### Типы идентификаторов и перечислений
+
+Поля `hypothesis_ids`, `supporting_finding_ids`, `adverse_finding_ids`,
+`reserve_hypothesis_ids`, `experimental_hypothesis_ids` и
+`rejected_hypothesis_ids` передаются только как JSON-массивы строк. Валидатор
+не приводит вложенные массивы, объекты или числа к строкам: он сообщает
+`ERROR` и завершает проверку ненулевым кодом. Поля `relation`,
+`verification_status`, `confidence`, `ArgumentHypothesis.status` и
+`ArgumentPortfolio.human_approval` должны быть строками из перечислений;
+`principal_hypothesis_id` допускает строку или `null`. Schema validity не
+означает drafting readiness, а типовая ошибка не должна превращаться в
+необработанное исключение.
+
 ## ArgumentPortfolio
 
 Обязательные поля:
