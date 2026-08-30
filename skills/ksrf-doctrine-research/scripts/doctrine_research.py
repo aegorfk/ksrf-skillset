@@ -1008,7 +1008,7 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
 
 
 def load_request(path: Path, *, for_external_search: bool = False) -> Dict[str, Any]:
-    request = load_json(path)
+    request = _load_json_for_command(path)
     if not isinstance(request, dict):
         raise DoctrineResearchError("request must be a JSON object")
     errors = validate_request(request, for_external_search=for_external_search)
@@ -1859,7 +1859,7 @@ def acquisition_queue(records: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
 
 
 def run_route(args: argparse.Namespace) -> int:
-    request = load_json(Path(args.request))
+    request = _load_json_for_command(Path(args.request))
     if not isinstance(request, Mapping):
         raise DoctrineResearchError("route request must be a JSON object")
     decision = select_research_route(request)

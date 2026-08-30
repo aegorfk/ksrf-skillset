@@ -1273,6 +1273,45 @@ class DoctrineResearchTests(unittest.TestCase):
             self.assertEqual("provider_error", coverage["provider_statuses"][0]["status"])
             self.assertEqual("pass", MODULE.load_json(workspace / "qa-report.json")["status"])
 
+    def test_malformed_request_is_blocked_without_traceback_for_all_cli_entrypoints(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = root / "request.json"
+            request_path.write_text("{not-json", encoding="utf-8")
+            commands = (
+                ["route", "--request", str(request_path)],
+                [
+                    "plan",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(root / "plan"),
+                    "--providers",
+                    "crossref",
+                ],
+                [
+                    "search",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(root / "search"),
+                    "--providers",
+                    "crossref",
+                    "--offline-fixtures",
+                    str(root / "fixtures"),
+                ],
+                ["rerank", "--request", str(request_path), "--workspace", str(root / "rerank")],
+            )
+            for command in commands:
+                with self.subTest(command=command[0]):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        exit_code = MODULE.main(command)
+                    self.assertEqual(2, exit_code)
+                    self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+                    self.assertIn("invalid JSON artifact: request.json", stderr.getvalue())
+
     def test_provider_schema_errors_cannot_count_as_success(self):
         query = MODULE.build_query_plan(request_payload())["queries"][0]
         with self.assertRaisesRegex(MODULE.DoctrineResearchError, "Crossref response"):

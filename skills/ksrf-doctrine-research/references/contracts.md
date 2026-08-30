@@ -104,6 +104,8 @@ acquisition-queue.json
 
 При `--offline-fixtures` синтаксически повреждённый или не кодируемый fixture — это ошибка конкретного провайдера (`OFFLINE_FIXTURE_INVALID`): она записывается в `search-log.jsonl`, не считается успешным ответом и оставляет `bounded_search_complete=false`. Автоматического перехода к сети или к запасному fixture после обнаружения повреждённого файла нет.
 
+Все CLI-команды, принимающие `request.json`, используют тот же строгий parse gate: повреждённый, не UTF-8-кодируемый или содержащий не конечные числа вход блокируется контролируемой ошибкой `invalid JSON artifact: request.json` (код 2), без traceback.
+
 ## DoctrineSourceRecord
 
 Обязательные поля после discovery:
