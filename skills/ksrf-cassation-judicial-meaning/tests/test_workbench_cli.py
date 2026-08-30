@@ -641,6 +641,27 @@ class WorkbenchCliTests(unittest.TestCase):
                 code, _, stderr = self.run_cli(argv)
                 self.assertEqual(0, code, stderr)
 
+    def test_status_rejects_non_object_fingerprint_without_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "matter"
+            (workspace / "plans").mkdir(parents=True)
+            write_json(workspace / "plans" / "plan-v1.json", {})
+            write_json(workspace / "case-fingerprint.json", [])
+
+            code, stdout, stderr = self.run_cli(
+                ["status", "--workspace", str(workspace)]
+            )
+
+            self.assertEqual(0, code)
+            self.assertEqual("", stderr)
+            self.assertNotIn("Traceback", stderr)
+            payload = json.loads(stdout)
+            self.assertFalse(payload["state"]["case_fingerprint_ready"])
+            self.assertEqual(
+                "case-fingerprint.json должен быть JSON-объектом.",
+                payload["state"]["workspace_error"],
+            )
+
     def test_practice_quality_cli_persists_content_bound_chain_and_audit_results(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

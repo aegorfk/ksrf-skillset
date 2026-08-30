@@ -892,6 +892,8 @@ def _validation_state(workspace: Path) -> dict[str, Any]:
     case_temporal = read_json(case_temporal_path) if case_temporal_path.exists() else {}
     fingerprint_path = workspace / "case-fingerprint.json"
     fingerprint = read_json(fingerprint_path) if fingerprint_path.exists() else {}
+    if not isinstance(fingerprint, dict):
+        raise ValueError("case-fingerprint.json должен быть JSON-объектом.")
     fingerprint_sha256 = fingerprint.get("fingerprint_sha256")
     case_temporal_path = workspace / "case-temporal-analysis.json"
     case_temporal = read_json(case_temporal_path) if case_temporal_path.exists() else {}
