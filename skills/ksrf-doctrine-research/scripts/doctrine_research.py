@@ -1527,7 +1527,12 @@ def fixture_payload(fixture_root: Path, provider: str, query_id: str) -> Any:
     )
     for candidate in candidates:
         if candidate.exists():
-            return load_json(candidate)
+            try:
+                return _load_json_strict(candidate)
+            except (OSError, UnicodeError, ValueError, RecursionError) as exc:
+                raise DoctrineResearchError(
+                    f"OFFLINE_FIXTURE_INVALID:{provider}:{candidate.name}"
+                ) from exc
     raise DoctrineResearchError(f"OFFLINE_FIXTURE_MISS:{provider}:{query_id}")
 
 

@@ -6,7 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1220,6 +1220,58 @@ class DoctrineResearchTests(unittest.TestCase):
             self.assertEqual(4, exit_code)
             coverage = MODULE.load_json(root / "run" / "coverage-report.json")
             self.assertFalse(coverage["bounded_search_complete"])
+
+    def test_malformed_offline_fixture_is_recorded_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture_root = root / "fixtures"
+            (fixture_root / "crossref").mkdir(parents=True)
+            (fixture_root / "crossref" / "default.json").write_text("{not-json", encoding="utf-8")
+            request_path = write_request(root)
+            workspace = root / "run"
+            args = argparse.Namespace(
+                request=str(request_path),
+                workspace=str(workspace),
+                providers="crossref",
+                max_queries=1,
+                max_results=5,
+                timeout=1.0,
+                request_delay=0,
+                offline_fixtures=str(fixture_root),
+            )
+            prepare_search_plan(args)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(MODULE.urllib.request, "urlopen", side_effect=AssertionError("network used")):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = MODULE.main(
+                        [
+                            "search",
+                            "--request",
+                            str(request_path),
+                            "--workspace",
+                            str(workspace),
+                            "--providers",
+                            "crossref",
+                            "--max-queries",
+                            "1",
+                            "--max-results",
+                            "5",
+                            "--offline-fixtures",
+                            str(fixture_root),
+                        ]
+                    )
+
+            self.assertEqual(3, exit_code)
+            self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+            logs = MODULE.read_jsonl(workspace / "search-log.jsonl")
+            self.assertEqual(1, len(logs))
+            self.assertEqual("error", logs[0]["status"])
+            self.assertIn("OFFLINE_FIXTURE_INVALID", logs[0]["error"])
+            coverage = MODULE.load_json(workspace / "coverage-report.json")
+            self.assertFalse(coverage["bounded_search_complete"])
+            self.assertEqual("provider_error", coverage["provider_statuses"][0]["status"])
+            self.assertEqual("pass", MODULE.load_json(workspace / "qa-report.json")["status"])
 
     def test_provider_schema_errors_cannot_count_as_success(self):
         query = MODULE.build_query_plan(request_payload())["queries"][0]
