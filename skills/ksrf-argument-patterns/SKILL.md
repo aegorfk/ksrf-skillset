@@ -76,6 +76,7 @@ Pattern match становится опорой только после ручн
 - `references/comparative-argument-coding.md` — воспроизводимая кодировка структуры и типов доводов, раздельная оценка наличия/веса и function-first gate для иностранного материала.
 - `references/constitutional-argument-architecture.md` — главный тезис, трёхуровневая трасса, четыре типа, attack ledger, институциональная компетентность и последствия по российской научной методике.
 - `references/constitutional-review-methods.md` — выбор между переносом позиции, атакой правоприменительного смысла, сохраняющим истолкованием, соразмерностью и вспомогательным методом, когда совпал этот методический trigger.
+- `references/enrichment-artifact-contract.md` — структурная граница локального `expanded_pattern_registry.json` для скрипта обогащения; она не заменяет проверку источников и содержания.
 - `references/legal-reasoning-model-branches.md` — правила/принципы, under-/over-inclusion, holding/analogy, лестница абстракции, purpose и hard-case branch set без выбора «правильной» школы.
 - `references/institutional-discourse-and-comparative-transfer.md` — strongest-objection ledger и contextualized functionalism для иностранного материала; архитектурно-визуальные описания остаются `context_only`.
 - `references/precedent-analogy-and-justification.md` — internal/external justification, эмпирический precedent questionnaire, competing analogy branches, universalization boundaries и defeasible graph с `model_conflict -> abstain`.

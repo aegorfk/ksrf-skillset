@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -451,7 +452,35 @@ COUNTERARGUMENTS = [
 
 
 def load_registry(path: Path) -> Dict[str, List[dict]]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    """Load and preflight the extractor registry before any output is written."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("expanded_pattern_registry.json must contain a JSON object")
+
+    missing = [code for code in PATTERN_ORDER if code not in payload or code not in P]
+    if missing:
+        raise ValueError(f"missing pattern metadata: {', '.join(missing)}")
+
+    for code in PATTERN_ORDER:
+        rows = payload.get(code)
+        if not isinstance(rows, list):
+            raise ValueError(
+                f"expanded_pattern_registry.json pattern {code!r} must contain an array"
+            )
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"expanded_pattern_registry.json pattern {code!r} row {index} "
+                    "must be an object"
+                )
+            number = row.get("number")
+            if not isinstance(number, str) or not number.strip():
+                raise ValueError(
+                    f"expanded_pattern_registry.json pattern {code!r} row {index} "
+                    "number must be a non-empty string"
+                )
+    return payload
 
 
 def support_numbers(registry: Dict[str, List[dict]], code: str, limit: int = 12) -> List[str]:
@@ -699,13 +728,14 @@ def main() -> int:
 
     analysis = Path(args.analysis).expanduser().resolve()
     skill = Path(args.skill).expanduser().resolve()
+    try:
+        registry = load_registry(analysis / "expanded_pattern_registry.json")
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"ERROR: cannot load expanded pattern registry: {exc}", file=sys.stderr)
+        return 2
+
     refs = skill / "references"
     refs.mkdir(parents=True, exist_ok=True)
-
-    registry = load_registry(analysis / "expanded_pattern_registry.json")
-    missing = [code for code in PATTERN_ORDER if code not in registry or code not in P]
-    if missing:
-        raise SystemExit(f"missing pattern metadata: {', '.join(missing)}")
 
     formulas = extract_formulas(analysis)
     graph = build_graph(registry)
