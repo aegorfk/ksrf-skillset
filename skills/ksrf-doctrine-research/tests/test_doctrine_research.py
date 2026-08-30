@@ -588,6 +588,19 @@ class DoctrineResearchTests(unittest.TestCase):
         self.assertTrue(any("fulltext_source_refs" in error for error in errors))
         self.assertTrue(any("adverse_search_required" in error for error in errors))
 
+    def test_unhashable_privacy_class_is_rejected_without_traceback(self):
+        for privacy_class in ([], {}):
+            with self.subTest(privacy_class=privacy_class):
+                request = request_payload(
+                    privacy={
+                        "class": privacy_class,
+                        "external_queries_redacted": True,
+                        "prohibited_external_terms": [],
+                    }
+                )
+                errors = MODULE.validate_request(request, for_external_search=True)
+                self.assertTrue(any("privacy.class" in error for error in errors))
+
     def test_case_and_verification_inputs_reject_blank_values_and_invalid_dates(self):
         case_scoped = request_payload(
             mode="case_scoped",

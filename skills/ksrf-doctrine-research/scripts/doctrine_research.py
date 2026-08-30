@@ -957,7 +957,11 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
     elif for_external_search:
         if privacy.get("external_queries_redacted") is not True:
             errors.append("privacy.external_queries_redacted must be true before external search")
-        if privacy.get("class") not in {"public_abstracted", "public_norm_profile"}:
+        privacy_class = privacy.get("class")
+        if not isinstance(privacy_class, str) or privacy_class not in {
+            "public_abstracted",
+            "public_norm_profile",
+        }:
             errors.append("privacy.class must be public_abstracted or public_norm_profile for external search")
     if mode == "case_scoped":
         if not has_meaningful_items(request.get("judicial_meanings")):
