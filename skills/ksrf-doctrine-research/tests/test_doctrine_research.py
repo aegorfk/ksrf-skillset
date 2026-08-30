@@ -1312,6 +1312,44 @@ class DoctrineResearchTests(unittest.TestCase):
                     self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
                     self.assertIn("invalid JSON artifact: request.json", stderr.getvalue())
 
+    def test_unhashable_request_mode_is_blocked_without_traceback(self):
+        for mode in ([], {}, [1]):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                request_path = write_request(root, request_payload(mode=mode))
+                commands = (
+                    [
+                        "plan",
+                        "--request",
+                        str(request_path),
+                        "--workspace",
+                        str(root / "plan"),
+                        "--providers",
+                        "crossref",
+                    ],
+                    [
+                        "search",
+                        "--request",
+                        str(request_path),
+                        "--workspace",
+                        str(root / "search"),
+                        "--providers",
+                        "crossref",
+                        "--offline-fixtures",
+                        str(root / "fixtures"),
+                    ],
+                    ["rerank", "--request", str(request_path), "--workspace", str(root / "rerank")],
+                )
+                for command in commands:
+                    with self.subTest(command=command[0]):
+                        stdout = io.StringIO()
+                        stderr = io.StringIO()
+                        with redirect_stdout(stdout), redirect_stderr(stderr):
+                            exit_code = MODULE.main(command)
+                        self.assertEqual(2, exit_code)
+                        self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+                        self.assertIn("mode must be one of", stderr.getvalue())
+
     def test_provider_schema_errors_cannot_count_as_success(self):
         query = MODULE.build_query_plan(request_payload())["queries"][0]
         with self.assertRaisesRegex(MODULE.DoctrineResearchError, "Crossref response"):

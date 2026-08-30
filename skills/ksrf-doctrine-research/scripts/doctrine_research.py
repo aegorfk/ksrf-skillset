@@ -878,7 +878,7 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
     if not normalize_space(request.get("matter_id")):
         errors.append("matter_id is required")
     mode = request.get("mode")
-    if mode not in ALLOWED_MODES:
+    if not isinstance(mode, str) or mode not in ALLOWED_MODES:
         errors.append(f"mode must be one of {sorted(ALLOWED_MODES)}")
     hypotheses_value = request.get("hypotheses_under_test")
     if (
