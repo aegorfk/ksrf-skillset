@@ -1504,6 +1504,104 @@ class DoctrineResearchTests(unittest.TestCase):
                     self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
                     self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
 
+    def test_plan_preflight_failure_invalidates_stale_qa_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "plan"
+            workspace.mkdir()
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = MODULE.main(
+                    [
+                        "plan",
+                        "--request",
+                        str(request_path),
+                        "--workspace",
+                        str(workspace),
+                        "--providers",
+                        "unknown-provider",
+                    ]
+                )
+            self.assertEqual(2, exit_code)
+            self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+            self.assertIn("unknown providers", stderr.getvalue())
+            report = MODULE.load_json(workspace / "qa-report.json")
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(any("unknown providers" in error for error in report["errors"]))
+
+    def test_search_provider_access_failure_invalidates_stale_qa_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request = request_payload(provider_access={"crossref": {"status": "disabled"}})
+            request_path = write_request(root, request)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request, workspace, ["crossref"])
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = MODULE.main(
+                    [
+                        "search",
+                        "--request",
+                        str(request_path),
+                        "--workspace",
+                        str(workspace),
+                        "--providers",
+                        "crossref",
+                        "--offline-fixtures",
+                        str(FIXTURES),
+                        "--max-queries",
+                        "1",
+                        "--max-results",
+                        "5",
+                    ]
+                )
+            self.assertEqual(2, exit_code)
+            self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+            self.assertIn("not enabled for automated access", stderr.getvalue())
+            report = MODULE.load_json(workspace / "qa-report.json")
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(any("not enabled for automated access" in error for error in report["errors"]))
+
+    def test_search_adapter_failure_invalidates_stale_qa_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            request = MODULE.load_json(request_path)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request, workspace, ["crossref"])
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = MODULE.main(
+                    [
+                        "search",
+                        "--request",
+                        str(request_path),
+                        "--workspace",
+                        str(workspace),
+                        "--providers",
+                        "elibrary",
+                        "--offline-fixtures",
+                        str(FIXTURES),
+                        "--max-queries",
+                        "1",
+                        "--max-results",
+                        "5",
+                    ]
+                )
+            self.assertEqual(2, exit_code)
+            self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+            self.assertIn("no implemented adapter", stderr.getvalue())
+            report = MODULE.load_json(workspace / "qa-report.json")
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(any("no implemented adapter" in error for error in report["errors"]))
+
     def test_unhashable_provider_access_status_is_blocked_without_traceback(self):
         for status in ([], {}):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as temporary:

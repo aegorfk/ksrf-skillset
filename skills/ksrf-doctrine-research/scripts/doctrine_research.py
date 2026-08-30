@@ -1880,11 +1880,11 @@ def run_plan(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace)
     try:
         request = load_request(Path(args.request))
+        selected = [part for part in (args.providers or "").split(",") if part]
+        prepare_workspace(request, workspace, selected)
     except DoctrineResearchError as exc:
         _write_preflight_failure(workspace, exc)
         raise
-    selected = [part for part in (args.providers or "").split(",") if part]
-    prepare_workspace(request, workspace, selected)
     print(json.dumps({"status": "planned", "workspace": str(workspace.resolve())}, ensure_ascii=False))
     return 0
 
@@ -1918,37 +1918,33 @@ def run_search(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace)
     try:
         request = load_request(Path(args.request), for_external_search=True)
-    except DoctrineResearchError as exc:
-        _write_preflight_failure(workspace, exc)
-        raise
-    selected = unique_strings(part.strip() for part in args.providers.split(","))
-    if not selected:
-        raise DoctrineResearchError("at least one provider is required")
-    try:
+        selected = unique_strings(part.strip() for part in args.providers.split(","))
+        if not selected:
+            raise DoctrineResearchError("at least one provider is required")
         route_decision, query_plan_preflight = load_bound_plan(request, workspace)
+        if request.get("mode") in {"case_scoped", "hypothesis_verification"}:
+            approved_hash = normalize_space(getattr(args, "approved_query_plan_hash", ""))
+            if approved_hash != query_plan_preflight["query_plan_hash"]:
+                raise DoctrineResearchError(
+                    "manual query-plan review required: pass the exact --approved-query-plan-hash from the plan artifact"
+                )
+        registry_preflight = load_json(REGISTRY_PATH)
+        routing_preflight = provider_routing(request, registry_preflight, selected)
+        decisions = {row["provider"]: row for row in routing_preflight["decisions"]}
+        for provider in selected:
+            if not decisions[provider].get("adapter"):
+                raise DoctrineResearchError(f"selected provider has no implemented adapter: {provider}")
+            offline_auth_fixture = bool(
+                args.offline_fixtures and decisions[provider].get("access_status") == "auth_required"
+            )
+            if not decisions[provider].get("automated_run_eligible") and not offline_auth_fixture:
+                raise DoctrineResearchError(
+                    f"selected provider is not enabled for automated access: {provider} "
+                    f"({decisions[provider].get('access_status')})"
+                )
     except DoctrineResearchError as exc:
         _write_preflight_failure(workspace, exc)
         raise
-    if request.get("mode") in {"case_scoped", "hypothesis_verification"}:
-        approved_hash = normalize_space(getattr(args, "approved_query_plan_hash", ""))
-        if approved_hash != query_plan_preflight["query_plan_hash"]:
-            raise DoctrineResearchError(
-                "manual query-plan review required: pass the exact --approved-query-plan-hash from the plan artifact"
-            )
-    registry_preflight = load_json(REGISTRY_PATH)
-    routing_preflight = provider_routing(request, registry_preflight, selected)
-    decisions = {row["provider"]: row for row in routing_preflight["decisions"]}
-    for provider in selected:
-        if not decisions[provider].get("adapter"):
-            raise DoctrineResearchError(f"selected provider has no implemented adapter: {provider}")
-        offline_auth_fixture = bool(
-            args.offline_fixtures and decisions[provider].get("access_status") == "auth_required"
-        )
-        if not decisions[provider].get("automated_run_eligible") and not offline_auth_fixture:
-            raise DoctrineResearchError(
-                f"selected provider is not enabled for automated access: {provider} "
-                f"({decisions[provider].get('access_status')})"
-            )
     registry = load_json(REGISTRY_PATH)
     taxonomy = load_json(TAXONOMY_PATH)
     query_plan = query_plan_preflight
