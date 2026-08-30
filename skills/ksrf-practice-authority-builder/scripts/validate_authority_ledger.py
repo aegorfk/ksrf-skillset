@@ -210,6 +210,7 @@ class Validator:
             transfer = self.validate_transfer(
                 authority.get("transfer"), f"{path}.transfer"
             )
+            transfer_limit = transfer.get("limit")
 
             risks = self.require_list(authority.get("risks"), f"{path}.risks")
             for risk_index, risk in enumerate(risks):
@@ -253,7 +254,7 @@ class Validator:
                         f"{path}.source.full_text_opened",
                         "must be true for drafting-ready authority",
                     )
-                if not transfer.get("limit", "").strip():
+                if not isinstance(transfer_limit, str) or not transfer_limit.strip():
                     self.error(
                         f"{path}.transfer.limit",
                         "must explain the transfer limit before drafting",
