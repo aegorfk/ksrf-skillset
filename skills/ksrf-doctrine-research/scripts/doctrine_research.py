@@ -1844,7 +1844,8 @@ def acquisition_queue(records: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     for record in records:
         if record.get("relevance_status") == "weak_candidate":
             continue
-        if record.get("fulltext_url") and record.get("access_status") in {
+        access_status = record.get("access_status")
+        if record.get("fulltext_url") and isinstance(access_status, str) and access_status in {
             "open_fulltext_verified",
             "local_fulltext_verified",
         }:
@@ -2221,6 +2222,12 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
         for row in sources:
             if row.get("promotion_status") != "candidate_only":
                 errors.append(f"source promoted beyond candidate_only: {row.get('source_id')}")
+            access_status = row.get("access_status")
+            if "access_status" in row and not isinstance(access_status, str):
+                errors.append(
+                    "source-ledger.jsonl access_status must be a string: "
+                    f"{row.get('source_id')}"
+                )
             verification_status = row.get("verification_status")
             if not isinstance(verification_status, str):
                 errors.append(
@@ -2391,6 +2398,11 @@ def run_rerank(args: argparse.Namespace) -> int:
             for record in records
         ):
             raise DoctrineResearchError("source-ledger.jsonl source_id must be a non-empty string")
+        if any(
+            "access_status" in record and not isinstance(record.get("access_status"), str)
+            for record in records
+        ):
+            raise DoctrineResearchError("source-ledger.jsonl access_status must be a string")
     except DoctrineResearchError as exc:
         _write_preflight_failure(workspace, exc)
         raise

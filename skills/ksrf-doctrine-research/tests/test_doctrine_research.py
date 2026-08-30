@@ -1178,6 +1178,53 @@ class DoctrineResearchTests(unittest.TestCase):
 
             self.assertEqual(2, exit_code)
 
+    def test_rerank_rejects_unhashable_access_status_without_traceback(self):
+        request = request_payload(
+            norms=[
+                {
+                    "citation": "Неопределенность критерия в частноправовом регулировании",
+                    "citation_variants": [],
+                    "title": "Неопределенность критерия в частноправовом регулировании",
+                    "version_date": None,
+                    "public_text_excerpt": "Публичное описание нормы.",
+                }
+            ]
+        )
+        for access_status in ([], {}):
+            with self.subTest(access_status=access_status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                request_path = write_request(root, request)
+                workspace = root / "run"
+                args = argparse.Namespace(
+                    request=str(request_path),
+                    workspace=str(workspace),
+                    providers="openalex,crossref",
+                    max_queries=1,
+                    max_results=5,
+                    timeout=1.0,
+                    offline_fixtures=str(FIXTURES),
+                )
+                prepare_search_plan(args)
+                self.assertEqual(0, MODULE.run_search(args))
+                sources = MODULE.read_jsonl(workspace / "source-ledger.jsonl")
+                self.assertTrue(sources)
+                sources[0]["fulltext_url"] = "https://example.invalid/mutated.pdf"
+                sources[0]["access_status"] = access_status
+                MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = MODULE.main(
+                        ["rerank", "--request", str(request_path), "--workspace", str(workspace)]
+                    )
+
+                self.assertEqual(2, exit_code)
+                self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+                report = MODULE.load_json(workspace / "qa-report.json")
+                self.assertEqual("fail", report["status"])
+                self.assertTrue(any("access_status" in error for error in report["errors"]))
+
     def test_rerank_rejects_malformed_snapshot_without_traceback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
