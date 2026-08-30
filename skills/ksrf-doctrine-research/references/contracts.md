@@ -122,6 +122,10 @@ acquisition-queue.json
 - `problem_labels` только как эвристические discovery labels;
 - компоненты `reading_priority`, не являющиеся оценкой авторитетности.
 
+В `source-ledger.jsonl` `verification_status` обязан быть строкой; для сетевых metadata-записей
+валидатор принимает только `metadata_only` или `abstract_checked`, не преобразуя контейнеры или
+другие типы в строку.
+
 При полном чтении добавь:
 
 - SHA-256 исходного файла и извлечённого текста;

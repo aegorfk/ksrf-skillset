@@ -2215,7 +2215,13 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
         for row in sources:
             if row.get("promotion_status") != "candidate_only":
                 errors.append(f"source promoted beyond candidate_only: {row.get('source_id')}")
-            if row.get("verification_status") not in {"metadata_only", "abstract_checked"}:
+            verification_status = row.get("verification_status")
+            if not isinstance(verification_status, str):
+                errors.append(
+                    "source-ledger.jsonl verification_status must be a string: "
+                    f"{row.get('source_id')}"
+                )
+            elif verification_status not in {"metadata_only", "abstract_checked"}:
                 errors.append(f"network metadata has invalid verification status: {row.get('source_id')}")
     problem_path = workspace / "problem-candidates.json"
     if problem_path.exists():

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-08-30T11:04:00Z",
+  "generated_at": "2026-08-30T11:08:51Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
   "remote_base_commit": "a9853de774a921975c791b57c93951a733ebca03",
   "exclusions": [
@@ -16,8 +16,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 308,
-  "total_bytes": 8414608,
-  "tree_sha256": "a9cd55766964ed57c27aa0d739061fedcaf5e3b3ae1d694a14fe00b35956483e",
+  "total_bytes": 8416949,
+  "tree_sha256": "c0ab5ee24a9efc36d79cd7d6ed38ef78f33557c5fc1dcbb1c780f619fec2b822",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -70,8 +70,8 @@
     {
       "name": "ksrf-doctrine-research",
       "files": 15,
-      "bytes": 259808,
-      "tree_sha256": "097c7acb8345e1ff283f29324625466dbfb9b4d6f0ac65deac6cedec3db649a2"
+      "bytes": 262149,
+      "tree_sha256": "c691c94dec285a65b1d7c9e26ea0ff8e455946e1fa18a2e4b794a475fd4dc409"
     },
     {
       "name": "ksrf-echr-argumentation",

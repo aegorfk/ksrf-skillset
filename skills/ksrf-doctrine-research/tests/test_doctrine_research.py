@@ -1042,6 +1042,39 @@ class DoctrineResearchTests(unittest.TestCase):
                 self.assertEqual("fail", report["status"])
                 self.assertTrue(any(expected_error in error for error in report["errors"]))
 
+    def test_workspace_validation_rejects_unhashable_verification_status_without_traceback(self):
+        for status in ([], {}):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                request_path = write_request(root)
+                workspace = root / "run"
+                args = argparse.Namespace(
+                    request=str(request_path),
+                    workspace=str(workspace),
+                    providers="openalex,crossref",
+                    max_queries=1,
+                    max_results=5,
+                    timeout=1.0,
+                    offline_fixtures=str(FIXTURES),
+                )
+                prepare_search_plan(args)
+                with patch.object(MODULE.urllib.request, "urlopen", side_effect=AssertionError("network used")):
+                    self.assertEqual(0, MODULE.run_search(args))
+                sources = MODULE.read_jsonl(workspace / "source-ledger.jsonl")
+                self.assertTrue(sources)
+                sources[0]["verification_status"] = status
+                MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = MODULE.main(["validate", "--workspace", str(workspace)])
+
+                self.assertEqual(2, exit_code)
+                self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+                self.assertIn("verification_status", stdout.getvalue())
+                self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
+
     def test_search_rejects_malformed_bound_artifact_without_traceback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
