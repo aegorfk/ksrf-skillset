@@ -1,6 +1,6 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-08-30T12:56:12Z",
+  "generated_at": "2026-08-30T13:02:52Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
   "remote_base_commit": "a9853de774a921975c791b57c93951a733ebca03",
   "exclusions": [
@@ -15,15 +15,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 312,
-  "total_bytes": 8455067,
-  "tree_sha256": "469c946737bb876e089eb17539a227cd15b52efe23bfa6e676d6bd744b6fb2e6",
+  "total_files": 313,
+  "total_bytes": 8459968,
+  "tree_sha256": "9faf7c24715ea352cf98afe076337539f88429490e9f6c8afb543c0f879c834a",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
-      "files": 46,
-      "bytes": 4324878,
-      "tree_sha256": "09a38aabe9a7b8d4e97d0041a9d14e1b3d3c29e6fc29a705533e3d19c420d3d5"
+      "files": 47,
+      "bytes": 4329779,
+      "tree_sha256": "889453c1e07858a55c5057b79932925313189b6cd7b9f37a992165d8dd083bdc"
     },
     {
       "name": "ksrf-case-triage",
@@ -112,8 +112,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 186691,
-  "release_tree_sha256": "f5638fef50e56a0af242201bb0375c4763aa6eb98f21bc4a25bc11c364b7b02c",
+  "total_release_bytes": 187208,
+  "release_tree_sha256": "1c80136a72513c86b7a762de35222fd661fa7f19fff4b4132c132f7c20fcc7cc",
   "release_files": [
     {
       "path": "install.sh",
@@ -147,8 +147,8 @@
     },
     {
       "path": "tools/build_constitutionalist_authority_corpus.py",
-      "bytes": 88029,
-      "sha256": "eb7b862b27927f99d10e1d81321555975fd581ceb0850a7976a2c4d12d7e7449"
+      "bytes": 88546,
+      "sha256": "b664b7d8a788048c967092764607c8f071e5839f646aed01d466ff8fcbcc177f"
     },
     {
       "path": "tools/enrich_ksrf_argument_patterns.py",

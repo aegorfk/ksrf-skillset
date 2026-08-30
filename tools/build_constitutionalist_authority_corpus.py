@@ -20,6 +20,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -997,8 +998,12 @@ def xml_article_records(path: Path, source_kind: str) -> list[tuple[list[str], s
 
 def load_zakon(path: Path) -> list[Occurrence]:
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError("zakon JSON must contain an array of objects")
     occurrences = []
-    for item in payload:
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise ValueError(f"zakon JSON item {index} must be an object")
         author = personish(str(item.get("author") or ""))
         if not author:
             continue
@@ -1015,6 +1020,8 @@ def load_zakon(path: Path) -> list[Occurrence]:
 
 
 def occurrence_stream(args: argparse.Namespace) -> Iterable[Occurrence]:
+    zakon_occurrences = load_zakon(args.zakon_json)
+
     for item in CURATED:
         work = {
             "title": item["full_text_sources"][0],
@@ -1054,7 +1061,7 @@ def occurrence_stream(args: argparse.Namespace) -> Iterable[Occurrence]:
                     confidence,
                 )
 
-    yield from load_zakon(args.zakon_json)
+    yield from zakon_occurrences
 
 
 def add_occurrence(authorities: dict[str, Authority], occurrence: Occurrence) -> None:
@@ -1356,15 +1363,20 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
-    for path in (args.blokhin_source, args.sko_index_pdf, args.mp_index_pdf, args.zakon_json):
-        if not path.is_file():
-            raise FileNotFoundError(path)
+    try:
+        for path in (args.blokhin_source, args.sko_index_pdf, args.mp_index_pdf, args.zakon_json):
+            if not path.is_file():
+                raise FileNotFoundError(path)
 
-    authorities: dict[str, Authority] = {}
-    for occurrence in occurrence_stream(args):
-        add_occurrence(authorities, occurrence)
+        authorities: dict[str, Authority] = {}
+        for occurrence in occurrence_stream(args):
+            add_occurrence(authorities, occurrence)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"ERROR: cannot load authority corpus inputs: {exc}", file=sys.stderr)
+        return 2
+
     merge_reverse_two_token_names(authorities)
     apply_identity_canonical_names(authorities)
     apply_curated(authorities)
@@ -1376,7 +1388,8 @@ def main() -> None:
     args.output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     args.output_md.write_text(render_markdown(payload), encoding="utf-8")
     print(json.dumps(payload["summary"], ensure_ascii=False, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
