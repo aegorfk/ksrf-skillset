@@ -288,6 +288,37 @@ class WorkbenchCliTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("уже заморожен", stderr.lower())
 
+    def test_query_accept_rejects_non_object_fingerprint_without_traceback_or_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "matter"
+            write_json(workspace / "case-fingerprint.json", [])
+            write_jsonl(
+                workspace / "query-suggestions.jsonl",
+                [{"query_id": "q1"}],
+            )
+
+            code, stdout, stderr = self.run_cli(
+                [
+                    "query",
+                    "accept",
+                    "--workspace",
+                    str(workspace),
+                    "--query-id",
+                    "q1",
+                    "--reviewer",
+                    "reviewer",
+                    "--confirmed-at",
+                    "2026-08-30T12:00:00Z",
+                ]
+            )
+
+            self.assertEqual(2, code)
+            self.assertEqual("", stdout)
+            self.assertIn("case-fingerprint.json", stderr)
+            self.assertIn("JSON-объектом", stderr)
+            self.assertNotIn("Traceback", stderr)
+            self.assertFalse((workspace / "query-decisions.jsonl").exists())
+
     def test_fingerprint_readiness_recomputes_hash_core_fields_and_intake_binding(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
