@@ -479,7 +479,9 @@ def _trust_receipt_errors(
         errors.append(f"{field}.signed_claims.as_of_date must be YYYY-MM-DD")
 
     role = claims.get("receipt_role")
-    if role in {"application_evidence", "fulltext_evidence", "adverse_search"}:
+    if not isinstance(role, str):
+        errors.append(f"{field}.signed_claims.receipt_role must be a string")
+    elif role in {"application_evidence", "fulltext_evidence", "adverse_search"}:
         for key in ("corpus_generation_id",):
             if not normalize_space(claims.get(key)):
                 errors.append(f"{field}.signed_claims.{key} is required for {role}")

@@ -75,6 +75,8 @@ Receipt — не строка и не самозаявленный hash. Пол�
 `case_scoped` дополнительно требует непустые `norms[].version_date`, списки `judicial_meanings`, `mechanisms`, `consequences` и `application_evidence_refs`. Каждая application-ссылка — объект с `evidence_id`, exact `sha256`, `size_bytes`, `provenance=official_application_record` и `trust_receipt`. Даже идеально сформированный request-carried receipt не закрывает gate без защищённого verifier. Не помещай тексты непубличных актов в request.
 
 `hypothesis_verification` требует непустые `hypotheses_under_test`, объектные `fulltext_source_refs` с exact bytes, `provenance=lawful_fulltext_artifact` и role-bound trust receipt, а также adverse receipt с corpus/coverage/query-plan и hypothesis bindings. `adverse_search_required=true` и строка `adverse_search_status=pass` остаются только декларациями и без защищённой проверки недостаточны.
+Во всех trust receipt `signed_claims.receipt_role` обязан быть строкой; неправильный тип блокируется
+структурной проверкой до role-specific ветвления.
 
 Внешний поиск разрешён только при `privacy.class=public_abstracted` либо `public_norm_profile` и `privacy.external_queries_redacted=true`. Флаг redacted не делает частные данные публичными: PII-gate отдельно блокирует типичные ФИО, контакты, идентификаторы, номера дел и реквизиты. Элементы query-полей должны быть непустыми строками; объектные формы допустимы только для явно описанных публичных судебных формул, гипотез и локальных ссылок на evidence.
 При внешнем поиске `privacy.class` должен быть строкой; контейнеры и другие значения неправильного типа блокируются до проверки допустимого enum.

@@ -232,6 +232,20 @@ class DoctrineResearchTests(unittest.TestCase):
                 self.assertFalse(decision["promotion_eligible"])
                 self.assertIn("route_context_invalid", decision["blockers"])
 
+    def test_unhashable_trust_receipt_role_is_rejected_without_traceback(self):
+        for role in ([], {}):
+            with self.subTest(role=role):
+                request = request_payload()
+                receipt = attach_untrusted_but_well_shaped_lane_receipt(request)
+                receipt["signed_claims"]["receipt_role"] = role
+
+                decision = MODULE.select_research_route(request)
+
+                self.assertEqual("blocked", decision["status"])
+                self.assertTrue(
+                    any("signed_claims.receipt_role" in error for error in decision["validation_errors"])
+                )
+
     def test_standalone_exploratory_v1_plans_without_portfolio_context(self):
         request = request_payload(doctrine_route_context=None)
         self.assertEqual([], MODULE.validate_request(request))
