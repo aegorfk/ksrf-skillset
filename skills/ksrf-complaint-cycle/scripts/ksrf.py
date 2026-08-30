@@ -7,11 +7,12 @@ import sys
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SKILL_ROOT = Path(__file__).resolve().parent.parent
+LIB_ROOT = SKILL_ROOT / "lib"
+if str(LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(LIB_ROOT))
 
-from src.ksrf.filing.cli import main
+from ksrf.filing.cli import main
 
 
 if __name__ == "__main__":

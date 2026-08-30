@@ -362,6 +362,38 @@ tools:
             self.assertNotIn("ksrf-test/references/local.md", paths)
             self.assertNotIn("ksrf-test/references/leak.md", paths)
 
+    def test_secret_shaped_token_in_env_example_never_enters_publish_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(skill / ".env.example", "GITHUB_TOKEN=ghp_" + ("A" * 24) + "\n")
+
+            report = VALIDATOR.validate_skillset(root, package_names=("ksrf-test",))
+
+            secret_findings = [
+                item for item in report["findings"] if item.get("code") == "POTENTIAL_SECRET"
+            ]
+            paths = [item["path"] for item in report["publish_manifest"]["files"]]
+            self.assertEqual(report["status"], "fail")
+            self.assertEqual(
+                [(item.get("path"), item.get("line")) for item in secret_findings],
+                [("ksrf-test/.env.example", 1)],
+            )
+            self.assertNotIn("ksrf-test/.env.example", paths)
+
+    def test_safe_env_example_placeholder_remains_publishable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(skill / ".env.example", "GITHUB_TOKEN=replace-with-your-value\n")
+
+            report = VALIDATOR.validate_skillset(root, package_names=("ksrf-test",))
+
+            paths = [item["path"] for item in report["publish_manifest"]["files"]]
+            self.assertEqual(report["status"], "pass")
+            self.assertNotIn("POTENTIAL_SECRET", _codes(report))
+            self.assertIn("ksrf-test/.env.example", paths)
+
     def test_skill_and_sko_identifiers_are_not_mistaken_for_openai_keys(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

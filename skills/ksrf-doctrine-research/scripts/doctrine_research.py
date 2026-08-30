@@ -14,12 +14,14 @@ import base64
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import ssl
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -72,6 +74,31 @@ class DoctrineResearchError(RuntimeError):
 def load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as stream:
         return json.load(stream)
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _assert_json_text_encodable(value: Any) -> None:
+    if isinstance(value, str):
+        value.encode("utf-8")
+    elif isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("non-finite JSON number")
+    elif isinstance(value, Mapping):
+        for key, nested in value.items():
+            _assert_json_text_encodable(key)
+            _assert_json_text_encodable(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            _assert_json_text_encodable(nested)
+
+
+def _load_json_strict(path: Path) -> Any:
+    with path.open("r", encoding="utf-8") as stream:
+        value = json.load(stream, parse_constant=_reject_json_constant)
+    _assert_json_text_encodable(value)
+    return value
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -1055,8 +1082,12 @@ def ensure_workspace_identity(request: Mapping[str, Any], workspace: Path) -> No
     snapshot = workspace / "request.snapshot.json"
     if not snapshot.exists():
         return
-    existing = load_json(snapshot)
-    if not isinstance(existing, Mapping) or request_sha256(existing) != request_sha256(request):
+    try:
+        existing = _load_json_for_command(snapshot)
+        same_identity = isinstance(existing, Mapping) and request_sha256(existing) == request_sha256(request)
+    except (TypeError, UnicodeError, ValueError, RecursionError):
+        same_identity = False
+    if not same_identity:
         raise DoctrineResearchError(
             "WORKSPACE_IDENTITY_MISMATCH: use a new workspace for a different request"
         )
@@ -1222,17 +1253,28 @@ def provider_routing(
     }
 
 
+def privacy_inspection_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    return "".join(character for character in normalized if unicodedata.category(character) != "Cf")
+
+
 def redaction_violations(query_plan: Mapping[str, Any], request: Mapping[str, Any]) -> List[Dict[str, str]]:
     violations: List[Dict[str, str]] = []
-    prohibited = unique_strings((request.get("privacy") or {}).get("prohibited_external_terms", []))
+    prohibited = [
+        privacy_inspection_text(term).casefold()
+        for term in unique_strings((request.get("privacy") or {}).get("prohibited_external_terms", []))
+    ]
     for query in query_plan.get("queries", []):
         text = query.get("text", "")
-        folded = text.casefold()
+        if any(unicodedata.category(character) == "Cf" for character in text):
+            violations.append({"query_id": query["query_id"], "reason": "unicode_format_control"})
+        inspection_text = privacy_inspection_text(text)
+        folded = inspection_text.casefold()
         for term in prohibited:
-            if term.casefold() in folded:
+            if term and term in folded:
                 violations.append({"query_id": query["query_id"], "reason": "prohibited_external_term"})
         for pattern in PII_PATTERNS:
-            if pattern.search(text):
+            if pattern.search(inspection_text):
                 violations.append({"query_id": query["query_id"], "reason": "pii_like_pattern"})
     return violations
 
@@ -1836,18 +1878,18 @@ def load_bound_plan(
             raise DoctrineResearchError(
                 f"search requires a prior bound plan artifact: {filename}"
             )
-    snapshot = load_json(workspace / "request.snapshot.json")
+    snapshot = _load_json_for_command(workspace / "request.snapshot.json")
     if snapshot != request:
         raise DoctrineResearchError("planned request snapshot does not match search request")
 
     expected_route = require_bound_research_route(request)
-    observed_route = load_json(workspace / "route-decision.json")
+    observed_route = _load_json_for_command(workspace / "route-decision.json")
     if observed_route != expected_route:
         raise DoctrineResearchError("route decision artifact/hash mismatch")
 
     expected_plan = build_query_plan(request)
     expected_plan["request_sha256"] = request_sha256(request)
-    observed_plan = load_json(workspace / "query-plan.json")
+    observed_plan = _load_json_for_command(workspace / "query-plan.json")
     if observed_plan != expected_plan:
         raise DoctrineResearchError("query plan artifact/hash mismatch")
     return observed_route, observed_plan
@@ -1859,7 +1901,11 @@ def run_search(args: argparse.Namespace) -> int:
     selected = unique_strings(part.strip() for part in args.providers.split(","))
     if not selected:
         raise DoctrineResearchError("at least one provider is required")
-    route_decision, query_plan_preflight = load_bound_plan(request, workspace)
+    try:
+        route_decision, query_plan_preflight = load_bound_plan(request, workspace)
+    except DoctrineResearchError as exc:
+        _write_preflight_failure(workspace, exc)
+        raise
     if request.get("mode") in {"case_scoped", "hypothesis_verification"}:
         approved_hash = normalize_space(getattr(args, "approved_query_plan_hash", ""))
         if approved_hash != query_plan_preflight["query_plan_hash"]:
@@ -1983,13 +2029,72 @@ def read_jsonl(path: Path) -> List[Dict[str, Any]]:
             if not line.strip():
                 continue
             try:
-                value = json.loads(line)
-            except json.JSONDecodeError as exc:
+                value = json.loads(line, parse_constant=_reject_json_constant)
+            except (json.JSONDecodeError, ValueError, UnicodeError, RecursionError) as exc:
+                raise DoctrineResearchError(f"invalid JSONL at {path}:{line_number}: {exc}") from exc
+            try:
+                _assert_json_text_encodable(value)
+            except (ValueError, UnicodeError, RecursionError) as exc:
                 raise DoctrineResearchError(f"invalid JSONL at {path}:{line_number}: {exc}") from exc
             if not isinstance(value, dict):
                 raise DoctrineResearchError(f"JSONL row must be an object at {path}:{line_number}")
             rows.append(value)
     return rows
+
+
+_INVALID_VALIDATION_ARTIFACT = object()
+
+
+def _load_json_for_validation(path: Path, errors: List[str]) -> Any:
+    """Load an artifact without allowing malformed bytes to escape validation."""
+    try:
+        return _load_json_strict(path)
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        errors.append(f"invalid JSON artifact: {path.name}")
+        return _INVALID_VALIDATION_ARTIFACT
+
+
+def _read_jsonl_for_validation(path: Path, errors: List[str]) -> List[Dict[str, Any]]:
+    """Read an artifact ledger and turn parser failures into QA errors."""
+    try:
+        return read_jsonl(path)
+    except (DoctrineResearchError, OSError, UnicodeError, ValueError, RecursionError):
+        errors.append(f"invalid JSONL artifact: {path.name}")
+        return []
+
+
+def _load_json_for_command(path: Path) -> Any:
+    """Convert workspace parse failures into the CLI's controlled blocked state."""
+    try:
+        return _load_json_strict(path)
+    except (OSError, UnicodeError, ValueError, RecursionError) as exc:
+        raise DoctrineResearchError(f"invalid JSON artifact: {path.name}") from exc
+
+
+def _read_jsonl_for_command(path: Path) -> List[Dict[str, Any]]:
+    """Convert workspace JSONL failures into the CLI's controlled blocked state."""
+    try:
+        return read_jsonl(path)
+    except (DoctrineResearchError, OSError, UnicodeError, ValueError, RecursionError) as exc:
+        raise DoctrineResearchError(f"invalid JSONL artifact: {path.name}") from exc
+
+
+def _safe_text(value: Any) -> str:
+    """Keep untrusted diagnostic values encodable without exposing raw control bytes."""
+    return str(value).encode("utf-8", "backslashreplace").decode("utf-8")
+
+
+def _write_preflight_failure(workspace: Path, error: DoctrineResearchError) -> None:
+    """Invalidate a previously passing QA report when a command is blocked early."""
+    write_json(
+        workspace / "qa-report.json",
+        {
+            "schema_version": "doctrine-qa/1.0",
+            "status": "fail",
+            "errors": [_safe_text(error)],
+            "warnings": [],
+        },
+    )
 
 
 def validate_workspace(workspace: Path) -> Dict[str, Any]:
@@ -2008,40 +2113,87 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
             errors.append(f"missing required artifact: {filename}")
     if errors:
         return {"schema_version": "doctrine-qa/1.0", "status": "fail", "errors": errors, "warnings": warnings}
-    snapshot = load_json(workspace / "request.snapshot.json")
-    if not isinstance(snapshot, Mapping):
+    snapshot = _load_json_for_validation(workspace / "request.snapshot.json", errors)
+    if snapshot is _INVALID_VALIDATION_ARTIFACT:
+        snapshot = {}
+    elif not isinstance(snapshot, Mapping):
         errors.append("request.snapshot.json must be an object")
         snapshot = {}
     snapshot_matter = snapshot.get("matter_id")
-    snapshot_hash = request_sha256(snapshot)
-    observed_route = load_json(workspace / "route-decision.json")
+    try:
+        snapshot_hash = request_sha256(snapshot)
+    except (UnicodeError, ValueError, RecursionError):
+        errors.append("request.snapshot.json contains unsupported JSON values")
+        snapshot_hash = ""
+    capabilities = _load_json_for_validation(
+        workspace / "provider-capabilities.snapshot.json", errors
+    )
+    if capabilities is not _INVALID_VALIDATION_ARTIFACT and not isinstance(capabilities, Mapping):
+        errors.append("provider-capabilities.snapshot.json must be an object")
+    observed_route = _load_json_for_validation(workspace / "route-decision.json", errors)
+    if observed_route is _INVALID_VALIDATION_ARTIFACT:
+        observed_route = None
     try:
         expected_route = require_bound_research_route(snapshot)
-    except DoctrineResearchError as exc:
+    except (DoctrineResearchError, TypeError, UnicodeError, ValueError, RecursionError) as exc:
         errors.append(f"invalid bound route: {exc}")
         expected_route = {}
     if observed_route != expected_route:
         errors.append("route decision artifact/hash mismatch")
     route_hash = expected_route.get("route_decision_hash")
+    bound_artifacts: Dict[str, Mapping[str, Any]] = {}
     for filename in ("norm-problem-profile.json", "provider-routing.json", "query-plan.json"):
-        artifact = load_json(workspace / filename)
+        artifact = _load_json_for_validation(workspace / filename, errors)
+        if artifact is _INVALID_VALIDATION_ARTIFACT:
+            continue
+        if not isinstance(artifact, Mapping):
+            errors.append(f"{filename} must be an object")
+            continue
+        bound_artifacts[filename] = artifact
         if artifact.get("matter_id") != snapshot_matter:
             errors.append(f"matter_id mismatch in {filename}")
         if artifact.get("request_sha256") != snapshot_hash:
             errors.append(f"request hash mismatch in {filename}")
         if artifact.get("route_decision_hash") != route_hash:
             errors.append(f"route decision hash mismatch in {filename}")
-    query_plan = load_json(workspace / "query-plan.json")
-    query_ids = [row.get("query_id") for row in query_plan.get("queries", [])]
-    if len(query_ids) != len(set(query_ids)):
+    query_plan = bound_artifacts.get("query-plan.json", {})
+    try:
+        expected_query_plan = build_query_plan(snapshot)
+        expected_query_plan["request_sha256"] = snapshot_hash
+    except (DoctrineResearchError, TypeError, UnicodeError, ValueError, RecursionError) as exc:
+        errors.append(f"query plan cannot be rebuilt from request snapshot: {exc}")
+        expected_query_plan = {}
+    if expected_query_plan and query_plan != expected_query_plan:
+        errors.append("query plan artifact/hash mismatch")
+    query_rows = query_plan.get("queries", [])
+    if not isinstance(query_rows, list) or not all(isinstance(row, Mapping) for row in query_rows):
+        errors.append("query plan queries must be a list of objects")
+        query_rows = []
+    query_ids = [row.get("query_id") for row in query_rows]
+    if not all(isinstance(query_id, str) and query_id for query_id in query_ids):
+        errors.append("query_id must be a non-empty string")
+    elif len(query_ids) != len(set(query_ids)):
         errors.append("duplicate query_id")
     if query_plan.get("legal_conclusions"):
         errors.append("query plan must not contain legal conclusions")
+    routing_artifact = bound_artifacts.get("provider-routing.json", {})
+    routing_decisions = routing_artifact.get("decisions", [])
+    if not isinstance(routing_decisions, list) or not all(
+        isinstance(row, Mapping) for row in routing_decisions
+    ):
+        errors.append("provider-routing.json decisions must be a list of objects")
+        routing_decisions = []
     source_path = workspace / "source-ledger.jsonl"
     sources: List[Dict[str, Any]] = []
     if source_path.exists():
-        sources = read_jsonl(source_path)
-        source_ids = [row.get("source_id") for row in sources]
+        sources = _read_jsonl_for_validation(source_path, errors)
+        source_ids = []
+        for row in sources:
+            source_id = row.get("source_id")
+            if not isinstance(source_id, str) or not source_id:
+                errors.append("source_id must be a non-empty string")
+                continue
+            source_ids.append(source_id)
         if len(source_ids) != len(set(source_ids)):
             errors.append("duplicate source_id")
         for row in sources:
@@ -2051,55 +2203,134 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
                 errors.append(f"network metadata has invalid verification status: {row.get('source_id')}")
     problem_path = workspace / "problem-candidates.json"
     if problem_path.exists():
-        problems = load_json(problem_path)
-        known = {row.get("source_id") for row in sources}
-        for cluster in problems.get("clusters", []):
-            unknown = set(cluster.get("source_ids", [])) - known
+        problems = _load_json_for_validation(problem_path, errors)
+        if problems is _INVALID_VALIDATION_ARTIFACT:
+            problems = {}
+        elif not isinstance(problems, Mapping):
+            errors.append("problem-candidates.json must be an object")
+            problems = {}
+        known = {row.get("source_id") for row in sources if isinstance(row.get("source_id"), str)}
+        clusters = problems.get("clusters", [])
+        if not isinstance(clusters, list) or not all(isinstance(cluster, Mapping) for cluster in clusters):
+            errors.append("problem-candidates.json clusters must be a list of objects")
+            clusters = []
+        for cluster in clusters:
+            source_ids = cluster.get("source_ids", [])
+            if not isinstance(source_ids, list) or not all(
+                isinstance(source_id, str) and source_id for source_id in source_ids
+            ):
+                errors.append("problem cluster source_ids must be a list of strings")
+                continue
+            unknown = set(source_ids) - known
             if unknown:
                 errors.append(f"problem cluster references unknown sources: {sorted(unknown)}")
             if cluster.get("status") != "candidate_only":
                 errors.append("problem cluster promoted beyond candidate_only")
         if problems.get("constitutional_hypotheses"):
             errors.append("discovery script must not emit constitutional hypotheses")
+    search_marker_names = (
+        "search-run-config.json",
+        "search-log.jsonl",
+        "coverage-report.json",
+    )
+    required_search_artifacts = search_marker_names + (
+        "source-ledger.jsonl",
+        "problem-candidates.json",
+        "acquisition-queue.json",
+    )
+    present_search_markers = {
+        filename for filename in search_marker_names if (workspace / filename).exists()
+    }
+    if present_search_markers:
+        missing = sorted(
+            filename for filename in required_search_artifacts if not (workspace / filename).exists()
+        )
+    else:
+        missing = []
+    if missing:
+        errors.append(f"incomplete search artifact set; missing: {', '.join(missing)}")
+    search_log_path = workspace / "search-log.jsonl"
+    if search_log_path.exists():
+        _read_jsonl_for_validation(search_log_path, errors)
+    acquisition_path = workspace / "acquisition-queue.json"
+    if acquisition_path.exists():
+        acquisition = _load_json_for_validation(acquisition_path, errors)
+        if acquisition is not _INVALID_VALIDATION_ARTIFACT and not isinstance(acquisition, Mapping):
+            errors.append("acquisition-queue.json must be an object")
     coverage_path = workspace / "coverage-report.json"
     if coverage_path.exists():
-        coverage = load_json(coverage_path)
-        if coverage.get("matter_id") != snapshot_matter:
-            errors.append("matter_id mismatch in coverage-report.json")
-        if coverage.get("request_sha256") != snapshot_hash:
-            errors.append("request hash mismatch in coverage-report.json")
-        if coverage.get("coverage_complete") is not False:
-            errors.append("federated discovery coverage_complete must remain false")
-        if coverage.get("absence_claim_permitted") is not False:
-            errors.append("absence_claim_permitted must remain false")
-        run_config_path = workspace / "search-run-config.json"
-        if not run_config_path.exists():
-            errors.append("coverage exists without search-run-config.json")
-        else:
-            run_config = load_json(run_config_path)
-            if run_config.get("request_sha256") != snapshot_hash:
-                errors.append("request hash mismatch in search-run-config.json")
-            if run_config.get("route_decision_hash") != route_hash:
-                errors.append("route decision hash mismatch in search-run-config.json")
-            if run_config.get("run_config_hash") != coverage.get("run_config_hash"):
-                errors.append("run config hash mismatch in coverage-report.json")
-            routing = load_json(workspace / "provider-routing.json")
-            routed = sorted(
-                row.get("provider")
-                for row in routing.get("decisions", [])
-                if row.get("selected_for_automated_run")
-            )
-            configured = sorted(run_config.get("selected_providers", []))
-            covered = sorted(row.get("provider") for row in coverage.get("provider_statuses", []))
-            if routed != configured or covered != configured:
-                errors.append("provider set mismatch across routing, run config, and coverage")
-    else:
+        coverage = _load_json_for_validation(coverage_path, errors)
+        if coverage is _INVALID_VALIDATION_ARTIFACT:
+            coverage = None
+        elif not isinstance(coverage, Mapping):
+            errors.append("coverage-report.json must be an object")
+            coverage = None
+        if isinstance(coverage, Mapping):
+            if coverage.get("matter_id") != snapshot_matter:
+                errors.append("matter_id mismatch in coverage-report.json")
+            if coverage.get("request_sha256") != snapshot_hash:
+                errors.append("request hash mismatch in coverage-report.json")
+            if coverage.get("coverage_complete") is not False:
+                errors.append("federated discovery coverage_complete must remain false")
+            if coverage.get("absence_claim_permitted") is not False:
+                errors.append("absence_claim_permitted must remain false")
+            run_config_path = workspace / "search-run-config.json"
+            if not run_config_path.exists():
+                errors.append("coverage exists without search-run-config.json")
+            else:
+                run_config = _load_json_for_validation(run_config_path, errors)
+                if run_config is _INVALID_VALIDATION_ARTIFACT:
+                    run_config = None
+                elif not isinstance(run_config, Mapping):
+                    errors.append("search-run-config.json must be an object")
+                    run_config = None
+                if isinstance(run_config, Mapping):
+                    if run_config.get("request_sha256") != snapshot_hash:
+                        errors.append("request hash mismatch in search-run-config.json")
+                    if run_config.get("route_decision_hash") != route_hash:
+                        errors.append("route decision hash mismatch in search-run-config.json")
+                    if run_config.get("run_config_hash") != coverage.get("run_config_hash"):
+                        errors.append("run config hash mismatch in coverage-report.json")
+                    routed = []
+                    for row in routing_decisions:
+                        if not row.get("selected_for_automated_run"):
+                            continue
+                        provider = row.get("provider")
+                        if not isinstance(provider, str) or not provider:
+                            errors.append("provider-routing.json provider must be a non-empty string")
+                            continue
+                        routed.append(provider)
+                    configured_values = run_config.get("selected_providers", [])
+                    if not isinstance(configured_values, list) or not all(
+                        isinstance(provider, str) and provider for provider in configured_values
+                    ):
+                        errors.append("search-run-config.json selected_providers must be a list of strings")
+                        configured = []
+                    else:
+                        configured = sorted(configured_values)
+                    status_values = coverage.get("provider_statuses", [])
+                    if not isinstance(status_values, list) or not all(
+                        isinstance(row, Mapping) for row in status_values
+                    ):
+                        errors.append("coverage-report.json provider_statuses must be a list of objects")
+                        covered = []
+                    else:
+                        covered = []
+                        for row in status_values:
+                            provider = row.get("provider")
+                            if not isinstance(provider, str) or not provider:
+                                errors.append("coverage-report.json provider must be a non-empty string")
+                                continue
+                            covered.append(provider)
+                    if sorted(routed) != configured or sorted(covered) != configured:
+                        errors.append("provider set mismatch across routing, run config, and coverage")
+    elif not present_search_markers:
         warnings.append("search artifacts are not present; plan-only workspace")
     return {
         "schema_version": "doctrine-qa/1.0",
         "status": "pass" if not errors else "fail",
-        "errors": errors,
-        "warnings": warnings,
+        "errors": [_safe_text(error) for error in errors],
+        "warnings": [_safe_text(warning) for warning in warnings],
     }
 
 
@@ -2114,21 +2345,34 @@ def run_validate(args: argparse.Namespace) -> int:
 def run_rerank(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace)
     request = load_request(Path(args.request))
-    ensure_workspace_identity(request, workspace)
-    source_path = workspace / "source-ledger.jsonl"
-    if not source_path.is_file():
-        raise DoctrineResearchError("source-ledger.jsonl is required for rerank")
-    taxonomy = load_json(TAXONOMY_PATH)
-    records = read_jsonl(source_path)
+    try:
+        ensure_workspace_identity(request, workspace)
+        source_path = workspace / "source-ledger.jsonl"
+        if not source_path.is_file():
+            raise DoctrineResearchError("source-ledger.jsonl is required for rerank")
+        coverage_path = workspace / "coverage-report.json"
+        coverage = None
+        if coverage_path.is_file():
+            coverage = _load_json_for_command(coverage_path)
+            if not isinstance(coverage, MutableMapping):
+                raise DoctrineResearchError("coverage-report.json must be an object")
+        taxonomy = load_json(TAXONOMY_PATH)
+        records = _read_jsonl_for_command(source_path)
+        if any(
+            not isinstance(record.get("source_id"), str) or not record.get("source_id")
+            for record in records
+        ):
+            raise DoctrineResearchError("source-ledger.jsonl source_id must be a non-empty string")
+    except DoctrineResearchError as exc:
+        _write_preflight_failure(workspace, exc)
+        raise
     for record in records:
         enrich_record(record, request, taxonomy)
     records.sort(key=lambda row: (-row.get("reading_priority", {}).get("score", 0), row.get("source_id", "")))
     write_jsonl(source_path, records)
     write_json(workspace / "problem-candidates.json", problem_candidates(records, taxonomy))
     write_json(workspace / "acquisition-queue.json", acquisition_queue(records))
-    coverage_path = workspace / "coverage-report.json"
-    if coverage_path.is_file():
-        coverage = load_json(coverage_path)
+    if coverage is not None:
         coverage.update(
             {
                 "high_lexical_priority_candidates": sum(1 for row in records if row.get("relevance_status") == "high_lexical_priority"),

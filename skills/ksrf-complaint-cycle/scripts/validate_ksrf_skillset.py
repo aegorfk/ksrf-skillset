@@ -844,7 +844,8 @@ def _content_security_findings(
     package: str,
     relative_path: str,
 ) -> list[dict[str, Any]]:
-    if path.suffix.lower() not in TEXT_SUFFIXES or "tests" in path.parts:
+    scannable_text = path.name.lower() == ".env.example" or path.suffix.lower() in TEXT_SUFFIXES
+    if not scannable_text or "tests" in path.parts:
         return []
     try:
         text = path.read_text(encoding="utf-8")

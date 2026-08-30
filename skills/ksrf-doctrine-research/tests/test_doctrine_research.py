@@ -690,6 +690,59 @@ class DoctrineResearchTests(unittest.TestCase):
                 request = request_payload(subject_terms=[value])
                 self.assertTrue(MODULE.redaction_violations(MODULE.build_query_plan(request), request))
 
+    def test_redaction_gate_blocks_unicode_format_controls_without_mutating_query(self):
+        for value in (
+            "Ива\u200bнов Иван Иванович",
+            "expert\u200b@example.org",
+            "+7 999\u200b 123 45 67",
+            "нейтральный\u00ad термин",
+            "нейтральный\u200d термин",
+            "нейтральный\u2060 термин",
+            "нейтральный\u202e термин",
+            "нейтральный\u2066 термин",
+            "нейтральный\ufeff термин",
+        ):
+            with self.subTest(value=value):
+                request = request_payload(subject_terms=[value])
+                plan = MODULE.build_query_plan(request)
+                original_plan = MODULE.canonical_bytes(plan)
+
+                violations = MODULE.redaction_violations(plan, request)
+
+                self.assertTrue(any(value in query["text"] for query in plan["queries"]))
+                self.assertIn("unicode_format_control", {row["reason"] for row in violations})
+                self.assertEqual(original_plan, MODULE.canonical_bytes(plan))
+
+    def test_redaction_gate_matches_prohibited_term_split_by_format_control(self):
+        protected_term = "СекретнаяФамилия"
+        obfuscated_term = "Секретная\u200bФамилия"
+        request = request_payload(
+            subject_terms=[obfuscated_term],
+            privacy={
+                "class": "public_abstracted",
+                "external_queries_redacted": True,
+                "prohibited_external_terms": [protected_term],
+            },
+        )
+        plan = MODULE.build_query_plan(request)
+        original_plan = MODULE.canonical_bytes(plan)
+
+        violations = MODULE.redaction_violations(plan, request)
+
+        self.assertIn("prohibited_external_term", {row["reason"] for row in violations})
+        self.assertEqual(original_plan, MODULE.canonical_bytes(plan))
+
+    def test_redaction_gate_normalizes_unicode_compatibility_forms_for_inspection(self):
+        fullwidth_email = "ｅｘｐｅｒｔ＠ｅｘａｍｐｌｅ．ｏｒｇ"
+        request = request_payload(subject_terms=[fullwidth_email])
+        plan = MODULE.build_query_plan(request)
+        original_plan = MODULE.canonical_bytes(plan)
+
+        violations = MODULE.redaction_violations(plan, request)
+
+        self.assertIn("pii_like_pattern", {row["reason"] for row in violations})
+        self.assertEqual(original_plan, MODULE.canonical_bytes(plan))
+
     def test_manual_provider_and_disabled_adapter_are_not_called(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -870,6 +923,280 @@ class DoctrineResearchTests(unittest.TestCase):
             report = MODULE.validate_workspace(root / "run")
             self.assertEqual("fail", report["status"])
             self.assertTrue(any("provider set mismatch" in error for error in report["errors"]))
+
+    def test_workspace_validation_rejects_tampered_query_plan_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            query_plan = MODULE.load_json(workspace / "query-plan.json")
+            query_plan["queries"][0]["text"] += " tampered"
+            MODULE.write_json(workspace / "query-plan.json", query_plan)
+
+            report = MODULE.validate_workspace(workspace)
+
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(any("query plan artifact/hash mismatch" in error for error in report["errors"]))
+
+    def test_workspace_validation_rejects_non_scalar_query_id_without_crashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            query_plan = MODULE.load_json(workspace / "query-plan.json")
+            query_plan["queries"][0]["query_id"] = ["not", "scalar"]
+            MODULE.write_json(workspace / "query-plan.json", query_plan)
+
+            report = MODULE.validate_workspace(workspace)
+
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(any("query_id must be" in error for error in report["errors"]))
+
+    def test_workspace_validation_reports_malformed_search_json_without_crashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            (workspace / "coverage-report.json").write_text("{not-json", encoding="utf-8")
+
+            report = MODULE.validate_workspace(workspace)
+
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(
+                any("invalid JSON artifact: coverage-report.json" in error for error in report["errors"])
+            )
+
+            exit_code = MODULE.run_validate(argparse.Namespace(workspace=str(workspace)))
+            self.assertEqual(2, exit_code)
+            persisted = MODULE.load_json(workspace / "qa-report.json")
+            self.assertEqual("fail", persisted["status"])
+
+    def test_workspace_validation_rejects_unsupported_json_scalars_without_crashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            snapshot = MODULE.load_json(workspace / "request.snapshot.json")
+            snapshot["problem_statement"] = "\ud800"
+            (workspace / "request.snapshot.json").write_text(
+                json.dumps(snapshot, ensure_ascii=True), encoding="utf-8"
+            )
+
+            report = MODULE.validate_workspace(workspace)
+
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(
+                any("invalid JSON artifact: request.snapshot.json" in error for error in report["errors"])
+            )
+
+    def test_workspace_validation_rejects_non_finite_json_numbers_without_crashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            (workspace / "coverage-report.json").write_text(
+                '{"coverage_complete": 1e9999}', encoding="utf-8"
+            )
+
+            report = MODULE.validate_workspace(workspace)
+
+            self.assertEqual("fail", report["status"])
+            self.assertTrue(
+                any("invalid JSON artifact: coverage-report.json" in error for error in report["errors"])
+            )
+
+    def test_workspace_validation_escapes_unencodable_diagnostic_values(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            (workspace / "source-ledger.jsonl").write_text(
+                '{"source_id":"\\ud800","promotion_status":"candidate_only",'
+                '"verification_status":"unexpected"}\n',
+                encoding="utf-8",
+            )
+
+            exit_code = MODULE.run_validate(argparse.Namespace(workspace=str(workspace)))
+
+            self.assertEqual(2, exit_code)
+            report = MODULE.load_json(workspace / "qa-report.json")
+            self.assertEqual("fail", report["status"])
+            self.assertFalse(
+                any(
+                    0xD800 <= ord(character) <= 0xDFFF
+                    for error in report["errors"]
+                    for character in error
+                )
+            )
+
+    def test_workspace_validation_rejects_ill_typed_search_artifacts_without_crashing(self):
+        cases = (
+            ("problem-candidates.json", "[]", "problem-candidates.json must be an object"),
+            ("coverage-report.json", "[]", "coverage-report.json must be an object"),
+            ("acquisition-queue.json", "[]", "acquisition-queue.json must be an object"),
+            ("provider-routing.json", '{"decisions": "bad"}', "provider-routing.json decisions must be a list of objects"),
+            ("search-log.jsonl", "[]\n", "invalid JSONL artifact: search-log.jsonl"),
+        )
+        for filename, payload, expected_error in cases:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                workspace = Path(temporary)
+                MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+                (workspace / filename).write_text(payload, encoding="utf-8")
+
+                report = MODULE.validate_workspace(workspace)
+
+                self.assertEqual("fail", report["status"])
+                self.assertTrue(any(expected_error in error for error in report["errors"]))
+
+    def test_search_rejects_malformed_bound_artifact_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+            (workspace / "query-plan.json").write_text("{not-json", encoding="utf-8")
+
+            exit_code = MODULE.main(
+                [
+                    "search",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(workspace),
+                    "--providers",
+                    "crossref",
+                    "--max-queries",
+                    "1",
+                    "--max-results",
+                    "5",
+                    "--offline-fixtures",
+                    str(FIXTURES),
+                ]
+            )
+
+            self.assertEqual(2, exit_code)
+            self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
+
+    def test_rerank_rejects_ill_typed_coverage_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", [])
+            MODULE.write_json(workspace / "coverage-report.json", [])
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+
+            exit_code = MODULE.main(
+                [
+                    "rerank",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(workspace),
+                ]
+            )
+
+            self.assertEqual(2, exit_code)
+            self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
+
+    def test_rerank_rejects_ill_typed_source_id_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            MODULE.write_jsonl(
+                workspace / "source-ledger.jsonl",
+                [{"source_id": ["not", "a", "string"]}],
+            )
+
+            exit_code = MODULE.main(
+                [
+                    "rerank",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(workspace),
+                ]
+            )
+
+            self.assertEqual(2, exit_code)
+
+    def test_rerank_rejects_malformed_snapshot_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "run"
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", [])
+            MODULE.write_json(workspace / "qa-report.json", {"status": "pass"})
+            (workspace / "request.snapshot.json").write_text("{not-json", encoding="utf-8")
+
+            exit_code = MODULE.main(
+                [
+                    "rerank",
+                    "--request",
+                    str(request_path),
+                    "--workspace",
+                    str(workspace),
+                ]
+            )
+
+            self.assertEqual(2, exit_code)
+            self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
+
+    def test_workspace_validation_rejects_incomplete_search_artifact_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = argparse.Namespace(
+                request=str(write_request(root)),
+                workspace=str(root / "complete-run"),
+                providers="openalex,crossref",
+                max_queries=1,
+                max_results=5,
+                timeout=1.0,
+                request_delay=0,
+                offline_fixtures=str(FIXTURES),
+            )
+            prepare_search_plan(args)
+            self.assertEqual("pass", MODULE.validate_workspace(Path(args.workspace))["status"])
+            with patch.object(MODULE.urllib.request, "urlopen", side_effect=AssertionError("network used")):
+                self.assertEqual(0, MODULE.run_search(args))
+            complete_run = Path(args.workspace)
+            self.assertEqual("pass", MODULE.validate_workspace(complete_run)["status"])
+
+            for missing in (
+                "coverage-report.json",
+                "search-run-config.json",
+                "search-log.jsonl",
+                "source-ledger.jsonl",
+                "problem-candidates.json",
+                "acquisition-queue.json",
+            ):
+                with self.subTest(missing=missing):
+                    altered = root / f"missing-{missing}"
+                    shutil.copytree(complete_run, altered)
+                    (altered / missing).unlink()
+
+                    report = MODULE.validate_workspace(altered)
+
+                    self.assertEqual("fail", report["status"])
+                    self.assertTrue(
+                        any("incomplete search artifact set" in error for error in report["errors"])
+                    )
+
+    def test_manual_source_rerank_without_search_markers_remains_valid(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request_path = write_request(root)
+            workspace = root / "manual-source"
+            MODULE.prepare_workspace(request_payload(), workspace, ["crossref"])
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", [])
+
+            exit_code = MODULE.run_rerank(
+                argparse.Namespace(request=str(request_path), workspace=str(workspace))
+            )
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual("pass", MODULE.validate_workspace(workspace)["status"])
+            for marker in ("search-run-config.json", "search-log.jsonl", "coverage-report.json"):
+                self.assertFalse((workspace / marker).exists())
 
     def test_partial_provider_failure_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as temporary:
