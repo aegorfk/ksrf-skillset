@@ -885,6 +885,8 @@ def _validation_state(workspace: Path) -> dict[str, Any]:
     plan = latest_plan(workspace)
     coverage_path = workspace / "exports" / "coverage.json"
     coverage = read_json(coverage_path) if coverage_path.exists() else {}
+    if not isinstance(coverage, dict):
+        raise ValueError("exports/coverage.json должен быть JSON-объектом.")
     coding = read_jsonl(workspace / "coding-decisions.jsonl")
     screening = read_jsonl(workspace / "screening-candidates.jsonl")
     decision_path = workspace / "human-decision.json"

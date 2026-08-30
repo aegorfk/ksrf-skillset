@@ -689,6 +689,38 @@ class WorkbenchCliTests(unittest.TestCase):
                 payload["state"]["workspace_error"],
             )
 
+    def test_status_rejects_non_object_coverage_without_traceback_or_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "matter"
+            (workspace / "plans").mkdir(parents=True)
+            write_json(workspace / "plans" / "plan-v1.json", {})
+            write_json(workspace / "exports" / "coverage.json", [])
+            before = {
+                path.relative_to(workspace): path.read_bytes()
+                for path in workspace.rglob("*")
+                if path.is_file()
+            }
+
+            code, stdout, stderr = self.run_cli(
+                ["status", "--workspace", str(workspace)]
+            )
+
+            self.assertEqual(0, code)
+            self.assertEqual("", stderr)
+            self.assertNotIn("Traceback", stderr)
+            payload = json.loads(stdout)
+            self.assertFalse(payload["state"]["case_fingerprint_ready"])
+            self.assertEqual(
+                "exports/coverage.json должен быть JSON-объектом.",
+                payload["state"]["workspace_error"],
+            )
+            after = {
+                path.relative_to(workspace): path.read_bytes()
+                for path in workspace.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(before, after)
+
     def test_practice_quality_cli_persists_content_bound_chain_and_audit_results(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
