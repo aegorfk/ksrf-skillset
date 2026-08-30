@@ -346,6 +346,49 @@ class WorkbenchCliTests(unittest.TestCase):
             self.assertNotIn("Traceback", stderr)
             self.assertFalse((workspace / "plans" / "plan-v1.json").exists())
 
+    def test_query_supplement_rejects_non_object_fingerprint_without_traceback_or_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "matter"
+            (workspace / "plans").mkdir(parents=True)
+            write_json(
+                workspace / "plans" / "plan-v1.json",
+                {"plan_sha256": "a" * 64},
+            )
+            write_json(workspace / "case-fingerprint.json", [])
+            supplemental = workspace / "supplemental-queries.jsonl"
+            queries = workspace / "queries.jsonl"
+            supplemental.write_text("existing-supplement\n", encoding="utf-8")
+            queries.write_text("existing-query\n", encoding="utf-8")
+            original_supplemental = supplemental.read_bytes()
+            original_queries = queries.read_bytes()
+
+            code, stdout, stderr = self.run_cli(
+                [
+                    "query",
+                    "supplement",
+                    "--workspace",
+                    str(workspace),
+                    "--lane",
+                    "exact_norm",
+                    "--query",
+                    "test query",
+                    "--reason",
+                    "test reason",
+                    "--reviewer",
+                    "reviewer",
+                    "--confirmed-at",
+                    "2026-08-30T12:00:00Z",
+                ]
+            )
+
+            self.assertEqual(2, code)
+            self.assertEqual("", stdout)
+            self.assertIn("case-fingerprint.json", stderr)
+            self.assertIn("JSON-объектом", stderr)
+            self.assertNotIn("Traceback", stderr)
+            self.assertEqual(original_supplemental, supplemental.read_bytes())
+            self.assertEqual(original_queries, queries.read_bytes())
+
     def test_fingerprint_readiness_recomputes_hash_core_fields_and_intake_binding(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

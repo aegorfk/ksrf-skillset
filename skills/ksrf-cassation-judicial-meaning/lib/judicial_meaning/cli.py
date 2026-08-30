@@ -506,7 +506,10 @@ def cmd_query_supplement(args: argparse.Namespace) -> int:
     fingerprint_path = workspace / "case-fingerprint.json"
     if not fingerprint_path.exists():
         raise ValueError("Supplemental-запрос требует текущий case-fingerprint.json.")
-    fingerprint_sha256 = read_json(fingerprint_path).get("fingerprint_sha256")
+    fingerprint = read_json(fingerprint_path)
+    if not isinstance(fingerprint, dict):
+        raise ValueError("case-fingerprint.json должен быть JSON-объектом.")
+    fingerprint_sha256 = fingerprint.get("fingerprint_sha256")
     seed = {
         "plan_sha256": plan.get("plan_sha256"),
         "fingerprint_sha256": fingerprint_sha256,
