@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -248,6 +249,9 @@ def main() -> int:
     args = parser.parse_args()
 
     source = Path(args.source).expanduser().resolve()
+    if not source.is_dir():
+        print(f"ERROR: source must be an existing directory: {source}", file=sys.stderr)
+        return 2
     out = Path(args.out).expanduser().resolve()
     text_dir = out / "texts"
     out.mkdir(parents=True, exist_ok=True)

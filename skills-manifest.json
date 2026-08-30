@@ -1,6 +1,6 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-08-30T12:42:46Z",
+  "generated_at": "2026-08-30T12:52:21Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
   "remote_base_commit": "a9853de774a921975c791b57c93951a733ebca03",
   "exclusions": [
@@ -15,15 +15,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 311,
-  "total_bytes": 8450993,
-  "tree_sha256": "3bfb1708740e7e013094934f632e336e74d53dca54584b9b99614964a1ce1eef",
+  "total_files": 312,
+  "total_bytes": 8453101,
+  "tree_sha256": "178be40d9f76c918527f4ea3aaea44e748a4ad59e48eb7313673a5e2ce7b2e4c",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
-      "files": 45,
-      "bytes": 4322770,
-      "tree_sha256": "230b40d457d6498bf39ba8c0a40ce6a742dfcb84e747e7a42a9cc877c6a25e9d"
+      "files": 46,
+      "bytes": 4324878,
+      "tree_sha256": "09a38aabe9a7b8d4e97d0041a9d14e1b3d3c29e6fc29a705533e3d19c420d3d5"
     },
     {
       "name": "ksrf-case-triage",
@@ -112,8 +112,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 186546,
-  "release_tree_sha256": "ad73cd9ba1e1d083eb228ff36caa6de58c0c34e2fa3e981db9d5996cdaac4361",
+  "total_release_bytes": 186691,
+  "release_tree_sha256": "f5638fef50e56a0af242201bb0375c4763aa6eb98f21bc4a25bc11c364b7b02c",
   "release_files": [
     {
       "path": "install.sh",
@@ -157,8 +157,8 @@
     },
     {
       "path": "tools/extract_ksrf_argument_patterns.py",
-      "bytes": 14590,
-      "sha256": "cef29d616962463bf1c65b32956a9fdd21a0adbf8ed358670aed63e9cac38cff"
+      "bytes": 14735,
+      "sha256": "1552b95bbef523b9fae19c8b1e902ab64e49c06502ef6309ce7a92b2af2be584"
     }
   ]
 }
