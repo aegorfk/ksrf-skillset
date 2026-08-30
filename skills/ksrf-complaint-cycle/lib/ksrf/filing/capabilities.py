@@ -170,7 +170,10 @@ def validate_capability_manifest(manifest: Mapping[str, Any]) -> None:
             raise ContractError(
                 f"Возможность {capability_id} должна быть размечена для всех трёх профилей."
             )
-        if not set(profile_map.values()) <= set(CAPABILITY_REQUIREMENTS):
+        profile_values = tuple(profile_map.values())
+        if not all(isinstance(value, str) for value in profile_values) or not set(
+            profile_values
+        ) <= set(CAPABILITY_REQUIREMENTS):
             raise ContractError(f"Возможность {capability_id} содержит неверный тип зависимости.")
         if not isinstance(capability["dependent_gates"], list) or not all(
             isinstance(item, str) and item.strip()
