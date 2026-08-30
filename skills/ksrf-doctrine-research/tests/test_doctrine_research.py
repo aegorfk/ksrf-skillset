@@ -1397,6 +1397,31 @@ class DoctrineResearchTests(unittest.TestCase):
                     self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
                     self.assertEqual("fail", MODULE.load_json(workspace / "qa-report.json")["status"])
 
+    def test_unhashable_provider_access_status_is_blocked_without_traceback(self):
+        for status in ([], {}):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                request = request_payload(provider_access={"crossref": {"status": status}})
+                request_path = write_request(root, request)
+                workspace = root / "plan"
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    exit_code = MODULE.main(
+                        [
+                            "plan",
+                            "--request",
+                            str(request_path),
+                            "--workspace",
+                            str(workspace),
+                            "--providers",
+                            "crossref",
+                        ]
+                    )
+                self.assertEqual(2, exit_code)
+                self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+                self.assertIn("provider access status", stderr.getvalue())
+
     def test_provider_schema_errors_cannot_count_as_success(self):
         query = MODULE.build_query_plan(request_payload())["queries"][0]
         with self.assertRaisesRegex(MODULE.DoctrineResearchError, "Crossref response"):

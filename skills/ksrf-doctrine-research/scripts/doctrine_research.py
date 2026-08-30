@@ -1217,6 +1217,8 @@ def provider_routing(
         capability = providers[provider_id]
         override = access_overrides.get(provider_id, {}) if isinstance(access_overrides, Mapping) else {}
         status = override.get("status", capability.get("default_status", "not_configured")) if isinstance(override, Mapping) else capability.get("default_status", "not_configured")
+        if not isinstance(status, str):
+            raise DoctrineResearchError(f"provider access status must be a string: {provider_id}")
         if provider_id == "openalex" and status != "disabled":
             status = "ready_api" if normalize_space(os.getenv("OPENALEX_API_KEY")) else "auth_required"
         adapter = capability.get("adapter")
