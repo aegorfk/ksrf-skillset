@@ -1868,10 +1868,15 @@ def run_route(args: argparse.Namespace) -> int:
 
 
 def run_plan(args: argparse.Namespace) -> int:
-    request = load_request(Path(args.request))
+    workspace = Path(args.workspace)
+    try:
+        request = load_request(Path(args.request))
+    except DoctrineResearchError as exc:
+        _write_preflight_failure(workspace, exc)
+        raise
     selected = [part for part in (args.providers or "").split(",") if part]
-    prepare_workspace(request, Path(args.workspace), selected)
-    print(json.dumps({"status": "planned", "workspace": str(Path(args.workspace).resolve())}, ensure_ascii=False))
+    prepare_workspace(request, workspace, selected)
+    print(json.dumps({"status": "planned", "workspace": str(workspace.resolve())}, ensure_ascii=False))
     return 0
 
 
@@ -1901,8 +1906,12 @@ def load_bound_plan(
 
 
 def run_search(args: argparse.Namespace) -> int:
-    request = load_request(Path(args.request), for_external_search=True)
     workspace = Path(args.workspace)
+    try:
+        request = load_request(Path(args.request), for_external_search=True)
+    except DoctrineResearchError as exc:
+        _write_preflight_failure(workspace, exc)
+        raise
     selected = unique_strings(part.strip() for part in args.providers.split(","))
     if not selected:
         raise DoctrineResearchError("at least one provider is required")
@@ -2349,8 +2358,8 @@ def run_validate(args: argparse.Namespace) -> int:
 
 def run_rerank(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace)
-    request = load_request(Path(args.request))
     try:
+        request = load_request(Path(args.request))
         ensure_workspace_identity(request, workspace)
         source_path = workspace / "source-ledger.jsonl"
         if not source_path.is_file():
