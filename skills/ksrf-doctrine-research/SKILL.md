@@ -48,6 +48,9 @@ description: "Навык ищет и проверяет российскую п�
 Скрипт строит воспроизводимый план, опрашивает только явно выбранные документированные API, дедуплицирует кандидатов и публикует честный coverage report. Он не делает юридический вывод вместо исследователя.
 
 ```bash
+python3 <skill-dir>/scripts/doctrine_research.py route \
+  --request ./doctrine-request-draft.json
+
 python3 <skill-dir>/scripts/doctrine_research.py plan \
   --request ./doctrine-request.json \
   --workspace ./doctrine-run
@@ -66,6 +69,14 @@ python3 <skill-dir>/scripts/doctrine_research.py rerank \
   --request ./doctrine-request.json \
   --workspace ./doctrine-run
 ```
+
+Самостоятельный валидный request `exploratory_norm/1.0` работает без портфеля и `doctrine_route_context`: `plan` и ограниченный discovery-поиск сохраняют прежний режим, но получают `promotion_eligible=false` и `maximum_permitted_claim=standalone_exploratory_discovery_only`.
+
+`route` вызывается до `plan`, когда доктринальное направление пришло из внешнего портфеля. Условный контекст версии `doctrine-route-context/1.1` содержит точный portfolio artifact (`sha256` и `size_bytes`), issue option и внешне подписанные receipts. Скрипт сам пересчитывает canonical receipt/signed-claims hashes и проверяет связи с matter, очищенным request binding, issue, portfolio bytes, evidence role, artifact bytes, `as_of_date`, corpus generation, coverage, query plan, freshness и revocation generation. Машинные контракты: [doctrine-route/1.1](references/schemas/doctrine-route-1.1.schema.json), [doctrine-trust-receipt/1.0](references/schemas/doctrine-trust-receipt-1.0.schema.json), [doctrine-verifier-attestation/1.0](references/schemas/doctrine-verifier-attestation-1.0.schema.json).
+
+Внутри этого скилла нет защищённого key store, issuer/revocation registry, resolver точных portfolio/artifact bytes или host-attested verifier. Поэтому request-carried подпись, hash либо attestation не аутентифицируют сами себя: любой inbound conditional route сейчас завершается `blocked: protected_receipt_verifier_unavailable`, `promotion_eligible=false`, `maximum_permitted_claim=candidate_only_untrusted_declarations`. Это точная candidate-only граница, а не временное разрешение. Подключение verifier должно быть отдельным host change с доверенным каналом; до него `case_scoped` и `hypothesis_verification` через conditional router не исполняются.
+
+Решение сохраняется как `route-decision.json`; `plan` включает его hash в `query_plan_hash`, а `search` требует неизменённые plan/route artifacts. Blocked route печатает JSON и завершает CLI с кодом 2. Голый boolean, старые `receipt_sha256`, строковый fulltext ref или `adverse_search_required=true` никогда не закрывают gate.
 
 Для `case_scoped` и `hypothesis_verification` сначала просмотри `query-plan.json`, затем передай его точный `query_plan_hash` через `--approved-query-plan-hash`. Несовпадение блокирует сеть до записи новых результатов. Для каждого запуска сохраняется `search-run-config.json`; QA сопоставляет request, план, провайдеров, границы и coverage, чтобы старые результаты не выглядели результатом нового запуска.
 

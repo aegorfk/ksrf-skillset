@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aegorfk/ksrf-skillset/schemas/doctrine-verifier-attestation-1.0.schema.json",
+  "title": "Protected doctrine receipt verifier attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "verifier_id", "trust_policy_id", "trust_policy_sha256", "receipt_canonical_sha256", "signed_claims_sha256", "verified_at", "issuer_trusted", "signature_verified", "key_active", "revocation_checked", "revoked", "scope_verified", "portfolio_bytes_verified", "artifact_bytes_verified", "freshness_verified", "corpus_generation_verified", "coverage_verified", "query_plan_verified", "host_attestation_id", "host_attestation_signature_base64"],
+  "properties": {
+    "schema_version": {"const": "doctrine-verifier-attestation/1.0"},
+    "status": {"enum": ["pass", "fail"]},
+    "verifier_id": {"type": "string", "minLength": 1},
+    "trust_policy_id": {"type": "string", "minLength": 1},
+    "trust_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "signed_claims_sha256": {"$ref": "#/$defs/sha256"},
+    "verified_at": {"type": "string", "format": "date-time"},
+    "issuer_trusted": {"type": "boolean"},
+    "signature_verified": {"type": "boolean"},
+    "key_active": {"type": "boolean"},
+    "revocation_checked": {"type": "boolean"},
+    "revoked": {"type": "boolean"},
+    "scope_verified": {"type": "boolean"},
+    "portfolio_bytes_verified": {"type": "boolean"},
+    "artifact_bytes_verified": {"type": "boolean"},
+    "freshness_verified": {"type": "boolean"},
+    "corpus_generation_verified": {"type": "boolean"},
+    "coverage_verified": {"type": "boolean"},
+    "query_plan_verified": {"type": "boolean"},
+    "host_attestation_id": {"type": "string", "minLength": 1},
+    "host_attestation_signature_base64": {"type": "string", "contentEncoding": "base64"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "pass"}}},
+      "then": {
+        "properties": {
+          "issuer_trusted": {"const": true},
+          "signature_verified": {"const": true},
+          "key_active": {"const": true},
+          "revocation_checked": {"const": true},
+          "revoked": {"const": false},
+          "scope_verified": {"const": true},
+          "portfolio_bytes_verified": {"const": true},
+          "artifact_bytes_verified": {"const": true},
+          "freshness_verified": {"const": true},
+          "corpus_generation_verified": {"const": true},
+          "coverage_verified": {"const": true},
+          "query_plan_verified": {"const": true}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

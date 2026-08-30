@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-08-29T17:29:13Z",
+  "generated_at": "2026-08-30T06:38:25Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "3daaf1e29ca16e4307e70a8b207d70f95f49487b",
+  "remote_base_commit": "070c8da93b2f4498f131d77a26faec62997c1af1",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -15,9 +15,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 304,
-  "total_bytes": 8306745,
-  "tree_sha256": "fd002ee6ecf4f9daf8fd3f62d19779158f587db05509c8afdffa5ddc122401e2",
+  "total_files": 307,
+  "total_bytes": 8372751,
+  "tree_sha256": "c25b9ff8d457ea3bff9e9b126ef378ad8dbf2c7d3b6d3b61c8a41ad49dd58eb7",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 93,
-      "bytes": 1602049,
-      "tree_sha256": "a730d18f61d0cd64cad51abba73eabbaa03607908bb814fccba973542e6bbf33"
+      "bytes": 1602915,
+      "tree_sha256": "b6df2bddca99bafcb2db613ce988573ef1a65027832c1cb581a80473bc7e0727"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -69,9 +69,9 @@
     },
     {
       "name": "ksrf-doctrine-research",
-      "files": 12,
-      "bytes": 156722,
-      "tree_sha256": "9002893acba93bdf9da6360b8c236ac9a5b597b4932fdada5db7d023a0fb8c8a"
+      "files": 15,
+      "bytes": 220572,
+      "tree_sha256": "491803aadecfd33f81dd84ed56d50f235050adbde85c677d591cba3ecfcdacd1"
     },
     {
       "name": "ksrf-echr-argumentation",
@@ -88,8 +88,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 9,
-      "bytes": 77302,
-      "tree_sha256": "ea6671550e9058143bb04f486b6a13ddfb97ee1eb9f3869bd101d58e061a7d81"
+      "bytes": 78592,
+      "tree_sha256": "91768916f831dbf2b5707d4b1d19539b376ff5418ce9d2878856fcae16b3182d"
     },
     {
       "name": "ksrf-formal-filing-check",

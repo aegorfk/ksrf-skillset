@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aegorfk/ksrf-skillset/schemas/doctrine-trust-receipt-1.0.schema.json",
+  "title": "Externally signed doctrine trust receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "issuer_id", "key_id", "signature_algorithm", "issued_at", "expires_at", "signed_claims", "signed_claims_sha256", "signature_base64"],
+  "properties": {
+    "schema_version": {"const": "doctrine-trust-receipt/1.0"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "key_id": {"type": "string", "minLength": 1},
+    "signature_algorithm": {"const": "ed25519"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "signed_claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_role", "matter_id", "request_binding_sha256", "issue_option_id", "portfolio_id", "portfolio_sha256", "portfolio_size_bytes", "evidence_role", "artifact_id", "artifact_sha256", "artifact_size_bytes", "as_of_date", "corpus_generation_id", "corpus_manifest_sha256", "coverage_report_sha256", "query_plan_sha256", "hypotheses_sha256", "freshness_policy_id", "revocation_registry_generation"],
+      "properties": {
+        "receipt_role": {"enum": ["lane_selection", "application_evidence", "fulltext_evidence", "adverse_search"]},
+        "matter_id": {"type": "string", "minLength": 1},
+        "request_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "issue_option_id": {"type": "string", "minLength": 1},
+        "portfolio_id": {"type": "string", "minLength": 1},
+        "portfolio_sha256": {"$ref": "#/$defs/sha256"},
+        "portfolio_size_bytes": {"type": "integer", "minimum": 0},
+        "evidence_role": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": ["string", "null"]},
+        "artifact_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "artifact_size_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "as_of_date": {"type": "string", "format": "date"},
+        "corpus_generation_id": {"type": ["string", "null"]},
+        "corpus_manifest_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "coverage_report_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "query_plan_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "hypotheses_sha256": {"$ref": "#/$defs/sha256"},
+        "freshness_policy_id": {"type": "string", "minLength": 1},
+        "revocation_registry_generation": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"receipt_role": {"enum": ["application_evidence", "fulltext_evidence", "adverse_search"]}}},
+          "then": {
+            "properties": {
+              "corpus_generation_id": {"type": "string", "minLength": 1},
+              "corpus_manifest_sha256": {"$ref": "#/$defs/sha256"},
+              "coverage_report_sha256": {"$ref": "#/$defs/sha256"},
+              "query_plan_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        }
+      ]
+    },
+    "signed_claims_sha256": {"$ref": "#/$defs/sha256"},
+    "signature_base64": {"type": "string", "contentEncoding": "base64"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

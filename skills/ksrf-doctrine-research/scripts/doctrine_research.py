@@ -10,6 +10,7 @@ defect.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import html
 import json
@@ -22,7 +23,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
@@ -75,6 +76,10 @@ def load_json(path: Path) -> Any:
 
 def canonical_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def stable_hash(value: Any) -> str:
+    return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
 def pretty_bytes(value: Any) -> bytes:
@@ -212,7 +217,57 @@ REFERENCE_KEYS = {
     "page",
     "paragraph",
     "sha256",
+    "size_bytes",
+    "provenance",
+    "trust_receipt",
 }
+
+ROUTE_CONTEXT_KEYS = {
+    "schema_version",
+    "portfolio_id",
+    "portfolio_artifact",
+    "issue_option_id",
+    "trust_receipts",
+}
+PORTFOLIO_ARTIFACT_KEYS = {
+    "artifact_id",
+    "sha256",
+    "size_bytes",
+}
+TRUST_RECEIPT_KEYS = {
+    "schema_version",
+    "receipt_id",
+    "issuer_id",
+    "key_id",
+    "signature_algorithm",
+    "issued_at",
+    "expires_at",
+    "signed_claims",
+    "signed_claims_sha256",
+    "signature_base64",
+}
+TRUST_CLAIMS_KEYS = {
+    "receipt_role",
+    "matter_id",
+    "request_binding_sha256",
+    "issue_option_id",
+    "portfolio_id",
+    "portfolio_sha256",
+    "portfolio_size_bytes",
+    "evidence_role",
+    "artifact_id",
+    "artifact_sha256",
+    "artifact_size_bytes",
+    "as_of_date",
+    "corpus_generation_id",
+    "corpus_manifest_sha256",
+    "coverage_report_sha256",
+    "query_plan_sha256",
+    "hypotheses_sha256",
+    "freshness_policy_id",
+    "revocation_registry_generation",
+}
+LOWER_HEX_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def validate_reference_list(field: str, value: Any) -> List[str]:
@@ -275,8 +330,522 @@ def first_nonempty(mapping: Mapping[str, Any], keys: Sequence[str]) -> Any:
     return None
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and LOWER_HEX_SHA256_RE.fullmatch(value) is not None
+
+
+def _exact_keys(value: Mapping[str, Any], expected: set[str], field: str) -> List[str]:
+    actual = set(value)
+    errors: List[str] = []
+    missing = sorted(expected - actual)
+    unknown = sorted(actual - expected)
+    if missing:
+        errors.append(f"{field} missing keys: {', '.join(missing)}")
+    if unknown:
+        errors.append(f"{field} contains unsupported keys: {', '.join(unknown)}")
+    return errors
+
+
+def request_binding_payload(request: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return the request bytes a receipt may bind without a signature cycle."""
+
+    payload = json.loads(json.dumps(request, ensure_ascii=False))
+    context = payload.get("doctrine_route_context")
+    if isinstance(context, dict):
+        context.pop("trust_receipts", None)
+    for field in ("application_evidence_refs", "fulltext_source_refs"):
+        values = payload.get(field)
+        if isinstance(values, list):
+            for item in values:
+                if isinstance(item, dict):
+                    item.pop("trust_receipt", None)
+    payload.pop("adverse_search_receipt", None)
+    return payload
+
+
+def request_binding_sha256(request: Mapping[str, Any]) -> str:
+    return stable_hash(request_binding_payload(request))
+
+
+def _rfc3339(value: Any) -> Optional[datetime]:
+    text = normalize_space(value)
+    if not text or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+        text,
+    ):
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _trust_receipt_errors(
+    field: str,
+    receipt: Any,
+    *,
+    expected: Mapping[str, Any],
+) -> Tuple[List[str], Optional[str]]:
+    """Validate canonical bindings only; never authenticate the issuer locally."""
+
+    if not isinstance(receipt, Mapping):
+        return [f"{field} must be a doctrine-trust-receipt/1.0 object"], None
+    errors = _exact_keys(receipt, TRUST_RECEIPT_KEYS, field)
+    if receipt.get("schema_version") != "doctrine-trust-receipt/1.0":
+        errors.append(f"{field}.schema_version must be doctrine-trust-receipt/1.0")
+    for key in ("receipt_id", "issuer_id", "key_id"):
+        if not normalize_space(receipt.get(key)):
+            errors.append(f"{field}.{key} is required")
+    if receipt.get("signature_algorithm") != "ed25519":
+        errors.append(f"{field}.signature_algorithm must be ed25519")
+    issued_at = _rfc3339(receipt.get("issued_at"))
+    expires_at = _rfc3339(receipt.get("expires_at"))
+    if issued_at is None:
+        errors.append(f"{field}.issued_at must be RFC3339 with timezone")
+    if expires_at is None:
+        errors.append(f"{field}.expires_at must be RFC3339 with timezone")
+    if issued_at is not None and expires_at is not None and expires_at <= issued_at:
+        errors.append(f"{field}.expires_at must be after issued_at")
+    signature = receipt.get("signature_base64")
+    try:
+        decoded_signature = base64.b64decode(signature, validate=True)
+    except (TypeError, ValueError):
+        decoded_signature = b""
+    if len(decoded_signature) != 64:
+        errors.append(f"{field}.signature_base64 must encode a 64-byte Ed25519 signature")
+
+    claims = receipt.get("signed_claims")
+    if not isinstance(claims, Mapping):
+        errors.append(f"{field}.signed_claims must be an object")
+        claims = {}
+    else:
+        errors.extend(_exact_keys(claims, TRUST_CLAIMS_KEYS, f"{field}.signed_claims"))
+    claims_sha256 = receipt.get("signed_claims_sha256")
+    if not _is_sha256(claims_sha256):
+        errors.append(f"{field}.signed_claims_sha256 must be lowercase SHA-256")
+    elif claims_sha256 != stable_hash(claims):
+        errors.append(f"{field}.signed_claims_sha256 does not match canonical signed_claims bytes")
+
+    for key, expected_value in expected.items():
+        if claims.get(key) != expected_value:
+            errors.append(f"{field}.signed_claims.{key} mismatch")
+    for key in (
+        "portfolio_sha256",
+        "artifact_sha256",
+        "corpus_manifest_sha256",
+        "coverage_report_sha256",
+        "query_plan_sha256",
+        "hypotheses_sha256",
+    ):
+        value = claims.get(key)
+        if value is not None and not _is_sha256(value):
+            errors.append(f"{field}.signed_claims.{key} must be null or lowercase SHA-256")
+    for key in ("portfolio_size_bytes", "artifact_size_bytes"):
+        value = claims.get(key)
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
+            errors.append(f"{field}.signed_claims.{key} must be null or a non-negative integer")
+    for key in ("freshness_policy_id", "revocation_registry_generation"):
+        if not normalize_space(claims.get(key)):
+            errors.append(f"{field}.signed_claims.{key} is required")
+    if parse_iso_date(claims.get("as_of_date")) is None:
+        errors.append(f"{field}.signed_claims.as_of_date must be YYYY-MM-DD")
+
+    role = claims.get("receipt_role")
+    if role in {"application_evidence", "fulltext_evidence", "adverse_search"}:
+        for key in ("corpus_generation_id",):
+            if not normalize_space(claims.get(key)):
+                errors.append(f"{field}.signed_claims.{key} is required for {role}")
+        for key in ("corpus_manifest_sha256", "coverage_report_sha256", "query_plan_sha256"):
+            if not _is_sha256(claims.get(key)):
+                errors.append(f"{field}.signed_claims.{key} is required for {role}")
+
+    return sorted(set(errors)), stable_hash(receipt)
+
+
+def _route_context_binding(
+    request: Mapping[str, Any],
+) -> Tuple[Optional[Dict[str, Any]], List[str]]:
+    value = request.get("doctrine_route_context")
+    if value is None:
+        return None, []
+    if not isinstance(value, Mapping):
+        return None, ["doctrine_route_context must be an object"]
+
+    errors = _exact_keys(value, ROUTE_CONTEXT_KEYS, "doctrine_route_context")
+    portfolio_id = normalize_space(value.get("portfolio_id"))
+    issue_option_id = normalize_space(value.get("issue_option_id"))
+    if value.get("schema_version") != "doctrine-route-context/1.1":
+        errors.append("doctrine_route_context.schema_version must be doctrine-route-context/1.1")
+    if not portfolio_id:
+        errors.append("doctrine_route_context.portfolio_id is required")
+    if not issue_option_id:
+        errors.append("doctrine_route_context.issue_option_id is required")
+
+    artifact = value.get("portfolio_artifact")
+    if not isinstance(artifact, Mapping):
+        errors.append("doctrine_route_context.portfolio_artifact must be an object")
+        artifact = {}
+    else:
+        errors.extend(
+            _exact_keys(artifact, PORTFOLIO_ARTIFACT_KEYS, "doctrine_route_context.portfolio_artifact")
+        )
+    portfolio_artifact_id = normalize_space(artifact.get("artifact_id"))
+    portfolio_sha256 = artifact.get("sha256")
+    portfolio_size_bytes = artifact.get("size_bytes")
+    if not portfolio_artifact_id:
+        errors.append("doctrine_route_context.portfolio_artifact.artifact_id is required")
+    if not _is_sha256(portfolio_sha256):
+        errors.append("doctrine_route_context.portfolio_artifact.sha256 must be lowercase SHA-256")
+    if (
+        not isinstance(portfolio_size_bytes, int)
+        or isinstance(portfolio_size_bytes, bool)
+        or portfolio_size_bytes < 0
+    ):
+        errors.append("doctrine_route_context.portfolio_artifact.size_bytes must be a non-negative integer")
+
+    receipts = value.get("trust_receipts")
+    receipt_hashes: List[str] = []
+    selection_count = 0
+    if not isinstance(receipts, list) or not receipts:
+        errors.append("doctrine_route_context.trust_receipts must contain a lane-selection receipt")
+    else:
+        expected = {
+            "receipt_role": "lane_selection",
+            "matter_id": normalize_space(request.get("matter_id")),
+            "request_binding_sha256": request_binding_sha256(request),
+            "issue_option_id": issue_option_id,
+            "portfolio_id": portfolio_id,
+            "portfolio_sha256": portfolio_sha256,
+            "portfolio_size_bytes": portfolio_size_bytes,
+            "evidence_role": "selected_doctrine_lane",
+            "artifact_id": portfolio_artifact_id,
+            "artifact_sha256": portfolio_sha256,
+            "artifact_size_bytes": portfolio_size_bytes,
+            "as_of_date": request.get("as_of_date"),
+            "hypotheses_sha256": stable_hash(request.get("hypotheses_under_test") or []),
+        }
+        for index, receipt in enumerate(receipts):
+            receipt_errors, receipt_hash = _trust_receipt_errors(
+                f"doctrine_route_context.trust_receipts[{index}]",
+                receipt,
+                expected=expected,
+            )
+            errors.extend(receipt_errors)
+            if isinstance(receipt, Mapping) and isinstance(receipt.get("signed_claims"), Mapping):
+                if receipt["signed_claims"].get("receipt_role") == "lane_selection":
+                    selection_count += 1
+            if receipt_hash:
+                receipt_hashes.append(receipt_hash)
+    if selection_count != 1:
+        errors.append("doctrine_route_context.trust_receipts must contain exactly one lane_selection receipt")
+
+    binding: Dict[str, Any] = {
+        "portfolio_id": portfolio_id or None,
+        "portfolio_artifact_id": portfolio_artifact_id or None,
+        "portfolio_sha256": portfolio_sha256 if _is_sha256(portfolio_sha256) else None,
+        "portfolio_size_bytes": (
+            portfolio_size_bytes
+            if isinstance(portfolio_size_bytes, int)
+            and not isinstance(portfolio_size_bytes, bool)
+            and portfolio_size_bytes >= 0
+            else None
+        ),
+        "issue_option_id": issue_option_id or None,
+        "receipt_canonical_sha256s": sorted(receipt_hashes),
+    }
+    return binding, sorted(set(errors))
+
+
+def _trusted_reference_errors(
+    request: Mapping[str, Any],
+    binding: Optional[Mapping[str, Any]],
+    field: str,
+    value: Any,
+    *,
+    identity_key: str,
+    provenance: str,
+    receipt_role: str,
+) -> Tuple[List[str], List[str]]:
+    if not isinstance(value, list) or not value:
+        return [f"{field} must contain at least one trust-receipted reference object"], []
+    expected_keys = {identity_key, "sha256", "size_bytes", "provenance", "trust_receipt"}
+    errors: List[str] = []
+    receipt_hashes: List[str] = []
+    for index, item in enumerate(value):
+        label = f"{field}[{index}]"
+        if not isinstance(item, Mapping):
+            errors.append(f"{label} must be a trust-receipted reference object")
+            continue
+        errors.extend(_exact_keys(item, expected_keys, label))
+        artifact_id = normalize_space(item.get(identity_key))
+        if not artifact_id:
+            errors.append(f"{label}.{identity_key} is required")
+        artifact_sha256 = item.get("sha256")
+        if not _is_sha256(artifact_sha256):
+            errors.append(f"{label}.sha256 must be lowercase SHA-256")
+        artifact_size = item.get("size_bytes")
+        if not isinstance(artifact_size, int) or isinstance(artifact_size, bool) or artifact_size < 0:
+            errors.append(f"{label}.size_bytes must be a non-negative integer")
+        if item.get("provenance") != provenance:
+            errors.append(f"{label}.provenance must be {provenance}")
+        expected = {
+            "receipt_role": receipt_role,
+            "matter_id": normalize_space(request.get("matter_id")),
+            "request_binding_sha256": request_binding_sha256(request),
+            "issue_option_id": binding.get("issue_option_id") if binding else None,
+            "portfolio_id": binding.get("portfolio_id") if binding else None,
+            "portfolio_sha256": binding.get("portfolio_sha256") if binding else None,
+            "portfolio_size_bytes": binding.get("portfolio_size_bytes") if binding else None,
+            "evidence_role": provenance,
+            "artifact_id": artifact_id,
+            "artifact_sha256": artifact_sha256,
+            "artifact_size_bytes": artifact_size,
+            "as_of_date": request.get("as_of_date"),
+            "hypotheses_sha256": stable_hash(request.get("hypotheses_under_test") or []),
+        }
+        receipt_errors, receipt_hash = _trust_receipt_errors(
+            f"{label}.trust_receipt",
+            item.get("trust_receipt"),
+            expected=expected,
+        )
+        errors.extend(receipt_errors)
+        if receipt_hash:
+            receipt_hashes.append(receipt_hash)
+    return sorted(set(errors)), sorted(receipt_hashes)
+
+
+def _adverse_receipt_errors(
+    request: Mapping[str, Any],
+    binding: Optional[Mapping[str, Any]],
+) -> Tuple[List[str], List[str]]:
+    errors: List[str] = []
+    if request.get("adverse_search_required") is not True:
+        errors.append("adverse_search_required must be true")
+    if request.get("adverse_search_status") != "pass":
+        errors.append("adverse_search_status must be pass")
+    expected = {
+        "receipt_role": "adverse_search",
+        "matter_id": normalize_space(request.get("matter_id")),
+        "request_binding_sha256": request_binding_sha256(request),
+        "issue_option_id": binding.get("issue_option_id") if binding else None,
+        "portfolio_id": binding.get("portfolio_id") if binding else None,
+        "portfolio_sha256": binding.get("portfolio_sha256") if binding else None,
+        "portfolio_size_bytes": binding.get("portfolio_size_bytes") if binding else None,
+        "evidence_role": "adverse_search",
+        "artifact_id": None,
+        "artifact_sha256": None,
+        "artifact_size_bytes": None,
+        "as_of_date": request.get("as_of_date"),
+        "hypotheses_sha256": stable_hash(request.get("hypotheses_under_test") or []),
+    }
+    receipt_errors, receipt_hash = _trust_receipt_errors(
+        "adverse_search_receipt",
+        request.get("adverse_search_receipt"),
+        expected=expected,
+    )
+    errors.extend(receipt_errors)
+    return sorted(set(errors)), [receipt_hash] if receipt_hash else []
+
+
+def _finish_route_decision(core: Mapping[str, Any]) -> Dict[str, Any]:
+    decision = dict(core)
+    decision["route_decision_hash"] = stable_hash(core)
+    return decision
+
+
+def select_research_route(request: Mapping[str, Any]) -> Dict[str, Any]:
+    """Derive a typed route; request-carried receipts never authenticate themselves."""
+
+    request_hash = stable_hash(request)
+    binding, context_errors = _route_context_binding(request)
+    if "doctrine_lane_selected" in request:
+        context_errors.append(
+            "bare doctrine_lane_selected is unsupported; use doctrine_route_context"
+        )
+    hypotheses = request.get("hypotheses_under_test")
+    hypothesis_set_hash = stable_hash(hypotheses if hypotheses is not None else [])
+    base = {
+        "schema_version": "doctrine-route/1.1",
+        "request_sha256": request_hash,
+        "request_binding_sha256": request_binding_sha256(request),
+        "matter_id": normalize_space(request.get("matter_id")) or None,
+        "issue_option_id": binding.get("issue_option_id") if binding else None,
+        "portfolio_id": binding.get("portfolio_id") if binding else None,
+        "portfolio_sha256": binding.get("portfolio_sha256") if binding else None,
+        "portfolio_size_bytes": binding.get("portfolio_size_bytes") if binding else None,
+        "receipt_canonical_sha256s": (
+            binding.get("receipt_canonical_sha256s", []) if binding else []
+        ),
+        "hypothesis_set_sha256": hypothesis_set_hash,
+        "declared_mode": request.get("mode"),
+        "promotion_eligible": False,
+    }
+
+    if binding is None:
+        status = "blocked" if context_errors else "not_routed"
+        blockers = ["route_context_invalid"] if context_errors else []
+        return _finish_route_decision(
+            {
+                **base,
+                "routed": False,
+                "mode": None,
+                "status": status,
+                "blockers": blockers,
+                "scope_limits": [],
+                "validation_errors": sorted(set(context_errors)),
+                "trust_verification": {
+                    "schema_version": "doctrine-verifier-boundary/1.0",
+                    "status": "not_required" if not context_errors else "unavailable",
+                    "protected_verifier_configured": False,
+                    "receipt_canonical_sha256s": [],
+                },
+                "maximum_permitted_claim": "standalone_exploratory_discovery_only",
+            }
+        )
+
+    hypothesis_declared = (
+        "hypotheses_under_test" in request
+        and hypotheses is not None
+        and hypotheses != []
+    )
+    scope_limits: List[str] = []
+    strict_errors: List[str] = []
+    receipt_hashes = list(binding.get("receipt_canonical_sha256s", []))
+
+    if hypothesis_declared:
+        mode = "hypothesis_verification"
+        fulltext_errors, fulltext_receipt_hashes = _trusted_reference_errors(
+            request,
+            binding,
+            "fulltext_source_refs",
+            request.get("fulltext_source_refs"),
+            identity_key="source_id",
+            provenance="lawful_fulltext_artifact",
+            receipt_role="fulltext_evidence",
+        )
+        adverse_errors, adverse_receipt_hashes = _adverse_receipt_errors(request, binding)
+        strict_errors.extend(fulltext_errors)
+        strict_errors.extend(adverse_errors)
+        receipt_hashes.extend(fulltext_receipt_hashes)
+        receipt_hashes.extend(adverse_receipt_hashes)
+    else:
+        for field in ("judicial_meanings", "mechanisms", "consequences"):
+            if not has_meaningful_items(request.get(field)):
+                scope_limits.append(f"{field}_missing")
+
+        application_value = request.get("application_evidence_refs")
+        if not has_meaningful_items(application_value):
+            scope_limits.append("application_evidence_refs_missing")
+        else:
+            application_errors, application_receipt_hashes = _trusted_reference_errors(
+                request,
+                binding,
+                "application_evidence_refs",
+                application_value,
+                identity_key="evidence_id",
+                provenance="official_application_record",
+                receipt_role="application_evidence",
+            )
+            receipt_hashes.extend(application_receipt_hashes)
+            if application_errors:
+                scope_limits.append(
+                    "application_evidence_refs_invalid_or_unverified"
+                )
+
+        norms = request.get("norms")
+        norm_versions_complete = (
+            isinstance(norms, list)
+            and bool(norms)
+            and all(
+                isinstance(norm, Mapping)
+                and parse_iso_date(norm.get("version_date")) is not None
+                for norm in norms
+            )
+        )
+        if not norm_versions_complete:
+            scope_limits.append("norm_version_dates_missing")
+        mode = "exploratory_norm" if scope_limits else "case_scoped"
+
+    validation_request = dict(request)
+    validation_request["mode"] = mode
+    validation_errors = list(context_errors)
+    validation_errors.extend(validate_request(validation_request))
+    validation_errors.extend(strict_errors)
+    validation_errors = sorted(set(validation_errors))
+
+    blockers: List[str] = []
+    if context_errors:
+        blockers.append("route_context_invalid")
+    if validation_errors:
+        blockers.append("request_schema_invalid")
+    if mode == "hypothesis_verification":
+        if any(error.startswith("fulltext_source_refs") for error in strict_errors):
+            blockers.append("fulltext_source_refs_invalid_or_unverified")
+        if any(
+            error.startswith("adverse_search_") for error in strict_errors
+        ):
+            blockers.append("adverse_search_not_passed_or_unbound")
+    # This skill has no protected key store, revocation registry, byte resolver,
+    # or host-attested verifier. Request-carried JSON therefore cannot close a
+    # conditional gate, even when every declared hash and signature field has
+    # the expected shape.
+    blockers.append("protected_receipt_verifier_unavailable")
+
+    return _finish_route_decision(
+        {
+            **base,
+            "routed": True,
+            "mode": mode,
+            "status": "blocked" if blockers else "ready",
+            "blockers": blockers,
+            "scope_limits": sorted(set(scope_limits)),
+            "validation_errors": validation_errors,
+            "receipt_canonical_sha256s": sorted(set(receipt_hashes)),
+            "trust_verification": {
+                "schema_version": "doctrine-verifier-boundary/1.0",
+                "status": "unavailable",
+                "protected_verifier_configured": False,
+                "receipt_canonical_sha256s": sorted(set(receipt_hashes)),
+                "required_attestation_schema": "doctrine-verifier-attestation/1.0",
+                "reason": "no protected verifier/trust root exists inside this skill boundary",
+            },
+            "maximum_permitted_claim": "candidate_only_untrusted_declarations",
+        }
+    )
+
+
+def require_bound_research_route(request: Mapping[str, Any]) -> Dict[str, Any]:
+    decision = select_research_route(request)
+    if not decision.get("routed"):
+        if decision.get("status") == "not_routed" and request.get("mode") == "exploratory_norm":
+            errors = validate_request(request)
+            if errors:
+                raise DoctrineResearchError("invalid standalone request: " + "; ".join(errors))
+            return decision
+        raise DoctrineResearchError("doctrine route is not selected by a valid conditional context")
+    if decision.get("status") != "ready":
+        if "protected_receipt_verifier_unavailable" in decision.get("blockers", []):
+            raise DoctrineResearchError(
+                "doctrine route is blocked: protected receipt verifier unavailable; "
+                "request-carried receipts are untrusted declarations"
+            )
+        details = "; ".join(decision.get("validation_errors") or decision.get("blockers") or [])
+        raise DoctrineResearchError(f"doctrine route is blocked: {details}")
+    if request.get("mode") != decision.get("mode"):
+        raise DoctrineResearchError(
+            "declared mode does not match derived doctrine route: "
+            f"{request.get('mode')} != {decision.get('mode')}"
+        )
+    return decision
+
+
 def validate_request(request: Mapping[str, Any], *, for_external_search: bool = False) -> List[str]:
     errors: List[str] = []
+    route_binding, route_context_errors = _route_context_binding(request)
+    errors.extend(route_context_errors)
+    if "doctrine_lane_selected" in request:
+        errors.append("bare doctrine_lane_selected is unsupported; use doctrine_route_context")
     if str(request.get("schema_version")) != "1.0":
         errors.append("schema_version must be 1.0")
     if not normalize_space(request.get("matter_id")):
@@ -284,6 +853,16 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
     mode = request.get("mode")
     if mode not in ALLOWED_MODES:
         errors.append(f"mode must be one of {sorted(ALLOWED_MODES)}")
+    hypotheses_value = request.get("hypotheses_under_test")
+    if (
+        "hypotheses_under_test" in request
+        and hypotheses_value is not None
+        and hypotheses_value != []
+        and mode != "hypothesis_verification"
+    ):
+        errors.append(
+            "non-empty hypotheses_under_test requires mode hypothesis_verification"
+        )
     as_of = parse_iso_date(request.get("as_of_date"))
     if as_of is None:
         errors.append("as_of_date must be a valid YYYY-MM-DD calendar date")
@@ -360,8 +939,16 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
             errors.append("case_scoped mode requires at least one non-empty mechanism")
         if not has_meaningful_items(request.get("consequences")):
             errors.append("case_scoped mode requires at least one non-empty consequence")
-        if not has_meaningful_items(request.get("application_evidence_refs")):
-            errors.append("case_scoped mode requires at least one non-empty application_evidence_ref")
+        reference_errors, _ = _trusted_reference_errors(
+                request,
+                route_binding,
+                "application_evidence_refs",
+                request.get("application_evidence_refs"),
+                identity_key="evidence_id",
+                provenance="official_application_record",
+                receipt_role="application_evidence",
+            )
+        errors.extend(reference_errors)
         for index, norm in enumerate(norms or []):
             version_date = parse_iso_date(norm.get("version_date")) if isinstance(norm, Mapping) else None
             if version_date is None:
@@ -378,10 +965,18 @@ def validate_request(request: Mapping[str, Any], *, for_external_search: bool = 
         )
         if not has_meaningful_items(request.get("hypotheses_under_test")):
             errors.append("hypothesis_verification mode requires at least one non-empty hypotheses_under_test item")
-        if not has_meaningful_items(request.get("fulltext_source_refs")):
-            errors.append("hypothesis_verification mode requires at least one non-empty fulltext_source_refs item")
-        if request.get("adverse_search_required") is not True:
-            errors.append("hypothesis_verification mode requires adverse_search_required=true")
+        reference_errors, _ = _trusted_reference_errors(
+                request,
+                route_binding,
+                "fulltext_source_refs",
+                request.get("fulltext_source_refs"),
+                identity_key="source_id",
+                provenance="lawful_fulltext_artifact",
+                receipt_role="fulltext_evidence",
+            )
+        errors.extend(reference_errors)
+        adverse_errors, _ = _adverse_receipt_errors(request, route_binding)
+        errors.extend(adverse_errors)
     return errors
 
 
@@ -392,6 +987,7 @@ def load_request(path: Path, *, for_external_search: bool = False) -> Dict[str, 
     errors = validate_request(request, for_external_search=for_external_search)
     if errors:
         raise DoctrineResearchError("invalid request: " + "; ".join(errors))
+    require_bound_research_route(request)
     return request
 
 
@@ -452,7 +1048,7 @@ def build_problem_profile(request: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def request_sha256(request: Mapping[str, Any]) -> str:
-    return hashlib.sha256(canonical_bytes(request)).hexdigest()
+    return stable_hash(request)
 
 
 def ensure_workspace_identity(request: Mapping[str, Any], workspace: Path) -> None:
@@ -467,6 +1063,7 @@ def ensure_workspace_identity(request: Mapping[str, Any], workspace: Path) -> No
 
 
 def build_query_plan(request: Mapping[str, Any]) -> Dict[str, Any]:
+    route_decision = require_bound_research_route(request)
     anchors = norm_anchors(request)
     if not anchors:
         raise DoctrineResearchError("no searchable norm anchors")
@@ -532,15 +1129,22 @@ def build_query_plan(request: Mapping[str, Any]) -> Dict[str, Any]:
     add("remedy", f'"{primary_anchor}" способ защиты восстановление права', "generated:remedy")
     add("history_update", f'"{primary_anchor}" изменение редакции история правового регулирования', "generated:history-update")
 
-    canonical_for_hash = [{key: row[key] for key in ("query_id", "query_intent_id", "lane", "text", "origin", "polarity")} for row in queries]
+    canonical_queries = [{key: row[key] for key in ("query_id", "query_intent_id", "lane", "text", "origin", "polarity")} for row in queries]
+    canonical_for_hash = {
+        "route_decision_hash": route_decision["route_decision_hash"],
+        "queries": canonical_queries,
+    }
     return {
         "schema_version": "doctrine-query-plan/1.0",
         "matter_id": request["matter_id"],
         "as_of_date": request["as_of_date"],
         "query_count": len(queries),
         "queries": queries,
-        "query_plan_hash": hashlib.sha256(canonical_bytes(canonical_for_hash)).hexdigest(),
+        "route_decision_hash": route_decision["route_decision_hash"],
+        "query_plan_hash": stable_hash(canonical_for_hash),
         "legal_conclusions": [],
+        "promotion_eligible": False,
+        "maximum_permitted_claim": route_decision["maximum_permitted_claim"],
     }
 
 
@@ -642,6 +1246,7 @@ def prepare_workspace(
     workspace: Path,
     selected_providers: Sequence[str],
 ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    route_decision = require_bound_research_route(request)
     ensure_workspace_identity(request, workspace)
     registry = load_json(REGISTRY_PATH)
     taxonomy = load_json(TAXONOMY_PATH)
@@ -650,10 +1255,13 @@ def prepare_workspace(
     routing = provider_routing(request, registry, selected_providers)
     snapshot_hash = request_sha256(request)
     profile["request_sha256"] = snapshot_hash
+    profile["route_decision_hash"] = route_decision["route_decision_hash"]
     query_plan["request_sha256"] = snapshot_hash
     routing["request_sha256"] = snapshot_hash
+    routing["route_decision_hash"] = route_decision["route_decision_hash"]
     workspace.mkdir(parents=True, exist_ok=True)
     write_json(workspace / "request.snapshot.json", request)
+    write_json(workspace / "route-decision.json", route_decision)
     write_json(workspace / "norm-problem-profile.json", profile)
     write_json(workspace / "provider-capabilities.snapshot.json", registry)
     write_json(workspace / "provider-routing.json", routing)
@@ -1203,6 +1811,15 @@ def acquisition_queue(records: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     return {"schema_version": "doctrine-acquisition-queue/1.0", "requests": rows[:50]}
 
 
+def run_route(args: argparse.Namespace) -> int:
+    request = load_json(Path(args.request))
+    if not isinstance(request, Mapping):
+        raise DoctrineResearchError("route request must be a JSON object")
+    decision = select_research_route(request)
+    print(json.dumps(decision, ensure_ascii=False, sort_keys=True))
+    return 2 if decision.get("status") == "blocked" else 0
+
+
 def run_plan(args: argparse.Namespace) -> int:
     request = load_request(Path(args.request))
     selected = [part for part in (args.providers or "").split(",") if part]
@@ -1211,12 +1828,38 @@ def run_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def load_bound_plan(
+    request: Mapping[str, Any], workspace: Path
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    for filename in ("request.snapshot.json", "route-decision.json", "query-plan.json"):
+        if not (workspace / filename).is_file():
+            raise DoctrineResearchError(
+                f"search requires a prior bound plan artifact: {filename}"
+            )
+    snapshot = load_json(workspace / "request.snapshot.json")
+    if snapshot != request:
+        raise DoctrineResearchError("planned request snapshot does not match search request")
+
+    expected_route = require_bound_research_route(request)
+    observed_route = load_json(workspace / "route-decision.json")
+    if observed_route != expected_route:
+        raise DoctrineResearchError("route decision artifact/hash mismatch")
+
+    expected_plan = build_query_plan(request)
+    expected_plan["request_sha256"] = request_sha256(request)
+    observed_plan = load_json(workspace / "query-plan.json")
+    if observed_plan != expected_plan:
+        raise DoctrineResearchError("query plan artifact/hash mismatch")
+    return observed_route, observed_plan
+
+
 def run_search(args: argparse.Namespace) -> int:
     request = load_request(Path(args.request), for_external_search=True)
+    workspace = Path(args.workspace)
     selected = unique_strings(part.strip() for part in args.providers.split(","))
     if not selected:
         raise DoctrineResearchError("at least one provider is required")
-    query_plan_preflight = build_query_plan(request)
+    route_decision, query_plan_preflight = load_bound_plan(request, workspace)
     if request.get("mode") in {"case_scoped", "hypothesis_verification"}:
         approved_hash = normalize_space(getattr(args, "approved_query_plan_hash", ""))
         if approved_hash != query_plan_preflight["query_plan_hash"]:
@@ -1237,7 +1880,14 @@ def run_search(args: argparse.Namespace) -> int:
                 f"selected provider is not enabled for automated access: {provider} "
                 f"({decisions[provider].get('access_status')})"
             )
-    registry, taxonomy, query_plan, routing = prepare_workspace(request, Path(args.workspace), selected)
+    registry = load_json(REGISTRY_PATH)
+    taxonomy = load_json(TAXONOMY_PATH)
+    query_plan = query_plan_preflight
+    routing = provider_routing(request, registry, selected)
+    routing["request_sha256"] = request_sha256(request)
+    routing["route_decision_hash"] = route_decision["route_decision_hash"]
+    write_json(workspace / "provider-capabilities.snapshot.json", registry)
+    write_json(workspace / "provider-routing.json", routing)
     violations = redaction_violations(query_plan, request)
     if violations:
         write_json(Path(args.workspace) / "qa-report.json", {"status": "blocked", "redaction_violations": violations})
@@ -1248,6 +1898,7 @@ def run_search(args: argparse.Namespace) -> int:
         "matter_id": request["matter_id"],
         "request_sha256": request_sha256(request),
         "query_plan_hash": query_plan["query_plan_hash"],
+        "route_decision_hash": route_decision["route_decision_hash"],
         "selected_providers": selected,
         "selected_query_ids": [query["query_id"] for query in queries],
         "max_queries": args.max_queries,
@@ -1344,6 +1995,7 @@ def read_jsonl(path: Path) -> List[Dict[str, Any]]:
 def validate_workspace(workspace: Path) -> Dict[str, Any]:
     required = (
         "request.snapshot.json",
+        "route-decision.json",
         "norm-problem-profile.json",
         "provider-capabilities.snapshot.json",
         "provider-routing.json",
@@ -1362,12 +2014,23 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
         snapshot = {}
     snapshot_matter = snapshot.get("matter_id")
     snapshot_hash = request_sha256(snapshot)
+    observed_route = load_json(workspace / "route-decision.json")
+    try:
+        expected_route = require_bound_research_route(snapshot)
+    except DoctrineResearchError as exc:
+        errors.append(f"invalid bound route: {exc}")
+        expected_route = {}
+    if observed_route != expected_route:
+        errors.append("route decision artifact/hash mismatch")
+    route_hash = expected_route.get("route_decision_hash")
     for filename in ("norm-problem-profile.json", "provider-routing.json", "query-plan.json"):
         artifact = load_json(workspace / filename)
         if artifact.get("matter_id") != snapshot_matter:
             errors.append(f"matter_id mismatch in {filename}")
         if artifact.get("request_sha256") != snapshot_hash:
             errors.append(f"request hash mismatch in {filename}")
+        if artifact.get("route_decision_hash") != route_hash:
+            errors.append(f"route decision hash mismatch in {filename}")
     query_plan = load_json(workspace / "query-plan.json")
     query_ids = [row.get("query_id") for row in query_plan.get("queries", [])]
     if len(query_ids) != len(set(query_ids)):
@@ -1416,6 +2079,8 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
             run_config = load_json(run_config_path)
             if run_config.get("request_sha256") != snapshot_hash:
                 errors.append("request hash mismatch in search-run-config.json")
+            if run_config.get("route_decision_hash") != route_hash:
+                errors.append("route decision hash mismatch in search-run-config.json")
             if run_config.get("run_config_hash") != coverage.get("run_config_hash"):
                 errors.append("run config hash mismatch in coverage-report.json")
             routing = load_json(workspace / "provider-routing.json")
@@ -1492,6 +2157,13 @@ def run_rerank(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plan and run bounded legal-doctrine discovery.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    route = subparsers.add_parser(
+        "route",
+        help="Select the safest doctrine-research mode before planning or search.",
+    )
+    route.add_argument("--request", required=True)
+    route.set_defaults(func=run_route)
 
     plan = subparsers.add_parser("plan", help="Create deterministic query and provider-routing artifacts.")
     plan.add_argument("--request", required=True)

@@ -48,7 +48,7 @@ description: "Скилл организует полный цикл обраще
 
 ### 5. Исследуй варианты и отказные аналоги
 
-Используй `ksrf-explore-arguments` для одного–четырёх существенно разных `ConstitutionalIssueOptions`; не выбирай generic proportionality/certainty fallback молча. При empirical practice claim включи `ksrf-cassation-judicial-meaning` и claim-level gate.
+Используй `ksrf-explore-arguments` для одного–четырёх существенно разных `ConstitutionalIssueOptions`; не выбирай generic proportionality/certainty fallback молча. При empirical practice claim включи `ksrf-cassation-judicial-meaning` и claim-level gate. Самостоятельный обезличенный обзор нормы можно запустить в [ksrf-doctrine-research](../ksrf-doctrine-research/SKILL.md) как `exploratory_norm` без портфеля. Если же доктринальный вопрос выбран внутри портфеля, передай его через условный router: он требует внешний trust-root/verifier для подписанных receipts и в текущем skill boundary fail-closed блокирует `case_scoped` и `hypothesis_verification`. Не подменяй verifier самозаявленным JSON, не запускай маршрут ради украшения готового довода и не считай доктрину официальным правом или закрытием admissibility gates.
 
 Используй `ksrf-practice-authority-builder` official-first. Для отказной проверки прочитай [контракт корпуса](references/failed-complaint-corpus.md): официальный акт КС РФ, оригинальная жалоба и письмо Секретариата имеют разные evidence roles. Private cross-matter retrieval требует consent/redaction и заранее созданного host-attested approval точного производного файла. Неполное покрытие не даёт отрицательного вывода.
 

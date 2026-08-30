@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aegorfk/ksrf-skillset/schemas/doctrine-route-1.1.schema.json",
+  "title": "Doctrine research route decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_sha256",
+    "request_binding_sha256",
+    "matter_id",
+    "issue_option_id",
+    "portfolio_id",
+    "portfolio_sha256",
+    "portfolio_size_bytes",
+    "receipt_canonical_sha256s",
+    "hypothesis_set_sha256",
+    "declared_mode",
+    "promotion_eligible",
+    "routed",
+    "mode",
+    "status",
+    "blockers",
+    "scope_limits",
+    "validation_errors",
+    "trust_verification",
+    "maximum_permitted_claim",
+    "route_decision_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "doctrine-route/1.1"},
+    "request_sha256": {"$ref": "#/$defs/sha256"},
+    "request_binding_sha256": {"$ref": "#/$defs/sha256"},
+    "matter_id": {"type": ["string", "null"]},
+    "issue_option_id": {"type": ["string", "null"]},
+    "portfolio_id": {"type": ["string", "null"]},
+    "portfolio_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "portfolio_size_bytes": {"type": ["integer", "null"], "minimum": 0},
+    "receipt_canonical_sha256s": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+    "hypothesis_set_sha256": {"$ref": "#/$defs/sha256"},
+    "declared_mode": {"type": ["string", "null"]},
+    "promotion_eligible": {"const": false},
+    "routed": {"type": "boolean"},
+    "mode": {"type": ["string", "null"], "enum": ["exploratory_norm", "case_scoped", "hypothesis_verification", null]},
+    "status": {"enum": ["not_routed", "blocked", "ready"]},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "scope_limits": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "validation_errors": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "trust_verification": {
+      "type": "object",
+      "required": ["schema_version", "status", "protected_verifier_configured", "receipt_canonical_sha256s"],
+      "properties": {
+        "schema_version": {"const": "doctrine-verifier-boundary/1.0"},
+        "status": {"enum": ["not_required", "unavailable", "pass", "fail"]},
+        "protected_verifier_configured": {"type": "boolean"},
+        "receipt_canonical_sha256s": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "required_attestation_schema": {"type": "string"},
+        "reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "maximum_permitted_claim": {"enum": ["standalone_exploratory_discovery_only", "candidate_only_untrusted_declarations", "verified_conditional_research_only"]},
+    "route_decision_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

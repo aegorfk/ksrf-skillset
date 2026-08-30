@@ -48,9 +48,33 @@
 }
 ```
 
-`case_scoped` дополнительно требует непустые `norms[].version_date`, списки `judicial_meanings`, `mechanisms`, `consequences` и `application_evidence_refs` со ссылками на отдельные evidence-артефакты применения. Строка вместо списка отклоняется. Не помещай тексты непубличных актов в этот request.
+Это standalone-вход: он сохраняет обычное планирование `exploratory_norm`, но его максимум — `standalone_exploratory_discovery_only`, а `promotion_eligible` всегда `false`.
 
-`hypothesis_verification` требует непустые `hypotheses_under_test`, `fulltext_source_refs` и `adverse_search_required=true`. Эти поля задают предмет проверки, но сами не подтверждают гипотезу или полный текст.
+Inbound-маршрут из портфеля добавляет контекст:
+
+```json
+{
+  "doctrine_route_context": {
+    "schema_version": "doctrine-route-context/1.1",
+    "portfolio_id": "portfolio-id",
+    "portfolio_artifact": {
+      "artifact_id": "portfolio-artifact-id",
+      "sha256": "sha256 exact portfolio bytes",
+      "size_bytes": 12345
+    },
+    "issue_option_id": "issue-option-id",
+    "trust_receipts": ["doctrine-trust-receipt/1.0 object"]
+  }
+}
+```
+
+Receipt — не строка и не самозаявленный hash. Полный машинный контракт находится в [doctrine-trust-receipt-1.0.schema.json](schemas/doctrine-trust-receipt-1.0.schema.json). Signed claims связывают роль receipt, `matter_id`, canonical request без trust-material, issue option, точные portfolio/artifact hashes и sizes, evidence role, `as_of_date`, corpus generation/manifest, coverage report, reviewed query plan, hypothesis set, freshness policy и revocation-registry generation. Скрипт пересчитывает `signed_claims_sha256` и canonical hash всего receipt.
+
+Эта структурная проверка не аутентифицирует подпись. Pass может выдать только защищённый verifier по [doctrine-verifier-attestation-1.0.schema.json](schemas/doctrine-verifier-attestation-1.0.schema.json): он обязан проверить trusted issuer/key, Ed25519 signature, exact bytes, scope, freshness, revocation, corpus/coverage и query-plan bindings, а attestation должна прийти через доверенный host channel, не из request. Текущая версия скилла такого verifier не имеет; поэтому любой conditional route остаётся `blocked`, `promotion_eligible=false`, `maximum_permitted_claim=candidate_only_untrusted_declarations`. Выходной контракт: [doctrine-route-1.1.schema.json](schemas/doctrine-route-1.1.schema.json).
+
+`case_scoped` дополнительно требует непустые `norms[].version_date`, списки `judicial_meanings`, `mechanisms`, `consequences` и `application_evidence_refs`. Каждая application-ссылка — объект с `evidence_id`, exact `sha256`, `size_bytes`, `provenance=official_application_record` и `trust_receipt`. Даже идеально сформированный request-carried receipt не закрывает gate без защищённого verifier. Не помещай тексты непубличных актов в request.
+
+`hypothesis_verification` требует непустые `hypotheses_under_test`, объектные `fulltext_source_refs` с exact bytes, `provenance=lawful_fulltext_artifact` и role-bound trust receipt, а также adverse receipt с corpus/coverage/query-plan и hypothesis bindings. `adverse_search_required=true` и строка `adverse_search_status=pass` остаются только декларациями и без защищённой проверки недостаточны.
 
 Внешний поиск разрешён только при `privacy.class=public_abstracted` либо `public_norm_profile` и `privacy.external_queries_redacted=true`. Флаг redacted не делает частные данные публичными: PII-gate отдельно блокирует типичные ФИО, контакты, идентификаторы, номера дел и реквизиты. Элементы query-полей должны быть непустыми строками; объектные формы допустимы только для явно описанных публичных судебных формул, гипотез и локальных ссылок на evidence.
 
@@ -60,6 +84,7 @@
 
 ```text
 request.snapshot.json
+route-decision.json
 norm-problem-profile.json
 provider-capabilities.snapshot.json
 provider-routing.json
