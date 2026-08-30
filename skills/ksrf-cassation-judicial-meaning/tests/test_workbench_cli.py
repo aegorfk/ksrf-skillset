@@ -319,6 +319,33 @@ class WorkbenchCliTests(unittest.TestCase):
             self.assertNotIn("Traceback", stderr)
             self.assertFalse((workspace / "query-decisions.jsonl").exists())
 
+    def test_plan_freeze_rejects_non_object_fingerprint_without_traceback_or_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "matter"
+            write_json(workspace / "case-fingerprint.json", [])
+            write_jsonl(workspace / "query-decisions.jsonl", [{}])
+            plan_path = root / "draft-plan.json"
+            write_json(plan_path, {})
+
+            code, stdout, stderr = self.run_cli(
+                [
+                    "plan",
+                    "freeze",
+                    "--workspace",
+                    str(workspace),
+                    "--plan",
+                    str(plan_path),
+                ]
+            )
+
+            self.assertEqual(2, code)
+            self.assertEqual("", stdout)
+            self.assertIn("case-fingerprint.json", stderr)
+            self.assertIn("JSON-объектом", stderr)
+            self.assertNotIn("Traceback", stderr)
+            self.assertFalse((workspace / "plans" / "plan-v1.json").exists())
+
     def test_fingerprint_readiness_recomputes_hash_core_fields_and_intake_binding(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

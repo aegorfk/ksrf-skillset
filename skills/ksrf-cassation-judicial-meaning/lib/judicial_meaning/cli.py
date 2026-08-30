@@ -386,7 +386,10 @@ def cmd_plan_freeze(args: argparse.Namespace) -> int:
         fingerprint_path = workspace / "case-fingerprint.json"
         if not fingerprint_path.exists():
             raise ValueError("Подтверждённые запросы требуют текущего case-fingerprint.json.")
-        fingerprint_sha256 = read_json(fingerprint_path).get("fingerprint_sha256")
+        fingerprint = read_json(fingerprint_path)
+        if not isinstance(fingerprint, dict):
+            raise ValueError("case-fingerprint.json должен быть JSON-объектом.")
+        fingerprint_sha256 = fingerprint.get("fingerprint_sha256")
         accepted: list[dict[str, Any]] = []
         plan = json.loads(json.dumps(plan, ensure_ascii=False))
         lanes = plan.get("query_lanes")
