@@ -40,3 +40,5 @@ KSRF-скиллы создавались не как универсальный 
 | 30 | Jürgen Habermas | `Constitutional Democracy: A Paradoxical Union of Contradictory Principles?` | демократическая легитимность, дискурс и конституционное государство |
 | 31 | Ганс Кельзен | `El control de la constitucionalidad de las leyes: estudio comparado de las constituciones austríaca y norteamericana` | модель конституционного суда и нормативная иерархия |
 | 32 | Аарон Барак | `Proportionality: Constitutional Rights and Their Limitations` | структура пропорциональности строго в пределах доступных страниц |
+| 33 | Марат Сабирьянович Саликов | [«Конституционный судебный процесс»](https://www.preslib.az/ru/book/O08TJjCdfpNS9CE), с. 121–129, 277–284 | стадии обращения, допустимость, доказательство применения и предварительная проверка с обязательной сверкой по действующему праву |
+| 34 | Артём Георгиевич Карапетов | [«Экономический анализ права»](https://www.estatut.ru/catalogue/books/grajdanskoe-pravo/teoriya-prava/ekonomicheskiy-analiz-prava/), с. 15–23, 31–33, 134–140 | краткосрочные и долгосрочные последствия, стимулы, издержки ошибок и границы экономической аргументации |
