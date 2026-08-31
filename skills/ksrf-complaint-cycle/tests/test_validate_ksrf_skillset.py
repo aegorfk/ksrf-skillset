@@ -388,6 +388,162 @@ tools:
             self.assertEqual(report["status"], "fail")
             self.assertIn("PACKAGE_MISSING", _codes(report))
 
+    def test_application_evidence_contract_helper_accepts_exact_ordered_enum(
+        self,
+    ) -> None:
+        expected = [
+            "raised_and_reviewed",
+            "raised_but_not_addressed",
+            "not_raised",
+            "record_missing",
+            "unclear",
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-complaint-cycle"
+            _write(
+                skill
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json",
+                json.dumps(
+                    {
+                        "properties": {
+                            "preservation_exhaustion": {"enum": expected}
+                        }
+                    }
+                ),
+            )
+            _write(
+                skill / "references" / "implicit-application-gate.md",
+                "# Gate\n\n"
+                "### `preservation_exhaustion`\n\n"
+                + "".join(f"- `{value}`;\n" for value in expected)
+                + "\n### Следующий раздел\n",
+            )
+            findings: list[dict[str, object]] = []
+            checker = getattr(
+                VALIDATOR, "_validate_application_evidence_contract", None
+            )
+
+            self.assertTrue(
+                callable(checker),
+                "validator must expose the application-evidence contract checker",
+            )
+            checker(findings, skill, root)
+
+            self.assertEqual(findings, [])
+
+    def test_validate_skillset_reports_preservation_enum_drift(self) -> None:
+        expected = [
+            "raised_and_reviewed",
+            "raised_but_not_addressed",
+            "not_raised",
+            "record_missing",
+            "unclear",
+        ]
+        actual = [
+            "raised_and_reviewed",
+            "raised_not_addressed",
+            "not_raised",
+            "record_missing",
+            "unclear",
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-complaint-cycle")
+            _write(
+                skill
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json",
+                json.dumps(
+                    {
+                        "properties": {
+                            "preservation_exhaustion": {"enum": expected}
+                        }
+                    }
+                ),
+            )
+            _write(
+                skill / "references" / "implicit-application-gate.md",
+                "# Gate\n\n"
+                "### `preservation_exhaustion`\n\n"
+                + "".join(f"- `{value}`;\n" for value in actual)
+                + "\n### Следующий раздел\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root, package_names=("ksrf-complaint-cycle",)
+            )
+            drift_findings = [
+                item
+                for item in report["findings"]
+                if isinstance(item, dict)
+                and item.get("code") == "APPLICATION_EVIDENCE_ENUM_DRIFT"
+            ]
+
+            self.assertEqual(report["status"], "fail")
+            self.assertEqual(len(drift_findings), 1)
+            self.assertEqual(drift_findings[0]["severity"], "error")
+            self.assertEqual(
+                drift_findings[0]["evidence"],
+                {"expected": expected, "actual": actual},
+            )
+
+    def test_application_evidence_contract_rejects_extra_backtick_token(
+        self,
+    ) -> None:
+        expected = [
+            "raised_and_reviewed",
+            "raised_but_not_addressed",
+            "not_raised",
+            "record_missing",
+            "unclear",
+        ]
+        actual = [
+            "raised_and_reviewed",
+            "invented_authority_expansion",
+            "raised_but_not_addressed",
+            "not_raised",
+            "record_missing",
+            "unclear",
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-complaint-cycle"
+            _write(
+                skill
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json",
+                json.dumps(
+                    {
+                        "properties": {
+                            "preservation_exhaustion": {"enum": expected}
+                        }
+                    }
+                ),
+            )
+            _write(
+                skill / "references" / "implicit-application-gate.md",
+                "# Gate\n\n"
+                "### `preservation_exhaustion`\n\n"
+                "- `raised_and_reviewed` (alias `invented_authority_expansion`);\n"
+                + "".join(f"- `{value}`;\n" for value in expected[1:])
+                + "\n### Следующий раздел\n",
+            )
+            findings: list[dict[str, object]] = []
+
+            VALIDATOR._validate_application_evidence_contract(findings, skill, root)
+
+            self.assertEqual(len(findings), 1)
+            self.assertEqual(findings[0]["code"], "APPLICATION_EVIDENCE_ENUM_DRIFT")
+            self.assertEqual(
+                findings[0]["evidence"],
+                {"expected": expected, "actual": actual},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
