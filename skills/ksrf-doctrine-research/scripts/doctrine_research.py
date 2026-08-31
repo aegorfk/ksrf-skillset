@@ -2037,6 +2037,168 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
         errors.append("duplicate query_id")
     if query_plan.get("legal_conclusions"):
         errors.append("query plan must not contain legal conclusions")
+    planned_query_ids = set(query_ids)
+    computed_query_plan_hash = None
+    try:
+        canonical_queries = [
+            {
+                key: row[key]
+                for key in ("query_id", "query_intent_id", "lane", "text", "origin", "polarity")
+            }
+            for row in query_plan.get("queries", [])
+        ]
+    except (KeyError, TypeError):
+        errors.append("query plan cannot be hash-verified")
+    else:
+        computed_query_plan_hash = stable_hash(
+            {
+                "route_decision_hash": query_plan.get("route_decision_hash"),
+                "queries": canonical_queries,
+            }
+        )
+        if query_plan.get("query_plan_hash") != computed_query_plan_hash:
+            errors.append("query-plan.json self-hash mismatch")
+    expected_query_plan = None
+    query_plan_matches_request = False
+    try:
+        expected_query_plan = build_query_plan(snapshot)
+    except DoctrineResearchError as exc:
+        errors.append(f"query plan cannot be rebuilt from request snapshot: {exc}")
+    else:
+        query_plan_matches_request = (
+            computed_query_plan_hash is not None
+            and computed_query_plan_hash == expected_query_plan.get("query_plan_hash")
+        )
+        if not query_plan_matches_request:
+            errors.append("query-plan.json does not match deterministic request plan")
+    run_config_path = workspace / "search-run-config.json"
+    run_config: Optional[Mapping[str, Any]] = None
+    computed_run_config_hash = None
+    run_config_binding_valid = False
+    validated_selected_query_ids = None
+    validated_selected_providers = None
+    if run_config_path.exists():
+        try:
+            loaded_run_config = load_json(run_config_path)
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            errors.append("invalid search-run-config.json: unreadable or malformed JSON")
+        else:
+            if not isinstance(loaded_run_config, Mapping):
+                errors.append("invalid search-run-config.json: expected object")
+            else:
+                run_config = loaded_run_config
+                run_config_core = dict(run_config)
+                stored_run_config_hash = run_config_core.pop("run_config_hash", None)
+                computed_run_config_hash = stable_hash(run_config_core)
+                hash_matches = stored_run_config_hash == computed_run_config_hash
+                if not hash_matches:
+                    errors.append("search-run-config.json self-hash mismatch")
+                plan_hash_matches = (
+                    computed_query_plan_hash is not None
+                    and run_config.get("query_plan_hash") == computed_query_plan_hash
+                )
+                if not plan_hash_matches:
+                    errors.append("query plan hash mismatch in search-run-config.json")
+                request_hash_matches = run_config.get("request_sha256") == snapshot_hash
+                if not request_hash_matches:
+                    errors.append("request hash mismatch in search-run-config.json")
+                route_hash_matches = run_config.get("route_decision_hash") == route_hash
+                if not route_hash_matches:
+                    errors.append("route decision hash mismatch in search-run-config.json")
+                selected_values = run_config.get("selected_query_ids")
+                selection_matches = False
+                max_queries = run_config.get("max_queries")
+                if not isinstance(max_queries, int) or isinstance(max_queries, bool) or max_queries <= 0:
+                    errors.append("search-run-config max_queries must be a positive integer")
+                elif not isinstance(selected_values, list) or not selected_values:
+                    errors.append("search-run-config selected_query_ids must be a non-empty list")
+                elif any(
+                    not isinstance(query_id, str) or not query_id.strip()
+                    for query_id in selected_values
+                ):
+                    errors.append(
+                        "search-run-config selected_query_ids must contain only non-empty strings"
+                    )
+                elif len(selected_values) != len(set(selected_values)):
+                    errors.append("search-run-config selected_query_ids contains duplicate query_id")
+                elif expected_query_plan is not None:
+                    expected_selected_query_ids = [
+                        row["query_id"]
+                        for row in select_bounded_queries(expected_query_plan, max_queries)
+                    ]
+                    selection_matches = selected_values == expected_selected_query_ids
+                    if not selection_matches:
+                        errors.append(
+                            "selected query IDs mismatch deterministic bounded selection"
+                        )
+                    else:
+                        validated_selected_query_ids = list(selected_values)
+                provider_values = run_config.get("selected_providers")
+                providers_well_formed = False
+                if not isinstance(provider_values, list) or not provider_values:
+                    errors.append("search-run-config selected_providers must be a non-empty list")
+                elif any(
+                    not isinstance(provider, str) or not provider.strip()
+                    for provider in provider_values
+                ):
+                    errors.append(
+                        "search-run-config selected_providers must contain only non-empty strings"
+                    )
+                elif len(provider_values) != len(set(provider_values)):
+                    errors.append("search-run-config selected_providers contains duplicate provider")
+                else:
+                    providers_well_formed = True
+                    validated_selected_providers = list(provider_values)
+                run_config_binding_valid = (
+                    hash_matches
+                    and plan_hash_matches
+                    and query_plan_matches_request
+                    and request_hash_matches
+                    and route_hash_matches
+                    and selection_matches
+                    and providers_well_formed
+                )
+    search_log_path = workspace / "search-log.jsonl"
+    successful_logged_query_ids = set()
+    search_log_binding_valid = False
+    if run_config is not None:
+        if not search_log_path.exists():
+            errors.append("search-run-config.json exists without search-log.jsonl")
+        else:
+            try:
+                search_logs = read_jsonl(search_log_path)
+            except (DoctrineResearchError, OSError, UnicodeError):
+                errors.append("invalid search-log.jsonl")
+            else:
+                observed_pairs = []
+                log_rows_well_formed = True
+                for row in search_logs:
+                    provider = row.get("provider")
+                    query_id = row.get("query_id")
+                    if (
+                        not isinstance(provider, str)
+                        or not provider.strip()
+                        or not isinstance(query_id, str)
+                        or not query_id.strip()
+                    ):
+                        log_rows_well_formed = False
+                        continue
+                    observed_pairs.append((provider, query_id))
+                    if row.get("status") == "success":
+                        successful_logged_query_ids.add(query_id)
+                if not log_rows_well_formed:
+                    errors.append("search-log provider/query IDs must be non-empty strings")
+                elif len(observed_pairs) != len(set(observed_pairs)):
+                    errors.append("search-log contains duplicate provider/query attempts")
+                elif run_config_binding_valid:
+                    expected_pairs = {
+                        (provider, query_id)
+                        for provider in validated_selected_providers or []
+                        for query_id in validated_selected_query_ids or []
+                    }
+                    search_log_binding_valid = set(observed_pairs) == expected_pairs
+                    if not search_log_binding_valid:
+                        errors.append("search-log query/provider matrix mismatch")
     source_path = workspace / "source-ledger.jsonl"
     sources: List[Dict[str, Any]] = []
     if source_path.exists():
@@ -2044,7 +2206,35 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
         source_ids = [row.get("source_id") for row in sources]
         if len(source_ids) != len(set(source_ids)):
             errors.append("duplicate source_id")
+        selected_query_ids = None
+        if sources:
+            if run_config is None:
+                errors.append("source ledger exists without valid search-run-config.json")
+            elif run_config_binding_valid:
+                selected_query_ids = set(run_config.get("selected_query_ids", []))
         for row in sources:
+            source_id = row.get("source_id")
+            source_query_ids = row.get("query_ids")
+            if not isinstance(source_query_ids, list) or not source_query_ids:
+                errors.append(f"source {source_id} query_ids must be a non-empty list")
+            elif any(not isinstance(query_id, str) or not query_id.strip() for query_id in source_query_ids):
+                errors.append(f"source {source_id} query_ids must contain only non-empty strings")
+            elif len(source_query_ids) != len(set(source_query_ids)):
+                errors.append(f"source {source_id} query_ids contains duplicate query_id")
+            else:
+                for query_id in source_query_ids:
+                    if query_id not in planned_query_ids:
+                        errors.append(
+                            f"source {source_id} query_id {query_id!r} is not in current query plan"
+                        )
+                    elif selected_query_ids is not None and query_id not in selected_query_ids:
+                        errors.append(
+                            f"source {source_id} query_id {query_id!r} was not selected for current search run"
+                        )
+                    elif search_log_binding_valid and query_id not in successful_logged_query_ids:
+                        errors.append(
+                            f"source {source_id} query_id {query_id!r} has no successful search-log attempt"
+                        )
             if row.get("promotion_status") != "candidate_only":
                 errors.append(f"source promoted beyond candidate_only: {row.get('source_id')}")
             if row.get("verification_status") not in {"metadata_only", "abstract_checked"}:
@@ -2072,16 +2262,10 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
             errors.append("federated discovery coverage_complete must remain false")
         if coverage.get("absence_claim_permitted") is not False:
             errors.append("absence_claim_permitted must remain false")
-        run_config_path = workspace / "search-run-config.json"
-        if not run_config_path.exists():
-            errors.append("coverage exists without search-run-config.json")
+        if run_config is None:
+            errors.append("coverage exists without valid search-run-config.json")
         else:
-            run_config = load_json(run_config_path)
-            if run_config.get("request_sha256") != snapshot_hash:
-                errors.append("request hash mismatch in search-run-config.json")
-            if run_config.get("route_decision_hash") != route_hash:
-                errors.append("route decision hash mismatch in search-run-config.json")
-            if run_config.get("run_config_hash") != coverage.get("run_config_hash"):
+            if computed_run_config_hash != coverage.get("run_config_hash"):
                 errors.append("run config hash mismatch in coverage-report.json")
             routing = load_json(workspace / "provider-routing.json")
             routed = sorted(
@@ -2089,12 +2273,22 @@ def validate_workspace(workspace: Path) -> Dict[str, Any]:
                 for row in routing.get("decisions", [])
                 if row.get("selected_for_automated_run")
             )
-            configured = sorted(run_config.get("selected_providers", []))
+            configured = sorted(validated_selected_providers or [])
             covered = sorted(row.get("provider") for row in coverage.get("provider_statuses", []))
             if routed != configured or covered != configured:
                 errors.append("provider set mismatch across routing, run config, and coverage")
     else:
-        warnings.append("search artifacts are not present; plan-only workspace")
+        search_artifact_names = (
+            "search-run-config.json",
+            "search-log.jsonl",
+            "source-ledger.jsonl",
+            "problem-candidates.json",
+            "acquisition-queue.json",
+        )
+        if any((workspace / filename).exists() for filename in search_artifact_names):
+            errors.append("search artifacts exist without coverage-report.json")
+        else:
+            warnings.append("search artifacts are not present; plan-only workspace")
     return {
         "schema_version": "doctrine-qa/1.0",
         "status": "pass" if not errors else "fail",

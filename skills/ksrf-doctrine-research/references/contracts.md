@@ -78,7 +78,7 @@ Receipt — не строка и не самозаявленный hash. Пол�
 
 Внешний поиск разрешён только при `privacy.class=public_abstracted` либо `public_norm_profile` и `privacy.external_queries_redacted=true`. Флаг redacted не делает частные данные публичными: PII-gate отдельно блокирует типичные ФИО, контакты, идентификаторы, номера дел и реквизиты. Элементы query-полей должны быть непустыми строками; объектные формы допустимы только для явно описанных публичных судебных формул, гипотез и локальных ссылок на evidence.
 
-Для `case_scoped` и `hypothesis_verification` сетевой запуск требует точного `--approved-query-plan-hash` после человеческого просмотра `query-plan.json`. `search-run-config.json` фиксирует выбранных провайдеров, query IDs и границы выдачи; его hash обязан совпадать с `coverage-report.json`.
+Для `case_scoped` и `hypothesis_verification` сетевой запуск требует точного `--approved-query-plan-hash` после человеческого просмотра `query-plan.json`. `search-run-config.json` фиксирует выбранных провайдеров, query IDs и границы выдачи. Workspace QA заново строит ожидаемый план из `request.snapshot.json`, пересчитывает `run_config_hash` из фактического содержимого без самого hash-поля, связывает `query_plan_hash` с ожидаемым планом, выводит точную последовательность `selected_query_ids` через bounded selection, сверяет полную матрицу provider/query с `search-log.jsonl` и требует совпадения пересчитанного run hash с `coverage-report.json`; сравнения самозаявленных сохранённых значений недостаточно.
 
 ## Артефакты workspace
 
@@ -112,6 +112,13 @@ acquisition-queue.json
 - `verification_status`;
 - `problem_labels` только как эвристические discovery labels;
 - компоненты `reading_priority`, не являющиеся оценкой авторитетности.
+
+`query_ids` — непустой список уникальных непустых строк. Каждый идентификатор
+обязан одновременно присутствовать в текущем `query-plan.json` и в
+`search-run-config.json.selected_query_ids`; source ledger без пригодного
+`search-run-config.json` не проходит workspace QA. Наличие поисковых артефактов
+без `coverage-report.json` считается незавершённым запуском, а не plan-only
+workspace.
 
 При полном чтении добавь:
 

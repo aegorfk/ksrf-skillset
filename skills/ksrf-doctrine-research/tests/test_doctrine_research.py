@@ -871,6 +871,271 @@ class DoctrineResearchTests(unittest.TestCase):
             self.assertEqual("fail", report["status"])
             self.assertTrue(any("provider set mismatch" in error for error in report["errors"]))
 
+    def test_workspace_validation_binds_sources_to_selected_queries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "run"
+            args = argparse.Namespace(
+                request=str(write_request(root)),
+                workspace=str(workspace),
+                providers="crossref",
+                max_queries=1,
+                max_results=5,
+                timeout=1.0,
+                request_delay=0,
+                offline_fixtures=str(FIXTURES),
+            )
+            prepare_search_plan(args)
+            plan_only_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("pass", plan_only_report["status"])
+            self.assertIn("search artifacts are not present; plan-only workspace", plan_only_report["warnings"])
+            self.assertEqual(0, MODULE.run_search(args))
+            sources = MODULE.read_jsonl(workspace / "source-ledger.jsonl")
+            self.assertTrue(sources)
+            original_source_query_ids = list(sources[0]["query_ids"])
+            self.assertEqual("pass", MODULE.validate_workspace(workspace)["status"])
+
+            sources[0]["query_ids"] = ["q-stale-not-in-plan"]
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+            stale_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", stale_report["status"])
+            self.assertTrue(
+                any("not in current query plan" in error for error in stale_report["errors"])
+            )
+
+            query_plan = MODULE.load_json(workspace / "query-plan.json")
+            run_config = MODULE.load_json(workspace / "search-run-config.json")
+            original_selected_query_ids = list(run_config["selected_query_ids"])
+            selected = set(run_config["selected_query_ids"])
+            planned_unselected = next(
+                row["query_id"] for row in query_plan["queries"] if row["query_id"] not in selected
+            )
+            sources[0]["query_ids"] = [planned_unselected]
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+            unselected_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", unselected_report["status"])
+            self.assertTrue(
+                any(
+                    "not selected for current search run" in error
+                    for error in unselected_report["errors"]
+                )
+            )
+
+            run_config["selected_query_ids"].append(planned_unselected)
+            MODULE.write_json(workspace / "search-run-config.json", run_config)
+            forged_selection_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", forged_selection_report["status"])
+            self.assertTrue(
+                any(
+                    "search-run-config.json self-hash mismatch" in error
+                    for error in forged_selection_report["errors"]
+                )
+            )
+
+            run_config_core = {
+                key: value for key, value in run_config.items() if key != "run_config_hash"
+            }
+            run_config["run_config_hash"] = MODULE.stable_hash(run_config_core)
+            MODULE.write_json(workspace / "search-run-config.json", run_config)
+            coverage = MODULE.load_json(workspace / "coverage-report.json")
+            coverage["run_config_hash"] = run_config["run_config_hash"]
+            MODULE.write_json(workspace / "coverage-report.json", coverage)
+            rehashed_selection_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", rehashed_selection_report["status"])
+            self.assertTrue(
+                any(
+                    "selected query IDs mismatch deterministic bounded selection" in error
+                    for error in rehashed_selection_report["errors"]
+                )
+            )
+
+            two_selected_query_ids = [
+                row["query_id"] for row in MODULE.select_bounded_queries(query_plan, 2)
+            ]
+            second_selected_query_id = next(
+                query_id
+                for query_id in two_selected_query_ids
+                if query_id not in original_selected_query_ids
+            )
+            run_config["max_queries"] = 2
+            run_config["selected_query_ids"] = two_selected_query_ids
+            run_config_core = {
+                key: value for key, value in run_config.items() if key != "run_config_hash"
+            }
+            run_config["run_config_hash"] = MODULE.stable_hash(run_config_core)
+            MODULE.write_json(workspace / "search-run-config.json", run_config)
+            coverage["run_config_hash"] = run_config["run_config_hash"]
+            MODULE.write_json(workspace / "coverage-report.json", coverage)
+            sources[0]["query_ids"] = [second_selected_query_id]
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+            unlogged_selection_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", unlogged_selection_report["status"])
+            self.assertTrue(
+                any(
+                    "search-log query/provider matrix mismatch" in error
+                    for error in unlogged_selection_report["errors"]
+                )
+            )
+
+            run_config["query_plan_hash"] = "sha-stale-query-plan"
+            run_config_core = {
+                key: value for key, value in run_config.items() if key != "run_config_hash"
+            }
+            run_config["run_config_hash"] = MODULE.stable_hash(run_config_core)
+            MODULE.write_json(workspace / "search-run-config.json", run_config)
+            coverage = MODULE.load_json(workspace / "coverage-report.json")
+            coverage["run_config_hash"] = run_config["run_config_hash"]
+            MODULE.write_json(workspace / "coverage-report.json", coverage)
+            stale_plan_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", stale_plan_report["status"])
+            self.assertTrue(
+                any(
+                    "query plan hash mismatch in search-run-config.json" in error
+                    for error in stale_plan_report["errors"]
+                )
+            )
+
+            query_plan["queries"][0]["text"] += " forged"
+            canonical_queries = [
+                {
+                    key: row[key]
+                    for key in (
+                        "query_id",
+                        "query_intent_id",
+                        "lane",
+                        "text",
+                        "origin",
+                        "polarity",
+                    )
+                }
+                for row in query_plan["queries"]
+            ]
+            query_plan["query_plan_hash"] = MODULE.stable_hash(
+                {
+                    "route_decision_hash": query_plan["route_decision_hash"],
+                    "queries": canonical_queries,
+                }
+            )
+            MODULE.write_json(workspace / "query-plan.json", query_plan)
+            run_config["query_plan_hash"] = query_plan["query_plan_hash"]
+            run_config["max_queries"] = 1
+            run_config["selected_query_ids"] = original_selected_query_ids
+            run_config_core = {
+                key: value for key, value in run_config.items() if key != "run_config_hash"
+            }
+            run_config["run_config_hash"] = MODULE.stable_hash(run_config_core)
+            MODULE.write_json(workspace / "search-run-config.json", run_config)
+            coverage["run_config_hash"] = run_config["run_config_hash"]
+            MODULE.write_json(workspace / "coverage-report.json", coverage)
+            sources[0]["query_ids"] = original_source_query_ids
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", sources)
+            foreign_plan_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", foreign_plan_report["status"])
+            self.assertTrue(
+                any(
+                    "query-plan.json does not match deterministic request plan" in error
+                    for error in foreign_plan_report["errors"]
+                )
+            )
+
+    def test_workspace_validation_rejects_malformed_source_query_ids(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "run"
+            args = argparse.Namespace(
+                request=str(write_request(root)),
+                workspace=str(workspace),
+                providers="crossref",
+                max_queries=1,
+                max_results=5,
+                timeout=1.0,
+                request_delay=0,
+                offline_fixtures=str(FIXTURES),
+            )
+            prepare_search_plan(args)
+            self.assertEqual(0, MODULE.run_search(args))
+            original = MODULE.read_jsonl(workspace / "source-ledger.jsonl")[0]
+            selected_query_id = MODULE.load_json(workspace / "search-run-config.json")[
+                "selected_query_ids"
+            ][0]
+            malformed_cases = (
+                ("missing", None, "must be a non-empty list"),
+                ("empty", [], "must be a non-empty list"),
+                ("string", selected_query_id, "must be a non-empty list"),
+                ("non-string", [1], "must contain only non-empty strings"),
+                ("duplicate", [selected_query_id, selected_query_id], "contains duplicate query_id"),
+            )
+            for name, value, expected_error in malformed_cases:
+                with self.subTest(name=name):
+                    source = dict(original)
+                    if name == "missing":
+                        source.pop("query_ids", None)
+                    else:
+                        source["query_ids"] = value
+                    MODULE.write_jsonl(workspace / "source-ledger.jsonl", [source])
+                    report = MODULE.validate_workspace(workspace)
+                    self.assertEqual("fail", report["status"])
+                    self.assertTrue(
+                        any(expected_error in error for error in report["errors"]),
+                        report["errors"],
+                    )
+
+            MODULE.write_jsonl(workspace / "source-ledger.jsonl", [original])
+            (workspace / "search-run-config.json").unlink()
+            missing_config_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", missing_config_report["status"])
+            self.assertTrue(
+                any(
+                    "source ledger exists without valid search-run-config.json" in error
+                    for error in missing_config_report["errors"]
+                )
+            )
+
+            (workspace / "search-run-config.json").write_text("{", encoding="utf-8")
+            malformed_config_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", malformed_config_report["status"])
+            self.assertTrue(
+                any(
+                    "invalid search-run-config.json" in error
+                    for error in malformed_config_report["errors"]
+                )
+            )
+
+    def test_workspace_validation_rejects_search_artifacts_without_coverage(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "run"
+            args = argparse.Namespace(
+                request=str(write_request(root)),
+                workspace=str(workspace),
+                providers="crossref",
+                max_queries=1,
+                max_results=5,
+                timeout=1.0,
+                request_delay=0,
+                offline_fixtures=str(FIXTURES),
+            )
+            prepare_search_plan(args)
+            self.assertEqual(0, MODULE.run_search(args))
+            coverage = MODULE.load_json(workspace / "coverage-report.json")
+            (workspace / "coverage-report.json").unlink()
+            report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", report["status"])
+            self.assertIn("search artifacts exist without coverage-report.json", report["errors"])
+            self.assertNotIn(
+                "search artifacts are not present; plan-only workspace",
+                report["warnings"],
+            )
+
+            MODULE.write_json(workspace / "coverage-report.json", coverage)
+            (workspace / "search-log.jsonl").unlink()
+            missing_log_report = MODULE.validate_workspace(workspace)
+            self.assertEqual("fail", missing_log_report["status"])
+            self.assertIn(
+                "search-run-config.json exists without search-log.jsonl",
+                missing_log_report["errors"],
+            )
+
     def test_partial_provider_failure_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

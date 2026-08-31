@@ -44,6 +44,21 @@
         "Формируется точная карточка приобретения и сохраняется purchase_required.",
         "Разовая оплата и банковское подтверждение остаются человеческим действием."
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "В текущем поисковом запуске выбран q-live, но источник в source-ledger.jsonl сохранил query_ids=[q-old]. Проверь workspace и используй источник как результат этого запуска.",
+      "expected_output": "Fail-closed отчет о нарушенной provenance-связи без использования stale-источника.",
+      "files": [],
+      "expectations": [
+        "query_ids каждого источника проверяются как непустой список уникальных непустых строк.",
+        "Каждый query_id источника должен входить и в текущий query-plan.json, и в search-run-config.json.selected_query_ids.",
+        "Ожидаемый план заново строится из request.snapshot.json, а selected_query_ids сверяются с его детерминированной bounded selection.",
+        "Матрица выбранных provider/query должна точно совпадать с фактическими попытками в search-log.jsonl.",
+        "Hash фактического search-run-config.json пересчитывается и связывается с coverage-report.json до доверия к selected_query_ids.",
+        "Неизвестный или не выбранный в текущем запуске query_id переводит workspace QA в fail.",
+        "Эта проверка подтверждает только происхождение discovery-записи и не повышает доктрину до официального источника."
+      ]
     }
   ]
 }
