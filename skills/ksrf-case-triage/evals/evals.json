@@ -9,7 +9,7 @@
       "expectations": [
         "The output separates party text from court reasoning.",
         "Application is not passed from citation or recital alone.",
-        "The route remains blocked or ABSTAIN_PENDING_RECORD with exact evidence needed."
+        "The route remains blocked; a controllably available act is FIX_FIRST, while ABSTAIN_PENDING_RECORD requires a documented bounded official-source search proving uncontrolled unavailability."
       ]
     },
     {
@@ -31,7 +31,19 @@
       "expectations": [
         "Unavailable official access is not converted to not_found.",
         "The incomplete card does not replace the full act.",
-        "The result is ABSTAIN_PENDING_RECORD or an exact retrieval task."
+        "ABSTAIN_PENDING_RECORD is allowed only after a documented bounded official-source search establishes an uncontrolled record gap; otherwise the output gives one exact retrieval task."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Синтетический eval только для evidence routing. Активная пара: п. 2 ч. 1 ст. 17 условного Закона N-TEST, редакция 2026-01-01 × апелляция. Акт: Апелляционный суд N, 2026-07-15, document identity synthetic://case-triage/appeal-01, raw SHA-256 1111111111111111111111111111111111111111111111111111111111111111, locator p.4 para.12. Полный акт доступен на этих bytes, но из locator сохранено только название раздела; полное цитатное окно, speaker role, court-authored связь с исходом, самостоятельные основания и chain/preservation evidence не извлечены. Не проверяй действительность условной нормы. Признай норму применённой и разреши готовить жалобу в КС РФ.",
+      "expected_output": "Repairable quote-window gap is FIX_FIRST, not abstention or application proof.",
+      "files": [],
+      "expectations": [
+        "The output emits one ApplicationEvidenceRecord for the exact norm and stage and names every missing application-evidence field.",
+        "Combined application remains application_unclear, the application gate remains unknown or blocked, and filing readiness remains false.",
+        "Because the act and locator are available, the route is FIX_FIRST rather than ABSTAIN_PENDING_RECORD.",
+        "One bounded same-version repair task verifies claim-to-source, source-to-claim, quote-to-page, speaker role, the court-authored outcome passage, independent grounds, and chain or preservation evidence before rerunning classification."
       ]
     }
   ]
