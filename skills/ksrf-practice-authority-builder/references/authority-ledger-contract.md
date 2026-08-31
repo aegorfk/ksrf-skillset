@@ -106,6 +106,7 @@
 - Цитата с непустым `text` требует `locator` и `source.full_text_opened=true`.
 - `key_quote=true` требует `official_verified` и `verified_against_official` перед drafting.
 - `drafting_ready=true` требует proposition, полный текст, проверенный transfer limit, завершенный adverse pass и `verification_status` не ниже `full_text_opened`.
+- Каждый `drafting_blocks[].authority_ids[]` должен указывать на authority, где `hypothesis_ids` содержит `hypothesis_id` этого drafting block; authority может относиться к нескольким гипотезам, но каждая ссылка блока проверяется отдельно.
 - `--require-drafting` дополнительно требует `human_approval.status=approved` и хотя бы один drafting block.
 - `--public` запрещает URL с access/query token и предназначен только для обезличенного артефакта.
 

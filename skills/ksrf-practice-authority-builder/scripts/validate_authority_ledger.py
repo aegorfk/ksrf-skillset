@@ -93,13 +93,18 @@ class Validator:
 
         self.validate_query_profile(root.get("query_profile"))
         query_ids = self.validate_query_log(root.get("query_log"), mode)
-        authority_ids, has_drafting_ready = self.validate_authorities(
+        authority_hypotheses, has_drafting_ready = self.validate_authorities(
             root.get("authorities")
         )
         self.validate_adverse_pass(
-            root.get("adverse_pass"), query_ids, authority_ids, has_drafting_ready
+            root.get("adverse_pass"),
+            query_ids,
+            set(authority_hypotheses),
+            has_drafting_ready,
         )
-        self.validate_drafting_blocks(root.get("drafting_blocks"), authority_ids)
+        self.validate_drafting_blocks(
+            root.get("drafting_blocks"), authority_hypotheses
+        )
         self.validate_human_approval(root.get("human_approval"))
 
     def validate_query_profile(self, value: Any) -> None:
@@ -149,9 +154,12 @@ class Validator:
                 )
         return seen
 
-    def validate_authorities(self, value: Any) -> tuple[set[str], bool]:
+    def validate_authorities(
+        self, value: Any
+    ) -> tuple[dict[str, set[str]], bool]:
         authorities = self.require_list(value, "$.authorities")
         seen: set[str] = set()
+        authority_hypotheses: dict[str, set[str]] = {}
         has_drafting_ready = False
 
         for index, item in enumerate(authorities):
@@ -172,11 +180,16 @@ class Validator:
             )
             if not hypothesis_ids:
                 self.error(f"{path}.hypothesis_ids", "must not be empty")
+            valid_hypothesis_ids: set[str] = set()
             for hypothesis_index, hypothesis_id in enumerate(hypothesis_ids):
-                self.require_string(
+                hypothesis_value = self.require_string(
                     hypothesis_id,
                     f"{path}.hypothesis_ids[{hypothesis_index}]",
                 )
+                if hypothesis_value:
+                    valid_hypothesis_ids.add(hypothesis_value)
+            if authority_id and authority_id not in authority_hypotheses:
+                authority_hypotheses[authority_id] = valid_hypothesis_ids
 
             for field in ("court", "act_type", "date", "number", "title"):
                 self.require_string(authority.get(field), f"{path}.{field}")
@@ -270,7 +283,7 @@ class Validator:
                             "key quote must be checked against official source",
                         )
 
-        return seen, has_drafting_ready
+        return authority_hypotheses, has_drafting_ready
 
     def validate_source(self, value: Any, path: str) -> dict[str, Any]:
         source = self.require_object(value, path)
@@ -390,7 +403,7 @@ class Validator:
             )
 
     def validate_drafting_blocks(
-        self, value: Any, authority_ids: set[str]
+        self, value: Any, authority_hypotheses: dict[str, set[str]]
     ) -> None:
         blocks = self.require_list(value, "$.drafting_blocks")
         if self.require_drafting and not blocks:
@@ -407,8 +420,10 @@ class Validator:
                 if block_id in seen:
                     self.error(f"{path}.block_id", f"duplicate id {block_id!r}")
                 seen.add(block_id)
+            block_hypothesis_id = self.require_string(
+                block.get("hypothesis_id"), f"{path}.hypothesis_id"
+            )
             for field in (
-                "hypothesis_id",
                 "thesis",
                 "applicability_bridge",
                 "conclusion",
@@ -424,11 +439,27 @@ class Validator:
                     authority_id,
                     f"{path}.authority_ids[{authority_index}]",
                 )
-                if authority_value and authority_value not in authority_ids:
-                    self.error(
-                        f"{path}.authority_ids[{authority_index}]",
-                        f"unknown authority id {authority_value!r}",
+                if authority_value:
+                    authority_path = (
+                        f"{path}.authority_ids[{authority_index}]"
                     )
+                    if authority_value not in authority_hypotheses:
+                        self.error(
+                            authority_path,
+                            f"unknown authority id {authority_value!r}",
+                        )
+                    elif (
+                        block_hypothesis_id
+                        and block_hypothesis_id
+                        not in authority_hypotheses[authority_value]
+                    ):
+                        self.error(
+                            authority_path,
+                            (
+                                f"authority {authority_value!r} does not declare "
+                                f"block hypothesis {block_hypothesis_id!r}"
+                            ),
+                        )
 
     def validate_human_approval(self, value: Any) -> None:
         approval = self.require_object(value, "$.human_approval")
