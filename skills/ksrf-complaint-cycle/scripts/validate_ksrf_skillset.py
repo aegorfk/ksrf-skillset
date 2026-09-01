@@ -810,6 +810,102 @@ def _validate_reference_tocs(
             )
 
 
+def _validate_application_evidence_contract(
+    findings: list[dict[str, Any]], package_dir: Path, skills_root: Path
+) -> None:
+    """Keep the normative preservation vocabulary aligned with its JSON Schema."""
+
+    package = package_dir.name
+    if package != "ksrf-complaint-cycle":
+        return
+
+    schema_path = (
+        package_dir
+        / "schemas"
+        / "ksrf_filing"
+        / "application-evidence.schema.json"
+    )
+    reference_path = package_dir / "references" / "implicit-application-gate.md"
+
+    try:
+        schema = _read_json(schema_path)
+        expected = schema["properties"]["preservation_exhaustion"]["enum"]
+        if (
+            not isinstance(expected, list)
+            or not expected
+            or any(not isinstance(value, str) or not value for value in expected)
+            or len(expected) != len(set(expected))
+        ):
+            raise ValueError("preservation_exhaustion.enum must be a unique non-empty string list")
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "APPLICATION_EVIDENCE_CONTRACT_INVALID",
+                f"Не удалось прочитать canonical preservation_exhaustion enum: {exc}",
+                package=package,
+                path=_relative(schema_path, skills_root),
+            )
+        )
+        return
+
+    try:
+        lines = reference_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "APPLICATION_EVIDENCE_CONTRACT_INVALID",
+                f"Не удалось прочитать normative application-evidence reference: {exc}",
+                package=package,
+                path=_relative(reference_path, skills_root),
+            )
+        )
+        return
+
+    heading_positions = [
+        index
+        for index, line in enumerate(lines)
+        if line.strip() == "### `preservation_exhaustion`"
+    ]
+    if len(heading_positions) != 1:
+        findings.append(
+            _finding(
+                "error",
+                "APPLICATION_EVIDENCE_CONTRACT_INVALID",
+                "Reference должен содержать ровно одну секцию ### `preservation_exhaustion`.",
+                package=package,
+                path=_relative(reference_path, skills_root),
+                evidence={"heading_count": len(heading_positions)},
+            )
+        )
+        return
+
+    actual: list[str] = []
+    for line in lines[heading_positions[0] + 1 :]:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            break
+        if not stripped.startswith("-"):
+            continue
+        actual.extend(CODE_TOKEN.findall(stripped))
+
+    if actual != expected:
+        findings.append(
+            _finding(
+                "error",
+                "APPLICATION_EVIDENCE_ENUM_DRIFT",
+                (
+                    "Normative preservation_exhaustion list расходится "
+                    "с canonical application-evidence schema."
+                ),
+                package=package,
+                path=_relative(reference_path, skills_root),
+                evidence={"expected": expected, "actual": actual},
+            )
+        )
+
+
 def _is_secret_path(path: Path) -> bool:
     name = path.name
     lowered = name.lower()
@@ -1097,6 +1193,7 @@ def validate_skillset(
         _validate_trigger_evals(findings, package_dir, root)
         _validate_markdown_links(findings, package_dir, root)
         _validate_reference_tocs(findings, package_dir, root)
+        _validate_application_evidence_contract(findings, package_dir, root)
         _validate_markdown_mcp_references(findings, package_dir, root)
     manifest = _build_publish_manifest(findings, root, packages)
     severity_order = {"error": 0, "warning": 1}

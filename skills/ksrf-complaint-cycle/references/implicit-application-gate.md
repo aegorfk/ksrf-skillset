@@ -24,7 +24,7 @@
 ### `preservation_exhaustion`
 
 - `raised_and_reviewed`;
-- `raised_not_addressed`;
+- `raised_but_not_addressed`;
 - `not_raised`;
 - `record_missing`;
 - `unclear`.
