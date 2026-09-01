@@ -110,6 +110,10 @@ EXACT_MAINTAINER_FILES = (
         "ksrf-argument-patterns",
         Path("references/complaint-methodology-sources.md"),
     ),
+    (
+        "ksrf-argument-patterns",
+        Path("references/automation-backlog.md"),
+    ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
     (
         "ksrf-argument-patterns",
@@ -623,6 +627,67 @@ description: Используй этот навык для всего.
 
             self.assertIn("SYMLINK_NOT_PUBLISHABLE", _codes(report))
 
+    def test_source_profile_scans_exact_automation_backlog(self) -> None:
+        samples = {
+            "benign": ("# Maintainer backlog\n", None),
+            "secret": (
+                "api_key = 'synthetic-live-value-123456789012345'\n",
+                "POTENTIAL_SECRET",
+            ),
+            "local_path": (
+                '{"source": "/Users/example/Documents/private/backlog.md"}\n',
+                "ABSOLUTE_RUNTIME_PATH",
+            ),
+            "complaint": (
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+                "FORBIDDEN_PUBLIC_SOURCE_ARTIFACT",
+            ),
+        }
+        relative = Path("references/automation-backlog.md")
+        for label, (content, expected_code) in samples.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+                    _write(skill / relative, content)
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-argument-patterns",),
+                    )
+
+                    paths = {
+                        item["path"] for item in report["publish_manifest"]["files"]
+                    }
+                    self.assertNotIn(
+                        f"ksrf-argument-patterns/{relative.as_posix()}",
+                        paths,
+                    )
+                    if expected_code is not None:
+                        self.assertIn(expected_code, _codes(report))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+            backlog = skill / relative
+            target = backlog.parent / "maintainer-backlog.md"
+            _write(target, "# Tracked source\n")
+            backlog.symlink_to(target.name)
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns",),
+            )
+
+            self.assertIn("SYMLINK_NOT_PUBLISHABLE", _codes(report))
+
     def test_runtime_profile_rejects_exact_maintainer_file_without_overmatching(self) -> None:
         for package, relative in EXACT_MAINTAINER_FILES:
             with self.subTest(package=package, relative=relative.as_posix()):
@@ -654,6 +719,10 @@ description: Используй этот навык для всего.
                 skill / "references" / "complaint-methodology-sources-runtime.md",
                 "# Runtime guide\n",
             )
+            _write(
+                skill / "references" / "automation-backlog-runtime.md",
+                "# Runtime guide\n",
+            )
 
             report = VALIDATOR.validate_skillset(
                 root,
@@ -672,6 +741,10 @@ description: Используй этот навык для всего.
             (skill / "evals").rmdir()
             _write(
                 skill / "references" / "complaint-methodology-sources.md",
+                "# Same basename in another package\n",
+            )
+            _write(
+                skill / "references" / "automation-backlog.md",
                 "# Same basename in another package\n",
             )
 

@@ -17,7 +17,6 @@
 
 - `../../ksrf-argument-patterns/references/pattern-matrix.md` - матрица допустимых паттернов, извлеченных из 997 Постановлений КС РФ;
 - `../../ksrf-argument-patterns/references/decision-index.md` - список постановлений-опор по каждому паттерну;
-- `../../ksrf-argument-patterns/references/automation-backlog.md` - идеи инструментов для подтверждения паттерна в новом деле.
 - `../../ksrf-argument-patterns/references/argument-package-builder.md` - сборка основного, усиливающего, сохраняющего и remedy-паттерна;
 - `../../ksrf-argument-patterns/references/evidence-maps.md` - доказательственные карты по каждому паттерну;
 - `../../ksrf-argument-patterns/references/language-formulas.md` - формулы языка КС РФ для вопроса, требования и конституционно-правового смысла;
