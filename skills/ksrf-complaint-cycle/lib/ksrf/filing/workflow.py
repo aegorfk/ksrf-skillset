@@ -292,6 +292,7 @@ class WorkflowRouter:
         *,
         approval_ledger: TrustedApprovalLedger | None = None,
         source_identity_verifier: SourceIdentityVerifier | None = None,
+        relief_binding_authority: Any | None = None,
         failure_private_root: str | Path | None = None,
         failure_redaction_verifier: Any | None = None,
     ) -> None:
@@ -325,6 +326,7 @@ class WorkflowRouter:
             self.workspace / "trusted-approvals"
         )
         self.source_identity_verifier = source_identity_verifier
+        self.relief_binding_authority = relief_binding_authority
         self.failure_redaction_verifier = failure_redaction_verifier
 
     def _source_repository(self) -> SourceEvidenceRepository:
@@ -1282,7 +1284,10 @@ class WorkflowRouter:
         preview_dir = output_dir / "previews"
         try:
             complaint = build_structured_complaint(complaint_payload)
-            require_release_support(complaint)
+            require_release_support(
+                complaint,
+                relief_binding_authority=self.relief_binding_authority,
+            )
             docx = render_docx(complaint, artifacts_dir / "constitutional-complaint.docx")
             pdf = convert_docx_to_pdf(
                 docx.path,
@@ -1384,6 +1389,7 @@ class WorkflowRouter:
                                 errors = verify_release_manifest(
                                     manifest,
                                     approval_ledger=self.approvals,
+                                    relief_binding_authority=self.relief_binding_authority,
                                 )
             manifest_status = str((manifest or {}).get("status") or "blocked")
             state = (
@@ -1463,9 +1469,12 @@ class WorkflowRouter:
                     ),
                     reviewer=reviewer,
                     reviewed_at=reviewed_at,
+                    relief_binding_authority=self.relief_binding_authority,
                 )
                 integrity_errors = verify_release_manifest(
-                    manifest, approval_ledger=self.approvals
+                    manifest,
+                    approval_ledger=self.approvals,
+                    relief_binding_authority=self.relief_binding_authority,
                 )
             except Exception as exc:
                 return self._base_result(
@@ -1513,7 +1522,11 @@ class WorkflowRouter:
                 except (OSError, UnicodeError, json.JSONDecodeError) as exc:
                     raise WorkflowInputError(f"Не удалось прочитать release manifest: {exc}") from exc
             manifest = dict(_mapping(manifest_value, label="manifest"))
-            errors = verify_release_manifest(manifest, approval_ledger=self.approvals)
+            errors = verify_release_manifest(
+                manifest,
+                approval_ledger=self.approvals,
+                relief_binding_authority=self.relief_binding_authority,
+            )
             state = str(manifest.get("status") or "blocked") if not errors else "blocked"
             if state not in {"ready_for_expert_review", "ready_for_human_signing_filing"}:
                 state = "blocked"
@@ -1546,9 +1559,12 @@ class WorkflowRouter:
                 enclosure_sources=[str(item) for item in enclosure_sources],
                 soffice_path=payload.get("soffice_path"),
                 pdftoppm_path=payload.get("pdftoppm_path"),
+                relief_binding_authority=self.relief_binding_authority,
             )
             integrity_errors = verify_release_manifest(
-                manifest, approval_ledger=self.approvals
+                manifest,
+                approval_ledger=self.approvals,
+                relief_binding_authority=self.relief_binding_authority,
             )
         except ImportError as exc:
             return self._optional_runtime_block("release", action, exc)

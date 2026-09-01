@@ -3,9 +3,66 @@
   "$id": "https://example.local/ksrf/filing-package.schema.json",
   "title": "KSRF Filing Package Manifest",
   "type": "object",
-  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "artifacts", "render_qa", "blockers"],
+  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "human_only_actions", "source_versions", "norm_passport_ids", "issue_option_ids", "sentence_evidence_map", "relief_binding_receipts", "relief_binding_index_receipt", "artifacts", "render_qa", "blockers"],
+  "$defs": {
+    "reliefBindingIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["sentence_id", "section_code", "role", "relief_binding_sha256"],
+            "properties": {
+              "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+              "section_code": {"const": "requested_remedy"},
+              "role": {"const": "requested_remedy"},
+              "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "sourceEvidenceReceipt": {
+      "type": "object",
+      "required": ["evidence_id", "claim_id", "norm_id", "norm_version_id", "status", "content_sha256", "verification_revision_id", "verifier_id", "checked_at", "locator", "content_fingerprint"],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "norm_id": {"type": "string", "minLength": 1},
+        "norm_version_id": {"type": "string", "minLength": 1},
+        "status": {"const": "current"},
+        "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verification_revision_id": {"type": "string", "minLength": 1},
+        "verifier_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "locator": {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {"type": "string", "minLength": 1},
+            "value": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "content_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  },
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "1.1"},
     "matter_id": {"type": "string", "minLength": 1},
     "draft_id": {"type": "string", "minLength": 1},
     "status": {"enum": ["blocked", "ready_for_expert_review", "ready_for_human_signing_filing"]},
@@ -13,6 +70,162 @@
     "human_only_actions": {
       "type": "array",
       "contains": {"const": "filing"}
+    },
+    "source_versions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "norm_passport_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "issue_option_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "sentence_evidence_map": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sentence_id", "section_code", "text", "role", "evidence_ids", "support_status"],
+        "properties": {
+          "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+          "section_code": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1},
+          "evidence_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "support_status": {"enum": ["pending", "verified", "human_approved", "rejected"]},
+          "claim_id": {"type": "string", "minLength": 1},
+          "issue_option_id": {"type": "string", "minLength": 1},
+          "norm_passport_id": {"type": "string", "minLength": 1},
+          "application_record_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "relief_binding_status": {"enum": ["bound", "unbound"]},
+          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
+                {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]}
+              ]
+            },
+            "then": {
+              "properties": {
+                "role": {"const": "requested_remedy"},
+                "section_code": {"const": "requested_remedy"}
+              },
+              "required": ["relief_binding_status"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"relief_binding_status": {"const": "bound"}},
+              "required": ["relief_binding_status"]
+            },
+            "then": {
+              "properties": {"evidence_ids": {"minItems": 1}},
+              "required": ["claim_id", "issue_option_id", "norm_passport_id", "application_record_ids", "relief_binding_sha256"]
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "relief_binding_receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["schema_version", "sentence_id", "relief_binding_sha256", "claim_id", "issue_option_id", "issue_content_fingerprint", "norm_passport_id", "norm_passport_content_fingerprint", "application_record_content_fingerprints", "evidence_ids", "source_evidence_revision_ids", "source_evidence_receipts", "trusted_approval_ids", "approval_request_fingerprints", "binding_index_receipt"],
+        "properties": {
+          "schema_version": {"const": "1.1.0"},
+          "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "claim_id": {"type": "string", "minLength": 1},
+          "issue_option_id": {"type": "string", "minLength": 1},
+          "issue_content_fingerprint": {"type": "string", "minLength": 1},
+          "norm_passport_id": {"type": "string", "minLength": 1},
+          "norm_passport_content_fingerprint": {"type": "string", "minLength": 1},
+          "application_record_content_fingerprints": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {"type": "string", "minLength": 1}
+          },
+          "evidence_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "source_evidence_revision_ids": {
+            "type": "object",
+            "additionalProperties": {"type": "string", "minLength": 1}
+          },
+          "source_evidence_receipts": {
+            "type": "object",
+            "additionalProperties": {"$ref": "#/$defs/sourceEvidenceReceipt"}
+          },
+          "binding_index_receipt": {"$ref": "#/$defs/reliefBindingIndexReceipt"},
+          "trusted_approval_ids": {
+            "type": "object",
+            "required": ["issue", "norm_version", "application"],
+            "properties": {
+              "issue": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "norm_version": {"type": "string", "minLength": 1},
+              "application": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "approval_request_fingerprints": {
+            "type": "object",
+            "required": ["issue", "norm_version", "application", "preservation"],
+            "properties": {
+              "issue": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "norm_version": {"type": "string", "minLength": 1},
+              "application": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "preservation": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "relief_binding_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/reliefBindingIndexReceipt"}
+      ]
     },
     "artifacts": {
       "type": "array",
@@ -62,6 +275,53 @@
     "blockers": {"type": "array", "items": {"type": "string"}}
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["ready_for_expert_review", "ready_for_human_signing_filing"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "source_versions": {"minItems": 1},
+          "norm_passport_ids": {"minItems": 1},
+          "issue_option_ids": {"minItems": 1},
+          "relief_binding_receipts": {"minItems": 1},
+          "relief_binding_index_receipt": {"$ref": "#/$defs/reliefBindingIndexReceipt"},
+          "sentence_evidence_map": {
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "properties": {
+                "role": {"const": "requested_remedy"},
+                "relief_binding_status": {"const": "bound"}
+              },
+              "required": ["role", "relief_binding_status"]
+            },
+            "items": {
+              "if": {
+                "anyOf": [
+                  {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
+                  {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]}
+                ]
+              },
+              "then": {
+                "properties": {
+                  "role": {"const": "requested_remedy"},
+                  "section_code": {"const": "requested_remedy"},
+                  "relief_binding_status": {"const": "bound"},
+                  "evidence_ids": {"minItems": 1}
+                },
+                "required": ["relief_binding_status", "claim_id", "issue_option_id", "norm_passport_id", "application_record_ids", "relief_binding_sha256"]
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {"status": {"const": "ready_for_human_signing_filing"}},

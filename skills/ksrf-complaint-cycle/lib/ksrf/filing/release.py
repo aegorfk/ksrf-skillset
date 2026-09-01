@@ -15,6 +15,12 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from .composer import StructuredComplaint, require_release_support
+from .relief_binding import (
+    ReliefEvidenceBindingAuthority,
+    build_relief_binding_request,
+    resolve_relief_evidence_binding,
+    resolve_relief_evidence_binding_index,
+)
 from .renderer import (
     convert_docx_to_pdf,
     file_sha256,
@@ -53,6 +59,7 @@ _REQUIRED_ARTIFACTS = {
     ),
 }
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
 _APPROVAL_REQUEST_FIELDS = {
     "purpose",
     "subject_type",
@@ -133,6 +140,7 @@ def _upstream_review_basis(
     draft_id: Any,
     source_versions: Any,
     norm_passport_ids: Any,
+    issue_option_ids: Any,
     issue_option_id: Any,
     sentence_evidence_map: Any,
     formal_check: Any,
@@ -142,6 +150,7 @@ def _upstream_review_basis(
         "draft_id": str(draft_id or ""),
         "source_versions": _as_string_list(source_versions),
         "norm_passport_ids": _as_string_list(norm_passport_ids),
+        "issue_option_ids": _as_string_list(issue_option_ids),
         "issue_option_id": str(issue_option_id or ""),
         "sentence_evidence_map": (
             [dict(item) for item in sentence_evidence_map]
@@ -186,6 +195,7 @@ def release_upstream_approval_request(
         draft_id=complaint.draft_id,
         source_versions=complaint.source_versions,
         norm_passport_ids=complaint.norm_passport_ids,
+        issue_option_ids=complaint.issue_option_ids,
         issue_option_id=complaint.issue_option_id,
         sentence_evidence_map=complaint.sentence_evidence_map(),
         formal_check=complaint.formal_check,
@@ -201,6 +211,7 @@ def _manifest_upstream_approval_request(
         draft_id=manifest.get("draft_id"),
         source_versions=manifest.get("source_versions"),
         norm_passport_ids=manifest.get("norm_passport_ids"),
+        issue_option_ids=manifest.get("issue_option_ids"),
         issue_option_id=manifest.get("issue_option_id"),
         sentence_evidence_map=manifest.get("sentence_evidence_map"),
         formal_check=manifest.get("formal_check"),
@@ -441,6 +452,7 @@ def build_release_pack(
     enclosure_sources: Iterable[str | Path] = (),
     soffice_path: str | Path | None = None,
     pdftoppm_path: str | Path | None = None,
+    relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Create real filing artifacts and return a release manifest.
 
@@ -454,8 +466,14 @@ def build_release_pack(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     blockers: list[str] = []
+    relief_binding_receipts: list[dict[str, Any]] = []
     try:
-        require_release_support(complaint)
+        relief_binding_receipts = list(
+            require_release_support(
+                complaint,
+                relief_binding_authority=relief_binding_authority,
+            )
+        )
     except ValueError as exc:
         blockers.append(str(exc))
 
@@ -537,15 +555,20 @@ def build_release_pack(
         blockers.append("source_versions_missing")
     if not complaint.norm_passport_ids:
         blockers.append("norm_passport_ids_missing")
-    if not complaint.issue_option_id:
-        blockers.append("issue_option_id_missing")
+    if not complaint.issue_option_ids:
+        blockers.append("issue_option_ids_missing")
 
     release_status = "blocked" if blockers else "ready_for_expert_review"
+    relief_binding_index_receipt = (
+        dict(relief_binding_receipts[0].get("binding_index_receipt") or {})
+        if relief_binding_receipts
+        else None
+    )
 
     manifest_path = destination / "filing-package-manifest.json"
 
     manifest: dict[str, Any] = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "matter_id": complaint.matter_id,
         "draft_id": complaint.draft_id,
         "created_at": _now(),
@@ -554,12 +577,15 @@ def build_release_pack(
         "filing_performed": False,
         "source_versions": list(complaint.source_versions),
         "norm_passport_ids": list(complaint.norm_passport_ids),
+        "issue_option_ids": list(complaint.issue_option_ids),
         "issue_option_id": complaint.issue_option_id,
         "approvals": approval_references,
         "missing_approvals": missing_approvals,
         "formal_check": dict(complaint.formal_check),
         "formal_check_ready": formal_ready,
         "sentence_evidence_map": complaint.sentence_evidence_map(),
+        "relief_binding_receipts": relief_binding_receipts,
+        "relief_binding_index_receipt": relief_binding_index_receipt,
         "enclosure_refs": enclosure_refs,
         "artifacts": artifacts,
         "qa_artifacts": qa_artifacts,
@@ -737,7 +763,7 @@ def _manifest_contract_errors(
     verify_manifest_file: bool = True,
 ) -> list[str]:
     errors = _manifest_schema_errors(manifest)
-    if manifest.get("schema_version") != "1.0":
+    if manifest.get("schema_version") != "1.1":
         errors.append("manifest_schema_version_invalid")
     if not str(manifest.get("matter_id") or "").strip():
         errors.append("manifest_matter_id_missing")
@@ -751,8 +777,8 @@ def _manifest_contract_errors(
         errors.append("source_versions_missing")
     if not _as_string_list(manifest.get("norm_passport_ids")):
         errors.append("norm_passport_ids_missing")
-    if not str(manifest.get("issue_option_id") or "").strip():
-        errors.append("issue_option_id_missing")
+    if not _as_string_list(manifest.get("issue_option_ids")):
+        errors.append("issue_option_ids_missing")
     required_human_actions = {
         "signature",
         "fee_or_exemption_confirmation",
@@ -764,6 +790,7 @@ def _manifest_contract_errors(
         errors.append("human_only_actions_incomplete")
     if not isinstance(manifest.get("blockers"), list):
         errors.append("manifest_blockers_invalid")
+    errors.extend(_manifest_relief_binding_projection_errors(manifest))
 
     pack_root, manifest_path, location_errors = _pack_location(manifest)
     errors.extend(location_errors)
@@ -955,6 +982,283 @@ def _manifest_contract_errors(
     return errors
 
 
+def _manifest_binding_identifier_list(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return [], [f"relief_binding_identifier_list_invalid:{label}"]
+    identifiers: list[str] = []
+    errors: list[str] = []
+    for ordinal, raw in enumerate(value, start=1):
+        if (
+            not isinstance(raw, str)
+            or not raw
+            or raw != " ".join(raw.split())
+        ):
+            errors.append(
+                f"relief_binding_identifier_invalid:{label}:{ordinal}"
+            )
+            continue
+        identifiers.append(raw)
+    if len(identifiers) != len(set(identifiers)):
+        errors.append(f"relief_binding_identifier_duplicate:{label}")
+    return identifiers, errors
+
+
+def _manifest_binding_string(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[str, list[str]]:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != " ".join(value.split())
+    ):
+        return "", [f"relief_binding_string_invalid:{label}"]
+    return value, []
+
+
+def _manifest_relief_binding_requests(
+    manifest: Mapping[str, Any],
+) -> tuple[
+    list[tuple[dict[str, Any], Mapping[str, Any]]],
+    list[dict[str, Any]],
+    list[str],
+]:
+    raw_entries = manifest.get("sentence_evidence_map")
+    entries: list[Any] = []
+    errors: list[str] = []
+    if isinstance(raw_entries, Sequence) and not isinstance(
+        raw_entries, (str, bytes)
+    ):
+        entries = list(raw_entries)
+    else:
+        errors.append("relief_binding_sentence_evidence_map_invalid")
+    raw_receipts = manifest.get("relief_binding_receipts")
+    receipts: list[Any] = []
+    if isinstance(raw_receipts, Sequence) and not isinstance(
+        raw_receipts, (str, bytes)
+    ):
+        receipts = list(raw_receipts)
+    else:
+        errors.append("relief_binding_receipts_invalid")
+    receipt_by_sentence: dict[str, Mapping[str, Any]] = {}
+    for ordinal, raw in enumerate(receipts, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"relief_binding_receipt_invalid:{ordinal}")
+            continue
+        raw_sentence_id = raw.get("sentence_id")
+        if not isinstance(raw_sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            raw_sentence_id
+        ):
+            errors.append(f"relief_binding_receipt_sentence_id_invalid:{ordinal}")
+            continue
+        sentence_id = raw_sentence_id
+        if sentence_id in receipt_by_sentence:
+            errors.append(f"relief_binding_receipt_duplicate:{sentence_id}")
+        else:
+            receipt_by_sentence[sentence_id] = raw
+
+    entry_sentence_ids: dict[int, str] = {}
+    seen_sentence_ids: set[str] = set()
+    for ordinal, raw in enumerate(entries, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"relief_binding_manifest_entry_invalid:{ordinal}")
+            continue
+        raw_sentence_id = raw.get("sentence_id")
+        if not isinstance(raw_sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            raw_sentence_id
+        ):
+            errors.append(f"relief_binding_sentence_id_invalid:{ordinal}")
+            continue
+        entry_sentence_ids[ordinal] = raw_sentence_id
+        if raw_sentence_id in seen_sentence_ids:
+            errors.append(f"relief_binding_sentence_duplicate:{raw_sentence_id}")
+        seen_sentence_ids.add(raw_sentence_id)
+
+    pairs: list[tuple[dict[str, Any], Mapping[str, Any]]] = []
+    requests: list[dict[str, Any]] = []
+    expected_sentence_ids: set[str] = set()
+    requested_remedy_count = 0
+    issue_option_id_values, issue_option_errors = _manifest_binding_identifier_list(
+        manifest.get("issue_option_ids"), label="issue_option_ids"
+    )
+    norm_passport_id_values, norm_passport_errors = (
+        _manifest_binding_identifier_list(
+            manifest.get("norm_passport_ids"), label="norm_passport_ids"
+        )
+    )
+    errors.extend(issue_option_errors)
+    errors.extend(norm_passport_errors)
+    issue_option_ids = set(issue_option_id_values)
+    norm_passport_ids = set(norm_passport_id_values)
+    for ordinal, raw in enumerate(entries, start=1):
+        if not isinstance(raw, Mapping):
+            continue
+        is_remedy_section = raw.get("section_code") == "requested_remedy"
+        is_remedy_role = raw.get("role") == "requested_remedy"
+        if not is_remedy_section and not is_remedy_role:
+            continue
+        requested_remedy_count += 1
+        entry_errors: list[str] = []
+        if is_remedy_section and not is_remedy_role:
+            entry_errors.append(
+                "relief_binding_manifest_role_mismatch:"
+                f"{raw.get('sentence_id') or ordinal}"
+            )
+        if is_remedy_role and not is_remedy_section:
+            entry_errors.append(
+                "relief_binding_manifest_section_mismatch:"
+                f"{raw.get('sentence_id') or ordinal}"
+            )
+        raw_sentence_id = entry_sentence_ids.get(ordinal)
+        if raw_sentence_id is None:
+            sentence_id = f"<invalid:{ordinal}>"
+        else:
+            sentence_id = raw_sentence_id
+        expected_sentence_ids.add(sentence_id)
+        if raw.get("relief_binding_status") != "bound":
+            entry_errors.append(f"relief_binding_status_not_bound:{sentence_id}")
+        application_record_ids, application_errors = (
+            _manifest_binding_identifier_list(
+                raw.get("application_record_ids"),
+                label=f"{sentence_id}:application_record_ids",
+            )
+        )
+        evidence_ids, evidence_errors = _manifest_binding_identifier_list(
+            raw.get("evidence_ids"), label=f"{sentence_id}:evidence_ids"
+        )
+        entry_errors.extend(application_errors)
+        entry_errors.extend(evidence_errors)
+        required_values: dict[str, str] = {"sentence_id": sentence_id}
+        for key, source_key in (
+            ("sentence_text", "text"),
+            ("claim_id", "claim_id"),
+            ("issue_option_id", "issue_option_id"),
+            ("norm_passport_id", "norm_passport_id"),
+        ):
+            value, value_errors = _manifest_binding_string(
+                raw.get(source_key), label=f"{sentence_id}:{source_key}"
+            )
+            required_values[key] = value
+            entry_errors.extend(value_errors)
+        if not application_record_ids or not evidence_ids:
+            entry_errors.append(
+                f"relief_binding_projection_incomplete:{sentence_id}:"
+                "application_or_evidence_ids"
+            )
+        if entry_errors:
+            errors.extend(entry_errors)
+            continue
+        missing = [key for key, value in required_values.items() if not value]
+        if missing:
+            errors.append(
+                f"relief_binding_projection_incomplete:{sentence_id or '<missing>'}:"
+                + ",".join(missing)
+            )
+            continue
+        request = build_relief_binding_request(
+            matter_id=str(manifest.get("matter_id") or ""),
+            draft_id=str(manifest.get("draft_id") or ""),
+            sentence_id=required_values["sentence_id"],
+            sentence_text=required_values["sentence_text"],
+            claim_id=required_values["claim_id"],
+            issue_option_id=required_values["issue_option_id"],
+            norm_passport_id=required_values["norm_passport_id"],
+            application_record_ids=application_record_ids,
+            evidence_ids=evidence_ids,
+        )
+        if raw.get("relief_binding_sha256") != request["relief_binding_sha256"]:
+            errors.append(f"relief_binding_projection_sha_mismatch:{sentence_id}")
+        if required_values["issue_option_id"] not in issue_option_ids:
+            errors.append(f"relief_binding_issue_projection_mismatch:{sentence_id}")
+        if required_values["norm_passport_id"] not in norm_passport_ids:
+            errors.append(f"relief_binding_passport_projection_mismatch:{sentence_id}")
+        requests.append(request)
+        receipt = receipt_by_sentence.get(sentence_id)
+        if receipt is None:
+            errors.append(f"relief_binding_receipt_missing:{sentence_id}")
+            continue
+        if receipt.get("relief_binding_sha256") != request["relief_binding_sha256"]:
+            errors.append(f"relief_binding_receipt_sha_mismatch:{sentence_id}")
+        pairs.append((request, receipt))
+
+    if requested_remedy_count == 0:
+        errors.append("relief_binding_requested_remedy_missing")
+    extra_receipts = sorted(set(receipt_by_sentence) - expected_sentence_ids)
+    errors.extend(f"relief_binding_receipt_orphan:{item}" for item in extra_receipts)
+    stored_index = manifest.get("relief_binding_index_receipt")
+    if pairs and not isinstance(stored_index, Mapping):
+        errors.append("relief_binding_index_receipt_missing")
+    if isinstance(stored_index, Mapping):
+        for _request, receipt in pairs:
+            if receipt.get("binding_index_receipt") != stored_index:
+                errors.append(
+                    "relief_binding_index_receipt_projection_mismatch:"
+                    f"{receipt.get('sentence_id')}"
+                )
+    return pairs, requests, errors
+
+
+def _manifest_relief_binding_projection_errors(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    _pairs, _requests, errors = _manifest_relief_binding_requests(manifest)
+    return errors
+
+
+def _manifest_relief_binding_authority_errors(
+    manifest: Mapping[str, Any],
+    authority: ReliefEvidenceBindingAuthority | Any | None,
+) -> list[str]:
+    pairs, requests, errors = _manifest_relief_binding_requests(manifest)
+    current_receipts: list[tuple[str, Mapping[str, Any], dict[str, Any]]] = []
+    for request, stored_receipt in pairs:
+        binding_errors, current_receipt = resolve_relief_evidence_binding(
+            request, authority
+        )
+        sentence_id = str(request.get("sentence_id") or "")
+        errors.extend(
+            f"relief_binding:{sentence_id}:{error}" for error in binding_errors
+        )
+        if current_receipt is not None:
+            current_receipts.append((sentence_id, stored_receipt, current_receipt))
+
+    matter_id, matter_id_errors = _manifest_binding_string(
+        manifest.get("matter_id"), label="matter_id"
+    )
+    draft_id, draft_id_errors = _manifest_binding_string(
+        manifest.get("draft_id"), label="draft_id"
+    )
+    errors.extend(matter_id_errors)
+    errors.extend(draft_id_errors)
+    index_errors, current_index_receipt = resolve_relief_evidence_binding_index(
+        matter_id=matter_id,
+        draft_id=draft_id,
+        binding_requests=requests,
+        authority=authority,
+    )
+    errors.extend(index_errors)
+    stored_index_receipt = manifest.get("relief_binding_index_receipt")
+    if (
+        current_index_receipt is not None
+        and stored_index_receipt != current_index_receipt
+    ):
+        errors.append("relief_binding_index_receipt_stale")
+    for sentence_id, stored_receipt, current_receipt in current_receipts:
+        if current_index_receipt is not None:
+            current_receipt = {
+                **current_receipt,
+                "binding_index_receipt": dict(current_index_receipt),
+            }
+        if dict(stored_receipt) != current_receipt:
+            errors.append(f"relief_binding_receipt_stale:{sentence_id}")
+    return errors
+
+
 def approve_release_pack(
     manifest_path: str | Path,
     *,
@@ -963,6 +1267,7 @@ def approve_release_pack(
     approval_as_of: str | None = None,
     reviewer: str | None = None,
     reviewed_at: str | None = None,
+    relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Именно и явно одобрить неизменившийся реальный пакет после визуальной проверки."""
 
@@ -984,6 +1289,7 @@ def approve_release_pack(
     integrity_errors = verify_release_manifest(
         manifest,
         approval_ledger=approval_ledger,
+        relief_binding_authority=relief_binding_authority,
     )
     if integrity_errors:
         raise ValueError("Нарушена целостность пакета: " + ", ".join(integrity_errors))
@@ -1024,6 +1330,7 @@ def approve_release_pack(
         approved_manifest,
         approval_ledger=approval_ledger,
         verify_manifest_file=False,
+        relief_binding_authority=relief_binding_authority,
     )
     if approved_errors:
         raise ValueError(
@@ -1038,6 +1345,7 @@ def approve_release_pack(
     persisted_errors = verify_release_manifest(
         persisted_manifest,
         approval_ledger=approval_ledger,
+        relief_binding_authority=relief_binding_authority,
     )
     if persisted_errors:
         _write_json(path, manifest)
@@ -1054,6 +1362,7 @@ def verify_release_manifest(
     manifest: Mapping[str, Any],
     *,
     approval_ledger: TrustedApprovalLedger | None = None,
+    relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
 ) -> list[str]:
     """Return integrity errors without mutating the filing pack."""
 
@@ -1061,6 +1370,7 @@ def verify_release_manifest(
         manifest,
         approval_ledger=approval_ledger,
         verify_manifest_file=True,
+        relief_binding_authority=relief_binding_authority,
     )
 
 
@@ -1069,6 +1379,7 @@ def _verify_release_manifest(
     *,
     approval_ledger: TrustedApprovalLedger | None,
     verify_manifest_file: bool,
+    relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None,
 ) -> list[str]:
     """Validate a manifest projection, optionally before its persistence."""
 
@@ -1076,6 +1387,11 @@ def _verify_release_manifest(
         manifest,
         approval_ledger=approval_ledger,
         verify_manifest_file=verify_manifest_file,
+    )
+    errors.extend(
+        _manifest_relief_binding_authority_errors(
+            manifest, relief_binding_authority
+        )
     )
     observed_basis = release_basis_sha256(manifest)
     if manifest.get("release_basis_sha256") != observed_basis:
