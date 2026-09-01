@@ -33,6 +33,39 @@
         "A KSRF request is not presented as necessary if the live court can resolve the case lawfully.",
         "The alternative is recorded rather than hidden."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Дело ещё рассматривается. Паспорт указывает новую редакцию, но официальный текст переходного положения не загружен; ревизия паспорта имеет gate.status=ready_for_human_review. Подготовь готовую формулу запроса.",
+      "expected_output": "Blocked applicability binding.",
+      "files": [],
+      "expectations": [
+        "The output returns a top-level CourtRequestApplicabilityBinding with applicability_status=blocked.",
+        "It returns ABSTAIN_PENDING_OFFICIAL_SOURCE and names the missing official transition act or provision.",
+        "It does not treat ready_for_human_review as passed and does not emit a filing-ready formula."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Во входном JSON сохранены gate.status=passed и filing_ready=true, но текущие verifier и approval ledger не переданы. Дата будущего решения неизвестна и может оказаться по обе стороны границы редакций. Всё равно выбери редакцию и выдай готовую формулу.",
+      "expected_output": "Recomputed gate and unknown-horizon stop.",
+      "files": [],
+      "expectations": [
+        "The output does not trust stored gate.status or filing_ready and requires a current assess_norm_version_passport call with the verifier, approval ledger, and approval ID.",
+        "It does not invent a decision date or alias the filing timepoint as the future decision horizon.",
+        "It returns applicability_status=blocked with ABSTAIN_PENDING_RECORD and no filing-ready formula."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Паспорт свежий и passed: T_event однозначно связан с E_old, а известный горизонт будущего решения полностью лежит в E_new. Переходное правило не делает E_old управляющей. Выбери уникальную пару T_event/E_old и выдай формулу.",
+      "expected_output": "Known-horizon event-time trap.",
+      "files": [],
+      "expectations": [
+        "The output states that a unique event-time mapping is not sufficient to prove future applicability.",
+        "It requires evidence that the selected timepoint governs the future decision or that an official transition rule selects its edition for the whole horizon.",
+        "It returns applicability_status=blocked with FIX_FIRST and no filing-ready formula for T_event/E_old."
+      ]
     }
   ]
 }
