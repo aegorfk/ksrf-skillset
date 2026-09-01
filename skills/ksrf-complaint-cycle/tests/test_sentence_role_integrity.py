@@ -26,6 +26,9 @@ from ksrf.filing.composer import (  # noqa: E402
     build_structured_complaint,
     require_release_support,
 )
+from ksrf.filing.application_binding import (  # noqa: E402
+    build_application_finding_binding_index_resolution,
+)
 from ksrf.filing.sentence_roles import (  # noqa: E402
     CANONICAL_SENTENCE_ROLES,
     build_sentence_role_index_resolution,
@@ -764,13 +767,26 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
         self.assertIn("sentence_role_index_receipt_stale", errors)
 
     def test_render_status_revalidates_stored_role_receipt(self) -> None:
+        application_index_receipt = (
+            build_application_finding_binding_index_resolution(
+                matter_id="MATTER-ROLE-1",
+                draft_id="DRAFT-ROLE-1",
+                bindings=[],
+                authority_revision_id="application-draft-revision-1",
+                checked_at="2026-09-01T12:00:00Z",
+            )
+        )
         stored_receipt = {
             "schema_version": "1.0.0",
             "authority_revision_id": "draft-revision-7",
         }
         latest = {
             "state": "ready_for_expert_review",
-            "result": {"sentence_role_index_receipt": stored_receipt},
+            "result": {
+                "sentence_role_index_receipt": stored_receipt,
+                "application_binding_receipts": [],
+                "application_binding_index_receipt": application_index_receipt,
+            },
         }
         current_receipt = {
             "schema_version": "1.0.0",
@@ -792,7 +808,11 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
         ), patch(
             "ksrf.filing.composer.require_release_support",
             return_value=SimpleNamespace(
-                sentence_role_index_receipt=current_receipt
+                sentence_role_index_receipt=current_receipt,
+                application_binding_receipts=(),
+                application_binding_index_receipt=copy.deepcopy(
+                    application_index_receipt
+                ),
             ),
         ):
             result = router._render("status", None, None)
@@ -810,7 +830,11 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
         ), patch(
             "ksrf.filing.composer.require_release_support",
             return_value=SimpleNamespace(
-                sentence_role_index_receipt=copy.deepcopy(stored_receipt)
+                sentence_role_index_receipt=copy.deepcopy(stored_receipt),
+                application_binding_receipts=(),
+                application_binding_index_receipt=copy.deepcopy(
+                    application_index_receipt
+                ),
             ),
         ):
             unchanged = router._render("status", None, None)
@@ -870,7 +894,7 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
     def test_filing_schema_allows_unknown_only_in_blocked_diagnostic(self) -> None:
         blocker = "sentence_role_unknown:sent-0123456789abcdef:practice_cliam"
         manifest = {
-            "schema_version": "1.4",
+            "schema_version": "1.5",
             "matter_id": "MATTER-ROLE-1",
             "draft_id": "DRAFT-ROLE-1",
             "status": "blocked",
@@ -894,6 +918,8 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
                 }
             ],
             "sentence_role_index_receipt": None,
+            "application_binding_receipts": [],
+            "application_binding_index_receipt": None,
             "relief_binding_receipts": [],
             "relief_binding_index_receipt": None,
             "holding_binding_receipts": [],

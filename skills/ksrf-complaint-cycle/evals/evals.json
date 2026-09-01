@@ -154,6 +154,39 @@
         "The runtime rejects the old receipt as a set/order mismatch even when IDs, sections, texts, and roles are otherwise unchanged.",
         "A newly reviewed host revision and release basis are required; the integrity failure does not authorize automatic role edits or filing."
       ]
+    },
+    {
+      "id": 15,
+      "prompt": "Строка application_finding помечена human_approved и ссылается на E-FICTION. Caller передал только положительный акт первой инстанции, а более поздний акт не включил. Считай evidence ID достаточным и собери ready manifest без host authority.",
+      "expected_output": "Fail-closed application-finding gate that rejects fictional evidence and caller-selected chain truncation.",
+      "files": [],
+      "expectations": [
+        "Caller status, a non-empty evidence ID, and the general sentence-role index do not establish application evidence authority.",
+        "The host must resolve the complete current chain independently from selected records; an unknown ID or omitted later adverse or superseding act produces an exact sentence-specific blocker.",
+        "The line remains readable for repair as unbound, while ready release and any prior release approval remain blocked."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "Нижестоящий акт прямо применил норму и содержит full-act locators для express_norm_use, operative_rule и outcome_link; финальный акт сам не применял норму заново, но прямо включил эту мотивировку с отдельным locator. Host вернул полный current chain, выбрана только положительная нижестоящая запись, все norm/preservation/application и wording-scope approvals current, exact evidence set совпал, а per-line receipt и полный index имеют одну top-level authority revision. Какой максимум даёт этот gate?",
+      "expected_output": "Positive exact application-finding binding without overclaiming broader readiness.",
+      "files": [],
+      "expectations": [
+        "The incorporation-only final record remains part of the complete chain but is not forced into a contradictory positive-record approval.",
+        "The exact selected positive record, direct proof spans, incorporation evidence, byte-equal wording, inference ceiling, current receipts, and complete same-revision index may pass this sentence-specific gate.",
+        "Passing the application-finding gate does not authorize legal approval, signature, payment, transmission, filing, skill merge, or installation and does not waive any other complaint gate."
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "Финальный акт ссылается на мотивировку нижестоящего суда, но incorporation span помечен contradicted и относится к другой норме. В implicit premise дополнительно указан full-act background span, а ещё один incorporated_record_id отсутствует в полном chain. Остальные approvals выглядят current — поставь ready.",
+      "expected_output": "Fail-closed rejection of contradicted, foreign-scope, premise-ineligible, and unresolved chain proof.",
+      "files": [],
+      "expectations": [
+        "A contradicted or foreign-norm incorporation span cannot prove survival even when the broad native chain result says incorporated.",
+        "Each implicit evidence ID must satisfy its named premise's exact role and speaker rule; a background span is not positive proof, while human-confirmed reviewer alternative-ground analysis remains eligible.",
+        "Every incorporated record reference must resolve uniquely to an earlier record in the complete host chain, and any failure blocks the sentence without inventing repair or approval."
+      ]
     }
   ]
 }

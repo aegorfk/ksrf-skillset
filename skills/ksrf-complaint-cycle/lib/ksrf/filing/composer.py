@@ -12,6 +12,12 @@ from hashlib import sha256
 import re
 from typing import Any, Iterable, Mapping, Sequence, overload
 
+from .application_binding import (
+    ApplicationFindingEvidenceBindingAuthority,
+    build_application_finding_binding_request,
+    resolve_application_finding_evidence_binding,
+    resolve_application_finding_evidence_binding_index,
+)
 from .holding_binding import (
     HoldingEvidenceBindingAuthority,
     build_holding_binding_request,
@@ -38,7 +44,7 @@ from .sentence_roles import (
     sentence_role_binding,
 )
 
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.4"
 _SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
 
 REQUIRED_SECTION_CODES: tuple[str, ...] = (
@@ -76,6 +82,8 @@ class ReleaseSupportReceipts(Sequence[dict[str, Any]]):
     """Compatibility sequence plus typed receipts for every exact support gate."""
 
     relief_binding_receipts: tuple[dict[str, Any], ...] = ()
+    application_binding_receipts: tuple[dict[str, Any], ...] = ()
+    application_binding_index_receipt: dict[str, Any] | None = None
     holding_binding_receipts: tuple[dict[str, Any], ...] = ()
     holding_binding_index_receipt: dict[str, Any] | None = None
     practice_binding_receipts: tuple[dict[str, Any], ...] = ()
@@ -187,6 +195,15 @@ class SentenceEvidence:
             return False
         if not self.filing_significant:
             return True
+        if self.role == "application_finding":
+            return bool(
+                self.evidence_ids
+                and self.claim_id
+                and self.norm_passport_id
+                and self.application_record_ids
+                and self.maximum_supported_inference
+                and self.support_status in SUPPORTED_STATES
+            )
         return bool(self.evidence_ids) and self.support_status in SUPPORTED_STATES
 
     def to_dict(self) -> dict[str, Any]:
@@ -211,6 +228,18 @@ class SentenceEvidence:
             result["application_record_ids"] = list(self.application_record_ids)
         if self.maximum_supported_inference is not None:
             result["maximum_supported_inference"] = self.maximum_supported_inference
+        if self.role == "application_finding":
+            result["application_binding_status"] = (
+                "bound"
+                if (
+                    self.evidence_ids
+                    and self.claim_id
+                    and self.norm_passport_id
+                    and self.application_record_ids
+                    and self.maximum_supported_inference
+                )
+                else "unbound"
+            )
         if self.role == "legal_holding":
             result["holding_binding_status"] = (
                 "bound"
@@ -296,6 +325,13 @@ class StructuredComplaint:
                 if practice_request is not None:
                     entry["practice_binding_sha256"] = practice_request[
                         "practice_binding_sha256"
+                    ]
+                application_request = self.application_finding_binding_request(
+                    sentence
+                )
+                if application_request is not None:
+                    entry["application_binding_sha256"] = application_request[
+                        "application_binding_sha256"
                     ]
                 result.append(entry)
         return result
@@ -392,6 +428,32 @@ class StructuredComplaint:
             claim_id=sentence.claim_id,
             practice_claim_id=sentence.practice_claim_id,
             issue_option_id=sentence.issue_option_id,
+            evidence_ids=sentence.evidence_ids,
+            maximum_supported_inference=sentence.maximum_supported_inference,
+        )
+
+    def application_finding_binding_request(
+        self, sentence: SentenceEvidence
+    ) -> dict[str, Any] | None:
+        if sentence.role != "application_finding":
+            return None
+        if not (
+            sentence.claim_id
+            and sentence.norm_passport_id
+            and sentence.application_record_ids
+            and sentence.evidence_ids
+            and sentence.maximum_supported_inference
+        ):
+            return None
+        return build_application_finding_binding_request(
+            matter_id=self.matter_id,
+            draft_id=self.draft_id,
+            sentence_id=sentence.sentence_id,
+            section_code=sentence.section_code,
+            sentence_text=sentence.text,
+            claim_id=sentence.claim_id,
+            norm_passport_id=sentence.norm_passport_id,
+            application_record_ids=sentence.application_record_ids,
             evidence_ids=sentence.evidence_ids,
             maximum_supported_inference=sentence.maximum_supported_inference,
         )
@@ -494,9 +556,9 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
             )
             text = (
                 _exact_sentence_text(
-                    item.get("text"), label=f"Раздел {code}: practice_claim.text"
+                    item.get("text"), label=f"Раздел {code}: {role}.text"
                 )
-                if role == "practice_claim"
+                if role in {"practice_claim", "application_finding"}
                 else _clean_text(item.get("text"))
             )
             if not text:
@@ -521,7 +583,12 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
                 raise ComplaintModelError(
                     f"requested_remedy_section_role_mismatch:{sentence_id}"
                 )
-            if role in {"requested_remedy", "legal_holding", "practice_claim"}:
+            if role in {
+                "requested_remedy",
+                "legal_holding",
+                "practice_claim",
+                "application_finding",
+            }:
                 evidence_ids = _strict_identifier_sequence(
                     item.get("evidence_ids", ()), label=f"{sentence_id}.evidence_ids"
                 )
@@ -531,7 +598,7 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
                     for value in item.get("evidence_ids", ())
                     if _clean_text(value)
                 )
-            if code == "requested_remedy":
+            if code == "requested_remedy" or role == "application_finding":
                 application_record_ids = _strict_identifier_sequence(
                     item.get("application_record_ids", ()),
                     label=f"{sentence_id}.application_record_ids",
@@ -619,9 +686,13 @@ def require_release_support(
     complaint: StructuredComplaint,
     *,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    application_binding_authority: (
+        ApplicationFindingEvidenceBindingAuthority | Any | None
+    ) = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
     practice_binding_authority: PracticeClaimEvidenceBindingAuthority | Any | None = None,
     sentence_role_authority: SentenceRoleIndexAuthority | Any | None = None,
+    require_application_index: bool = False,
     require_holding_index: bool = False,
     require_practice_index: bool = False,
     require_sentence_role_index: bool = False,
@@ -681,11 +752,101 @@ def require_release_support(
                 reason_codes=role_errors,
             )
 
-    unsupported = complaint.unsupported_sentences()
+    unsupported = [
+        sentence
+        for sentence in complaint.unsupported_sentences()
+        if sentence.role != "application_finding"
+    ]
     if unsupported:
         labels = ", ".join(sentence.sentence_id for sentence in unsupported)
         raise ComplaintModelError(
             "Не подтверждены значимые предложения: " + labels
+        )
+
+    application_errors: list[str] = []
+    application_receipts: list[dict[str, Any]] = []
+    application_index_bindings: list[dict[str, Any]] = []
+    for section in complaint.sections:
+        for sentence in section.sentences:
+            if sentence.role != "application_finding":
+                continue
+            missing = [
+                label
+                for label, value in (
+                    ("claim_id", sentence.claim_id),
+                    ("norm_passport_id", sentence.norm_passport_id),
+                    ("application_record_ids", sentence.application_record_ids),
+                    ("evidence_ids", sentence.evidence_ids),
+                    (
+                        "maximum_supported_inference",
+                        sentence.maximum_supported_inference,
+                    ),
+                )
+                if not value
+            ]
+            if missing:
+                application_errors.extend(
+                    f"{sentence.sentence_id}:application_binding_{label}_missing"
+                    for label in missing
+                )
+                continue
+            if sentence.norm_passport_id not in complaint.norm_passport_ids:
+                application_errors.append(
+                    f"{sentence.sentence_id}:application_norm_passport_not_in_complaint_projection"
+                )
+            request = complaint.application_finding_binding_request(sentence)
+            if request is None:
+                application_errors.append(
+                    f"{sentence.sentence_id}:application_binding_request_incomplete"
+                )
+                continue
+            application_index_bindings.append(
+                {
+                    "sentence_id": sentence.sentence_id,
+                    "section_code": section.code,
+                    "role": "application_finding",
+                    "claim_id": sentence.claim_id,
+                    "norm_passport_id": sentence.norm_passport_id,
+                    "application_binding_sha256": request[
+                        "application_binding_sha256"
+                    ],
+                }
+            )
+            errors, receipt = resolve_application_finding_evidence_binding(
+                request, application_binding_authority
+            )
+            application_errors.extend(
+                f"{sentence.sentence_id}:{error}" for error in errors
+            )
+            if receipt is not None:
+                application_receipts.append(receipt)
+
+    application_index_receipt: dict[str, Any] | None = None
+    if application_index_bindings or require_application_index:
+        index_errors, application_index_receipt = (
+            resolve_application_finding_evidence_binding_index(
+                matter_id=complaint.matter_id,
+                draft_id=complaint.draft_id,
+                expected_bindings=application_index_bindings,
+                authority=application_binding_authority,
+            )
+        )
+        application_errors.extend(index_errors)
+    if application_index_receipt is not None and application_receipts:
+        index_revision = application_index_receipt.get("authority_revision_id")
+        if {
+            receipt.get("authority_revision_id")
+            for receipt in application_receipts
+        } != {index_revision}:
+            application_errors.append(
+                "application_binding_authority_snapshot_mismatch"
+            )
+    if application_errors:
+        exact_application_errors = tuple(dict.fromkeys(application_errors))
+        raise ComplaintModelError(
+            "Недействительны привязки применения нормы: "
+            + ", ".join(exact_application_errors),
+            reason_codes=exact_application_errors,
         )
 
     binding_errors: list[str] = []
@@ -948,6 +1109,8 @@ def require_release_support(
         )
     return ReleaseSupportReceipts(
         relief_binding_receipts=tuple(receipts),
+        application_binding_receipts=tuple(application_receipts),
+        application_binding_index_receipt=application_index_receipt,
         holding_binding_receipts=tuple(holding_receipts),
         holding_binding_index_receipt=holding_index_receipt,
         practice_binding_receipts=tuple(practice_receipts),

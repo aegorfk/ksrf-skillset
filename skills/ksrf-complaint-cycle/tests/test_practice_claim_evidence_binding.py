@@ -23,6 +23,9 @@ from ksrf.filing.composer import (  # noqa: E402
     build_structured_complaint,
     require_release_support,
 )
+from ksrf.filing.application_binding import (  # noqa: E402
+    build_application_finding_binding_index_resolution,
+)
 from ksrf.filing.holding_binding import (  # noqa: E402
     build_holding_binding_index_resolution,
 )
@@ -767,7 +770,17 @@ class PracticeClaimEvidenceBindingRedTests(unittest.TestCase):
         )
         holding_index.pop("status")
         manifest["holding_binding_index_receipt"] = holding_index
-        manifest["schema_version"] = "1.4"
+        application_index = build_application_finding_binding_index_resolution(
+            matter_id=manifest["matter_id"],
+            draft_id=manifest["draft_id"],
+            bindings=[],
+            authority_revision_id="application-index-revision-1",
+            checked_at="2026-09-01T09:54:00Z",
+        )
+        application_index.pop("status")
+        manifest["application_binding_receipts"] = []
+        manifest["application_binding_index_receipt"] = application_index
+        manifest["schema_version"] = "1.5"
         role_bindings = [
             sentence_role_binding(
                 ordinal=ordinal,

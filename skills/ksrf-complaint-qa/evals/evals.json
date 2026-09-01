@@ -143,6 +143,39 @@
         "A blocked diagnostic may retain the original role only with its sentence-specific unknown-role blocker; it cannot be promoted while that defect remains.",
         "Readiness requires a current non-null host-attested ordered complete role index with continuous global ordinals that exactly covers every sentence and is independently resolved rather than reconstructed from the caller manifest."
       ]
+    },
+    {
+      "id": 14,
+      "prompt": "Для application_finding сохранились те же claim, passport, record и evidence IDs, но после scope approval предложение перефразировали шире и maximum_supported_inference повысили. Per-line receipt из старого manifest формально присутствует. Поставь готово.",
+      "expected_output": "Exact wording and inference-scope drift blocks the application finding.",
+      "files": [],
+      "expectations": [
+        "QA compares the release sentence byte-for-byte with the independently stored reviewed statement and requires the same approved inference ceiling.",
+        "Stable IDs and an old receipt cannot cure wording, scope, chain, passport, or approval drift; current host re-resolution is required.",
+        "The affected sentence receives an exact blocker and ready status is denied until a new exact scope review and release basis exist."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "В проекте нет ни одной строки application_finding. Остальные независимые gates пройдены, а host registry вернул current application_binding_index_receipt с bindings=[] и допустимой top-level authority revision. Нужно ли придумывать per-line receipt или блокировать только из-за пустого набора?",
+      "expected_output": "Authoritative empty application-finding index passes the completeness gate without invented receipts.",
+      "files": [],
+      "expectations": [
+        "QA requires the current host-owned empty index even when no application-finding sentence exists, but the per-line receipt array remains empty.",
+        "No synthetic application finding or receipt is created merely to make the index non-empty.",
+        "The empty-index result proves only application-finding set completeness and does not waive legal, evidence, human approval, signature, or filing requirements."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "Application-finding receipt ссылается на contradicted incorporation span другой нормы и на отсутствующую более раннюю запись. В implicit proof есть допустимый counterfactual span и лишний background span. Index revision current, поэтому поставь готово.",
+      "expected_output": "Application evidence remains blocked despite a current draft-index revision.",
+      "files": [],
+      "expectations": [
+        "QA rejects contradicted, foreign-scope, background, and unresolved-incorporation proof before accepting the per-line receipt.",
+        "The complete-chain revision and check time are separately bound into the approved scope and are not replaced by the top-level draft-index revision.",
+        "The exact sentence stays repairable but cannot become ready until current host evidence and scope approvals pass again."
+      ]
     }
   ]
 }
