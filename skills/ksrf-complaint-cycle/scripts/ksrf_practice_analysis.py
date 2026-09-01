@@ -3207,6 +3207,195 @@ def validate_workspace(
     return report
 
 
+@_workspace_operation("validation")
+def current_filing_claim_projection(
+    workspace: str | Path,
+    *,
+    claim_id: str,
+    issue_option_id: str,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Return a closed current projection for one filing-ready practice claim.
+
+    The caller supplies only the already host-selected workspace, private
+    practice claim identifier, and selected issue option. Matter/draft routing
+    remains a host-registry responsibility; this function never accepts a
+    caller-selected workspace path inside a filing request.
+    """
+
+    claim_id = _require_nonempty(claim_id, "claim_id")
+    issue_option_id = _require_nonempty(issue_option_id, "issue_option_id")
+    snapshot_before_validation = _workspace_snapshot_digest(workspace)
+    report = validate_workspace(workspace, stage="filing", now=now)
+    snapshot_after_validation = _workspace_snapshot_digest(workspace)
+    if snapshot_after_validation != snapshot_before_validation:
+        raise ValueError("Practice workspace изменился во время filing validation.")
+    state = report.get("state")
+    if not isinstance(state, Mapping) or report.get("stage") != "filing":
+        raise ValueError("Current practice projection требует filing-stage state.")
+    if (
+        report.get("global_integrity_errors") != []
+        or state.get("global_integrity_errors") != []
+    ):
+        raise ValueError("Current practice projection заблокирован global integrity errors.")
+
+    claims = state.get("claims")
+    if not isinstance(claims, list):
+        raise ValueError("Current practice projection не содержит claims[].")
+    matches = [
+        item
+        for item in claims
+        if isinstance(item, Mapping) and item.get("claim_id") == claim_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"Practice claim {claim_id} отсутствует или неоднозначен.")
+    claim_state = dict(matches[0])
+    option_ids = claim_state.get("option_ids")
+    if (
+        not isinstance(option_ids, list)
+        or not all(isinstance(item, str) and item for item in option_ids)
+        or option_ids.count(issue_option_id) != 1
+    ):
+        raise ValueError("Practice claim не связан с exact issue_option_id.")
+    allowed_claim_ids = state.get("allowed_claim_ids")
+    if not isinstance(allowed_claim_ids, list) or not all(
+        isinstance(item, str) and item for item in allowed_claim_ids
+    ):
+        raise ValueError("Current practice projection не содержит valid allowed_claim_ids.")
+    if (
+        claim_state.get("state") != "ready"
+        or claim_state.get("draft_blocked") is not False
+        or claim_state.get("blocking_reasons") != []
+        or claim_id not in allowed_claim_ids
+    ):
+        raise ValueError(f"Practice claim {claim_id} не готов к filing.")
+
+    refresh_projection = state.get("prefiling_refresh")
+    if not isinstance(refresh_projection, Mapping):
+        raise ValueError("Current practice projection не содержит prefiling_refresh.")
+    if (
+        refresh_projection.get("required") is not True
+        or refresh_projection.get("valid") is not True
+    ):
+        raise ValueError("Practice claim требует действующий prefiling refresh.")
+    refresh = refresh_projection.get("record")
+    if not isinstance(refresh, Mapping):
+        raise ValueError("Prefiling refresh record отсутствует.")
+    ready_bindings = refresh.get("ready_claim_bindings")
+    if not isinstance(ready_bindings, list):
+        raise ValueError("Prefiling refresh не содержит ready_claim_bindings[].")
+    target_ready = [
+        item
+        for item in ready_bindings
+        if isinstance(item, Mapping) and item.get("claim_id") == claim_id
+    ]
+    if len(target_ready) != 1:
+        raise ValueError("Prefiling refresh не связывает exact practice claim.")
+    expected_ready = _ready_binding(claim_state)
+    if dict(target_ready[0]) != expected_ready:
+        raise ValueError("Prefiling refresh ready binding устарел.")
+    if refresh.get("ready_claim_set_sha256") != _digest(
+        sorted(
+            [dict(item) for item in ready_bindings if isinstance(item, Mapping)],
+            key=lambda item: str(item.get("claim_id")),
+        )
+    ):
+        raise ValueError("Prefiling refresh ready-claim set fingerprint не совпадает.")
+
+    wording = claim_state.get("wording_review")
+    if not isinstance(wording, Mapping) or wording.get("decision") != "within_limit":
+        raise ValueError("Practice claim не имеет текущего within-limit wording review.")
+    finding_ids = wording.get("finding_ids")
+    if (
+        not isinstance(finding_ids, list)
+        or not finding_ids
+        or not all(isinstance(item, str) and item for item in finding_ids)
+        or finding_ids != sorted(set(finding_ids))
+    ):
+        raise ValueError("Wording review finding_ids должны быть canonical unique list.")
+
+    handoff_id = claim_state.get("handoff_id")
+    if not _nonempty(handoff_id):
+        raise ValueError("Practice claim не связан с current result handoff.")
+    request_id = claim_state.get("request_id")
+    if not _nonempty(request_id):
+        raise ValueError("Practice claim не связан с current research request.")
+    _, research_request = _request_by_id(workspace, str(request_id))
+    result_path = _result_path(workspace, str(handoff_id))
+    if not result_path.is_file():
+        raise ValueError("Current practice result отсутствует.")
+    result = _read_json(result_path)
+    if not isinstance(result, Mapping):
+        raise ValueError("Current practice result должен быть JSON-объектом.")
+    payload = result.get("payload")
+    if not isinstance(payload, Mapping):
+        raise ValueError("Current practice result не содержит payload.")
+    all_findings = payload.get("findings")
+    if not isinstance(all_findings, list):
+        raise ValueError("Current practice result не содержит findings[].")
+    requested = set(finding_ids)
+    selected_findings = [
+        dict(item)
+        for item in all_findings
+        if isinstance(item, Mapping) and item.get("finding_id") in requested
+    ]
+    if (
+        len(selected_findings) != len(requested)
+        or {str(item.get("finding_id")) for item in selected_findings} != requested
+    ):
+        raise ValueError("Current practice result не содержит exact finding set.")
+    public_claim_id = _public_claim_id(claim_id)
+    maximum = claim_state.get("maximum_permitted_claim")
+    wording_text = _normalize_text(
+        _require_nonempty(wording.get("wording_text"), "wording_text")
+    )
+    if (
+        wording.get("claim_id") != claim_id
+        or wording.get("claim_sha256") != claim_state.get("claim_sha256")
+        or wording.get("handoff_id") != handoff_id
+        or wording.get("wording_text") != wording_text
+        or wording.get("maximum_permitted_claim") != maximum
+        or payload.get("maximum_permitted_claim") != maximum
+    ):
+        raise ValueError("Current wording/result binding не совпадает с ready claim.")
+    for finding in selected_findings:
+        claim_ids = finding.get("claim_ids")
+        candidate = finding.get("candidate")
+        if (
+            not isinstance(claim_ids, list)
+            or not all(isinstance(item, str) and item for item in claim_ids)
+            or public_claim_id not in claim_ids
+            or finding.get("maximum_permitted_claim") != maximum
+            or finding.get("claim_wording") != wording_text
+            or not isinstance(candidate, Mapping)
+            or candidate.get("claim_wording") != wording_text
+        ):
+            raise ValueError(
+                "Finding не относится к exact practice claim, wording или ceiling."
+            )
+
+    projection = {
+        "schema_version": SCHEMA_VERSION,
+        "case_id": state.get("case_id"),
+        "issue_option_id": issue_option_id,
+        "workspace_binding": {
+            "input_bindings": dict(state.get("input_bindings", {})),
+            "workspace_snapshot_sha256": snapshot_after_validation,
+        },
+        "claim_state": claim_state,
+        "ready_binding": expected_ready,
+        "research_request": dict(research_request),
+        "result": dict(result),
+        "wording_review": dict(wording),
+        "findings": sorted(selected_findings, key=lambda item: str(item["finding_id"])),
+        "filing_validation": dict(report),
+        "prefiling_refresh": dict(refresh_projection),
+    }
+    if _workspace_snapshot_digest(workspace) != snapshot_after_validation:
+        raise ValueError("Practice workspace изменился во время current projection.")
+    return projection
+
+
 def _print_json(value: Any, *, stream: Any = None) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True), file=stream or sys.stdout)
 

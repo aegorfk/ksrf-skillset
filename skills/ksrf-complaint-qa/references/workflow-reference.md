@@ -154,6 +154,19 @@
 
 Если тезис важен для допустимости, требования или основного конституционного теста и не имеет источника, не ставь `готово`.
 
+### Exact binding утверждений о массовой судебной практике
+
+Исследовательский статус `ready`, валидный practice-analysis result и caller-поле `support_status=verified` сами по себе не разрешают включать предложение `practice_claim` в filing. Перед итоговым вердиктом QA должен получить текущий host-owned resolution, который повторно открывает привязанный к делу practice workspace и подтверждает одновременно:
+
+- constitutional `claim_id`, выбранный `issue_option_id` и нативный `practice_claim_id`;
+- byte-equal reviewed wording, exact `claim_wording` finding/candidate и неизменённый `maximum_supported_inference`;
+- точное множество canonical finding IDs, а не строку, частичный набор или придуманные идентификаторы;
+- current content-bound research request, точное совпадение его handoff/`request_sha256`/claim-set/canonical claim bindings с v2 result, current ready binding, полный ready-set refresh и отсутствие global integrity errors;
+- отдельные trusted approvals `practice:<practice_claim_id>` и `selection` с разными receipt IDs, причём human selection равен `principal` или `reserve`;
+- полный host-owned draft index всех `practice_claim` проекта, независимый от caller payload и practice-analysis claim index.
+
+Authority и полный индекс должны быть повторно разрешены непосредственно перед построением filing manifest. Все per-line receipts и индекс несут один `authority_revision_id`; per-line receipts дополнительно несут одинаковые case/workspace revision и input-manifest binding. Refresh recording не может предшествовать native material events; filing validation и authority check следуют после refresh. Несовпадение текста, evidence set, ceiling, issue/claim projection, workspace/revision binding, approvals, temporal order или индекса — blocking defect. Независимый неготовый claim не блокирует готовый target claim: нативный `valid=false`, `stage_verdict=partial` допустим только при точном структурированном наборе иных blocked claims и согласованных report/state projections; `valid=true` при `partial` является дефектом.
+
 ## Проверка эмпирики и законодательных фактов
 
 Статистика, история закона, экономические данные и экспертные материалы должны иметь одну заранее обозначенную функцию:

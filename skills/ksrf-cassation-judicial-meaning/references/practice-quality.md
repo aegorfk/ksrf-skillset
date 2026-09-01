@@ -62,3 +62,5 @@
 ## Связь с handoff
 
 Если claim зависит от trajectory, uncertainty, reliability или refresh, portable v2 result обязан включить content hashes соответствующих артефактов. Изменение любого связанного артефакта делает только зависимые claims stale. Reviewed result строится кассационным CLI из текущего workspace; caller не может передать собственный findings JSON.
+
+Перед включением reviewed finding в жалобу центральный host снова открывает current workspace, проверяет exact ready claim и полный refresh, связывает final wording с exact finding IDs и затем применяет отдельный [filing evidence binding](filing-evidence-binding.md). Quality hash внутри portable result не заменяет current host resolution.

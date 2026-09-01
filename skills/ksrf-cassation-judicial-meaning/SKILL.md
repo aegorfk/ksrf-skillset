@@ -28,6 +28,7 @@ description: "Скилл исследует материалы дела заяв
 7. **Проверь качество наблюдения.** По `references/practice-quality.md` отдельно построй межинстанционную траекторию смысла, девятимерный профиль неопределённости и frozen coding-reliability audit. Не считай оставление результата без изменения принятием мотивировки и не сворачивай измерения в score.
 8. **Проверь нормативный мост и актуальность.** Свяжи смысл в деле заявителя, ограниченное наблюдение корпуса и конкретное конституционное последствие; отдельно объясни обычное средство защиты и выполни pre-filing refresh по official routes, закону, higher authority, verified и pending treatments.
 9. **Только после проверки сформируй handoff.** Локальный compatibility-статус `drafting_ready` требует текущие хеши fingerprint/плана/evidence/quality/refresh, человеческую проверку и формулировку не сильнее `maximum_permitted_claim`, но означает лишь готовность evidence bundle к центральному gate. Reviewed v2 result строится CLI из текущих одобренных артефактов по selectors; произвольный findings payload запрещён. Получатель сначала выполняет `handoff check` с этим source workspace и ожидаемым target, затем требует pre-existing host-attested approval полного issue/practice/adverse binding. Bundle без внешнего anchor остаётся audit-only; filesystem anchor и SHA-256 не являются подписью или filing authority.
+10. **Перед release свяжи exact practice-строку.** Для каждой строки жалобы отдельно сохрани constitutional `claim_id`, native `practice_claim_id`, selected `issue_option_id`, exact finding IDs, reviewed wording и byte-equal `maximum_permitted_claim`. Host заново проверяет current practice workspace, result, trust anchors, target-claim state, refresh, approvals `practice:<id>` и `selection`, а также независимый полный draft index — включая пустой. Правила и стоп-матрица: [привязка тезиса к filing](references/filing-evidence-binding.md).
 
 Минимальный старт из любого каталога:
 
@@ -51,6 +52,7 @@ python3 <skill-dir>/scripts/judicial_meaning.py plan template \
 - [публичный корпусный кеш](references/public-corpus-cache.md) — privacy boundary, ingest/search, funnel, treatment, public-only export/import;
 - [источники и институциональные режимы](references/source-regimes.md) — перечислители, source reconcile, verify/promote и честные пределы маршрутов;
 - [кодирование и допуск тезиса](references/coding-and-thesis-gates.md) — роли текста и независимые gates;
+- [привязка тезиса к filing](references/filing-evidence-binding.md) — exact line binding, current host authority, два issue approvals и complete draft index;
 - [устранение проблем](references/troubleshooting.md) — OCR, blocked routes, resume, stale artifacts и незакрытые периоды.
 
 ## Стоп-правила

@@ -3,9 +3,456 @@
   "$id": "https://example.local/ksrf/filing-package.schema.json",
   "title": "KSRF Filing Package Manifest",
   "type": "object",
-  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "artifacts", "render_qa", "blockers"],
+  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "human_only_actions", "source_versions", "norm_passport_ids", "issue_option_ids", "sentence_evidence_map", "sentence_role_index_receipt", "relief_binding_receipts", "relief_binding_index_receipt", "holding_binding_receipts", "holding_binding_index_receipt", "practice_binding_receipts", "practice_binding_index_receipt", "artifacts", "render_qa", "blockers"],
+  "$defs": {
+    "canonicalSentenceRole": {
+      "enum": ["narrative", "fact", "court_reasoning", "norm_text", "legal_holding", "application_finding", "practice_claim", "adverse_authority", "requested_remedy"]
+    },
+    "sentenceRoleBinding": {
+      "type": "object",
+      "required": ["ordinal", "sentence_id", "section_code", "text_sha256", "role"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 1},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "role": {"$ref": "#/$defs/canonicalSentenceRole"}
+      },
+      "additionalProperties": false
+    },
+    "sentenceRoleIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Полный реестр строк текущего проекта жалобы, канонически отсортированный по сквозному ordinal от 1 без пропусков; runtime дополнительно проверяет уникальность ordinal.",
+          "items": {"$ref": "#/$defs/sentenceRoleBinding"}
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "reliefBindingIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["sentence_id", "section_code", "role", "relief_binding_sha256"],
+            "properties": {
+              "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+              "section_code": {"const": "requested_remedy"},
+              "role": {"const": "requested_remedy"},
+              "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "sourceEvidenceReceipt": {
+      "type": "object",
+      "required": ["evidence_id", "claim_id", "norm_id", "norm_version_id", "status", "content_sha256", "verification_revision_id", "verifier_id", "checked_at", "locator", "content_fingerprint"],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "norm_id": {"type": "string", "minLength": 1},
+        "norm_version_id": {"type": "string", "minLength": 1},
+        "status": {"const": "current"},
+        "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verification_revision_id": {"type": "string", "minLength": 1},
+        "verifier_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "locator": {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {"type": "string", "minLength": 1},
+            "value": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "content_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "holdingBindingIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["sentence_id", "section_code", "role", "holding_binding_sha256"],
+            "properties": {
+              "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+              "section_code": {"type": "string", "minLength": 1},
+              "role": {"const": "legal_holding"},
+              "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "holdingSourceEvidenceReceipt": {
+      "type": "object",
+      "required": ["evidence_id", "source_id", "origin_url", "authority_class", "raw_sha256", "verified_official_locator", "verification_revision_id", "identity_fingerprint", "source_evidence_content_fingerprint"],
+      "properties": {
+        "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+        "source_id": {"type": "string", "minLength": 1},
+        "origin_url": {"type": "string", "minLength": 1},
+        "authority_class": {"enum": ["official_primary", "official_derivative"]},
+        "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verified_official_locator": {"type": "string", "minLength": 1},
+        "verification_revision_id": {"type": "string", "pattern": "^source-verification:sha256:[0-9a-f]{64}$"},
+        "identity_fingerprint": {"type": "string", "pattern": "^source-identity:sha256:[0-9a-f]{64}$"},
+        "source_evidence_content_fingerprint": {"type": "string", "pattern": "^source-evidence-content:sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "holdingCurrentAuthorityResult": {
+      "type": "object",
+      "required": ["evidence_id", "filing_ready", "identity_verification_mode", "blockers"],
+      "properties": {
+        "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+        "filing_ready": {"const": true},
+        "identity_verification_mode": {"enum": ["trusted_derived", "trusted_approval"]},
+        "blockers": {"const": []}
+      },
+      "additionalProperties": false
+    },
+    "holdingClaimScopeReceipt": {
+      "type": "object",
+      "required": ["schema_version", "evidence_id", "source_id", "claim_id", "authority_role", "verified_official_locator", "pinpoint", "raw_sha256", "verification_revision_id", "current_evidence_id", "freshness_state", "scope_revision_id", "checked_at", "maximum_supported_inference", "claim_scope_content_fingerprint"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+        "source_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "authority_role": {"const": "ksrf_legal_holding"},
+        "verified_official_locator": {"type": "string", "minLength": 1},
+        "pinpoint": {"type": "string", "minLength": 1},
+        "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verification_revision_id": {"type": "string", "pattern": "^source-verification:sha256:[0-9a-f]{64}$"},
+        "current_evidence_id": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+        "freshness_state": {"const": "current"},
+        "scope_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "maximum_supported_inference": {"type": "string", "minLength": 1},
+        "claim_scope_content_fingerprint": {"type": "string", "pattern": "^holding-claim-scope-content:sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "holdingScopeApprovalBindings": {
+      "type": "object",
+      "required": ["matter_id", "draft_id", "sentence_id", "section_code", "holding_binding_sha256", "claim_id", "evidence_ids", "maximum_supported_inference", "source_ids", "source_evidence_content_fingerprints", "claim_scope_content_fingerprints"],
+      "properties": {
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+        },
+        "maximum_supported_inference": {"type": "string", "minLength": 1},
+        "source_ids": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
+        "source_evidence_content_fingerprints": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "pattern": "^source-evidence-content:sha256:[0-9a-f]{64}$"}
+        },
+        "claim_scope_content_fingerprints": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "pattern": "^holding-claim-scope-content:sha256:[0-9a-f]{64}$"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "holdingScopeApprovalRequest": {
+      "type": "object",
+      "required": ["purpose", "subject_type", "subject_id", "fingerprint", "bindings"],
+      "properties": {
+        "purpose": {"const": "legal_holding"},
+        "subject_type": {"const": "legal_holding_sentence_evidence"},
+        "subject_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "fingerprint": {"type": "string", "pattern": "^holding-scope-review:sha256:[0-9a-f]{64}$"},
+        "bindings": {"$ref": "#/$defs/holdingScopeApprovalBindings"}
+      },
+      "additionalProperties": false
+    },
+    "holdingScopeGateReceipt": {
+      "type": "object",
+      "required": ["schema_version", "passed", "sentence_id", "section_code", "holding_binding_sha256", "claim_id", "evidence_ids", "maximum_supported_inference", "source_ids", "source_evidence_content_fingerprints", "claim_scope_content_fingerprints", "authority_revision_id", "checked_at", "approval_request", "trusted_approval_id"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "passed": {"const": true},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+        },
+        "maximum_supported_inference": {"type": "string", "minLength": 1},
+        "source_ids": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
+        "source_evidence_content_fingerprints": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "pattern": "^source-evidence-content:sha256:[0-9a-f]{64}$"}
+        },
+        "claim_scope_content_fingerprints": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"type": "string", "pattern": "^holding-claim-scope-content:sha256:[0-9a-f]{64}$"}
+        },
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "approval_request": {"$ref": "#/$defs/holdingScopeApprovalRequest"},
+        "trusted_approval_id": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "holdingBindingReceipt": {
+      "type": "object",
+      "required": ["schema_version", "sentence_id", "section_code", "holding_binding_sha256", "claim_id", "evidence_ids", "maximum_supported_inference", "source_evidence_receipts", "current_authority_results", "claim_scope_receipts", "scope_gate_receipt"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+        },
+        "maximum_supported_inference": {"type": "string", "minLength": 1},
+        "source_evidence_receipts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"$ref": "#/$defs/holdingSourceEvidenceReceipt"}
+        },
+        "current_authority_results": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"$ref": "#/$defs/holdingCurrentAuthorityResult"}
+        },
+        "claim_scope_receipts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^source-evidence:sha256:[0-9a-f]{64}$"},
+          "additionalProperties": {"$ref": "#/$defs/holdingClaimScopeReceipt"}
+        },
+        "scope_gate_receipt": {"$ref": "#/$defs/holdingScopeGateReceipt"}
+      },
+      "additionalProperties": false
+    },
+    "practiceMatterBinding": {
+      "type": "object",
+      "required": ["matter_id", "draft_id", "case_id", "workspace_revision_id", "input_bindings_sha256"],
+      "properties": {
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "case_id": {"type": "string", "minLength": 1},
+        "workspace_revision_id": {"type": "string", "minLength": 1},
+        "input_bindings_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "practiceReadyBinding": {
+      "type": "object",
+      "required": ["claim_id", "revision_id", "claim_sha256", "source_file_sha256", "input_bindings_sha256", "input_manifest_updated_at", "claim_created_at", "handoff_id", "plan_sha256", "evidence_sha256", "fingerprint_sha256", "maximum_permitted_claim", "wording_review_event_sha256", "wording_reviewed_at", "result_import_event_sha256", "result_imported_at", "result_source_sha256", "result_created_at", "attachment_event_sha256", "attachment_attached_at", "anchor_checked_at", "trust_anchor_sha256"],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "revision_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "claim_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "input_bindings_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "input_manifest_updated_at": {"type": "string", "format": "date-time"},
+        "claim_created_at": {"type": "string", "format": "date-time"},
+        "handoff_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "maximum_permitted_claim": {"type": "string", "minLength": 1},
+        "wording_review_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "wording_reviewed_at": {"type": "string", "format": "date-time"},
+        "result_import_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "result_imported_at": {"type": "string", "format": "date-time"},
+        "result_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "result_created_at": {"type": "string", "format": "date-time"},
+        "attachment_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "attachment_attached_at": {"type": "string", "format": "date-time"},
+        "anchor_checked_at": {"type": "string", "format": "date-time"},
+        "trust_anchor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "practiceFindingReceipt": {
+      "type": "object",
+      "required": ["finding_id", "candidate_id", "candidate_sha256", "candidate", "claim_ids", "claim_wording", "supporting_position_card_ids", "adverse_position_card_ids", "maximum_permitted_claim"],
+      "properties": {
+        "finding_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate": {"type": "object", "minProperties": 1},
+        "claim_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "claim_wording": {"type": "string", "minLength": 1},
+        "supporting_position_card_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "adverse_position_card_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "maximum_permitted_claim": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "practicePrefilingRefreshReceipt": {
+      "type": "object",
+      "required": ["event_sha256", "ready_claim_set_sha256", "as_of", "corpus_cutoff", "recorded_at"],
+      "properties": {
+        "event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ready_claim_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "as_of": {"type": "string", "format": "date"},
+        "corpus_cutoff": {"type": "string", "format": "date"},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "practiceApprovalRequests": {
+      "type": "object",
+      "required": ["selection"],
+      "minProperties": 2,
+      "maxProperties": 2,
+      "properties": {"selection": {"type": "object", "minProperties": 1}},
+      "patternProperties": {"^practice:[A-Za-z0-9._-]{1,80}$": {"type": "object", "minProperties": 1}},
+      "additionalProperties": false
+    },
+    "practiceTrustedApprovalIds": {
+      "type": "object",
+      "required": ["selection"],
+      "minProperties": 2,
+      "maxProperties": 2,
+      "properties": {"selection": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"}},
+      "patternProperties": {"^practice:[A-Za-z0-9._-]{1,80}$": {"type": "string", "pattern": "^trusted-approval:sha256:[0-9a-f]{64}$"}},
+      "additionalProperties": false
+    },
+    "practiceBindingReceipt": {
+      "type": "object",
+      "required": ["schema_version", "sentence_id", "section_code", "practice_binding_sha256", "claim_id", "practice_claim_id", "issue_option_id", "evidence_ids", "maximum_supported_inference", "matter_binding", "practice_state_sha256", "ready_binding", "result_handoff_id", "result_sha256", "finding_receipts", "wording_review_event_sha256", "wording_review_sha256", "filing_validation_sha256", "prefiling_refresh_receipt", "issue_candidate_fingerprint", "issue_approval_requests", "trusted_approval_ids", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "practice_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "claim_id": {"type": "string", "minLength": 1},
+        "practice_claim_id": {"type": "string", "minLength": 1},
+        "issue_option_id": {"type": "string", "minLength": 1},
+        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+        "maximum_supported_inference": {"type": "string", "minLength": 1},
+        "matter_binding": {"$ref": "#/$defs/practiceMatterBinding"},
+        "practice_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ready_binding": {"$ref": "#/$defs/practiceReadyBinding"},
+        "result_handoff_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "finding_receipts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/practiceFindingReceipt"}},
+        "wording_review_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "wording_review_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "filing_validation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "prefiling_refresh_receipt": {"$ref": "#/$defs/practicePrefilingRefreshReceipt"},
+        "issue_candidate_fingerprint": {"type": "string", "minLength": 1},
+        "issue_approval_requests": {"$ref": "#/$defs/practiceApprovalRequests"},
+        "trusted_approval_ids": {"$ref": "#/$defs/practiceTrustedApprovalIds"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "practiceBindingIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["sentence_id", "section_code", "role", "claim_id", "practice_claim_id", "issue_option_id", "practice_binding_sha256"],
+            "properties": {
+              "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+              "section_code": {"type": "string", "minLength": 1},
+              "role": {"const": "practice_claim"},
+              "claim_id": {"type": "string", "minLength": 1},
+              "practice_claim_id": {"type": "string", "minLength": 1},
+              "issue_option_id": {"type": "string", "minLength": 1},
+              "practice_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "1.4"},
     "matter_id": {"type": "string", "minLength": 1},
     "draft_id": {"type": "string", "minLength": 1},
     "status": {"enum": ["blocked", "ready_for_expert_review", "ready_for_human_signing_filing"]},
@@ -13,6 +460,251 @@
     "human_only_actions": {
       "type": "array",
       "contains": {"const": "filing"}
+    },
+    "source_versions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "norm_passport_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "issue_option_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "sentence_evidence_map": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sentence_id", "section_code", "text", "role", "evidence_ids", "support_status"],
+        "properties": {
+          "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+          "section_code": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1, "pattern": "\\S"},
+          "evidence_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "support_status": {"enum": ["pending", "verified", "human_approved", "rejected"]},
+          "claim_id": {"type": "string", "minLength": 1},
+          "practice_claim_id": {"type": "string", "minLength": 1},
+          "issue_option_id": {"type": "string", "minLength": 1},
+          "norm_passport_id": {"type": "string", "minLength": 1},
+          "application_record_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "relief_binding_status": {"enum": ["bound", "unbound"]},
+          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "maximum_supported_inference": {"type": "string", "minLength": 1},
+          "holding_binding_status": {"enum": ["bound", "unbound"]},
+          "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "practice_binding_status": {"enum": ["bound", "unbound"]},
+          "practice_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
+                {
+                  "allOf": [
+                    {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]},
+                    {"properties": {"role": {"$ref": "#/$defs/canonicalSentenceRole"}}, "required": ["role"]}
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "role": {"const": "requested_remedy"},
+                "section_code": {"const": "requested_remedy"}
+              },
+              "required": ["relief_binding_status"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"relief_binding_status": {"const": "bound"}},
+              "required": ["relief_binding_status"]
+            },
+            "then": {
+              "properties": {"evidence_ids": {"minItems": 1}},
+              "required": ["claim_id", "issue_option_id", "norm_passport_id", "application_record_ids", "relief_binding_sha256"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "legal_holding"}},
+              "required": ["role"]
+            },
+            "then": {
+              "required": ["holding_binding_status"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"holding_binding_status": {"const": "bound"}},
+              "required": ["holding_binding_status"]
+            },
+            "then": {
+              "properties": {
+                "role": {"const": "legal_holding"},
+                "evidence_ids": {
+                  "minItems": 1,
+                  "items": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+                }
+              },
+              "required": ["role", "claim_id", "evidence_ids", "maximum_supported_inference", "holding_binding_sha256"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "practice_claim"}},
+              "required": ["role"]
+            },
+            "then": {
+              "required": ["practice_binding_status"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"practice_binding_status": {"const": "bound"}},
+              "required": ["practice_binding_status"]
+            },
+            "then": {
+              "properties": {
+                "role": {"const": "practice_claim"},
+                "evidence_ids": {
+                  "minItems": 1,
+                  "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                }
+              },
+              "required": ["role", "claim_id", "practice_claim_id", "issue_option_id", "evidence_ids", "maximum_supported_inference", "practice_binding_sha256"]
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "sentence_role_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/sentenceRoleIndexReceipt"}
+      ]
+    },
+    "relief_binding_receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["schema_version", "sentence_id", "relief_binding_sha256", "claim_id", "issue_option_id", "issue_content_fingerprint", "norm_passport_id", "norm_passport_content_fingerprint", "application_record_content_fingerprints", "evidence_ids", "source_evidence_revision_ids", "source_evidence_receipts", "trusted_approval_ids", "approval_request_fingerprints", "binding_index_receipt"],
+        "properties": {
+          "schema_version": {"const": "1.1.0"},
+          "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "claim_id": {"type": "string", "minLength": 1},
+          "issue_option_id": {"type": "string", "minLength": 1},
+          "issue_content_fingerprint": {"type": "string", "minLength": 1},
+          "norm_passport_id": {"type": "string", "minLength": 1},
+          "norm_passport_content_fingerprint": {"type": "string", "minLength": 1},
+          "application_record_content_fingerprints": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {"type": "string", "minLength": 1}
+          },
+          "evidence_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "source_evidence_revision_ids": {
+            "type": "object",
+            "additionalProperties": {"type": "string", "minLength": 1}
+          },
+          "source_evidence_receipts": {
+            "type": "object",
+            "additionalProperties": {"$ref": "#/$defs/sourceEvidenceReceipt"}
+          },
+          "binding_index_receipt": {"$ref": "#/$defs/reliefBindingIndexReceipt"},
+          "trusted_approval_ids": {
+            "type": "object",
+            "required": ["issue", "norm_version", "application"],
+            "properties": {
+              "issue": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "norm_version": {"type": "string", "minLength": 1},
+              "application": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "approval_request_fingerprints": {
+            "type": "object",
+            "required": ["issue", "norm_version", "application", "preservation"],
+            "properties": {
+              "issue": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "norm_version": {"type": "string", "minLength": 1},
+              "application": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              },
+              "preservation": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "relief_binding_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/reliefBindingIndexReceipt"}
+      ]
+    },
+    "holding_binding_receipts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/holdingBindingReceipt"}
+    },
+    "holding_binding_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/holdingBindingIndexReceipt"}
+      ]
+    },
+    "practice_binding_receipts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/practiceBindingReceipt"}
+    },
+    "practice_binding_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/practiceBindingIndexReceipt"}
+      ]
     },
     "artifacts": {
       "type": "array",
@@ -62,6 +754,179 @@
     "blockers": {"type": "array", "items": {"type": "string"}}
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["ready_for_expert_review", "ready_for_human_signing_filing"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "source_versions": {"minItems": 1},
+          "norm_passport_ids": {"minItems": 1},
+          "issue_option_ids": {"minItems": 1},
+          "blockers": {"maxItems": 0},
+          "sentence_role_index_receipt": {
+            "allOf": [
+              {"$ref": "#/$defs/sentenceRoleIndexReceipt"},
+              {
+                "properties": {
+                  "bindings": {"minItems": 1}
+                }
+              }
+            ]
+          },
+          "relief_binding_receipts": {"minItems": 1},
+          "relief_binding_index_receipt": {"$ref": "#/$defs/reliefBindingIndexReceipt"},
+          "holding_binding_index_receipt": {"$ref": "#/$defs/holdingBindingIndexReceipt"},
+          "practice_binding_index_receipt": {"$ref": "#/$defs/practiceBindingIndexReceipt"},
+          "sentence_evidence_map": {
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "properties": {
+                "role": {"const": "requested_remedy"},
+                "relief_binding_status": {"const": "bound"}
+              },
+              "required": ["role", "relief_binding_status"]
+            },
+            "items": {
+              "properties": {
+                "role": {"$ref": "#/$defs/canonicalSentenceRole"}
+              },
+              "if": {
+                "anyOf": [
+                  {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
+                  {
+                    "allOf": [
+                      {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]},
+                      {"properties": {"role": {"$ref": "#/$defs/canonicalSentenceRole"}}, "required": ["role"]}
+                    ]
+                  }
+                ]
+              },
+              "then": {
+                "properties": {
+                  "role": {"const": "requested_remedy"},
+                  "section_code": {"const": "requested_remedy"},
+                  "relief_binding_status": {"const": "bound"},
+                  "evidence_ids": {"minItems": 1}
+                },
+                "required": ["relief_binding_status", "claim_id", "issue_option_id", "norm_passport_id", "application_record_ids", "relief_binding_sha256"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "blocked"},
+          "sentence_evidence_map": {
+            "contains": {
+              "type": "object",
+              "required": ["role"],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {"$ref": "#/$defs/canonicalSentenceRole"}
+                }
+              }
+            }
+          }
+        },
+        "required": ["status", "sentence_evidence_map"]
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "contains": {
+              "type": "string",
+              "pattern": "^sentence_role_unknown:sent-[0-9a-f]{16}:[\\s\\S]+$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["ready_for_expert_review", "ready_for_human_signing_filing"]
+          },
+          "sentence_evidence_map": {
+            "contains": {
+              "type": "object",
+              "properties": {"role": {"const": "practice_claim"}},
+              "required": ["role"]
+            }
+          }
+        },
+        "required": ["status", "sentence_evidence_map"]
+      },
+      "then": {
+        "properties": {
+          "practice_binding_receipts": {"minItems": 1},
+          "sentence_evidence_map": {
+            "items": {
+              "if": {
+                "properties": {"role": {"const": "practice_claim"}},
+                "required": ["role"]
+              },
+              "then": {
+                "properties": {
+                  "practice_binding_status": {"const": "bound"},
+                  "evidence_ids": {"minItems": 1, "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+                },
+                "required": ["practice_binding_status", "claim_id", "practice_claim_id", "issue_option_id", "evidence_ids", "maximum_supported_inference", "practice_binding_sha256"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["ready_for_expert_review", "ready_for_human_signing_filing"]
+          },
+          "sentence_evidence_map": {
+            "contains": {
+              "type": "object",
+              "properties": {"role": {"const": "legal_holding"}},
+              "required": ["role"]
+            }
+          }
+        },
+        "required": ["status", "sentence_evidence_map"]
+      },
+      "then": {
+        "properties": {
+          "holding_binding_receipts": {"minItems": 1},
+          "sentence_evidence_map": {
+            "items": {
+              "if": {
+                "properties": {"role": {"const": "legal_holding"}},
+                "required": ["role"]
+              },
+              "then": {
+                "properties": {
+                  "holding_binding_status": {"const": "bound"},
+                  "evidence_ids": {"minItems": 1}
+                },
+                "required": ["holding_binding_status", "claim_id", "evidence_ids", "maximum_supported_inference", "holding_binding_sha256"]
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {"status": {"const": "ready_for_human_signing_filing"}},

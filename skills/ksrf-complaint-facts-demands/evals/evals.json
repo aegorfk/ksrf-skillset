@@ -33,6 +33,72 @@
         "It offers principal and narrower norm-centered formulations.",
         "Each remedy is tied to a factual hook and downstream route."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Строка просьбы по CLAIM-B помечена verified, но ссылается только на E-A и application record из CLAIM-A. Можно выпускать?",
+      "expected_output": "Cross-claim remedy binding is blocked.",
+      "files": [],
+      "expectations": [
+        "The output does not treat a non-empty evidence ID or stored verified flag as authority.",
+        "It identifies the requested-remedy sentence and blocks the cross-claim issue/application/evidence binding.",
+        "It requires current host-resolved issue, passport, application, source, and content-bound gate receipts before release."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Собери principal по CLAIM-A и reserve по CLAIM-B: у каждой линии есть собственные selected issue, паспорт редакции, application record и evidence span.",
+      "expected_output": "Independent principal and reserve remedy bindings.",
+      "files": [],
+      "expectations": [
+        "Each requested-remedy sentence preserves its own claim, issue, passport, application-record, and evidence references.",
+        "The singular issue alias is not used to infer multi-line membership.",
+        "Both lines may pass only after exact current host resolution and matching content fingerprints."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "В разделе requested_remedy строку переименовали в narrative, убрали binding и добавили passed=true. Можно считать её обычным текстом и выпускать?",
+      "expected_output": "Requested-remedy role downgrade remains blocked.",
+      "files": [],
+      "expectations": [
+        "The section determines the requested-remedy role; caller role downgrade and pass flags are ignored.",
+        "The output requires a strict unique sentence ID and explicit claim/issue/passport/application binding.",
+        "An unbound legacy line remains a schema-valid draft diagnostic but cannot enter a ready manifest."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Issue и application snapshots совпадают по content fingerprint, но receipt содержит произвольный непустой approval fingerprint и только selection/remedy approval IDs. Достаточно ли этого?",
+      "expected_output": "Arbitrary or incomplete approval request is rejected.",
+      "files": [],
+      "expectations": [
+        "String presence is not treated as a trusted gate receipt.",
+        "The full helper-derived issue approval request set, including adverse and conditional gates, must match exactly.",
+        "Norm, application-chain, and preservation approval requests are recomputed and compared before release."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "В manifest были principal A и reserve B. Удалили B вместе с её receipt и пересчитали release hash; оставшаяся A валидна. Можно выпускать?",
+      "expected_output": "Dropped remedy line is detected by the authoritative draft index.",
+      "files": [],
+      "expectations": [
+        "The remaining manifest projection is not treated as authority for the complete remedy set.",
+        "A separate current host draft registry must attest canonical A/B sentence, role, section, and binding SHA entries.",
+        "The A-only manifest is blocked with an index set mismatch even after its release basis is recomputed."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "SourceEvidence сохранил verification revision, но у него изменились content SHA и locator; host adapter ещё и вернул один nested evidence ID числом. Receipt остаётся current?",
+      "expected_output": "Full source receipt is stale and raw identifier coercion is rejected.",
+      "files": [],
+      "expectations": [
+        "The receipt binds source ID, claim, norm, edition, status, SHA, revision, verifier, checked time, locator, and a deterministic fingerprint.",
+        "Changed SHA or locator makes the stored relief receipt stale even when the revision string is reused.",
+        "Non-string or whitespace-normalized host graph identifiers and locators are rejected before coercive deserialization."
+      ]
     }
   ]
 }

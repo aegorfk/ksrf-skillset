@@ -7,7 +7,7 @@ description: Скилл превращает утверждённый портф
 
 ## Вход filing-readiness v1
 
-Принимай только выбранные человеком issue options, verified `NormVersionPassport`, reviewed per-stage application records и adverse delta. Для filing-significant drafting selection/application/adverse gates должны иметь заранее созданные host-attested approvals полного содержимого по `../ksrf-complaint-cycle/references/router-and-state-machine.md`; raw human fields остаются диагностикой. Строй разделы с `SentenceEvidenceMap` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`; unsupported proposition не расширяй риторикой и не передавай в release draft.
+Принимай только выбранные человеком issue options, verified `NormVersionPassport`, reviewed per-stage application records и adverse delta. Для filing-significant drafting selection/application/adverse gates должны иметь заранее созданные host-attested approvals полного содержимого по `../ksrf-complaint-cycle/references/router-and-state-machine.md`; raw human fields остаются диагностикой. Строй разделы с `SentenceEvidenceMap` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`; unsupported proposition не расширяй риторикой и не передавай в release draft. Каждая строка с ролью `legal_holding` связывается с claim, полным current `SourceEvidence v1`, отдельной host-scope записью `ksrf_legal_holding`, точным pinpoint и `maximum_supported_inference`; произвольный ID или статус `verified` не являются доказательством.
 
 ## Вход
 
@@ -50,7 +50,7 @@ description: Скилл превращает утверждённый портф
 6. Если подходящего паттерна нет, построй аргумент непосредственно от нормы, официальных конституционных принципов, причинности и предлагаемой гарантии. Отсутствие аналогии укажи как transferability risk.
 7. Для споров о доказывании заполни `references/evidence-impact-method.md`: классифицируй индивидуальные, содержательные законодательные, процедурные и процессуальные факты; укажи предмет, бремя, стандарт, доступ к информации, временную актуальность, возможность опровержения, последствие недоказанности и нормативный носитель. Не спорь только с весом отдельного доказательства и не смешивай доказываемое специальное основание с усмотрением по итоговому решению.
    Если довод касается социального права, доступности гарантии, институциональной сдержанности или фактической эффективности защиты, дополнительно заполни `references/social-rights-institutional-evidence.md`: разнеси reason, российскую официальную authority и social facts, проверь индикаторы, access funnel и individual bridge. Сравнительная методика не заменяет российский критерий и при неполных данных должна завершаться abstain.
-8. Для каждого существенного тезиса дай evidence id, source anchor, locator и предел вывода. Непроверенное пометь `проверить`; adverse findings не убирай из черновика внутреннего memo.
+8. Для каждого существенного тезиса дай evidence id, source anchor, locator и предел вывода. Для `legal_holding` используй только exact binding: native `SourceEvidence v1` должен заново пройти current-filing-authority и latest/supersession проверки, а claim-scope receipt — подтвердить `authority_role=ksrf_legal_holding`, официальный locator, pinpoint и тот же предел вывода. Непроверенное пометь `проверить`; adverse findings не убирай из черновика внутреннего memo.
 9. Если передан authority ledger, используй только записи с подходящей ролью и `drafting_ready=true`; не превращай `application_evidence` ВС РФ в конституционный критерий и сохрани `transfer.limit` и adverse response в трассировке.
 10. В частном споре построй `state-attribution bridge`: назови государственное нормативное правило, презумпцию, стандарт, закрытый перечень или обязательный смысл, который создал вред. Действия частного оппонента сами по себе не являются предметом нормоконтроля.
 11. Для профессиональной гарантии раздели собственное право профессионала, гарантию права доверителя, публичную функцию института и процессуальную легитимацию заявителя. Не подменяй личное нарушение общей значимостью профессии.
@@ -76,6 +76,7 @@ description: Скилл превращает утверждённый портф
 - Не считай corpus frequency, semantic similarity или число ссылок качеством аргумента.
 - Не используй научный, международный или состязательный материал как замену российской правовой опоре.
 - Не повышай applicant wording, separate opinion, raw assertion, search snippet или semantic profile до holding либо drafting rule.
+- Не повышай актуальный акт ВС РФ, карточку нижестоящего суда, application evidence или сравнительный источник до `legal_holding`: официальный источник без exact host-scope роли КС РФ остаётся в собственной evidence lane.
 - Не скрывай факт, что независимый critic не использовался или source locator не проверен.
 
 ## Справочники
