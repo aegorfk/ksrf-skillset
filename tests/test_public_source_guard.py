@@ -112,6 +112,30 @@ class PublicSourceGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
                 validate_public_repository(Path(temporary))
 
+    def test_repository_guard_scans_source_only_provenance_journal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = (
+                Path(temporary)
+                / "skills"
+                / "ksrf-argument-patterns"
+                / "references"
+                / "complaint-methodology-sources.md"
+            )
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
+                validate_public_repository(Path(temporary))
+
     def test_rejects_unsafe_content_in_each_root_only_release_tool(self) -> None:
         unsafe_samples = {
             "secret assignment": "api_key = 'synthetic-live-value-123456789012345'\n",
