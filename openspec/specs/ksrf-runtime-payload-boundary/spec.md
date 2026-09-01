@@ -5,7 +5,22 @@ TBD - created by archiving change exclude-development-tests-from-installed-paylo
 ## Requirements
 ### Requirement: Installed payload excludes maintainer-only tests
 
-The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file identities. The two retired runtime identities `ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py` and `ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py` MUST NOT exist as tracked skill duplicates; their canonical root-only copies MUST remain under `tools/` and covered by the release manifest.
+The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file identities. It MUST classify `ksrf-argument-patterns/references/complaint-methodology-sources.md` as a tracked source-only provenance journal and MUST exclude that exact identity from user installation without excluding similarly named Markdown files. The two retired runtime identities `ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py` and `ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py` MUST NOT exist as tracked skill duplicates; their canonical root-only copies MUST remain under `tools/` and covered by the release manifest.
+
+#### Scenario: Provenance journal is installed
+
+- **WHEN** manifest generation or installation encounters the exact journal identity
+- **THEN** it is omitted, while source validation still scans it and lookalike Markdown remains eligible
+
+#### Scenario: Runtime contains the provenance journal
+
+- **WHEN** runtime-profile validation encounters the exact journal identity
+- **THEN** validation fails with `SOURCE_ONLY_ARTIFACT_PRESENT`
+
+#### Scenario: Source repository contains the provenance journal
+
+- **WHEN** source/release validation inspects the canonical tracked file
+- **THEN** it remains required and covered by secret, local-path, symlink and public-artifact checks but is absent from the portable publish manifest
 
 #### Scenario: Retired nested generator is encountered
 
@@ -24,36 +39,36 @@ The canonical KSRF install contract MUST exclude files under any skill-relative 
 
 ### Requirement: One exact file contract governs distribution
 
-Manifest generation, runtime installation, tree-hash verification, release-tool ownership, and reverse synchronization MUST use the same versioned contract. Mirrored runtime tools, root-only release tools, and explicitly retired mirrors MUST be disjoint. Reverse sync MUST require and copy only active mirrored tools and MUST neither require nor remove root-only tools.
+Manifest generation, runtime installation, tree-hash verification, source-only provenance ownership, release-tool ownership, and reverse synchronization MUST use the same versioned contract. The provenance journal MUST remain byte-preserved by reverse sync and MUST NOT be required in the installed runtime. No installed user-facing `SKILL.md`, Markdown/JSON reference, or operational builder/verifier MAY refer to its excluded basename; the portable validator MAY retain the exact identity solely as fail-closed policy data.
 
 #### Scenario: Global runtime is synchronized back to source
 
-- **WHEN** global KSRF skills do not contain the two root-only generators
-- **THEN** reverse sync succeeds, preserves both root tools byte-for-byte, and still mirrors `build_constitutionalist_authority_corpus.py`
+- **WHEN** global KSRF skills do not contain the provenance journal or the two root-only generators
+- **THEN** reverse sync succeeds, preserves all three source-owned files byte-for-byte, and still mirrors `build_constitutionalist_authority_corpus.py`
 
-#### Scenario: Release manifest is generated
+#### Scenario: Clean-room runtime is inspected
 
-- **WHEN** `skills-manifest.json` is rebuilt
-- **THEN** release files include both root-only tools and their exact hashes even though the runtime skill file list excludes the retired nested paths
+- **WHEN** the exact manifest payload is installed to an empty directory
+- **THEN** neither the provenance journal nor any backlink to its basename exists, and all successor references resolve inside runtime
 
-#### Scenario: Root enrich tool uses defaults
+#### Scenario: Corpus metadata is generated
 
-- **WHEN** the root enrich tool is invoked without `--skill`
-- **THEN** its default target resolves to `<repo>/skills/ksrf-argument-patterns`
-
-#### Scenario: Root-only release tool contains unsafe local material
-
-- **WHEN** either root-only tool contains an embedded token, private-key marker, secret assignment, or absolute local path
-- **THEN** source/release validation fails before manifest publication without echoing the secret value
+- **WHEN** the canonical builder regenerates `constitutionalist-authority-corpus.json`
+- **THEN** root/mirrored builders and generated metadata refer only to retained runtime references
 
 ### Requirement: Cleanup does not weaken development or legal gates
 
-The ownership migration MUST preserve source/public security checks, source tests and evals, strict OpenSpec validation, explicit publication authority, and all legal/human review gates.
+The provenance cleanup MUST preserve source/public security checks, source tests and evals, strict OpenSpec validation, explicit publication authority, all legal/human review gates, and an independently reviewed mapping from every transferable source method/check to `retained`, `superseded`, or `intentionally_rejected`. Automated validation MUST cover exact payload behavior, critical transferred gaps, and dead runtime routes; it MUST NOT be represented as a complete semantic proof of every mapping row.
 
-#### Scenario: Retired path is accidentally reintroduced with unsafe content
+#### Scenario: Provenance journal contains unsafe source material
 
-- **WHEN** either retired exact skill path reappears with a secret, absolute local path, symlink, or complaint-like artifact
-- **THEN** source/repository validation rejects both the duplicate identity and its unsafe content even though the runtime contract excludes it
+- **WHEN** the tracked journal contains a secret, absolute local path, symlink, or complaint-like artifact
+- **THEN** source/repository validation rejects it even though the runtime contract excludes it
+
+#### Scenario: Critical transferred methodology is removed or unrouted
+
+- **WHEN** either newly transferred hearing/remedy-access gate or a routed retained successor is absent
+- **THEN** regression validation or independent semantic review blocks publication rather than treating source-only exclusion as evidence that methodology survived
 
 ### Requirement: Validator distinguishes source and runtime assurance
 
