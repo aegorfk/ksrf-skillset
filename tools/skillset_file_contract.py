@@ -31,6 +31,15 @@ SKILL_NAMES = (
 
 RUNTIME_PARTS = frozenset({".git", ".serena", ".pytest_cache", "__pycache__"})
 DEVELOPMENT_ONLY_PARTS = frozenset({"evals", "tests"})
+SOURCE_ONLY_SKILLSET_PATHS = frozenset(
+    {
+        "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+        "ksrf-argument-patterns/references/evidence_maps.json",
+        "ksrf-argument-patterns/references/hearing_argument_techniques.json",
+        "ksrf-argument-patterns/references/language_formulas.json",
+        "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
+    }
+)
 RUNTIME_NAMES = frozenset({".DS_Store"})
 RUNTIME_SUFFIXES = frozenset({".pyc", ".pyo"})
 SECRET_NAMES = frozenset(
@@ -132,16 +141,34 @@ class FileContractError(RuntimeError):
     """A source tree cannot be represented by the public payload contract."""
 
 
-def is_excluded(relative_path: Path, *, include_development: bool = False) -> bool:
+def is_source_only(relative_path: Path, *, package_name: str | None = None) -> bool:
+    if any(part in DEVELOPMENT_ONLY_PARTS for part in relative_path.parts):
+        return True
+    if package_name is not None:
+        identity = f"{package_name}/{relative_path.as_posix()}"
+    elif (
+        len(relative_path.parts) >= 3
+        and relative_path.parts[0] == "skills"
+        and relative_path.parts[1] in SKILL_NAMES
+    ):
+        identity = "/".join(relative_path.parts[1:])
+    else:
+        identity = relative_path.as_posix()
+    return identity in SOURCE_ONLY_SKILLSET_PATHS
+
+
+def is_excluded(
+    relative_path: Path,
+    *,
+    include_development: bool = False,
+    package_name: str | None = None,
+) -> bool:
     """Return whether a payload-relative file is runtime or secret material."""
 
     lowered = relative_path.name.lower()
     return (
         any(part in RUNTIME_PARTS for part in relative_path.parts)
-        or (
-            not include_development
-            and any(part in DEVELOPMENT_ONLY_PARTS for part in relative_path.parts)
-        )
+        or (not include_development and is_source_only(relative_path, package_name=package_name))
         or relative_path.name in RUNTIME_NAMES
         or relative_path.suffix.lower() in RUNTIME_SUFFIXES
         or lowered in SECRET_NAMES
@@ -227,7 +254,9 @@ def payload_files(root: Path, *, include_development: bool = False) -> list[Path
             raise FileContractError(f"symlink inside payload tree is forbidden: {path}")
         relative = path.relative_to(root)
         if path.is_file() and not is_excluded(
-            relative, include_development=include_development
+            relative,
+            include_development=include_development,
+            package_name=root.name,
         ):
             validate_public_artifact(path, Path("skills") / root.name / relative)
             files.append(path)
@@ -240,10 +269,7 @@ def development_files(root: Path) -> list[Path]:
     return [
         path
         for path in payload_files(root, include_development=True)
-        if any(
-            part in DEVELOPMENT_ONLY_PARTS
-            for part in path.relative_to(root).parts
-        )
+        if is_source_only(path.relative_to(root), package_name=root.name)
     ]
 
 
