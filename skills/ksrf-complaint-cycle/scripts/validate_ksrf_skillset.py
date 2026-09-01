@@ -58,6 +58,7 @@ ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
 SOURCE_ONLY_SKILLSET_PATHS = frozenset(
     {
         "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+        "ksrf-argument-patterns/references/complaint-methodology-sources.md",
         "ksrf-argument-patterns/references/evidence_maps.json",
         "ksrf-argument-patterns/references/hearing_argument_techniques.json",
         "ksrf-argument-patterns/references/language_formulas.json",
@@ -947,11 +948,15 @@ def _runtime_artifact(path: Path) -> bool:
     )
 
 
-def _development_artifact(path: Path) -> bool:
+def is_source_only_artifact(path: Path) -> bool:
     return (
         any(part in DEVELOPMENT_ONLY_PARTS for part in path.parts)
         or path.as_posix() in SOURCE_ONLY_SKILLSET_PATHS
     )
+
+
+def _development_artifact(path: Path) -> bool:
+    return is_source_only_artifact(path)
 
 
 def _hash_file(path: Path) -> str:

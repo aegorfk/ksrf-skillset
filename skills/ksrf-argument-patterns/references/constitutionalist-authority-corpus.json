@@ -1802,7 +1802,7 @@
           "method": "тест полезности amicus/expert material",
           "usable_for": "связь с предметом дела, научная добросовестность, уникальные факты или конструкции",
           "guardrail": "amicus не нейтрален по умолчанию, не гарантирует влияние и не заменяет первичный источник",
-          "skill_reference": "science-support-pack.md; complaint-methodology-sources.md"
+          "skill_reference": "strategic-complaint-design.md; science-support-pack.md"
         },
         {
           "method": "карта косвенного доступа через запрос суда",

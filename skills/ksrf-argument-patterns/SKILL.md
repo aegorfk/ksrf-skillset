@@ -68,7 +68,7 @@ Pattern match становится опорой только после ручн
 - `references/constitutional-graph.md`, `references/constitutional_graph.json`, `references/position-retrieval-architecture.md` — candidate generation и обход связей.
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — обязательный автономный baseline по маршруту, допустимости, drafting, filing и исполнению.
 - `../ksrf-practice-authority-builder/SKILL.md` — превращение CasusLegal findings в проверяемый authority ledger и блоки аргумента.
-- `references/complaint-methodology-sources.md` — provenance и журнал источников обновления; для runtime-работы не требуется.
+- `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — проверяемая архитектура стратегического решения, доказательственных слоёв, сравнительных групп, amicus и последствий; журнал источников пользователю не требуется.
 - `references/constitutionalist-authority-corpus.md` и `constitutionalist-authority-corpus.json` — широкий корпус авторов и работ с маршрутами, статусом извлечения и предохранителями.
 - `references/constitutional-methodology-verified-cards.md` — 19 source/legal и model-conflict-reviewed pre-promotion карточек широкой волны, их locators, пределы переноса, overlap-роль и нерешённые conflict-abstain условия; human conflict gate остаётся отдельным.
 - `references/constitutional-methodology-reference-only-corpus.md` — остальные 84 source/legal-reviewed карточки с triggers, stop-условиями, контрпримером и российской правовой границей; только option generation и red-team, без изменения behavior.

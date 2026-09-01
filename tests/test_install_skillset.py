@@ -19,6 +19,10 @@ EXACT_MAINTAINER_FILES = (
         "ksrf-argument-patterns",
         Path("references/argument_techniques_from_decisions.json"),
     ),
+    (
+        "ksrf-argument-patterns",
+        Path("references/complaint-methodology-sources.md"),
+    ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
     (
         "ksrf-argument-patterns",
@@ -133,6 +137,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 / "ksrf-argument-patterns"
                 / "references"
                 / "constitutional_graph.json",
+                source
+                / "ksrf-argument-patterns"
+                / "references"
+                / "complaint-methodology-sources-runtime.md",
+                source
+                / "ksrf-case-triage"
+                / "references"
+                / "complaint-methodology-sources.md",
                 source
                 / "ksrf-complaint-cycle"
                 / "scripts"

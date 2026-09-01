@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -29,6 +31,17 @@ SPEC.loader.exec_module(portable)
 
 
 class SourceOnlyContractParityTests(unittest.TestCase):
+    def test_canonical_provenance_journal_remains_a_regular_source_file(self) -> None:
+        journal = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "references"
+            / "complaint-methodology-sources.md"
+        )
+        self.assertTrue(journal.is_file())
+        self.assertFalse(journal.is_symlink())
+
     def test_canonical_and_portable_exact_source_only_paths_match(self) -> None:
         canonical_paths = set(
             getattr(canonical, "SOURCE_ONLY_SKILLSET_PATHS", frozenset())
@@ -41,6 +54,7 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             canonical_paths,
             {
                 "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+                "ksrf-argument-patterns/references/complaint-methodology-sources.md",
                 "ksrf-argument-patterns/references/evidence_maps.json",
                 "ksrf-argument-patterns/references/hearing_argument_techniques.json",
                 "ksrf-argument-patterns/references/language_formulas.json",
@@ -74,6 +88,163 @@ class SourceOnlyContractParityTests(unittest.TestCase):
         self.assertTrue(
             set(canonical.SOURCE_ONLY_SKILLSET_PATHS).issubset(manifest["exclusions"])
         )
+
+    def test_runtime_user_material_contains_no_provenance_journal_backlink(self) -> None:
+        excluded_basename = "complaint-methodology-sources.md"
+        text_suffixes = {".json", ".md", ".txt", ".yaml", ".yml"}
+
+        for package in canonical.SKILL_NAMES:
+            skill_root = REPO / "skills" / package
+            for path in canonical.payload_files(skill_root):
+                if path.name != "SKILL.md" and "references" not in path.parts:
+                    continue
+                if path.suffix.lower() not in text_suffixes:
+                    continue
+                with self.subTest(path=path.relative_to(REPO).as_posix()):
+                    self.assertNotIn(
+                        excluded_basename,
+                        path.read_text(encoding="utf-8"),
+                    )
+
+    def test_operational_scripts_contain_no_provenance_backlink(self) -> None:
+        excluded_basename = "complaint-methodology-sources.md"
+        paths = (
+            REPO / "tools" / "build_constitutionalist_authority_corpus.py",
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "scripts"
+            / "build_constitutionalist_authority_corpus.py",
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "scripts"
+            / "verify_offline_self_containment.py",
+        )
+        for path in paths:
+            with self.subTest(path=path.relative_to(REPO).as_posix()):
+                self.assertNotIn(
+                    excluded_basename,
+                    path.read_text(encoding="utf-8"),
+                )
+
+    def test_offline_verifier_accepts_source_only_provenance_journal(self) -> None:
+        verifier = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "scripts"
+            / "verify_offline_self_containment.py"
+        )
+        completed = subprocess.run(
+            [sys.executable, str(verifier)],
+            cwd=REPO,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
+    def test_runtime_successors_close_provenance_methodology_gaps(self) -> None:
+        strategic = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "references"
+            / "strategic-complaint-design.md"
+        ).read_text(encoding="utf-8")
+        offline = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "references"
+            / "offline-practice-core.md"
+        ).read_text(encoding="utf-8")
+
+        for axis in ("Незаконность", "Причинность", "Вина", "Способ восстановления"):
+            with self.subTest(axis=axis):
+                self.assertIn(f"| {axis} |", strategic)
+        self.assertIn("### После принятия обращения: отдельный gate слушания", offline)
+        self.assertIn("Не предполагай автоматическое устное слушание", offline)
+        self.assertIn("`remedy-access counterfactual`", strategic)
+        self.assertIn(
+            "сохраняется, сужается или исчезает юридический доступ к специальной компенсации",
+            strategic,
+        )
+
+    def test_runtime_backlog_contains_no_source_maintenance_routes(self) -> None:
+        backlog = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "references"
+            / "automation-backlog.md"
+        ).read_text(encoding="utf-8")
+        for marker in (
+            "methodology-source-crawler",
+            "zakon-rubric-methodology-ingestor",
+            "crawl_constitutional_methodology_sources.py",
+            "ТЗ/Гайды/Новое/constitutional_methodology_sources",
+            "source-only журнал происхождения",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, backlog)
+
+    def test_corpus_metadata_routes_to_retained_runtime_successors(self) -> None:
+        excluded_basename = "complaint-methodology-sources.md"
+        expected_reference = (
+            '"skill_reference": '
+            '"strategic-complaint-design.md; science-support-pack.md"'
+        )
+        root_builder = REPO / "tools" / "build_constitutionalist_authority_corpus.py"
+        mirrored_builder = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "scripts"
+            / "build_constitutionalist_authority_corpus.py"
+        )
+        generated = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "references"
+            / "constitutionalist-authority-corpus.json"
+        )
+
+        for path in (root_builder, mirrored_builder, generated):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(REPO).as_posix()):
+                self.assertNotIn(excluded_basename, text)
+                self.assertIn(expected_reference, text)
+
+        self.assertEqual(root_builder.read_bytes(), mirrored_builder.read_bytes())
+
+        parsed = ast.parse(root_builder.read_text(encoding="utf-8"))
+        curated = None
+        for node in parsed.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if any(isinstance(target, ast.Name) and target.id == "CURATED" for target in node.targets):
+                curated = ast.literal_eval(node.value)
+                break
+        self.assertIsInstance(curated, list)
+        generated_by_name = {
+            item["canonical_name"]: item
+            for item in json.loads(generated.read_text(encoding="utf-8"))["authorities"]
+        }
+        for item in curated:
+            with self.subTest(canonical_name=item["canonical_name"]):
+                self.assertEqual(
+                    item["method_cards"],
+                    generated_by_name[item["canonical_name"]]["method_cards"],
+                )
+
+        reference_root = (
+            REPO / "skills" / "ksrf-complaint-cycle" / "references"
+        )
+        for name in ("strategic-complaint-design.md", "science-support-pack.md"):
+            self.assertTrue((reference_root / name).is_file())
 
 
 if __name__ == "__main__":

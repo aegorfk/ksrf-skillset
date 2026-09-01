@@ -15,8 +15,6 @@
 - [secretariat-return-precheck](#secretariat-return-precheck)
 - [constitutional-record-preservation-checker](#constitutional-record-preservation-checker)
 - [complaint-attachments-checker](#complaint-attachments-checker)
-- [methodology-source-crawler](#methodology-source-crawler)
-- [zakon-rubric-methodology-ingestor](#zakon-rubric-methodology-ingestor)
 - [ksrf-publication-radar](#ksrf-publication-radar)
 - [telegram-practice-claim-validator](#telegram-practice-claim-validator)
 - [bill-history-passport-builder](#bill-history-passport-builder)
@@ -157,26 +155,6 @@
 - доверенность/полномочия представителя с прямым правом представления в КС РФ;
 - документ об оплате госпошлины или основание освобождения;
 - копии и навигация по приложениям.
-
-## methodology-source-crawler
-
-Поддерживать обновление внешней методологии:
-
-- запускать `scripts/crawl_constitutional_methodology_sources.py` по утвержденным источникам;
-- сохранять HTML, документы и `crawl_index.json` в `ТЗ/Гайды/Новое/constitutional_methodology_sources`;
-- отделять методологическое ядро от широкого сайта-шумa;
-- обновлять `complaint-methodology-sources.md` после ревью;
-- новые идеи автоматизации сначала фиксировать в OpenSpec.
-
-## zakon-rubric-methodology-ingestor
-
-Поддерживать корпус Zakon.ru `Конституционное право` как secondary methodology source:
-
-- собирать индекс рубрики через `Redesign/ListByRubric/List/36/...`;
-- скачивать публичные тексты статей, очищая тело `div.typical` и исключая комментарии/сервисные блоки;
-- строить релевантный срез по маркерам `жалоба`, `Секретариат`, `допустимость`, `судебный запрос`, `пересмотр`, `правоприменительный смысл`, `компенсаторные механизмы`;
-- отделять новости/мнения от переносимых drafting и QA-эвристик;
-- обновлять `complaint-methodology-sources.md` только после ручной проверки и без превращения Zakon.ru в нормативный source of truth.
 
 ## ksrf-publication-radar
 

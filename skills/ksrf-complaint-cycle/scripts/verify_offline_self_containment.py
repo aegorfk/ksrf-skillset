@@ -8,6 +8,8 @@ import re
 import sys
 from pathlib import Path
 
+from validate_ksrf_skillset import is_source_only_artifact
+
 
 SKILLS_ROOT = Path(__file__).resolve().parents[2]
 CORE = SKILLS_ROOT / "ksrf-complaint-cycle" / "references" / "offline-practice-core.md"
@@ -251,7 +253,8 @@ def main() -> int:
 
     for skill_dir in skill_dirs:
         for markdown in sorted(skill_dir.rglob("*.md")):
-            if markdown.name == "complaint-methodology-sources.md":
+            logical_path = Path(skill_dir.name) / markdown.relative_to(skill_dir)
+            if is_source_only_artifact(logical_path):
                 continue
             markdown_text = markdown.read_text(encoding="utf-8")
             for raw_target in re.findall(r"`([^`\n]+\.md(?:#[^`\s]+)?)`", markdown_text):
