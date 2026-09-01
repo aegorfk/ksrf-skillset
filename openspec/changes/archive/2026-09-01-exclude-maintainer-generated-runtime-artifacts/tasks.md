@@ -18,5 +18,5 @@
 - [x] 3.1 Run focused RED/GREEN, all source suites, source strict validator, clean-room runtime strict validator, strict OpenSpec, shell syntax, and diff checks.
 - [x] 3.2 Confirm exact clean-room/global file, byte, package, and tree hashes; assert all five paths plus tests/evals are absent while source bytes remain.
 - [x] 3.3 Obtain independent review with no unresolved P1/P2.
-- [ ] 3.4 Publish atomically to `main`, confirm remote SHA, install the exact global payload, and verify source-only artifacts remain in the repository.
-- [ ] 3.5 Archive the completed OpenSpec change and publish the final evidence commit.
+- [x] 3.4 Publish atomically to `main`, confirm remote SHA, install the exact global payload, and verify source-only artifacts remain in the repository.
+- [x] 3.5 Archive the completed OpenSpec change and publish the final evidence commit.
