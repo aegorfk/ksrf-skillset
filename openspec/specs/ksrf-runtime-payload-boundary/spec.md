@@ -5,71 +5,55 @@ TBD - created by archiving change exclude-development-tests-from-installed-paylo
 ## Requirements
 ### Requirement: Installed payload excludes maintainer-only tests
 
-The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file pairs below while retaining all of those files in the source repository:
+The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file identities. The two retired runtime identities `ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py` and `ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py` MUST NOT exist as tracked skill duplicates; their canonical root-only copies MUST remain under `tools/` and covered by the release manifest.
 
-- `ksrf-argument-patterns/references/hearing_argument_techniques.json`
-- `ksrf-argument-patterns/references/language_formulas.json`
-- `ksrf-argument-patterns/references/evidence_maps.json`
-- `ksrf-argument-patterns/references/argument_techniques_from_decisions.json`
-- `ksrf-complaint-cycle/scripts/add_reference_tocs.py`
+#### Scenario: Retired nested generator is encountered
 
-#### Scenario: Skill contains unit tests, fixtures, and eval suites
+- **WHEN** manifest generation, installation, or runtime validation encounters either retired exact skill path
+- **THEN** the path is excluded from runtime, runtime validation reports `SOURCE_ONLY_ARTIFACT_PRESENT`, and similarly named files outside the exact identity remain eligible
 
-- **WHEN** manifest generation or installation enumerates a skill containing `tests/test_example.py`, `tests/fixtures/example.json`, `evals/evals.json`, and `evals/trigger-evals.json`
-- **THEN** none of those files is included in the manifest-covered payload or copied to the install target
+#### Scenario: Source repository is prepared
 
-#### Scenario: Exact maintainer files are enumerated
+- **WHEN** source/release validation inspects the repository
+- **THEN** both nested duplicates are absent, both root-only tools are regular tracked files, and both remain included in release-file hashes
 
-- **WHEN** manifest generation or installation reaches any of the five versioned skill/path pairs
-- **THEN** that file is omitted from the runtime payload while its tracked source copy remains unchanged
+#### Scenario: Benign nested duplicate is reintroduced
 
-#### Scenario: Runtime package contains ordinary resources
-
-- **WHEN** the same skill contains `SKILL.md`, `agents/`, `lib/`, `references/`, `schemas/`, or `scripts/` outside the exact source-only contract
-- **THEN** those files remain eligible for the payload under the existing secret/runtime exclusions
-
-#### Scenario: Similar names must not overmatch
-
-- **WHEN** another skill contains `references/evidence_maps.json` or the target skill contains `references/evidence_maps-guide.json`, active `constitutional_graph.json`, schemas, configs, or an ordinary runtime script
-- **THEN** the file remains runtime-eligible
-
-#### Scenario: Global skills are synchronized back to source
-
-- **WHEN** the canonical reverse-sync command replaces repository runtime files from global skills
-- **THEN** tracked target `tests/`, `evals/`, and five exact maintainer files are preserved byte-for-byte while stale runtime files are removed
+- **WHEN** either retired exact skill path exists again even with otherwise safe content
+- **THEN** canonical repository/manifest validation and portable source validation fail closed instead of silently excluding the duplicate
 
 ### Requirement: One exact file contract governs distribution
 
-Manifest generation, runtime installation, and tree-hash verification MUST use the same runtime file-selection contract and MUST fail when installed bytes differ from the manifest. Reverse sync MUST invoke an explicit source-preserving mode instead of treating the installed runtime tree as a complete source package. Installation MUST fail before writing when the source and target paths are equal or either path contains the other.
+Manifest generation, runtime installation, tree-hash verification, release-tool ownership, and reverse synchronization MUST use the same versioned contract. Mirrored runtime tools, root-only release tools, and explicitly retired mirrors MUST be disjoint. Reverse sync MUST require and copy only active mirrored tools and MUST neither require nor remove root-only tools.
 
-#### Scenario: Clean-room install is verified
+#### Scenario: Global runtime is synchronized back to source
 
-- **WHEN** a release candidate is installed into an empty target
-- **THEN** its file count, total bytes, package hashes, and top-level tree hash exactly match the regenerated manifest
+- **WHEN** global KSRF skills do not contain the two root-only generators
+- **THEN** reverse sync succeeds, preserves both root tools byte-for-byte, and still mirrors `build_constitutionalist_authority_corpus.py`
 
-#### Scenario: Install target overlaps the source tree
+#### Scenario: Release manifest is generated
 
-- **WHEN** an operator selects the source directory itself, one of its descendants, or one of its ancestors as the install target
-- **THEN** installation is refused before any source or target file is replaced
+- **WHEN** `skills-manifest.json` is rebuilt
+- **THEN** release files include both root-only tools and their exact hashes even though the runtime skill file list excludes the retired nested paths
+
+#### Scenario: Root enrich tool uses defaults
+
+- **WHEN** the root enrich tool is invoked without `--skill`
+- **THEN** its default target resolves to `<repo>/skills/ksrf-argument-patterns`
+
+#### Scenario: Root-only release tool contains unsafe local material
+
+- **WHEN** either root-only tool contains an embedded token, private-key marker, secret assignment, or absolute local path
+- **THEN** source/release validation fails before manifest publication without echoing the secret value
 
 ### Requirement: Cleanup does not weaken development or legal gates
 
-Excluding source-only assets from the installed payload MUST NOT delete source QA assets, remove OpenSpec evidence, bypass public-source safety checks, or expand legal, human-review, filing, or publication authority.
+The ownership migration MUST preserve source/public security checks, source tests and evals, strict OpenSpec validation, explicit publication authority, and all legal/human review gates.
 
-#### Scenario: Source release is prepared
+#### Scenario: Retired path is accidentally reintroduced with unsafe content
 
-- **WHEN** the cleaned runtime payload is published
-- **THEN** source tests, behavioral/trigger eval validation, strict OpenSpec, source-only artifact checks, and skillset validation pass from the canonical checkout and all legal gates remain unchanged
-
-#### Scenario: Forbidden public artifact is hidden under development paths
-
-- **WHEN** a complaint-like or otherwise forbidden source artifact is placed under `tests/`, `evals/`, or one of the exact maintainer-only paths
-- **THEN** repository publication validation still rejects it even though distribution excludes that file
-
-#### Scenario: Installed guide discusses retrieval evaluation
-
-- **WHEN** a user reads the runtime retrieval guide after installation
-- **THEN** it does not require absent eval datasets or runner scripts and instead gives manual evidence checks and stop rules
+- **WHEN** either retired exact skill path reappears with a secret, absolute local path, symlink, or complaint-like artifact
+- **THEN** source/repository validation rejects both the duplicate identity and its unsafe content even though the runtime contract excludes it
 
 ### Requirement: Validator distinguishes source and runtime assurance
 
