@@ -2,7 +2,7 @@
 
 ## Structured complaint
 
-Рабочая structured-complaint модель `1.1` содержит обязательные разделы жалобы, `matter_id`, `draft_id`, source/version bindings, norm passport IDs, plural selected issue option IDs, approvals, formal check и `SentenceEvidenceMap`. Filing-package manifest `1.1` всегда несёт relief projections, массив receipts и nullable host-authoritative index receipt: в диагностическом `blocked` manifest допустимы `unbound`, пустой receipt-массив и `null` index, но любой ready-статус требует только `bound`-строки, current receipts версии `1.1.0` и current index. Manifest `1.0` остаётся только историческим JSON и должен быть пересобран перед новым release approval. Singular `issue_option_id` остаётся только диагностическим alias и не создаёт membership для нескольких линий.
+Рабочая structured-complaint модель `1.2` содержит обязательные разделы жалобы, `matter_id`, `draft_id`, source/version bindings, norm passport IDs, plural selected issue option IDs, approvals, formal check и `SentenceEvidenceMap`. Filing-package manifest `1.2` всегда несёт отдельные relief- и legal-holding projections, массивы receipts и host-authoritative index receipts. В диагностическом `blocked` manifest допустимы `unbound`, пустые receipt-массивы и `null` index. Любой ready-статус требует `bound`-строки, current relief receipts `1.1.0`, current holding receipts `1.0.0` и оба current index; holding index обязателен даже при authoritative `bindings=[]`. Manifest `1.0`/`1.1` остаётся только историческим JSON и должен быть пересобран перед новым release approval. Singular `issue_option_id` остаётся только диагностическим alias и не создаёт membership для нескольких линий.
 
 Для каждого filing-significant предложения запиши:
 
@@ -13,6 +13,8 @@
 - предел формулировки.
 
 Для роли `requested_remedy` дополнительно обязательны same-claim `claim_id`, `issue_option_id`, `norm_passport_id`, canonical unique `application_record_ids` и `relief_binding_sha256`. Любая строка в разделе `requested_remedy` нормализуется именно с этой ролью: caller не может превратить просьбу в `narrative`. Legacy-строка сериализуется с `relief_binding_status=unbound`, остаётся редактируемым черновиком и не проходит release gate; полная строка получает `bound` только из реально сохранённых binding-полей.
+
+Для роли `legal_holding` обязательны exact `claim_id`, canonical unique native SourceEvidence `evidence_ids`, `maximum_supported_inference` и `holding_binding_sha256`, связанный с exact текстом и разделом. Обычный `verified`/`filing_ready`, произвольный evidence ID или comparative/VSRF/application source не создают позицию КС РФ. Legacy-строка с `holding_binding_status=unbound` остаётся черновиком и блокирует release.
 
 Перед render, release, approval и повторной проверкой manifest host-attested `ReliefEvidenceBindingAuthority` заново возвращает exact issue/application/passport/source snapshots, content-bound trusted gate receipts и полный current index строк просительной части из реестра draft. Runtime пересчитывает fingerprints и проверяет одну claim/norm/edition graph; payload-флаги `verified`, `passed` или `filing_ready` не заменяют authority. Manifest сохраняет проверенные relief-binding receipts и index receipt в release basis.
 
@@ -30,6 +32,12 @@ Line resolver получает один request с `matter_id`, `draft_id`, stri
 | `resolve_relief_evidence_binding_index` | Canonical sorted unique entries `{sentence_id, section_code=requested_remedy, role=requested_remedy, relief_binding_sha256}`, index SHA, authority revision и RFC3339 checked time | Точный set сравнивается с каждой текущей manifest projection; удалить, добавить или переименовать одну линию вместе с её receipt нельзя скрыть пересчётом manifest hash |
 
 Host adapter должен получать receipts из действующих trusted ledgers/gates и remedy index из authoritative current draft registry, а не строить его из переданного manifest. Все nested graph IDs и locator kind/value должны уже быть canonical strings до deserialization; `str(...)`, trim или deduplication на trust boundary запрещены. Непустая произвольная строка fingerprint или caller-declared approval ID не соответствует этому контракту.
+
+### Контракт `HoldingEvidenceBindingAuthority`
+
+Line resolver по exact request возвращает полные native `SourceEvidence v1`, свежие результаты `current_filing_authority`, отдельные claim-scope records и exact trusted scope approval. Runtime сам пересчитывает content fingerprints и проверяет source ID, official locator, raw SHA, verification revision, current evidence ID, freshness, `authority_role=ksrf_legal_holding`, pinpoint и независимый предел вывода. Claim и scope не добавляются в native SourceEvidence и хранятся отдельно.
+
+Отдельный index resolver по `{schema_version, matter_id, draft_id}` возвращает полный current реестр legal-holding строк из host draft registry. Он не может синтезироваться из caller requests. Exact set и index SHA блокируют удаление, вставку, подмену или downgrade роли; authoritative empty index нужен даже при отсутствии holding-строк.
 
 Unsupported или overclaimed sentence не проходит в release draft.
 
@@ -70,7 +78,7 @@ Release pack содержит реальные:
 
 ## Инвалидация
 
-Изменение source hash/locator/verifier/time, NormVersionPassport, application record, issue selection, состава remedy index, sentence text, enclosure или formal-rule freshness отменяет прежний release approval и требует нового manifest.
+Изменение source hash/locator/verifier/time, NormVersionPassport, application record, issue selection, состава remedy/holding index, claim-scope/pinpoint/inference ceiling, sentence text, enclosure или formal-rule freshness отменяет прежний release approval и требует нового manifest.
 
 Release approval связывается с fingerprint полного стабильного manifest: source/passport/issue bindings, approvals, formal check, sentence evidence map, hashes и metadata артефактов, опись, visual QA, blockers, `human_only_actions` и `filing_performed`. Исключаются только самохэши, approval projection и локальные пути. Approval должен существовать до проверки, иметь host attestation аутентифицированного reviewer и проходить повторную проверку binding, expiry и revocation по trusted clock. Caller-supplied reviewer, JSONL без проверяемой attestation, обычный TTY и самозаявленный verifier не повышают статус.
 

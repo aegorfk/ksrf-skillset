@@ -15,6 +15,12 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from .composer import StructuredComplaint, require_release_support
+from .holding_binding import (
+    HoldingEvidenceBindingAuthority,
+    build_holding_binding_request,
+    resolve_holding_evidence_binding,
+    resolve_holding_evidence_binding_index,
+)
 from .relief_binding import (
     ReliefEvidenceBindingAuthority,
     build_relief_binding_request,
@@ -27,7 +33,7 @@ from .renderer import (
     render_docx,
     validate_rendered_pair,
 )
-from .storage import stable_id
+from .storage import canonical_json_bytes, stable_id
 from .trusted_approvals import TrustedApprovalLedger
 
 
@@ -60,6 +66,7 @@ _REQUIRED_ARTIFACTS = {
 }
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
+_SOURCE_EVIDENCE_ID_RE = re.compile(r"^source-evidence:sha256:[0-9a-f]{64}$")
 _APPROVAL_REQUEST_FIELDS = {
     "purpose",
     "subject_type",
@@ -453,6 +460,7 @@ def build_release_pack(
     soffice_path: str | Path | None = None,
     pdftoppm_path: str | Path | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Create real filing artifacts and return a release manifest.
 
@@ -467,13 +475,25 @@ def build_release_pack(
 
     blockers: list[str] = []
     relief_binding_receipts: list[dict[str, Any]] = []
+    holding_binding_receipts: list[dict[str, Any]] = []
+    holding_binding_index_receipt: dict[str, Any] | None = None
     try:
-        relief_binding_receipts = list(
-            require_release_support(
-                complaint,
-                relief_binding_authority=relief_binding_authority,
-            )
+        support_receipts = require_release_support(
+            complaint,
+            relief_binding_authority=relief_binding_authority,
+            holding_binding_authority=holding_binding_authority,
+            require_holding_index=True,
         )
+        relief_binding_receipts = list(
+            support_receipts.relief_binding_receipts
+        )
+        holding_binding_receipts = list(
+            support_receipts.holding_binding_receipts
+        )
+        if support_receipts.holding_binding_index_receipt is not None:
+            holding_binding_index_receipt = dict(
+                support_receipts.holding_binding_index_receipt
+            )
     except ValueError as exc:
         blockers.append(str(exc))
 
@@ -568,7 +588,7 @@ def build_release_pack(
     manifest_path = destination / "filing-package-manifest.json"
 
     manifest: dict[str, Any] = {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "matter_id": complaint.matter_id,
         "draft_id": complaint.draft_id,
         "created_at": _now(),
@@ -586,6 +606,8 @@ def build_release_pack(
         "sentence_evidence_map": complaint.sentence_evidence_map(),
         "relief_binding_receipts": relief_binding_receipts,
         "relief_binding_index_receipt": relief_binding_index_receipt,
+        "holding_binding_receipts": holding_binding_receipts,
+        "holding_binding_index_receipt": holding_binding_index_receipt,
         "enclosure_refs": enclosure_refs,
         "artifacts": artifacts,
         "qa_artifacts": qa_artifacts,
@@ -763,7 +785,7 @@ def _manifest_contract_errors(
     verify_manifest_file: bool = True,
 ) -> list[str]:
     errors = _manifest_schema_errors(manifest)
-    if manifest.get("schema_version") != "1.1":
+    if manifest.get("schema_version") != "1.2":
         errors.append("manifest_schema_version_invalid")
     if not str(manifest.get("matter_id") or "").strip():
         errors.append("manifest_matter_id_missing")
@@ -791,6 +813,7 @@ def _manifest_contract_errors(
     if not isinstance(manifest.get("blockers"), list):
         errors.append("manifest_blockers_invalid")
     errors.extend(_manifest_relief_binding_projection_errors(manifest))
+    errors.extend(_manifest_holding_binding_projection_errors(manifest))
 
     pack_root, manifest_path, location_errors = _pack_location(manifest)
     errors.extend(location_errors)
@@ -1259,6 +1282,385 @@ def _manifest_relief_binding_authority_errors(
     return errors
 
 
+def _manifest_holding_identifier_list(
+    value: Any,
+    *,
+    label: str,
+    allow_empty: bool = False,
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return [], [f"holding_binding_identifier_list_invalid:{label}"]
+    identifiers: list[str] = []
+    errors: list[str] = []
+    for ordinal, raw in enumerate(value, start=1):
+        if (
+            not isinstance(raw, str)
+            or not raw
+            or raw != " ".join(raw.split())
+            or not _SOURCE_EVIDENCE_ID_RE.fullmatch(raw)
+        ):
+            errors.append(
+                f"holding_binding_identifier_invalid:{label}:{ordinal}"
+            )
+            continue
+        identifiers.append(raw)
+    if not identifiers and not allow_empty:
+        errors.append(f"holding_binding_identifier_list_empty:{label}")
+    if len(identifiers) != len(set(identifiers)):
+        errors.append(f"holding_binding_identifier_duplicate:{label}")
+    if identifiers != sorted(identifiers):
+        errors.append(f"holding_binding_identifier_order_invalid:{label}")
+    return identifiers, errors
+
+
+def _manifest_holding_string(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[str, list[str]]:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != " ".join(value.split())
+    ):
+        return "", [f"holding_binding_string_invalid:{label}"]
+    return value, []
+
+
+def _holding_index_binding_from_request(
+    request: Mapping[str, Any],
+) -> dict[str, str]:
+    return {
+        "sentence_id": str(request.get("sentence_id") or ""),
+        "section_code": str(request.get("section_code") or ""),
+        "role": "legal_holding",
+        "holding_binding_sha256": str(
+            request.get("holding_binding_sha256") or ""
+        ),
+    }
+
+
+def _manifest_holding_binding_requests(
+    manifest: Mapping[str, Any],
+) -> tuple[
+    list[tuple[dict[str, Any], Mapping[str, Any]]],
+    list[dict[str, Any]],
+    list[dict[str, str]],
+    list[str],
+]:
+    raw_entries = manifest.get("sentence_evidence_map")
+    entries: list[Any] = []
+    errors: list[str] = []
+    if isinstance(raw_entries, Sequence) and not isinstance(
+        raw_entries, (str, bytes)
+    ):
+        entries = list(raw_entries)
+    else:
+        errors.append("holding_binding_sentence_evidence_map_invalid")
+
+    raw_receipts = manifest.get("holding_binding_receipts")
+    receipts: list[Any] = []
+    if isinstance(raw_receipts, Sequence) and not isinstance(
+        raw_receipts, (str, bytes)
+    ):
+        receipts = list(raw_receipts)
+    else:
+        errors.append("holding_binding_receipts_invalid")
+
+    receipt_by_sentence: dict[str, Mapping[str, Any]] = {}
+    for ordinal, raw in enumerate(receipts, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"holding_binding_receipt_invalid:{ordinal}")
+            continue
+        sentence_id = raw.get("sentence_id")
+        if not isinstance(sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            sentence_id
+        ):
+            errors.append(
+                f"holding_binding_receipt_sentence_id_invalid:{ordinal}"
+            )
+            continue
+        if sentence_id in receipt_by_sentence:
+            errors.append(f"holding_binding_receipt_duplicate:{sentence_id}")
+            continue
+        receipt_by_sentence[sentence_id] = raw
+
+    entry_sentence_ids: dict[int, str] = {}
+    seen_sentence_ids: set[str] = set()
+    for ordinal, raw in enumerate(entries, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"holding_binding_manifest_entry_invalid:{ordinal}")
+            continue
+        sentence_id = raw.get("sentence_id")
+        if not isinstance(sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            sentence_id
+        ):
+            errors.append(f"holding_binding_sentence_id_invalid:{ordinal}")
+            continue
+        entry_sentence_ids[ordinal] = sentence_id
+        if sentence_id in seen_sentence_ids:
+            errors.append(f"holding_binding_sentence_duplicate:{sentence_id}")
+        seen_sentence_ids.add(sentence_id)
+
+    matter_id, matter_errors = _manifest_holding_string(
+        manifest.get("matter_id"), label="matter_id"
+    )
+    draft_id, draft_errors = _manifest_holding_string(
+        manifest.get("draft_id"), label="draft_id"
+    )
+    errors.extend(matter_errors)
+    errors.extend(draft_errors)
+
+    pairs: list[tuple[dict[str, Any], Mapping[str, Any]]] = []
+    requests: list[dict[str, Any]] = []
+    expected_receipt_sentence_ids: set[str] = set()
+    for ordinal, raw in enumerate(entries, start=1):
+        if not isinstance(raw, Mapping) or raw.get("role") != "legal_holding":
+            continue
+        sentence_id = entry_sentence_ids.get(ordinal, f"<invalid:{ordinal}>")
+        expected_receipt_sentence_ids.add(sentence_id)
+        entry_errors: list[str] = []
+        if raw.get("holding_binding_status") != "bound":
+            entry_errors.append(
+                f"holding_binding_status_not_bound:{sentence_id}"
+            )
+        evidence_ids, evidence_errors = _manifest_holding_identifier_list(
+            raw.get("evidence_ids"), label=f"{sentence_id}:evidence_ids"
+        )
+        entry_errors.extend(evidence_errors)
+        required_values: dict[str, str] = {"sentence_id": sentence_id}
+        for key, source_key in (
+            ("section_code", "section_code"),
+            ("sentence_text", "text"),
+            ("claim_id", "claim_id"),
+            ("maximum_supported_inference", "maximum_supported_inference"),
+        ):
+            value, value_errors = _manifest_holding_string(
+                raw.get(source_key), label=f"{sentence_id}:{source_key}"
+            )
+            required_values[key] = value
+            entry_errors.extend(value_errors)
+        if entry_errors or not matter_id or not draft_id:
+            errors.extend(entry_errors)
+            continue
+
+        request = build_holding_binding_request(
+            matter_id=matter_id,
+            draft_id=draft_id,
+            sentence_id=required_values["sentence_id"],
+            section_code=required_values["section_code"],
+            sentence_text=required_values["sentence_text"],
+            claim_id=required_values["claim_id"],
+            evidence_ids=evidence_ids,
+            maximum_supported_inference=required_values[
+                "maximum_supported_inference"
+            ],
+        )
+        if raw.get("holding_binding_sha256") != request["holding_binding_sha256"]:
+            errors.append(
+                f"holding_binding_projection_sha_mismatch:{sentence_id}"
+            )
+        requests.append(request)
+
+        receipt = receipt_by_sentence.get(sentence_id)
+        if receipt is None:
+            errors.append(f"holding_binding_receipt_missing:{sentence_id}")
+            continue
+        expected_receipt_fields = {
+            "schema_version",
+            "sentence_id",
+            "section_code",
+            "holding_binding_sha256",
+            "claim_id",
+            "evidence_ids",
+            "maximum_supported_inference",
+            "source_evidence_receipts",
+            "current_authority_results",
+            "claim_scope_receipts",
+            "scope_gate_receipt",
+        }
+        if set(receipt) != expected_receipt_fields:
+            errors.append(
+                f"holding_binding_receipt_fields_mismatch:{sentence_id}"
+            )
+        expected_core = {
+            "schema_version": "1.0.0",
+            "sentence_id": sentence_id,
+            "section_code": request["section_code"],
+            "holding_binding_sha256": request["holding_binding_sha256"],
+            "claim_id": request["claim_id"],
+            "evidence_ids": request["evidence_ids"],
+            "maximum_supported_inference": request[
+                "maximum_supported_inference"
+            ],
+        }
+        for field, expected_value in expected_core.items():
+            if receipt.get(field) != expected_value:
+                errors.append(
+                    f"holding_binding_receipt_projection_mismatch:"
+                    f"{sentence_id}:{field}"
+                )
+        for field in (
+            "source_evidence_receipts",
+            "current_authority_results",
+            "claim_scope_receipts",
+        ):
+            projection = receipt.get(field)
+            if not isinstance(projection, Mapping):
+                errors.append(
+                    f"holding_binding_receipt_projection_invalid:"
+                    f"{sentence_id}:{field}"
+                )
+            elif set(projection) != set(evidence_ids):
+                errors.append(
+                    f"holding_binding_receipt_evidence_set_mismatch:"
+                    f"{sentence_id}:{field}"
+                )
+        gate = receipt.get("scope_gate_receipt")
+        if not isinstance(gate, Mapping):
+            errors.append(
+                f"holding_binding_scope_gate_receipt_invalid:{sentence_id}"
+            )
+        else:
+            for field, expected_value in expected_core.items():
+                if field == "schema_version":
+                    continue
+                if gate.get(field) != expected_value:
+                    errors.append(
+                        f"holding_binding_scope_gate_projection_mismatch:"
+                        f"{sentence_id}:{field}"
+                    )
+        if "binding_index_receipt" in receipt:
+            errors.append(
+                f"holding_binding_index_nested_in_receipt:{sentence_id}"
+            )
+        pairs.append((request, receipt))
+
+    extra_receipts = sorted(
+        set(receipt_by_sentence) - expected_receipt_sentence_ids
+    )
+    errors.extend(
+        f"holding_binding_receipt_orphan:{sentence_id}"
+        for sentence_id in extra_receipts
+    )
+
+    expected_bindings = sorted(
+        (_holding_index_binding_from_request(request) for request in requests),
+        key=lambda item: item["sentence_id"],
+    )
+    stored_index = manifest.get("holding_binding_index_receipt")
+    ready_status = manifest.get("status") in {
+        "ready_for_expert_review",
+        "ready_for_human_signing_filing",
+    }
+    index_required = ready_status or bool(requests) or bool(receipts)
+    if stored_index is None:
+        if index_required:
+            errors.append("holding_binding_index_receipt_missing")
+    elif not isinstance(stored_index, Mapping):
+        errors.append("holding_binding_index_receipt_invalid")
+    else:
+        expected_index_fields = {
+            "schema_version",
+            "matter_id",
+            "draft_id",
+            "bindings",
+            "binding_index_sha256",
+            "authority_revision_id",
+            "checked_at",
+        }
+        if set(stored_index) != expected_index_fields:
+            errors.append("holding_binding_index_receipt_fields_mismatch")
+        if stored_index.get("schema_version") != "1.0.0":
+            errors.append("holding_binding_index_receipt_schema_invalid")
+        if stored_index.get("matter_id") != matter_id:
+            errors.append("holding_binding_index_receipt_matter_mismatch")
+        if stored_index.get("draft_id") != draft_id:
+            errors.append("holding_binding_index_receipt_draft_mismatch")
+        raw_bindings = stored_index.get("bindings")
+        stored_bindings = (
+            list(raw_bindings)
+            if isinstance(raw_bindings, Sequence)
+            and not isinstance(raw_bindings, (str, bytes))
+            else []
+        )
+        if not isinstance(raw_bindings, Sequence) or isinstance(
+            raw_bindings, (str, bytes)
+        ):
+            errors.append("holding_binding_index_bindings_invalid")
+        if stored_bindings != expected_bindings:
+            errors.append("holding_binding_index_projection_mismatch")
+        index_basis = {
+            "schema_version": "1.0.0",
+            "matter_id": matter_id,
+            "draft_id": draft_id,
+            "bindings": expected_bindings,
+        }
+        expected_index_sha = sha256(
+            canonical_json_bytes(index_basis)
+        ).hexdigest()
+        if stored_index.get("binding_index_sha256") != expected_index_sha:
+            errors.append("holding_binding_index_sha256_mismatch")
+
+    return pairs, requests, expected_bindings, errors
+
+
+def _manifest_holding_binding_projection_errors(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    _pairs, _requests, _expected_bindings, errors = (
+        _manifest_holding_binding_requests(manifest)
+    )
+    return errors
+
+
+def _manifest_holding_binding_authority_errors(
+    manifest: Mapping[str, Any],
+    authority: HoldingEvidenceBindingAuthority | Any | None,
+) -> list[str]:
+    pairs, requests, expected_bindings, errors = (
+        _manifest_holding_binding_requests(manifest)
+    )
+    for request, stored_receipt in pairs:
+        binding_errors, current_receipt = resolve_holding_evidence_binding(
+            request, authority
+        )
+        sentence_id = str(request.get("sentence_id") or "")
+        errors.extend(
+            f"holding_binding:{sentence_id}:{error}"
+            for error in binding_errors
+        )
+        if current_receipt is not None and dict(stored_receipt) != current_receipt:
+            errors.append(f"holding_binding_receipt_stale:{sentence_id}")
+
+    stored_index = manifest.get("holding_binding_index_receipt")
+    should_resolve_index = (
+        manifest.get("status")
+        in {"ready_for_expert_review", "ready_for_human_signing_filing"}
+        or bool(requests)
+        or isinstance(stored_index, Mapping)
+    )
+    if should_resolve_index:
+        matter_id, matter_errors = _manifest_holding_string(
+            manifest.get("matter_id"), label="matter_id"
+        )
+        draft_id, draft_errors = _manifest_holding_string(
+            manifest.get("draft_id"), label="draft_id"
+        )
+        errors.extend(matter_errors)
+        errors.extend(draft_errors)
+        index_errors, current_index = resolve_holding_evidence_binding_index(
+            matter_id=matter_id,
+            draft_id=draft_id,
+            expected_bindings=expected_bindings,
+            authority=authority,
+        )
+        errors.extend(index_errors)
+        if current_index is not None and stored_index != current_index:
+            errors.append("holding_binding_index_receipt_stale")
+    return errors
+
+
 def approve_release_pack(
     manifest_path: str | Path,
     *,
@@ -1268,6 +1670,7 @@ def approve_release_pack(
     reviewer: str | None = None,
     reviewed_at: str | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Именно и явно одобрить неизменившийся реальный пакет после визуальной проверки."""
 
@@ -1290,6 +1693,7 @@ def approve_release_pack(
         manifest,
         approval_ledger=approval_ledger,
         relief_binding_authority=relief_binding_authority,
+        holding_binding_authority=holding_binding_authority,
     )
     if integrity_errors:
         raise ValueError("Нарушена целостность пакета: " + ", ".join(integrity_errors))
@@ -1331,6 +1735,7 @@ def approve_release_pack(
         approval_ledger=approval_ledger,
         verify_manifest_file=False,
         relief_binding_authority=relief_binding_authority,
+        holding_binding_authority=holding_binding_authority,
     )
     if approved_errors:
         raise ValueError(
@@ -1346,6 +1751,7 @@ def approve_release_pack(
         persisted_manifest,
         approval_ledger=approval_ledger,
         relief_binding_authority=relief_binding_authority,
+        holding_binding_authority=holding_binding_authority,
     )
     if persisted_errors:
         _write_json(path, manifest)
@@ -1363,6 +1769,7 @@ def verify_release_manifest(
     *,
     approval_ledger: TrustedApprovalLedger | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
 ) -> list[str]:
     """Return integrity errors without mutating the filing pack."""
 
@@ -1371,6 +1778,7 @@ def verify_release_manifest(
         approval_ledger=approval_ledger,
         verify_manifest_file=True,
         relief_binding_authority=relief_binding_authority,
+        holding_binding_authority=holding_binding_authority,
     )
 
 
@@ -1380,6 +1788,7 @@ def _verify_release_manifest(
     approval_ledger: TrustedApprovalLedger | None,
     verify_manifest_file: bool,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None,
+    holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None,
 ) -> list[str]:
     """Validate a manifest projection, optionally before its persistence."""
 
@@ -1391,6 +1800,11 @@ def _verify_release_manifest(
     errors.extend(
         _manifest_relief_binding_authority_errors(
             manifest, relief_binding_authority
+        )
+    )
+    errors.extend(
+        _manifest_holding_binding_authority_errors(
+            manifest, holding_binding_authority
         )
     )
     observed_basis = release_basis_sha256(manifest)

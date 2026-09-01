@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schema_version", "matter_id", "draft_id", "title", "sections", "sentence_evidence_map", "norm_passport_ids", "issue_option_ids"],
   "properties": {
-    "schema_version": {"const": "1.1"},
+    "schema_version": {"const": "1.2"},
     "matter_id": {"type": "string", "minLength": 1},
     "draft_id": {"type": "string", "minLength": 1},
     "title": {"type": "string", "minLength": 1},
@@ -45,7 +45,10 @@
             "items": {"type": "string", "minLength": 1}
           },
           "relief_binding_status": {"enum": ["bound", "unbound"]},
-          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          "relief_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "maximum_supported_inference": {"type": "string", "minLength": 1},
+          "holding_binding_status": {"enum": ["bound", "unbound"]},
+          "holding_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
         },
         "allOf": [
           {
@@ -75,6 +78,37 @@
                 "norm_passport_id",
                 "application_record_ids",
                 "relief_binding_sha256"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "legal_holding"}},
+              "required": ["role"]
+            },
+            "then": {
+              "required": ["holding_binding_status"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"holding_binding_status": {"const": "bound"}},
+              "required": ["holding_binding_status"]
+            },
+            "then": {
+              "properties": {
+                "role": {"const": "legal_holding"},
+                "evidence_ids": {
+                  "minItems": 1,
+                  "items": {"type": "string", "pattern": "^source-evidence:sha256:[0-9a-f]{64}$"}
+                }
+              },
+              "required": [
+                "role",
+                "claim_id",
+                "evidence_ids",
+                "maximum_supported_inference",
+                "holding_binding_sha256"
               ]
             }
           }

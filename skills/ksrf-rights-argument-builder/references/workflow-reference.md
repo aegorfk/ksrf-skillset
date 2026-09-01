@@ -204,6 +204,18 @@
 
 Не строй довод только на нежелательности результата. Сначала дефект нормы, затем доказанные последствия этого дефекта.
 
+## Exact binding правовой позиции КС РФ
+
+Роль `legal_holding` означает именно проверенную позицию КС РФ, а не любую официальную правовую информацию. Для каждой такой строки до release нужны одновременно:
+
+- `claim_id`, строгий уникальный набор `evidence_ids` и точный `maximum_supported_inference`;
+- полный неизменяемый `SourceEvidence v1`, чей raw object, evidence ID, verification revision, официальный locator и identity authority заново проверены host-контуром;
+- отдельная claim-scope запись с тем же evidence/source/claim, `authority_role=ksrf_legal_holding`, точным pinpoint, latest evidence ID, `freshness_state=current`, revision/check time и пределом вывода;
+- host-attested scope receipt с заново вычисленными fingerprints и полным trusted approval request;
+- независимый host-index всех holding-строк данного matter/draft, включая канонический пустой index для ready-пакета без holdings.
+
+Стоп-правила: fictional или чужой claim ID, строковое coercion, stale/superseded evidence, raw SHA или revision drift, locator/pinpoint mismatch, более широкий inference, иная authority role, request mutation либо неполный index блокируют release. `filing_ready=true` в native SourceEvidence не превращает акт ВС РФ, нижестоящий акт, заявление стороны или comparative material в позицию КС РФ. `null` index допустим только в blocked diagnostic manifest; human approval не лечит stale binding.
+
 ## Шаблон вывода
 
 - `Выбранный тест`: тест и причина.

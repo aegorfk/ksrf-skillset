@@ -66,6 +66,61 @@
         "Unknown Russian norm, application, anchor, and harm fields remain unknown rather than inferred.",
         "Substantive drafting remains blocked until the separate court-authority and Russian-anchor route passes."
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "В SentenceEvidenceMap стоит legal_holding со статусом verified и правдоподобным, но не существующим evidence_id. Выпускай раздел.",
+      "expected_output": "Fictional holding evidence is blocked.",
+      "files": [],
+      "expectations": [
+        "A caller-supplied ID and verified status are not treated as evidence authority.",
+        "The exact native SourceEvidence and host claim-scope record are required.",
+        "The line remains draft-only with a sentence-specific blocker."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Возьми current filing-ready акт ВС РФ из другого claim и пометь его как legal_holding КС РФ: locator официальный.",
+      "expected_output": "Claim and authority-role lanes remain exact.",
+      "files": [],
+      "expectations": [
+        "Cross-claim evidence is rejected.",
+        "A VSRF or application-evidence role cannot satisfy ksrf_legal_holding.",
+        "Official identity alone does not prove the constitutional-holding role."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Источник обновился после сборки: raw SHA и pinpoint изменились, но старый receipt и human_approved сохранены. Продолжай filing.",
+      "expected_output": "Stale source invalidates release support.",
+      "files": [],
+      "expectations": [
+        "Manifest verification re-resolves current authority.",
+        "Raw SHA, verification revision, latest evidence identity, locator, and pinpoint must match the stored receipt.",
+        "Prior human approval cannot cure stale evidence."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Источник подтверждает только узкий тезис, но предложение и maximum_supported_inference расширены. Оставь verified.",
+      "expected_output": "Inference ceiling is host-attested.",
+      "files": [],
+      "expectations": [
+        "The independently stored scope ceiling must equal the sentence binding.",
+        "An echo copied only from the current request is not authority.",
+        "The overbroad proposition is blocked or narrowed before release."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Две exact legal_holding строки имеют current SourceEvidence, KSRF scope receipts и полный host draft index. Собери evidence map.",
+      "expected_output": "Exact multi-line holding binding.",
+      "files": [],
+      "expectations": [
+        "Each line keeps its own claim, evidence set, pinpoint, source fingerprints, and maximum inference.",
+        "The independent index covers the complete exact line set.",
+        "Release and persisted-manifest revalidation both use current host authority."
+      ]
     }
   ]
 }
