@@ -30,8 +30,8 @@ def _make_valid_skill(root: Path, name: str = "ksrf-test") -> Path:
     skill = root / name
     _write(
         skill / "SKILL.md",
-        """---
-name: ksrf-test
+        f"""---
+name: {name}
 description: Скилл проверяет тестовый пакет жалобы в КС РФ. Он применяется, когда нужно проверить упаковку, ссылки и сценарии запуска перед публикацией.
 allowed-tools:
   - Read
@@ -45,10 +45,10 @@ allowed-tools:
     )
     _write(
         skill / "agents" / "openai.yaml",
-        """interface:
+        f"""interface:
   display_name: "Тестовый KSRF skill"
   short_description: "Проверка упаковки тестового KSRF skill"
-  default_prompt: "Используй $ksrf-test для проверки пакета."
+  default_prompt: "Используй ${name} для проверки пакета."
 tools:
   - Read
   - mcp__casuslegal__search_practice
@@ -96,6 +96,18 @@ policy:
         ),
     )
     return skill
+
+
+EXACT_MAINTAINER_FILES = (
+    ("ksrf-argument-patterns", Path("references/hearing_argument_techniques.json")),
+    ("ksrf-argument-patterns", Path("references/language_formulas.json")),
+    ("ksrf-argument-patterns", Path("references/evidence_maps.json")),
+    (
+        "ksrf-argument-patterns",
+        Path("references/argument_techniques_from_decisions.json"),
+    ),
+    ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
+)
 
 
 def _codes(report: dict[str, object]) -> set[str]:
@@ -449,6 +461,124 @@ description: Используй этот навык для всего.
                 "not_checked",
             )
             self.assertFalse(any("/evals/" in path for path in paths))
+
+    def test_source_profile_excludes_and_scans_exact_maintainer_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_valid_skill(root, name="ksrf-argument-patterns")
+            _make_valid_skill(root, name="ksrf-complaint-cycle")
+            for package, relative in EXACT_MAINTAINER_FILES:
+                _write(root / package / relative, "maintainer only\n")
+            _write(
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "language_formulas.json",
+                "api_key = 'synthetic-live-value-123456789012345'\n",
+            )
+            _write(
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "evidence_maps.json",
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+            )
+            _write(
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "hearing_argument_techniques.json",
+                '{"source": "/Users/example/Documents/private/hearing-notes.json"}\n',
+            )
+            symlink_path = (
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "argument_techniques_from_decisions.json"
+            )
+            symlink_path.unlink()
+            symlink_target = symlink_path.parent / "maintainer-source.json"
+            _write(symlink_target, "{}\n")
+            symlink_path.symlink_to(symlink_target.name)
+            _write(
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "constitutional_graph.json",
+                "{}\n",
+            )
+            _write(
+                root
+                / "ksrf-argument-patterns"
+                / "references"
+                / "evidence_maps-guide.json",
+                "{}\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns", "ksrf-complaint-cycle"),
+            )
+
+            paths = {item["path"] for item in report["publish_manifest"]["files"]}
+            for package, relative in EXACT_MAINTAINER_FILES:
+                self.assertNotIn(f"{package}/{relative.as_posix()}", paths)
+            self.assertIn(
+                "ksrf-argument-patterns/references/constitutional_graph.json",
+                paths,
+            )
+            self.assertIn(
+                "ksrf-argument-patterns/references/evidence_maps-guide.json",
+                paths,
+            )
+            self.assertIn("POTENTIAL_SECRET", _codes(report))
+            self.assertIn("ABSOLUTE_RUNTIME_PATH", _codes(report))
+            self.assertIn("SYMLINK_NOT_PUBLISHABLE", _codes(report))
+            self.assertIn("FORBIDDEN_PUBLIC_SOURCE_ARTIFACT", _codes(report))
+
+    def test_runtime_profile_rejects_exact_maintainer_file_without_overmatching(self) -> None:
+        for package, relative in EXACT_MAINTAINER_FILES:
+            with self.subTest(package=package, relative=relative.as_posix()):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root, name=package)
+                    (skill / "evals" / "evals.json").unlink()
+                    (skill / "evals" / "trigger-evals.json").unlink()
+                    (skill / "evals").rmdir()
+                    _write(skill / relative, "maintainer only\n")
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=(package,),
+                        profile="runtime",
+                    )
+
+                    self.assertIn("SOURCE_ONLY_ARTIFACT_PRESENT", _codes(report))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+            (skill / "evals" / "evals.json").unlink()
+            (skill / "evals" / "trigger-evals.json").unlink()
+            (skill / "evals").rmdir()
+            _write(skill / "references" / "evidence_maps-guide.json", "{}\n")
+            _write(skill / "references" / "constitutional_graph.json", "{}\n")
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns",),
+                profile="runtime",
+            )
+
+            self.assertEqual(report["status"], "pass")
+            self.assertNotIn("SOURCE_ONLY_ARTIFACT_PRESENT", _codes(report))
 
     def test_source_profile_discloses_unavailable_public_source_guard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

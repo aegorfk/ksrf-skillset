@@ -88,6 +88,30 @@ class PublicSourceGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
                 validate_public_repository(Path(temporary))
 
+    def test_repository_guard_scans_exact_maintainer_only_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = (
+                Path(temporary)
+                / "skills"
+                / "ksrf-argument-patterns"
+                / "references"
+                / "evidence_maps.json"
+            )
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
+                validate_public_repository(Path(temporary))
+
     def test_allows_non_reconstructive_method_card(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             card = Path(temporary) / "card.md"

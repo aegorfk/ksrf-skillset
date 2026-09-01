@@ -11,6 +11,18 @@ from install_skillset import InstallationError, _validate_target, copy_skillset 
 from skillset_file_contract import SKILL_NAMES, payload_files, tree_digest  # noqa: E402
 
 
+EXACT_MAINTAINER_FILES = (
+    ("ksrf-argument-patterns", Path("references/hearing_argument_techniques.json")),
+    ("ksrf-argument-patterns", Path("references/language_formulas.json")),
+    ("ksrf-argument-patterns", Path("references/evidence_maps.json")),
+    (
+        "ksrf-argument-patterns",
+        Path("references/argument_techniques_from_decisions.json"),
+    ),
+    ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
+)
+
+
 class ExactSkillsetInstallTests(unittest.TestCase):
     def _source(self, root: Path) -> Path:
         source = root / "source"
@@ -90,6 +102,72 @@ class ExactSkillsetInstallTests(unittest.TestCase):
             self.assertTrue(
                 (target / SKILL_NAMES[0] / "references" / "evals-guide.md").is_file()
             )
+
+    def test_copy_excludes_only_exact_maintainer_files(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            for package, relative in EXACT_MAINTAINER_FILES:
+                path = source / package / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("maintainer only\n", encoding="utf-8")
+
+            controls = (
+                source
+                / "ksrf-case-triage"
+                / "references"
+                / "evidence_maps.json",
+                source
+                / "ksrf-argument-patterns"
+                / "references"
+                / "evidence_maps-guide.json",
+                source
+                / "ksrf-argument-patterns"
+                / "references"
+                / "constitutional_graph.json",
+                source
+                / "ksrf-complaint-cycle"
+                / "scripts"
+                / "runtime-helper.py",
+            )
+            for path in controls:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("runtime\n", encoding="utf-8")
+            target = root / "target"
+            for package, relative in EXACT_MAINTAINER_FILES:
+                stale = target / package / relative
+                stale.parent.mkdir(parents=True, exist_ok=True)
+                stale.write_text("stale installed bytes\n", encoding="utf-8")
+
+            copy_skillset(source, target)
+
+            for package, relative in EXACT_MAINTAINER_FILES:
+                self.assertTrue((source / package / relative).is_file())
+                self.assertFalse((target / package / relative).exists())
+            for path in controls:
+                relative = path.relative_to(source)
+                self.assertTrue((target / relative).is_file())
+
+    def test_source_sync_preserves_exact_maintainer_files_byte_for_byte(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            target = root / "target"
+            for package, relative in EXACT_MAINTAINER_FILES:
+                incoming = source / package / relative
+                incoming.parent.mkdir(parents=True, exist_ok=True)
+                incoming.write_bytes(b"unexpected incoming runtime bytes\n")
+                preserved = target / package / relative
+                preserved.parent.mkdir(parents=True, exist_ok=True)
+                preserved.write_bytes(b"tracked source bytes\n")
+
+            copy_skillset(source, target, preserve_target_development=True)
+
+            for package, relative in EXACT_MAINTAINER_FILES:
+                self.assertEqual(
+                    (target / package / relative).read_bytes(),
+                    b"tracked source bytes\n",
+                )
 
     def test_source_sync_preserves_target_tests_and_evals_while_replacing_runtime_files(
         self,

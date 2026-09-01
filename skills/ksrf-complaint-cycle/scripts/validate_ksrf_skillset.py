@@ -49,6 +49,15 @@ MIN_BEHAVIORAL_EVALS = 3
 
 RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
 DEVELOPMENT_ONLY_PARTS = {"evals", "tests"}
+SOURCE_ONLY_SKILLSET_PATHS = frozenset(
+    {
+        "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+        "ksrf-argument-patterns/references/evidence_maps.json",
+        "ksrf-argument-patterns/references/hearing_argument_techniques.json",
+        "ksrf-argument-patterns/references/language_formulas.json",
+        "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
+    }
+)
 VALIDATION_PROFILES = ("source", "runtime")
 PUBLIC_SOURCE_CONTRACT_PATH = (
     Path(__file__).resolve().parents[3] / "tools" / "skillset_file_contract.py"
@@ -933,7 +942,10 @@ def _runtime_artifact(path: Path) -> bool:
 
 
 def _development_artifact(path: Path) -> bool:
-    return any(part in DEVELOPMENT_ONLY_PARTS for part in path.parts)
+    return (
+        any(part in DEVELOPMENT_ONLY_PARTS for part in path.parts)
+        or path.as_posix() in SOURCE_ONLY_SKILLSET_PATHS
+    )
 
 
 def _hash_file(path: Path) -> str:
@@ -1195,9 +1207,8 @@ def _validate_runtime_profile_cleanliness(
     source_only_paths = [
         _relative(path, skills_root)
         for path in sorted(package_dir.rglob("*"))
-        if any(
-            part in DEVELOPMENT_ONLY_PARTS
-            for part in path.relative_to(package_dir).parts
+        if _development_artifact(
+            Path(package_dir.name) / path.relative_to(package_dir)
         )
     ]
     if source_only_paths:
@@ -1205,7 +1216,7 @@ def _validate_runtime_profile_cleanliness(
             _finding(
                 "error",
                 "SOURCE_ONLY_ARTIFACT_PRESENT",
-                "Runtime-профиль требует установленное дерево без tests/ и evals/.",
+                "Рабочий профиль требует дерево без служебных материалов контроля качества и сопровождения.",
                 package=package_dir.name,
                 path=package_dir.name,
                 evidence={
