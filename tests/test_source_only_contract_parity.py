@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -42,6 +43,21 @@ class SourceOnlyContractParityTests(unittest.TestCase):
         self.assertTrue(journal.is_file())
         self.assertFalse(journal.is_symlink())
 
+    def test_canonical_automation_backlog_remains_a_regular_source_file(self) -> None:
+        backlog = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "references"
+            / "automation-backlog.md"
+        )
+        self.assertTrue(backlog.is_file())
+        self.assertFalse(backlog.is_symlink())
+        self.assertEqual(
+            hashlib.sha256(backlog.read_bytes()).hexdigest(),
+            "d25a9df36f6c1d7d995deae35f22a6b9875ac6597251342492ae69a111d75e94",
+        )
+
     def test_canonical_and_portable_exact_source_only_paths_match(self) -> None:
         canonical_paths = set(
             getattr(canonical, "SOURCE_ONLY_SKILLSET_PATHS", frozenset())
@@ -54,6 +70,7 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             canonical_paths,
             {
                 "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+                "ksrf-argument-patterns/references/automation-backlog.md",
                 "ksrf-argument-patterns/references/complaint-methodology-sources.md",
                 "ksrf-argument-patterns/references/evidence_maps.json",
                 "ksrf-argument-patterns/references/hearing_argument_techniques.json",
@@ -89,8 +106,11 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             set(canonical.SOURCE_ONLY_SKILLSET_PATHS).issubset(manifest["exclusions"])
         )
 
-    def test_runtime_user_material_contains_no_provenance_journal_backlink(self) -> None:
-        excluded_basename = "complaint-methodology-sources.md"
+    def test_runtime_user_material_contains_no_source_only_markdown_backlink(self) -> None:
+        excluded_basenames = {
+            "automation-backlog.md",
+            "complaint-methodology-sources.md",
+        }
         text_suffixes = {".json", ".md", ".txt", ".yaml", ".yml"}
 
         for package in canonical.SKILL_NAMES:
@@ -100,14 +120,48 @@ class SourceOnlyContractParityTests(unittest.TestCase):
                     continue
                 if path.suffix.lower() not in text_suffixes:
                     continue
-                with self.subTest(path=path.relative_to(REPO).as_posix()):
-                    self.assertNotIn(
-                        excluded_basename,
-                        path.read_text(encoding="utf-8"),
-                    )
+                text = path.read_text(encoding="utf-8")
+                for excluded_basename in excluded_basenames:
+                    with self.subTest(
+                        path=path.relative_to(REPO).as_posix(),
+                        excluded_basename=excluded_basename,
+                    ):
+                        self.assertNotIn(excluded_basename, text)
 
-    def test_operational_scripts_contain_no_provenance_backlink(self) -> None:
-        excluded_basename = "complaint-methodology-sources.md"
+    def test_automation_backlog_routes_are_replaced_by_shipped_checks(self) -> None:
+        live_patterns = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "references"
+            / "ksrf-live-argument-patterns.md"
+        ).read_text(encoding="utf-8")
+        court_request = (
+            REPO / "skills" / "ksrf-court-request-motion" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("automation-backlog.md", live_patterns)
+        self.assertNotIn("automation-backlog.md", court_request)
+        self.assertIn("argument-package-builder.md", live_patterns)
+        self.assertIn("evidence-maps.md", live_patterns)
+        self.assertIn("../ksrf-argument-patterns/references/pattern-matrix.md", court_request)
+        self.assertIn("../ksrf-argument-patterns/references/evidence-maps.md", court_request)
+        self.assertIn("references/workflow-reference.md", court_request)
+
+        for relative in (
+            "skills/ksrf-argument-patterns/references/argument-package-builder.md",
+            "skills/ksrf-argument-patterns/references/evidence-maps.md",
+            "skills/ksrf-argument-patterns/references/pattern-matrix.md",
+            "skills/ksrf-court-request-motion/references/workflow-reference.md",
+        ):
+            with self.subTest(relative=relative):
+                self.assertTrue((REPO / relative).is_file())
+
+    def test_operational_scripts_contain_no_source_only_markdown_backlink(self) -> None:
+        excluded_basenames = {
+            "automation-backlog.md",
+            "complaint-methodology-sources.md",
+        }
         paths = (
             REPO / "tools" / "build_constitutionalist_authority_corpus.py",
             REPO
@@ -122,11 +176,13 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             / "verify_offline_self_containment.py",
         )
         for path in paths:
-            with self.subTest(path=path.relative_to(REPO).as_posix()):
-                self.assertNotIn(
-                    excluded_basename,
-                    path.read_text(encoding="utf-8"),
-                )
+            text = path.read_text(encoding="utf-8")
+            for excluded_basename in excluded_basenames:
+                with self.subTest(
+                    path=path.relative_to(REPO).as_posix(),
+                    excluded_basename=excluded_basename,
+                ):
+                    self.assertNotIn(excluded_basename, text)
 
     def test_offline_verifier_accepts_source_only_provenance_journal(self) -> None:
         verifier = (

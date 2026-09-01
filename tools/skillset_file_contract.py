@@ -40,6 +40,7 @@ ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
 SOURCE_ONLY_SKILLSET_PATHS = frozenset(
     {
         "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+        "ksrf-argument-patterns/references/automation-backlog.md",
         "ksrf-argument-patterns/references/complaint-methodology-sources.md",
         "ksrf-argument-patterns/references/evidence_maps.json",
         "ksrf-argument-patterns/references/hearing_argument_techniques.json",

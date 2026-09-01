@@ -75,6 +75,6 @@ description: Скилл готовит или оценивает ходатай�
 - Читай `references/workflow-reference.md` для маршрутной матрицы, структуры ходатайства и судебного запроса, теста применимости, формул и источников.
 - Читай `../ksrf-complaint-cycle/references/ksrf-embedded-guides.md` для общих правил применения нормы и сохранения конституционного вопроса.
 - Читай `../ksrf-complaint-cycle/references/ksrf-live-argument-patterns.md` для аргумента через неопределенность, систему норм и последствия.
-- Читай `../ksrf-argument-patterns/references/pattern-matrix.md` и `../ksrf-argument-patterns/references/automation-backlog.md` для корпусных паттернов и автоматических проверок.
+- Читай `../ksrf-argument-patterns/references/pattern-matrix.md` и `../ksrf-argument-patterns/references/evidence-maps.md` для корпусных паттернов и доказательственных проверок ходатайства или судебного запроса.
 - Читай `../ksrf-complaint-cycle/references/science-support-pack.md`, когда нужны законодательные факты, эмпирические данные или экспертная поддержка; проверяй их происхождение и дату.
 - Читай `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` для полнотекстовой методики косвенного доступа и разграничения ходатайства стороны, запроса суда и прямой жалобы.

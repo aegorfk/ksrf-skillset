@@ -23,6 +23,10 @@ EXACT_MAINTAINER_FILES = (
         "ksrf-argument-patterns",
         Path("references/complaint-methodology-sources.md"),
     ),
+    (
+        "ksrf-argument-patterns",
+        Path("references/automation-backlog.md"),
+    ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
     (
         "ksrf-argument-patterns",
@@ -145,6 +149,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 / "ksrf-case-triage"
                 / "references"
                 / "complaint-methodology-sources.md",
+                source
+                / "ksrf-argument-patterns"
+                / "references"
+                / "automation-backlog-runtime.md",
+                source
+                / "ksrf-case-triage"
+                / "references"
+                / "automation-backlog.md",
                 source
                 / "ksrf-complaint-cycle"
                 / "scripts"
