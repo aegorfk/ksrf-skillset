@@ -18,6 +18,12 @@ from .holding_binding import (
     resolve_holding_evidence_binding,
     resolve_holding_evidence_binding_index,
 )
+from .practice_binding import (
+    PracticeClaimEvidenceBindingAuthority,
+    build_practice_claim_binding_request,
+    resolve_practice_claim_evidence_binding,
+    resolve_practice_claim_evidence_binding_index,
+)
 from .relief_binding import (
     ReliefEvidenceBindingAuthority,
     build_relief_binding_request,
@@ -25,7 +31,7 @@ from .relief_binding import (
     resolve_relief_evidence_binding_index,
 )
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 _SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
 
 REQUIRED_SECTION_CODES: tuple[str, ...] = (
@@ -70,6 +76,8 @@ class ReleaseSupportReceipts(Sequence[dict[str, Any]]):
     relief_binding_receipts: tuple[dict[str, Any], ...] = ()
     holding_binding_receipts: tuple[dict[str, Any], ...] = ()
     holding_binding_index_receipt: dict[str, Any] | None = None
+    practice_binding_receipts: tuple[dict[str, Any], ...] = ()
+    practice_binding_index_receipt: dict[str, Any] | None = None
 
     def __len__(self) -> int:
         return len(self.relief_binding_receipts)
@@ -88,6 +96,21 @@ class ReleaseSupportReceipts(Sequence[dict[str, Any]]):
 
 def _clean_text(value: Any) -> str:
     return " ".join(str(value or "").split())
+
+
+def _exact_sentence_text(value: Any, *, label: str) -> str:
+    """Keep release-significant prose byte-exact, including internal newlines."""
+
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\x00" in value
+    ):
+        raise ComplaintModelError(
+            f"{label} должен быть непустым точным текстом без краевых пробелов"
+        )
+    return value
 
 
 def _optional_identifier(value: Any, *, label: str) -> str | None:
@@ -126,7 +149,7 @@ def stable_sentence_id(
     """Return an identifier stable for identical semantic input."""
 
     payload = "\x1f".join(
-        (matter_id.strip(), section_code.strip(), str(ordinal), _clean_text(text))
+        (matter_id.strip(), section_code.strip(), str(ordinal), text)
     )
     return f"sent-{sha256(payload.encode('utf-8')).hexdigest()[:16]}"
 
@@ -141,6 +164,7 @@ class SentenceEvidence:
     support_status: str = "pending"
     note: str | None = None
     claim_id: str | None = None
+    practice_claim_id: str | None = None
     issue_option_id: str | None = None
     norm_passport_id: str | None = None
     application_record_ids: tuple[str, ...] = ()
@@ -168,6 +192,8 @@ class SentenceEvidence:
         }
         if self.claim_id is not None:
             result["claim_id"] = self.claim_id
+        if self.practice_claim_id is not None:
+            result["practice_claim_id"] = self.practice_claim_id
         if self.issue_option_id is not None:
             result["issue_option_id"] = self.issue_option_id
         if self.norm_passport_id is not None:
@@ -182,6 +208,18 @@ class SentenceEvidence:
                 if (
                     self.evidence_ids
                     and self.claim_id
+                    and self.maximum_supported_inference
+                )
+                else "unbound"
+            )
+        if self.role == "practice_claim":
+            result["practice_binding_status"] = (
+                "bound"
+                if (
+                    self.evidence_ids
+                    and self.claim_id
+                    and self.practice_claim_id
+                    and self.issue_option_id
                     and self.maximum_supported_inference
                 )
                 else "unbound"
@@ -245,6 +283,11 @@ class StructuredComplaint:
                     entry["holding_binding_sha256"] = holding_request[
                         "holding_binding_sha256"
                     ]
+                practice_request = self.practice_claim_binding_request(sentence)
+                if practice_request is not None:
+                    entry["practice_binding_sha256"] = practice_request[
+                        "practice_binding_sha256"
+                    ]
                 result.append(entry)
         return result
 
@@ -293,6 +336,32 @@ class StructuredComplaint:
             section_code=sentence.section_code,
             sentence_text=sentence.text,
             claim_id=sentence.claim_id,
+            evidence_ids=sentence.evidence_ids,
+            maximum_supported_inference=sentence.maximum_supported_inference,
+        )
+
+    def practice_claim_binding_request(
+        self, sentence: SentenceEvidence
+    ) -> dict[str, Any] | None:
+        if sentence.role != "practice_claim":
+            return None
+        if not (
+            sentence.claim_id
+            and sentence.practice_claim_id
+            and sentence.issue_option_id
+            and sentence.evidence_ids
+            and sentence.maximum_supported_inference
+        ):
+            return None
+        return build_practice_claim_binding_request(
+            matter_id=self.matter_id,
+            draft_id=self.draft_id,
+            sentence_id=sentence.sentence_id,
+            section_code=sentence.section_code,
+            sentence_text=sentence.text,
+            claim_id=sentence.claim_id,
+            practice_claim_id=sentence.practice_claim_id,
+            issue_option_id=sentence.issue_option_id,
             evidence_ids=sentence.evidence_ids,
             maximum_supported_inference=sentence.maximum_supported_inference,
         )
@@ -374,7 +443,15 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
 
         sentences: list[SentenceEvidence] = []
         for ordinal, item in enumerate(_iter_sentence_payloads(raw_section), start=1):
-            text = _clean_text(item.get("text"))
+            raw_role = _clean_text(item.get("role")) or "narrative"
+            role = "requested_remedy" if code == "requested_remedy" else raw_role
+            text = (
+                _exact_sentence_text(
+                    item.get("text"), label=f"Раздел {code}: practice_claim.text"
+                )
+                if role == "practice_claim"
+                else _clean_text(item.get("text"))
+            )
             if not text:
                 raise ComplaintModelError(f"Раздел {code}: найдено пустое предложение")
             if "sentence_id" in item:
@@ -393,17 +470,11 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
                     f"Повторяющийся sentence_id: {sentence_id}"
                 )
             seen_sentence_ids.add(sentence_id)
-            raw_role = _clean_text(item.get("role")) or "narrative"
             if raw_role == "requested_remedy" and code != "requested_remedy":
                 raise ComplaintModelError(
                     f"requested_remedy_section_role_mismatch:{sentence_id}"
                 )
-            role = (
-                "requested_remedy"
-                if code == "requested_remedy"
-                else raw_role
-            )
-            if role in {"requested_remedy", "legal_holding"}:
+            if role in {"requested_remedy", "legal_holding", "practice_claim"}:
                 evidence_ids = _strict_identifier_sequence(
                     item.get("evidence_ids", ()), label=f"{sentence_id}.evidence_ids"
                 )
@@ -431,6 +502,10 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
                     note=_clean_text(item.get("note")) or None,
                     claim_id=_optional_identifier(
                         item.get("claim_id"), label=f"{sentence_id}.claim_id"
+                    ),
+                    practice_claim_id=_optional_identifier(
+                        item.get("practice_claim_id"),
+                        label=f"{sentence_id}.practice_claim_id",
                     ),
                     issue_option_id=_optional_identifier(
                         item.get("issue_option_id"),
@@ -498,7 +573,9 @@ def require_release_support(
     *,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
+    practice_binding_authority: PracticeClaimEvidenceBindingAuthority | Any | None = None,
     require_holding_index: bool = False,
+    require_practice_index: bool = False,
 ) -> ReleaseSupportReceipts:
     """Raise with exact sentence identifiers when filing support is incomplete."""
 
@@ -685,8 +762,124 @@ def require_release_support(
             "Недействительны привязки правовых позиций: "
             + ", ".join(holding_errors)
         )
+
+    practice_errors: list[str] = []
+    practice_receipts: list[dict[str, Any]] = []
+    practice_index_bindings: list[dict[str, Any]] = []
+    for section in complaint.sections:
+        for sentence in section.sentences:
+            if sentence.role != "practice_claim":
+                continue
+            missing = [
+                label
+                for label, value in (
+                    ("claim_id", sentence.claim_id),
+                    ("practice_claim_id", sentence.practice_claim_id),
+                    ("issue_option_id", sentence.issue_option_id),
+                    ("evidence_ids", sentence.evidence_ids),
+                    (
+                        "maximum_supported_inference",
+                        sentence.maximum_supported_inference,
+                    ),
+                )
+                if not value
+            ]
+            if missing:
+                practice_errors.extend(
+                    f"{sentence.sentence_id}:practice_binding_{label}_missing"
+                    for label in missing
+                )
+                continue
+            if sentence.issue_option_id not in complaint.issue_option_ids:
+                practice_errors.append(
+                    f"{sentence.sentence_id}:practice_issue_not_in_complaint_projection"
+                )
+            request = complaint.practice_claim_binding_request(sentence)
+            if request is None:
+                practice_errors.append(
+                    f"{sentence.sentence_id}:practice_binding_request_incomplete"
+                )
+                continue
+            practice_index_bindings.append(
+                {
+                    "sentence_id": sentence.sentence_id,
+                    "section_code": section.code,
+                    "role": "practice_claim",
+                    "claim_id": sentence.claim_id,
+                    "practice_claim_id": sentence.practice_claim_id,
+                    "issue_option_id": sentence.issue_option_id,
+                    "practice_binding_sha256": request["practice_binding_sha256"],
+                }
+            )
+            errors, receipt = resolve_practice_claim_evidence_binding(
+                request, practice_binding_authority
+            )
+            practice_errors.extend(
+                f"{sentence.sentence_id}:{error}" for error in errors
+            )
+            if receipt is not None:
+                practice_receipts.append(receipt)
+
+    practice_index_receipt: dict[str, Any] | None = None
+    if practice_index_bindings or require_practice_index:
+        index_errors, practice_index_receipt = (
+            resolve_practice_claim_evidence_binding_index(
+                matter_id=complaint.matter_id,
+                draft_id=complaint.draft_id,
+                expected_bindings=practice_index_bindings,
+                authority=practice_binding_authority,
+            )
+        )
+        practice_errors.extend(index_errors)
+    if practice_index_receipt is not None and practice_receipts:
+        index_revision = practice_index_receipt.get("authority_revision_id")
+        receipt_revisions = {
+            receipt.get("authority_revision_id") for receipt in practice_receipts
+        }
+        stable_matter_fields = (
+            "matter_id",
+            "draft_id",
+            "case_id",
+            "workspace_revision_id",
+            "input_bindings_sha256",
+        )
+        matter_snapshot_values = [
+            tuple(
+                receipt["matter_binding"].get(field)
+                for field in stable_matter_fields
+            )
+            for receipt in practice_receipts
+            if isinstance(receipt.get("matter_binding"), Mapping)
+        ]
+        expected_matter_prefix = (complaint.matter_id, complaint.draft_id)
+        shared_matter_snapshot = (
+            matter_snapshot_values[0] if matter_snapshot_values else ()
+        )
+        one_matter_snapshot = bool(matter_snapshot_values) and all(
+            snapshot == shared_matter_snapshot
+            for snapshot in matter_snapshot_values[1:]
+        )
+        if (
+            receipt_revisions != {index_revision}
+            or len(matter_snapshot_values) != len(practice_receipts)
+            or not one_matter_snapshot
+            or shared_matter_snapshot[:2] != expected_matter_prefix
+            or practice_index_receipt.get("matter_id") != complaint.matter_id
+            or practice_index_receipt.get("draft_id") != complaint.draft_id
+        ):
+            practice_errors.append(
+                "practice_binding_authority_snapshot_mismatch"
+            )
+
+    if practice_errors:
+        raise ComplaintModelError(
+            "Недействительны привязки судебной практики: "
+            + ", ".join(practice_errors)
+        )
     return ReleaseSupportReceipts(
         relief_binding_receipts=tuple(receipts),
         holding_binding_receipts=tuple(holding_receipts),
         holding_binding_index_receipt=holding_index_receipt,
+        practice_binding_receipts=tuple(practice_receipts),
+        practice_binding_index_receipt=practice_index_receipt,
     )

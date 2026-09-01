@@ -33,6 +33,9 @@ from ksrf.filing.composer import (  # noqa: E402
 from ksrf.filing.holding_binding import (  # noqa: E402
     build_holding_binding_index_resolution,
 )
+from ksrf.filing.practice_binding import (  # noqa: E402
+    build_practice_claim_binding_index_resolution,
+)
 from ksrf.filing.issue_options import (  # noqa: E402
     issue_approval_requests,
     issue_candidate_content_fingerprint,
@@ -450,7 +453,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
             complaint, relief_binding_authority=authority
         )
         manifest: dict[str, Any] = {
-            "schema_version": "1.2",
+            "schema_version": "1.3",
             "matter_id": complaint.matter_id,
             "draft_id": complaint.draft_id,
             "status": "blocked",
@@ -473,6 +476,8 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
             ),
             "holding_binding_receipts": [],
             "holding_binding_index_receipt": None,
+            "practice_binding_receipts": [],
+            "practice_binding_index_receipt": None,
             "formal_check": {},
             "formal_check_ready": False,
             "artifacts": [],
@@ -1090,7 +1095,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
                 ),
             )
 
-    def test_schema_1_2_distinguishes_bound_and_legacy_draft(self) -> None:
+    def test_schema_1_3_distinguishes_bound_and_legacy_draft(self) -> None:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         validator = Draft202012Validator(schema)
         text = "Признать норму неконституционной"
@@ -1112,7 +1117,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
             )
         ).to_dict()
 
-        self.assertEqual(bound["schema_version"], "1.2")
+        self.assertEqual(bound["schema_version"], "1.3")
         self.assertEqual(list(validator.iter_errors(bound)), [])
         bound_entry = next(
             item
@@ -1287,6 +1292,15 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
         )
         holding_index.pop("status")
         manifest["holding_binding_index_receipt"] = holding_index
+        practice_index = build_practice_claim_binding_index_resolution(
+            matter_id=manifest["matter_id"],
+            draft_id=manifest["draft_id"],
+            bindings=[],
+            authority_revision_id="PRACTICE-REGISTRY-REV-1",
+            checked_at="2026-09-01T10:00:00Z",
+        )
+        practice_index.pop("status")
+        manifest["practice_binding_index_receipt"] = practice_index
         schema = json.loads(FILING_SCHEMA_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(

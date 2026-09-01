@@ -92,6 +92,8 @@ Relation дополнительно связывает `comparison_sha256` и `a
 
 Case-relative `drafting_ready` требует одновременно: готовый fingerprint; замороженный план; завершённые collection/coding/comparison/relation/adverse/coverage/analysis gates; валидный нормативный мост; human approval; текущие approval/validation hashes; кандидат, не превышающий `maximum_permitted_claim`.
 
+Это всё ещё исследовательский gate. Для выпуска строки `practice_claim` центральный host отдельно связывает exact constitutional claim, native practice claim, selected issue, reviewed finding set, wording и ceiling; заново разрешает current result/refresh/approvals; и сверяет независимый полный draft index по [filing evidence binding](filing-evidence-binding.md). Handoff, локальный SHA и `drafting_ready=true` сами по себе release receipt не создают.
+
 Default report всегда выводит открытые route и historical gaps, pending task counts, stale artifacts и точный denominator scope. Он раскрывает только текущие reviewed comparison/relation как findings, но сохраняет общий denominator карточек, чтобы положительные позиции не выглядели всем корпусом.
 
 ## 5. Временной контракт

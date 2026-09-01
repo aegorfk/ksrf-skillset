@@ -199,6 +199,12 @@
 | Эксперт или доктрина | метод, причинность, альтернативы, stress-test |
 | Учебный или модельный материал | структура и red-team проверка |
 
+### Выпуск тезиса о массовой судебной практике
+
+Статус `drafting_ready`, число актов, строка `verified` и даже существующий `finding_id` не разрешают автоматически включать предложение `role=practice_claim` в filing. Перед release host заново открывает привязанный к matter/draft practice workspace и подтверждает exact constitutional `claim_id`, выбранный `issue_option_id`, нативный `practice_claim_id`, content-bound research request и точное совпадение его handoff/`request_sha256`/claim-set/canonical claim bindings с v2 result, byte-equal reviewed wording, `claim_wording` finding/candidate, точное множество finding IDs и неизменный inference ceiling.
+
+Отдельно требуются два разных trusted approval receipts для `practice:<practice_claim_id>` и `selection`, current human selection `principal|reserve`, temporal order `material events -> refresh -> filing validation -> authority check` и полный host-owned индекс всех practice-строк draft, включая пустой. Все per-line receipts и индекс должны нести один `authority_revision_id`; per-line receipts дополнительно совпадают по case/workspace revision и input-manifest binding. Caller path, старый receipt, частичный индекс или individually valid артефакты из разных revisions не дают release authority. Независимый blocked claim не заражает exact ready target claim только при нативном `valid=false`, `stage_verdict=partial`, точном совпадении report/state списков `blocked_claim_ids`, `allowed_claim_ids`, `unaffected_claim_ids` и error-set, который дословно восстанавливается из каждого blocked sibling; global integrity errors должны отсутствовать, а current refresh — связывать полный ready-set. `valid=true` вместе с `partial` является противоречием и блокирует выпуск.
+
 Экспертный или `amicus`-материал заказывай под узкий вопрос с методом, исходными данными, ограничениями, альтернативными объяснениями и disclosure интересов. Его процессуальный статус и возможность представления проверяй по актуальным официальным правилам; принятие и влияние не предполагаются.
 
 Профессиональные комментарии, репортажи и материалы слушаний используй для состязательной карты: позиция заявителя, сильнейшее возражение публичного органа, вопросы суда, возможный узкий результат и задания на проверку. Само медийное изложение не подтверждает право или факт.

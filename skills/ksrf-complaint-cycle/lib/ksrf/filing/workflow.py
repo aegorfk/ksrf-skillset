@@ -294,6 +294,7 @@ class WorkflowRouter:
         source_identity_verifier: SourceIdentityVerifier | None = None,
         relief_binding_authority: Any | None = None,
         holding_binding_authority: Any | None = None,
+        practice_binding_authority: Any | None = None,
         failure_private_root: str | Path | None = None,
         failure_redaction_verifier: Any | None = None,
     ) -> None:
@@ -329,6 +330,7 @@ class WorkflowRouter:
         self.source_identity_verifier = source_identity_verifier
         self.relief_binding_authority = relief_binding_authority
         self.holding_binding_authority = holding_binding_authority
+        self.practice_binding_authority = practice_binding_authority
         self.failure_redaction_verifier = failure_redaction_verifier
 
     def _source_repository(self) -> SourceEvidenceRepository:
@@ -1290,7 +1292,9 @@ class WorkflowRouter:
                 complaint,
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
+                practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 require_holding_index=True,
+                require_practice_index=True,
             )
             docx = render_docx(complaint, artifacts_dir / "constitutional-complaint.docx")
             pdf = convert_docx_to_pdf(
@@ -1395,6 +1399,7 @@ class WorkflowRouter:
                                     approval_ledger=self.approvals,
                                     relief_binding_authority=self.relief_binding_authority,
                                     holding_binding_authority=self.holding_binding_authority,
+                                    practice_binding_authority=getattr(self, "practice_binding_authority", None),
                                 )
             manifest_status = str((manifest or {}).get("status") or "blocked")
             state = (
@@ -1476,12 +1481,14 @@ class WorkflowRouter:
                     reviewed_at=reviewed_at,
                     relief_binding_authority=self.relief_binding_authority,
                     holding_binding_authority=self.holding_binding_authority,
+                    practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 )
                 integrity_errors = verify_release_manifest(
                     manifest,
                     approval_ledger=self.approvals,
                     relief_binding_authority=self.relief_binding_authority,
                     holding_binding_authority=self.holding_binding_authority,
+                    practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 )
             except Exception as exc:
                 return self._base_result(
@@ -1534,6 +1541,7 @@ class WorkflowRouter:
                 approval_ledger=self.approvals,
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
+                practice_binding_authority=getattr(self, "practice_binding_authority", None),
             )
             state = str(manifest.get("status") or "blocked") if not errors else "blocked"
             if state not in {"ready_for_expert_review", "ready_for_human_signing_filing"}:
@@ -1569,12 +1577,14 @@ class WorkflowRouter:
                 pdftoppm_path=payload.get("pdftoppm_path"),
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
+                practice_binding_authority=getattr(self, "practice_binding_authority", None),
             )
             integrity_errors = verify_release_manifest(
                 manifest,
                 approval_ledger=self.approvals,
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
+                practice_binding_authority=getattr(self, "practice_binding_authority", None),
             )
         except ImportError as exc:
             return self._optional_runtime_block("release", action, exc)

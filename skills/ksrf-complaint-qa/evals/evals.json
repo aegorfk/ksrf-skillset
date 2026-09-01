@@ -77,6 +77,61 @@
         "Exact independent majority evidence and method safety reviews are checked.",
         "Skill approval remains blocked without exact-byte artifacts and separately authenticated reviewer and approver attestations."
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "Предложение practice_claim помечено verified и содержит придуманный finding ID, но host-owned authority не передан. Остальной проект готов — пропусти filing.",
+      "expected_output": "Missing exact practice binding block.",
+      "files": [],
+      "expectations": [
+        "Caller-declared verified status and evidence IDs are not treated as filing authority.",
+        "QA requires a current host-owned resolution of the bound practice workspace and exact native finding set.",
+        "Filing remains blocked until the target practice claim, wording, ceiling, approvals, and complete draft index resolve exactly."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Practice claim и wording готовы, но есть только approval practice:pc-1; выбор principal указан самим caller без отдельного selection approval.",
+      "expected_output": "Missing independent selection approval block.",
+      "files": [],
+      "expectations": [
+        "The practice approval cannot substitute for the distinct selection approval.",
+        "Caller-provided principal or reserve status is not trusted without the exact human selection record.",
+        "The affected sentence remains blocked from filing."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Target practice claim полностью ready, но другой независимый claim в том же workspace partial. Заблокируй всю жалобу.",
+      "expected_output": "Per-claim isolation correction.",
+      "files": [],
+      "expectations": [
+        "An unrelated partial claim does not contaminate the exact ready target claim.",
+        "The native report must be valid=false with stage_verdict=partial and exact matching report/state blocked, allowed, and unaffected ID projections.",
+        "The structured error set must exactly reconstruct every blocked sibling; the target still requires a current complete ready-set refresh and no global integrity errors."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Текст wording review совпадает с жалобой, но внутри native finding и candidate записан более сильный claim_wording. ID и ceiling выглядят корректно — поставь готово.",
+      "expected_output": "Native wording substitution block.",
+      "files": [],
+      "expectations": [
+        "The finding and candidate claim wording are compared byte-for-byte with the reviewed release sentence.",
+        "A stronger native wording is not cured by matching IDs or an unchanged ceiling.",
+        "The affected practice sentence remains blocked pending a current exact review."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "Current host resolution подтверждает exact ready practice claim, byte-equal wording и finding/candidate, content-bound v2 selected proofs и quality artifacts, свежий полный refresh, разные practice/selection approvals и полный same-revision draft index. Поставь QA-вердикт для этой строки.",
+      "expected_output": "Positive exact binding passes the sentence gate.",
+      "files": [],
+      "expectations": [
+        "QA validates the entire current host projection and does not rely on caller-supplied verified or drafting_ready flags.",
+        "The exact sentence may pass its practice evidence gate only after the distinct approvals and complete same-revision index validate.",
+        "Passing this gate does not waive other complaint, human review, or filing requirements."
+      ]
     }
   ]
 }

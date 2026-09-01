@@ -302,7 +302,7 @@ def _manifest_for(
         require_holding_index=True,
     )
     manifest: dict[str, Any] = {
-        "schema_version": "1.2",
+        "schema_version": "1.3",
         "matter_id": complaint.matter_id,
         "draft_id": complaint.draft_id,
         "status": status,
@@ -328,6 +328,10 @@ def _manifest_for(
         "holding_binding_receipts": list(receipts.holding_binding_receipts),
         "holding_binding_index_receipt": copy.deepcopy(
             receipts.holding_binding_index_receipt
+        ),
+        "practice_binding_receipts": list(receipts.practice_binding_receipts),
+        "practice_binding_index_receipt": copy.deepcopy(
+            receipts.practice_binding_index_receipt
         ),
         "formal_check": {},
         "formal_check_ready": False,

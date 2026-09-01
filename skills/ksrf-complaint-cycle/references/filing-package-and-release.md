@@ -2,7 +2,7 @@
 
 ## Structured complaint
 
-Рабочая structured-complaint модель `1.2` содержит обязательные разделы жалобы, `matter_id`, `draft_id`, source/version bindings, norm passport IDs, plural selected issue option IDs, approvals, formal check и `SentenceEvidenceMap`. Filing-package manifest `1.2` всегда несёт отдельные relief- и legal-holding projections, массивы receipts и host-authoritative index receipts. В диагностическом `blocked` manifest допустимы `unbound`, пустые receipt-массивы и `null` index. Любой ready-статус требует `bound`-строки, current relief receipts `1.1.0`, current holding receipts `1.0.0` и оба current index; holding index обязателен даже при authoritative `bindings=[]`. Manifest `1.0`/`1.1` остаётся только историческим JSON и должен быть пересобран перед новым release approval. Singular `issue_option_id` остаётся только диагностическим alias и не создаёт membership для нескольких линий.
+Рабочая structured-complaint модель `1.3` содержит обязательные разделы жалобы, `matter_id`, `draft_id`, source/version bindings, norm passport IDs, plural selected issue option IDs, approvals, formal check и `SentenceEvidenceMap`. Filing-package manifest `1.3` всегда несёт отдельные relief-, legal-holding- и practice projections, массивы receipts и host-authoritative index receipts. В диагностическом `blocked` manifest допустимы blockers, `unbound`, пустые receipt-массивы и `null` index. Любой ready-статус требует `blockers=[]`, `bound`-строки, current relief receipts `1.1.0`, current holding receipts `1.0.0` для каждой строки `legal_holding`, current practice receipts `1.0.0` для каждой строки `practice_claim` и все три current index. Holding- и practice-index обязательны даже при authoritative `bindings=[]`; пустой receipt-массив допустим только при отсутствии строк соответствующей роли. Manifest `1.0`/`1.1`/`1.2` остаётся только историческим JSON и должен быть пересобран перед новым release approval. Singular `issue_option_id` остаётся только диагностическим alias и не создаёт membership для нескольких линий.
 
 Для каждого filing-significant предложения запиши:
 
@@ -15,6 +15,8 @@
 Для роли `requested_remedy` дополнительно обязательны same-claim `claim_id`, `issue_option_id`, `norm_passport_id`, canonical unique `application_record_ids` и `relief_binding_sha256`. Любая строка в разделе `requested_remedy` нормализуется именно с этой ролью: caller не может превратить просьбу в `narrative`. Legacy-строка сериализуется с `relief_binding_status=unbound`, остаётся редактируемым черновиком и не проходит release gate; полная строка получает `bound` только из реально сохранённых binding-полей.
 
 Для роли `legal_holding` обязательны exact `claim_id`, canonical unique native SourceEvidence `evidence_ids`, `maximum_supported_inference` и `holding_binding_sha256`, связанный с exact текстом и разделом. Обычный `verified`/`filing_ready`, произвольный evidence ID или comparative/VSRF/application source не создают позицию КС РФ. Legacy-строка с `holding_binding_status=unbound` остаётся черновиком и блокирует release.
+
+Для роли `practice_claim` обязательны раздельные constitutional `claim_id` и native `practice_claim_id`, selected `issue_option_id`, canonical unique native `finding_id` в `evidence_ids`, byte-equal `maximum_supported_inference` и `practice_binding_sha256`, связанный с exact текстом и разделом. Caller-поля `verified`, `human_approved`, `ready` или произвольный finding ID не создают filing authority. Legacy-строка с `practice_binding_status=unbound` остаётся черновиком и блокирует release.
 
 Перед render, release, approval и повторной проверкой manifest host-attested `ReliefEvidenceBindingAuthority` заново возвращает exact issue/application/passport/source snapshots, content-bound trusted gate receipts и полный current index строк просительной части из реестра draft. Runtime пересчитывает fingerprints и проверяет одну claim/norm/edition graph; payload-флаги `verified`, `passed` или `filing_ready` не заменяют authority. Manifest сохраняет проверенные relief-binding receipts и index receipt в release basis.
 
@@ -38,6 +40,12 @@ Host adapter должен получать receipts из действующих 
 Line resolver по exact request возвращает полные native `SourceEvidence v1`, свежие результаты `current_filing_authority`, отдельные claim-scope records и exact trusted scope approval. Runtime сам пересчитывает content fingerprints и проверяет source ID, official locator, raw SHA, verification revision, current evidence ID, freshness, `authority_role=ksrf_legal_holding`, pinpoint и независимый предел вывода. Claim и scope не добавляются в native SourceEvidence и хранятся отдельно.
 
 Отдельный index resolver по `{schema_version, matter_id, draft_id}` возвращает полный current реестр legal-holding строк из host draft registry. Он не может синтезироваться из caller requests. Exact set и index SHA блокируют удаление, вставку, подмену или downgrade роли; authoritative empty index нужен даже при отсутствии holding-строк.
+
+### Контракт `PracticeClaimEvidenceBindingAuthority`
+
+Line resolver по exact request заново разрешает host-owned matter/draft-to-case/workspace binding, current filing-stage practice state, imported result, exact findings, wording review, pre-filing refresh и две отдельные trusted approvals: `practice:<practice_claim_id>` и `selection`. Runtime сверяет distinct claim identities, selected issue, exact wording/finding set/inference ceiling, current ready target, отсутствие global integrity errors и порядок native material events → refresh → filing validation → authority check. Изолированный blocker другого claim допустим только для независимо готового target claim и не отменяет его собственные gates.
+
+Отдельный index resolver по `{schema_version, matter_id, draft_id}` возвращает полный current реестр `practice_claim` строк из host draft registry, а не из caller manifest или practice-analysis claim index. Exact set, index SHA и общий с per-line receipts `authority_revision_id` блокируют удаление, вставку, подмену, downgrade роли и cross-revision replay; authoritative empty index обязателен при отсутствии practice-строк. Workspace revision и input-manifest fingerprint должны совпадать между всеми per-line practice receipts; сам index этих полей не содержит и не заявляется их самостоятельным доказательством.
 
 Unsupported или overclaimed sentence не проходит в release draft.
 
@@ -78,7 +86,7 @@ Release pack содержит реальные:
 
 ## Инвалидация
 
-Изменение source hash/locator/verifier/time, NormVersionPassport, application record, issue selection, состава remedy/holding index, claim-scope/pinpoint/inference ceiling, sentence text, enclosure или formal-rule freshness отменяет прежний release approval и требует нового manifest.
+Изменение source hash/locator/verifier/time, NormVersionPassport, application record, issue selection, состава remedy/holding/practice index, claim-scope/pinpoint/inference ceiling, practice claim/revision/result/finding set, attachment, trust anchor, wording review, pre-filing refresh, practice/selection approval, sentence text, enclosure или formal-rule freshness отменяет прежний release approval и требует нового manifest.
 
 Release approval связывается с fingerprint полного стабильного manifest: source/passport/issue bindings, approvals, formal check, sentence evidence map, hashes и metadata артефактов, опись, visual QA, blockers, `human_only_actions` и `filing_performed`. Исключаются только самохэши, approval projection и локальные пути. Approval должен существовать до проверки, иметь host attestation аутентифицированного reviewer и проходить повторную проверку binding, expiry и revocation по trusted clock. Caller-supplied reviewer, JSONL без проверяемой attestation, обычный TTY и самозаявленный verifier не повышают статус.
 

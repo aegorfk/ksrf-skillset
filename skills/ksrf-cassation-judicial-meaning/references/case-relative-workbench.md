@@ -267,3 +267,5 @@ python3 <skill-dir>/scripts/judicial_meaning.py validate \
 - цитаты, official URLs, adverse-status, materiality, remedy, безопасную формулировку и следующее действие.
 
 Наличие HTML не означает `drafting_ready`. Handoff принимает `unproven_research_questions`, `approved_bounded_findings` и `authority_cards`; legacy `selected_authorities` только читается для совместимости. Проверка различает `valid`, `stale`, `tampered`, `incompatible`; импорт в JSONL-ledger атомарен и идемпотентен.
+
+Даже current `approved_bounded_findings` остаётся входом центрального gate, а не filing authority. Для строки `practice_claim` получатель применяет [exact filing evidence binding](filing-evidence-binding.md): заново разрешает current workspace/result/wording/refresh, проверяет отдельные practice и selection approvals и полный host draft index.

@@ -176,7 +176,7 @@ print(json.dumps({'valid': True, 'status': 'imported'}))
         ]
         adverse = {"review_id": "case-adverse-review", "complete": True}
         bridge = {
-            "claim_wording": "В раскрытом корпусе наблюдается проверенная позиция.",
+            "claim_wording": "Суды последовательно придают норме расширительный смысл.",
             "maximum_permitted_claim": "corroborated_observed_corpus",
             "supporting_position_card_ids": ["position-1"],
             "adverse_position_card_ids": [],
@@ -883,6 +883,7 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
                         "text": "Суды последовательно придают норме расширительный смысл.",
                         "case_dependency_ids": ["act-a"],
                         "hypothesis_ids": ["hypothesis-practice"],
+                        "option_ids": ["option-practice"],
                     },
                     {
                         "claim_id": "claim-direct",
@@ -1057,6 +1058,190 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
         )
         filing_after = practice.validate_workspace(self.workspace, stage="filing")
         self.assertTrue(filing_after["valid"])
+
+    def test_current_filing_claim_projection_reopens_exact_ready_material(self) -> None:
+        self.review_within_limit()
+        refresh = practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Официальные источники и corpus cutoff перепроверены.",
+            now="2026-08-27T11:10:00Z",
+        )
+
+        projection = practice.current_filing_claim_projection(
+            self.workspace,
+            claim_id="claim-practice",
+            issue_option_id="option-practice",
+            now="2026-08-27T11:11:00Z",
+        )
+
+        self.assertEqual(projection["case_id"], "case-1")
+        self.assertEqual(projection["claim_state"]["state"], "ready")
+        self.assertFalse(projection["claim_state"]["draft_blocked"])
+        self.assertEqual(
+            projection["wording_review"]["finding_ids"], [self.finding_id]
+        )
+        self.assertEqual(
+            projection["findings"][0]["finding_id"], self.finding_id
+        )
+        self.assertEqual(projection["issue_option_id"], "option-practice")
+        self.assertEqual(
+            projection["findings"][0]["claim_wording"],
+            projection["wording_review"]["wording_text"],
+        )
+        self.assertEqual(
+            projection["findings"][0]["candidate"]["claim_wording"],
+            projection["wording_review"]["wording_text"],
+        )
+        self.assertEqual(
+            projection["ready_binding"]["maximum_permitted_claim"],
+            "corroborated_observed_corpus",
+        )
+        self.assertEqual(
+            projection["prefiling_refresh"]["record"]["event_sha256"],
+            refresh["event_sha256"],
+        )
+        self.assertTrue(projection["prefiling_refresh"]["required"])
+        self.assertTrue(projection["prefiling_refresh"]["valid"])
+        self.assertEqual(projection["filing_validation"]["stage"], "filing")
+
+    def test_current_projection_rejects_source_mutation_after_validation(self) -> None:
+        self.review_within_limit()
+        practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Официальные источники перепроверены.",
+            now="2026-08-27T11:10:00Z",
+        )
+        original_validate = practice.validate_workspace
+
+        def validate_then_mutate(*args, **kwargs):
+            report = original_validate(*args, **kwargs)
+            source = json.loads(self.claim_source.read_text(encoding="utf-8"))
+            source["tampered_after_validation"] = True
+            _write_json(self.claim_source, source)
+            return report
+
+        with mock.patch.object(
+            practice,
+            "validate_workspace",
+            side_effect=validate_then_mutate,
+        ):
+            with self.assertRaisesRegex(ValueError, "изменился"):
+                practice.current_filing_claim_projection(
+                    self.workspace,
+                    claim_id="claim-practice",
+                    issue_option_id="option-practice",
+                    now="2026-08-27T11:11:00Z",
+                )
+
+    def test_current_projection_rejects_report_level_integrity_error(self) -> None:
+        self.review_within_limit()
+        practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Официальные источники перепроверены.",
+            now="2026-08-27T11:10:00Z",
+        )
+        original_validate = practice.validate_workspace
+
+        def validate_with_report_error(*args, **kwargs):
+            report = json.loads(json.dumps(original_validate(*args, **kwargs)))
+            report["valid"] = False
+            report["global_integrity_errors"] = ["concurrent_validation_error"]
+            return report
+
+        with mock.patch.object(
+            practice,
+            "validate_workspace",
+            side_effect=validate_with_report_error,
+        ):
+            with self.assertRaisesRegex(ValueError, "global integrity"):
+                practice.current_filing_claim_projection(
+                    self.workspace,
+                    claim_id="claim-practice",
+                    issue_option_id="option-practice",
+                    now="2026-08-27T11:11:00Z",
+                )
+
+    def test_current_projection_requires_exact_issue_option(self) -> None:
+        self.review_within_limit()
+        practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Официальные источники перепроверены.",
+            now="2026-08-27T11:10:00Z",
+        )
+
+        with self.assertRaisesRegex(ValueError, "exact issue_option_id"):
+            practice.current_filing_claim_projection(
+                self.workspace,
+                claim_id="claim-practice",
+                issue_option_id="option-foreign",
+                now="2026-08-27T11:11:00Z",
+            )
+
+    def test_current_projection_rechecks_finding_and_candidate_wording(self) -> None:
+        self.review_within_limit()
+        practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Официальные источники перепроверены.",
+            now="2026-08-27T11:10:00Z",
+        )
+        stored_result = (
+            self.workspace
+            / "practice-analysis"
+            / "results"
+            / f"{self.result['handoff_id']}.json"
+        ).resolve()
+        original_validate = practice.validate_workspace
+        original_read = practice._read_json
+
+        for target in ("finding", "candidate"):
+            with self.subTest(target=target):
+                validation_finished = False
+
+                def validate_then_project(*args, **kwargs):
+                    nonlocal validation_finished
+                    report = original_validate(*args, **kwargs)
+                    validation_finished = True
+                    return report
+
+                def read_with_wording_substitution(path):
+                    value = original_read(path)
+                    if validation_finished and Path(path).resolve() == stored_result:
+                        value = json.loads(json.dumps(value))
+                        finding = value["payload"]["findings"][0]
+                        if target == "finding":
+                            finding["claim_wording"] = "Подменённая формулировка."
+                        else:
+                            finding["candidate"]["claim_wording"] = (
+                                "Подменённая формулировка."
+                            )
+                    return value
+
+                with mock.patch.object(
+                    practice,
+                    "validate_workspace",
+                    side_effect=validate_then_project,
+                ), mock.patch.object(
+                    practice,
+                    "_read_json",
+                    side_effect=read_with_wording_substitution,
+                ):
+                    with self.assertRaisesRegex(ValueError, "wording"):
+                        practice.current_filing_claim_projection(
+                            self.workspace,
+                            claim_id="claim-practice",
+                            issue_option_id="option-practice",
+                            now="2026-08-27T11:11:00Z",
+                        )
 
     def test_refresh_binds_exact_material_events_and_later_same_day_wording_invalidates_it(self) -> None:
         self.review_within_limit()
