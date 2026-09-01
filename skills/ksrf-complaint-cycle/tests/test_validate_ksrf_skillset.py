@@ -139,6 +139,8 @@ class KSRFSkillsetValidatorTests(unittest.TestCase):
             skill = _make_valid_skill(root)
             _write(skill / ".serena" / "project.yml", "project: local\n")
             _write(skill / "scripts" / "__pycache__" / "helper.pyc", "compiled")
+            _write(skill / "tests" / "test_source_only.py", "def test_source_only(): pass\n")
+            _write(skill / "tests" / "fixtures" / "case.json", "{}\n")
 
             report = VALIDATOR.validate_skillset(root, package_names=("ksrf-test",))
 
@@ -149,6 +151,7 @@ class KSRFSkillsetValidatorTests(unittest.TestCase):
             self.assertTrue(all(".." not in Path(path).parts for path in paths))
             self.assertTrue(all(".serena" not in path for path in paths))
             self.assertTrue(all("__pycache__" not in path for path in paths))
+            self.assertTrue(all("tests" not in Path(path).parts for path in paths))
             self.assertTrue(all(not path.endswith(".pyc") for path in paths))
             self.assertIn("RUNTIME_ARTIFACT_EXCLUDED", _codes(report))
 

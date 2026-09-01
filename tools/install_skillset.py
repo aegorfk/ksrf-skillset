@@ -11,7 +11,13 @@ import sys
 import tempfile
 from typing import Sequence
 
-from skillset_file_contract import FileContractError, SKILL_NAMES, payload_files, tree_digest
+from skillset_file_contract import (
+    FileContractError,
+    SKILL_NAMES,
+    development_files,
+    payload_files,
+    tree_digest,
+)
 
 
 class InstallationError(RuntimeError):
@@ -67,12 +73,44 @@ def _validate_target(target: Path) -> Path:
     return target
 
 
-def copy_skillset(source_root: Path, target: Path) -> Path:
-    """Validate all paths, stage the exact payload, then replace canonical destinations."""
+def _validate_copy_boundaries(source_root: Path, target: Path) -> None:
+    """Refuse copies that could replace or nest inside their own source tree."""
+
+    resolved_source = source_root.resolve(strict=True)
+    resolved_target = _absolute_without_resolving(target).resolve(strict=False)
+    if resolved_source.is_relative_to(resolved_target) or resolved_target.is_relative_to(
+        resolved_source
+    ):
+        raise InstallationError(
+            "source and target paths overlap: "
+            f"source={resolved_source}, target={resolved_target}"
+        )
+
+
+def copy_skillset(
+    source_root: Path,
+    target: Path,
+    *,
+    preserve_target_development: bool = False,
+) -> Path:
+    """Stage exact runtime files plus optional preserved source-only files, then replace."""
 
     source_root = source_root.resolve(strict=True)
+    _validate_copy_boundaries(source_root, target)
     files_by_skill = _validate_source(source_root)
     target = _validate_target(target)
+
+    preserved_by_skill: dict[str, list[Path]] = {}
+    for skill_name in SKILL_NAMES:
+        destination = target / skill_name
+        try:
+            preserved_by_skill[skill_name] = (
+                development_files(destination)
+                if preserve_target_development and destination.exists()
+                else []
+            )
+        except FileContractError as exc:
+            raise InstallationError(str(exc)) from exc
 
     target.mkdir(parents=True, exist_ok=True)
     staging_parent = Path(tempfile.mkdtemp(prefix=".ksrf-install-", dir=target))
@@ -87,6 +125,17 @@ def copy_skillset(source_root: Path, target: Path) -> Path:
                 staged_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_file, staged_file)
 
+            destination = target / skill_name
+            for preserved_file in preserved_by_skill[skill_name]:
+                relative = preserved_file.relative_to(destination)
+                staged_file = staged_skill / relative
+                if staged_file.exists():
+                    raise InstallationError(
+                        f"development path collides with runtime payload: {skill_name}/{relative}"
+                    )
+                staged_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(preserved_file, staged_file)
+
             staged_files = payload_files(staged_skill)
             source_relatives = [
                 path.relative_to(source_skill).as_posix() for path in files_by_skill[skill_name]
@@ -96,6 +145,23 @@ def copy_skillset(source_root: Path, target: Path) -> Path:
                 source_skill, files_by_skill[skill_name]
             ) != tree_digest(staged_skill, staged_files):
                 raise InstallationError(f"staged payload verification failed: {skill_name}")
+
+            if preserve_target_development:
+                staged_development = development_files(staged_skill)
+                preserved_relatives = [
+                    path.relative_to(destination).as_posix()
+                    for path in preserved_by_skill[skill_name]
+                ]
+                staged_development_relatives = [
+                    path.relative_to(staged_skill).as_posix()
+                    for path in staged_development
+                ]
+                if preserved_relatives != staged_development_relatives or tree_digest(
+                    destination, preserved_by_skill[skill_name]
+                ) != tree_digest(staged_skill, staged_development):
+                    raise InstallationError(
+                        f"staged development preservation failed: {skill_name}"
+                    )
 
         for skill_name in SKILL_NAMES:
             destination = target / skill_name
@@ -113,6 +179,7 @@ def _parser() -> argparse.ArgumentParser:
     source.add_argument("--repo", type=Path)
     source.add_argument("--source-skills-root", type=Path)
     parser.add_argument("--target", type=Path, required=True)
+    parser.add_argument("--preserve-target-development", action="store_true")
     return parser
 
 
@@ -121,11 +188,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     source_root = args.repo / "skills" if args.repo is not None else args.source_skills_root
     assert source_root is not None
     try:
-        target = copy_skillset(source_root, args.target)
+        if args.preserve_target_development and args.source_skills_root is None:
+            raise InstallationError(
+                "--preserve-target-development requires --source-skills-root"
+            )
+        target = copy_skillset(
+            source_root,
+            args.target,
+            preserve_target_development=args.preserve_target_development,
+        )
     except (InstallationError, FileNotFoundError, OSError) as exc:
         print(f"Skillset installation refused: {exc}", file=sys.stderr)
         return 1
-    print(f"Installed exact manifest-covered KSRF skill payload into {target}")
+    if args.preserve_target_development:
+        print(
+            "Synchronized exact KSRF runtime payload while preserving "
+            f"target development files in {target}"
+        )
+    else:
+        print(f"Installed exact manifest-covered KSRF skill payload into {target}")
     return 0
 
 

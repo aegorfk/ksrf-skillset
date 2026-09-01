@@ -1,23 +1,24 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-01T18:53:51Z",
+  "generated_at": "2026-09-01T19:00:41Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "5cb3390fe8bd2e5ee085b56d19f37c95da232377",
+  "remote_base_commit": "064b6f347b7a369a9fb818a5e3304ff0c4de11fc",
   "exclusions": [
     ".DS_Store",
     ".git/",
     ".serena/",
     ".pytest_cache/",
     "__pycache__/",
+    "tests/",
     "*.pyc",
     "*.pyo",
     "secret credential and private-key paths"
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 321,
-  "total_bytes": 9296538,
-  "tree_sha256": "0b9f360abf3d7c8941c7921e16cdea56a0ed7e662f51444d888f2a091593904a",
+  "total_files": 273,
+  "total_bytes": 8442981,
+  "tree_sha256": "c83f4d4a30d5348efe77288cdbf3ec9eb7e585e3c0a05f72ad73527f811ef61a",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -33,15 +34,15 @@
     },
     {
       "name": "ksrf-cassation-judicial-meaning",
-      "files": 66,
-      "bytes": 1291301,
-      "tree_sha256": "80d4a048924c86568e30cec5a29456eb0091b7abab6ac6511b5ba8ff36b11fa0"
+      "files": 34,
+      "bytes": 932366,
+      "tree_sha256": "717b7b13a763219ff87a3cc623299b15d2ac73946edc64c1eecd2d8a47492e6f"
     },
     {
       "name": "ksrf-complaint-cycle",
-      "files": 105,
-      "bytes": 2455515,
-      "tree_sha256": "75acab2ac8eec9c4c81072fe0051ece2c614f3b53bdc1137af1fe03cdc4101c7"
+      "files": 93,
+      "bytes": 2018789,
+      "tree_sha256": "4ba225834efd0f1c0c84289dd971fc7eb03af32b6909d258b61ee66cc42e13b8"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -69,15 +70,15 @@
     },
     {
       "name": "ksrf-doctrine-research",
-      "files": 15,
-      "bytes": 220572,
-      "tree_sha256": "491803aadecfd33f81dd84ed56d50f235050adbde85c677d591cba3ecfcdacd1"
+      "files": 12,
+      "bytes": 173907,
+      "tree_sha256": "76f4b0617d2152a8b1ce744b0b60f93b4f9be4743d027a38fa67bff5e3b27c62"
     },
     {
       "name": "ksrf-echr-argumentation",
-      "files": 12,
-      "bytes": 92390,
-      "tree_sha256": "931d79d72aeb3598f41557ba6748fc14cc4596a6a749a69d5112686858026731"
+      "files": 11,
+      "bytes": 81159,
+      "tree_sha256": "93e9eb8cf2732d5bdcba8e65f6b06167b50b7f0d929ed1251e208acaabe5d6b8"
     },
     {
       "name": "ksrf-exhaustion-planner",
@@ -112,8 +113,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 190206,
-  "release_tree_sha256": "8731d701930a599a6c1abb587732f492e4c06436963b852ca8ec71966cc7728a",
+  "total_release_bytes": 194155,
+  "release_tree_sha256": "928c85463c90f20470c6ef5c2c17d1a5550da74190e50a9ba5b5467fb4d0fe1b",
   "release_files": [
     {
       "path": "install.sh",
@@ -122,23 +123,23 @@
     },
     {
       "path": "tools/generate_skills_manifest.py",
-      "bytes": 4380,
-      "sha256": "86cddbbb6ceb7becdda7aa3274d532dd1121529fb0e1a8b0ef1fc6d91c09228a"
+      "bytes": 4402,
+      "sha256": "7101399e7629c8d35719ba6f685b708c3aa3573a2b5c7347487b804d07d22e10"
     },
     {
       "path": "tools/install_skillset.py",
-      "bytes": 5291,
-      "sha256": "182a69d5e2c4ce33a87bc75f395df9b0aa1e214b646d042889234bc69533e9d4"
+      "bytes": 8475,
+      "sha256": "67de08bc80dcf24a0389e77d1e8b01c051bbef3fe422ec6edbc280e48a4dbf0f"
     },
     {
       "path": "tools/skillset_file_contract.py",
-      "bytes": 9176,
-      "sha256": "1970cc5144cce974d813cc3f76cf1a119e4e041e87bde8ac25cde0861f766767"
+      "bytes": 9885,
+      "sha256": "85832f72fde17fd25a36f28c33143757f0746f6ebb3c18b8b73747a6ebb10aab"
     },
     {
       "path": "tools/sync_global_skills.sh",
-      "bytes": 2299,
-      "sha256": "70871cc0110150d43654b0ce8218cfcca16a9f827c5a28f3828a1d928c689125"
+      "bytes": 2333,
+      "sha256": "dcd0cc41f8766ae6549664a60668d181da8de0385ef793621272c15feab30f70"
     },
     {
       "path": "tools/verify_publication_state.py",

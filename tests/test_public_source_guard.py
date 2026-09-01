@@ -52,6 +52,24 @@ class PublicSourceGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
                 validate_public_artifact(source, Path("docs/card.md"))
 
+    def test_repository_guard_still_scans_development_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "skills" / "example" / "tests" / "private.md"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
+                validate_public_repository(Path(temporary))
+
     def test_allows_non_reconstructive_method_card(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             card = Path(temporary) / "card.md"

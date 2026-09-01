@@ -30,6 +30,7 @@ SKILL_NAMES = (
 )
 
 RUNTIME_PARTS = frozenset({".git", ".serena", ".pytest_cache", "__pycache__"})
+DEVELOPMENT_ONLY_PARTS = frozenset({"tests"})
 RUNTIME_NAMES = frozenset({".DS_Store"})
 RUNTIME_SUFFIXES = frozenset({".pyc", ".pyo"})
 SECRET_NAMES = frozenset(
@@ -131,12 +132,16 @@ class FileContractError(RuntimeError):
     """A source tree cannot be represented by the public payload contract."""
 
 
-def is_excluded(relative_path: Path) -> bool:
+def is_excluded(relative_path: Path, *, include_development: bool = False) -> bool:
     """Return whether a payload-relative file is runtime or secret material."""
 
     lowered = relative_path.name.lower()
     return (
         any(part in RUNTIME_PARTS for part in relative_path.parts)
+        or (
+            not include_development
+            and any(part in DEVELOPMENT_ONLY_PARTS for part in relative_path.parts)
+        )
         or relative_path.name in RUNTIME_NAMES
         or relative_path.suffix.lower() in RUNTIME_SUFFIXES
         or lowered in SECRET_NAMES
@@ -204,15 +209,14 @@ def validate_public_repository(root: Path) -> None:
         raise FileContractError(f"symlinked repository root is forbidden: {root}")
     for path in root.rglob("*"):
         relative = path.relative_to(root)
-        if is_excluded(relative):
+        if is_excluded(relative, include_development=True):
             continue
         if path.is_symlink():
             raise FileContractError(f"symlink inside payload tree is forbidden: {path}")
         if path.is_file():
             validate_public_artifact(path, relative)
 
-
-def payload_files(root: Path) -> list[Path]:
+def payload_files(root: Path, *, include_development: bool = False) -> list[Path]:
     """Return the exact sorted file payload covered by skill manifests/copies."""
 
     if root.is_symlink():
@@ -222,10 +226,25 @@ def payload_files(root: Path) -> list[Path]:
         if path.is_symlink():
             raise FileContractError(f"symlink inside payload tree is forbidden: {path}")
         relative = path.relative_to(root)
-        if path.is_file() and not is_excluded(relative):
+        if path.is_file() and not is_excluded(
+            relative, include_development=include_development
+        ):
             validate_public_artifact(path, Path("skills") / root.name / relative)
             files.append(path)
     return sorted(files, key=lambda path: path.relative_to(root).as_posix())
+
+
+def development_files(root: Path) -> list[Path]:
+    """Return safe source-only files that a reverse sync must preserve in-place."""
+
+    return [
+        path
+        for path in payload_files(root, include_development=True)
+        if any(
+            part in DEVELOPMENT_ONLY_PARTS
+            for part in path.relative_to(root).parts
+        )
+    ]
 
 
 def tree_digest(root: Path, files: Iterable[Path]) -> str:
