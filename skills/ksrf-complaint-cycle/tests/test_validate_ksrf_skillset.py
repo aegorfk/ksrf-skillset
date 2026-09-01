@@ -714,7 +714,10 @@ description: Используй этот навык для всего.
             (skill / "evals" / "trigger-evals.json").unlink()
             (skill / "evals").rmdir()
             _write(skill / "references" / "evidence_maps-guide.json", "{}\n")
-            _write(skill / "references" / "constitutional_graph.json", "{}\n")
+            _write(
+                skill / "references" / "constitutional_graph.json",
+                '{"nodes": [], "edges": []}\n',
+            )
             _write(
                 skill / "references" / "complaint-methodology-sources-runtime.md",
                 "# Runtime guide\n",
@@ -926,6 +929,174 @@ tools:
 
             self.assertEqual(report["status"], "fail")
             self.assertIn("PACKAGE_MISSING", _codes(report))
+
+    def test_argument_graph_contract_accepts_only_non_capability_lookalikes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutional_graph.json",
+                json.dumps(
+                    {
+                        "nodes": [
+                            {
+                                "id": "toolkit:manual",
+                                "kind": "automation_hook_note",
+                                "label": "Описание ручной проверки",
+                            }
+                        ],
+                        "edges": [
+                            {
+                                "from": "toolkit:manual",
+                                "to": "toolkit:manual",
+                                "type": "supported_by_note",
+                            }
+                        ],
+                    }
+                ),
+            )
+            findings: list[dict[str, object]] = []
+            checker = getattr(VALIDATOR, "_validate_argument_graph_contract", None)
+
+            self.assertTrue(
+                callable(checker),
+                "validator must expose the runtime argument-graph contract checker",
+            )
+            assert callable(checker)
+            checker(findings, skill, root)
+
+            self.assertEqual(findings, [])
+
+    def test_argument_graph_contract_rejects_unshipped_tool_projection(self) -> None:
+        samples = {
+            "kind": {
+                "nodes": [
+                    {"id": "note:manual", "kind": "automation_hook", "label": "x"}
+                ],
+                "edges": [],
+            },
+            "node_id": {
+                "nodes": [{"id": "tool:missing", "kind": "note", "label": "x"}],
+                "edges": [],
+            },
+            "edge_type": {
+                "nodes": [
+                    {"id": "pattern:x", "kind": "pattern", "label": "x"},
+                    {"id": "note:x", "kind": "note", "label": "x"},
+                ],
+                "edges": [
+                    {"from": "pattern:x", "to": "note:x", "type": "supported_by"}
+                ],
+            },
+            "edge_endpoint": {
+                "nodes": [
+                    {"id": "pattern:x", "kind": "pattern", "label": "x"},
+                    {"id": "tool:missing", "kind": "note", "label": "x"},
+                ],
+                "edges": [
+                    {"from": "pattern:x", "to": "tool:missing", "type": "note"}
+                ],
+            },
+        }
+        for label, graph in samples.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    skill = root / "ksrf-argument-patterns"
+                    _write(
+                        skill / "references" / "constitutional_graph.json",
+                        json.dumps(graph),
+                    )
+                    findings: list[dict[str, object]] = []
+
+                    VALIDATOR._validate_argument_graph_contract(findings, skill, root)
+
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(
+                        findings[0]["code"],
+                        "UNSHIPPED_AUTOMATION_IN_RUNTIME_GRAPH",
+                    )
+
+    def test_argument_graph_contract_rejects_malformed_structure(self) -> None:
+        valid_node = {"id": "pattern:x", "kind": "pattern", "label": "x"}
+        samples = {
+            "empty_node": {"nodes": [{}], "edges": []},
+            "non_string_node_id": {
+                "nodes": [{"id": 7, "kind": "pattern"}],
+                "edges": [],
+            },
+            "blank_node_kind": {
+                "nodes": [{"id": "pattern:x", "kind": ""}],
+                "edges": [],
+            },
+            "duplicate_node_id": {
+                "nodes": [valid_node, valid_node],
+                "edges": [],
+            },
+            "empty_edge": {"nodes": [valid_node], "edges": [{}]},
+            "non_string_edge_type": {
+                "nodes": [valid_node],
+                "edges": [
+                    {"from": "pattern:x", "to": "pattern:x", "type": 7}
+                ],
+            },
+            "dangling_edge": {
+                "nodes": [valid_node],
+                "edges": [
+                    {
+                        "from": "pattern:x",
+                        "to": "pattern:missing",
+                        "type": "may_trigger",
+                    }
+                ],
+            },
+        }
+        for label, graph in samples.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    skill = root / "ksrf-argument-patterns"
+                    _write(
+                        skill / "references" / "constitutional_graph.json",
+                        json.dumps(graph),
+                    )
+                    findings: list[dict[str, object]] = []
+
+                    VALIDATOR._validate_argument_graph_contract(findings, skill, root)
+
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(
+                        findings[0]["code"],
+                        "ARGUMENT_GRAPH_CONTRACT_INVALID",
+                    )
+
+    def test_validate_skillset_enforces_argument_graph_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+            _write(
+                skill / "references" / "constitutional_graph.json",
+                json.dumps(
+                    {
+                        "nodes": [
+                            {"id": "tool:missing", "kind": "automation_hook"}
+                        ],
+                        "edges": [],
+                    }
+                ),
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns",),
+            )
+
+            self.assertIn(
+                "UNSHIPPED_AUTOMATION_IN_RUNTIME_GRAPH",
+                _codes(report),
+            )
 
     def test_application_evidence_contract_helper_accepts_exact_ordered_enum(
         self,
