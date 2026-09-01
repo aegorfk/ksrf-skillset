@@ -161,6 +161,66 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         ):
             self.assertIn(field, result_contract)
 
+    def test_typed_packet_represents_submission_provenance(self) -> None:
+        contract = self._read("references/mcp-argument-intelligence-contract.md")
+        packet_form = self._argument_packet_form(contract)
+        submission_gate = contract.split("## Разделение actor lanes", 1)[1].split(
+            "## Аргументационные функции", 1
+        )[0]
+
+        top_level_fields = self._top_level_packet_fields(packet_form)
+        required_fields = {
+            "reproduction_mode:",
+            "original_application_in_source:",
+            "complaint_completeness:",
+        }
+        self.assertTrue(
+            {field.removesuffix(":") for field in required_fields}
+            <= top_level_fields
+        )
+
+        for safe_value in (
+            "`source_form=reproduced_in_public_act`",
+            "`reproduction_mode=unclear`",
+            "`original_application_in_source=false`",
+            "`complaint_completeness=unknown_from_public_act`",
+        ):
+            self.assertIn(safe_value, submission_gate)
+
+    def test_packet_field_check_ignores_notes_comments_and_nested_labels(self) -> None:
+        adversarial_form = """
+packet_id:
+notes: reproduction_mode:
+# original_application_in_source:
+  complaint_completeness:
+"""
+
+        self.assertEqual(
+            {"packet_id", "notes"},
+            self._top_level_packet_fields(adversarial_form),
+        )
+
+    def test_packet_form_check_ignores_an_earlier_decoy_fence(self) -> None:
+        contract_with_decoy = """
+```text
+reproduction_mode:
+original_application_in_source:
+complaint_completeness:
+```
+## ECHRArgumentPacket
+```text
+packet_id:
+```
+## Разделение actor lanes
+"""
+
+        self.assertEqual(
+            {"packet_id"},
+            self._top_level_packet_fields(
+                self._argument_packet_form(contract_with_decoy)
+            ),
+        )
+
     def test_fixture_exercises_mixed_applicant_and_court_attribution(self) -> None:
         fixture = self._read("references/verified-hudoc-pilot-fixture.md")
 
@@ -174,6 +234,9 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             "`source_actor=applicant`",
             "`source_function=submission`",
             "`source_form=reproduced_in_public_act`",
+            "`reproduction_mode=unclear`",
+            "`original_application_in_source=false`",
+            "`complaint_completeness=unknown_from_public_act`",
             "`court_treatment=unclear`",
             "`authority_status=non_authority`",
             "`promotion_eligible=false`",
@@ -209,6 +272,22 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
 
     def _read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def _top_level_packet_fields(self, packet_form: str) -> set[str]:
+        fields: set[str] = set()
+        for line in packet_form.splitlines():
+            if not line or line[0].isspace() or ":" not in line:
+                continue
+            field = line.partition(":")[0]
+            if field.replace("_", "").isalnum():
+                fields.add(field)
+        return fields
+
+    def _argument_packet_form(self, contract: str) -> str:
+        packet_section = contract.split("## ECHRArgumentPacket", 1)[1].split(
+            "## Разделение actor lanes", 1
+        )[0]
+        return packet_section.split("```text", 1)[1].split("```", 1)[0]
 
     def _run_resolver(
         self,

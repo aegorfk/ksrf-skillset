@@ -28,7 +28,7 @@
 
 - Статус: `contract_negative_control`, не самостоятельный источник права и не finding по реальному делу.
 - Один смешанный paragraph: “The applicant argued that the rule was automatic. The Court considers that an individual assessment was required.”
-- Для первого предложения обязательны `source_actor=applicant`, `source_function=submission`, `source_form=reproduced_in_public_act`, фактический reproduction mode и `court_treatment=unclear`; paragraph-level роль не может повысить его до majority reasoning.
+- Для первого предложения обязательны `source_actor=applicant`, `source_function=submission`, `source_form=reproduced_in_public_act`, `reproduction_mode=unclear`, `original_application_in_source=false`, `complaint_completeness=unknown_from_public_act` и `court_treatment=unclear`; косвенная речь публичного акта не доказывает дословное воспроизведение, а paragraph-level роль не может повысить фрагмент до majority reasoning.
 - Для второго предложения обязательны `source_actor=court_majority`, `source_function=reasoning`, `source_form=public_act`, `court_treatment=not_applicable` и отдельный exact sentence locator.
 - Обязательный stop для applicant lane: `authority_status=non_authority`, `promotion_eligible=false`; он не создаёт Court test/holding, `ResearchFinding` или substantive KSRF transfer без отдельного majority locator и полного lifecycle.
 

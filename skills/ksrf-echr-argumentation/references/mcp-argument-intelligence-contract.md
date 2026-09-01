@@ -61,6 +61,9 @@ source_actor:
 source_function:
 source_role:
 source_form:
+reproduction_mode:
+original_application_in_source:
+complaint_completeness:
 speaker_verified:
 court_treatment:
 court_treatment_response_packet_id:
@@ -139,6 +142,9 @@ sentence/char locator и `exact_text`. Неполный набор даёт
   `source_form=reproduced_in_public_act`, фактический reproduction mode,
   `original_application_in_source=false` и
   `complaint_completeness=unknown_from_public_act`.
+  Если публичный акт не позволяет доказуемо отличить дословное цитирование от
+  пересказа, используй `reproduction_mode=unclear`; не выводи `verbatim` из
+  косвенной речи или одних лишь кавычек.
 - `court_majority` — только sentence-level reasoning/outcome большинства.
   Наличие текста стороны в том же параграфе не меняет actor.
 - `separate_opinion` — research signal, counterargument или adverse lead. Оно не

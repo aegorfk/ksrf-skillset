@@ -9,6 +9,7 @@
       "expectations": [
         "Applicant submission is not attributed to the Court.",
         "Source actor, form, function, and court treatment are recorded.",
+        "The submission packet records the proven reproduction mode or reproduction_mode=unclear, original_application_in_source=false, and complaint_completeness=unknown_from_public_act.",
         "The finding cannot become a KSRF authority without the proper holding and Russian anchor."
       ]
     },
