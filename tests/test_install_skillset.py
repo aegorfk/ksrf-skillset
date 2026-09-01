@@ -60,11 +60,85 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 self.assertFalse((installed_skill / "__pycache__").exists())
             self.assertFalse((target / SKILL_NAMES[0] / "stale.txt").exists())
 
+    def test_copy_excludes_development_tests_but_keeps_evals(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            skill = source / SKILL_NAMES[0]
+            fixtures = skill / "tests" / "fixtures"
+            fixtures.mkdir(parents=True)
+            (skill / "tests" / "test_runtime.py").write_text(
+                "def test_source_only():\n    assert True\n", encoding="utf-8"
+            )
+            (fixtures / "example.json").write_text("{}\n", encoding="utf-8")
+            evals = skill / "evals"
+            evals.mkdir()
+            (evals / "evals.json").write_text("{}\n", encoding="utf-8")
+            target = root / "target"
+
+            copy_skillset(source, target)
+
+            self.assertTrue((skill / "tests" / "test_runtime.py").is_file())
+            self.assertFalse((target / SKILL_NAMES[0] / "tests").exists())
+            self.assertTrue(
+                (target / SKILL_NAMES[0] / "evals" / "evals.json").is_file()
+            )
+
+    def test_source_sync_preserves_target_tests_while_replacing_runtime_files(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            target = root / "target"
+            target_skill = target / SKILL_NAMES[0]
+            target_tests = target_skill / "tests" / "fixtures"
+            target_tests.mkdir(parents=True)
+            (target_skill / "tests" / "test_source_contract.py").write_text(
+                "def test_source_contract():\n    assert True\n", encoding="utf-8"
+            )
+            (target_tests / "case.json").write_text("{}\n", encoding="utf-8")
+            (target_skill / "stale-runtime.txt").write_text(
+                "stale\n", encoding="utf-8"
+            )
+
+            copy_skillset(source, target, preserve_target_development=True)
+
+            self.assertTrue(
+                (target_skill / "tests" / "test_source_contract.py").is_file()
+            )
+            self.assertTrue((target_tests / "case.json").is_file())
+            self.assertFalse((target_skill / "stale-runtime.txt").exists())
+            self.assertTrue((target_skill / "nested" / "allowed.txt").is_file())
+
     def test_refuses_broad_target(self) -> None:
         with self.assertRaisesRegex(InstallationError, "broad install target"):
             _validate_target(Path("/"))
         with self.assertRaisesRegex(InstallationError, "broad install target"):
             _validate_target(Path.home())
+
+    def test_refuses_source_target_overlap_before_changing_source(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            test_file = source / SKILL_NAMES[0] / "tests" / "test_source_only.py"
+            test_file.parent.mkdir()
+            test_file.write_text("source marker\n", encoding="utf-8")
+
+            overlapping_targets = (
+                source,
+                source / "nested-install",
+                source.parent,
+            )
+            for target in overlapping_targets:
+                with self.subTest(target=target):
+                    with self.assertRaisesRegex(
+                        InstallationError, "source and target paths overlap"
+                    ):
+                        copy_skillset(source, target)
+                    self.assertEqual(
+                        test_file.read_text(encoding="utf-8"), "source marker\n"
+                    )
 
     def test_refuses_symlinked_target_and_destination_before_copy(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -123,6 +197,7 @@ class ExactSkillsetInstallTests(unittest.TestCase):
         self.assertNotIn('retired_mirrored_tools=()', sync_script)
         self.assertNotIn('${retired_mirrored_tools[@]}', sync_script)
         self.assertIn('--retired-mirrored-tools', sync_script)
+        self.assertIn('--preserve-target-development', sync_script)
 
 
 if __name__ == "__main__":

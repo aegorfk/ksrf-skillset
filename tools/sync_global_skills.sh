@@ -41,6 +41,7 @@ done
 
 python3 "$repo_dir/tools/install_skillset.py" \
   --source-skills-root "$source_dir" \
+  --preserve-target-development \
   --target "$target_dir"
 
 for tool_name in "${mirrored_tools[@]}"; do

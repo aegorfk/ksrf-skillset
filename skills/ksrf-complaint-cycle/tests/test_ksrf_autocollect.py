@@ -9,7 +9,8 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).with_name("ksrf_autocollect.py")
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = SKILL_ROOT / "scripts" / "ksrf_autocollect.py"
 SPEC = importlib.util.spec_from_file_location("ksrf_autocollect", SCRIPT)
 assert SPEC and SPEC.loader
 AUTOCOLLECT = importlib.util.module_from_spec(SPEC)

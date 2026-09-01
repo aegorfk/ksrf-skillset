@@ -47,6 +47,7 @@ EARLY_TOC_LAST_LINE = 60
 MIN_BEHAVIORAL_EVALS = 3
 
 RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
+DEVELOPMENT_ONLY_PARTS = {"tests"}
 RUNTIME_NAMES = {".DS_Store"}
 RUNTIME_SUFFIXES = {".pyc", ".pyo"}
 SECRET_NAMES = {
@@ -926,6 +927,10 @@ def _runtime_artifact(path: Path) -> bool:
     )
 
 
+def _development_artifact(path: Path) -> bool:
+    return any(part in DEVELOPMENT_ONLY_PARTS for part in path.parts)
+
+
 def _hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -992,6 +997,8 @@ def _build_publish_manifest(
         for path in sorted(package_dir.rglob("*")):
             relative_path = _relative(path, skills_root)
             relative_object = Path(relative_path)
+            if _development_artifact(relative_object):
+                continue
             if _runtime_artifact(relative_object):
                 if path.is_file():
                     excluded_runtime.append(relative_path)
