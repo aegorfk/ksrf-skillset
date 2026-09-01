@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-01T23:30:16Z",
+  "generated_at": "2026-09-01T23:52:12Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "742e05b345f974fe0b91340b1f24e0e7fe5f9153",
+  "remote_base_commit": "83bc6684de1c9f68b98f9d0737aaa5a40afa5947",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,14 +27,14 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 235,
-  "total_bytes": 8052188,
-  "tree_sha256": "5f1162261f3956ad7cdf2d4d1b13f9b3cb3c8dfb4b43721e4130b12f7488d498",
+  "total_bytes": 8063765,
+  "tree_sha256": "ceead1ed039f946776baac817fcf75d630174458f1d31a19834b36a019326bf4",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
       "files": 33,
-      "bytes": 3988058,
-      "tree_sha256": "6091808452260f563ecad68f6f7defa67ec6ce1ec060a1fcdc49600ca334c5be"
+      "bytes": 3999635,
+      "tree_sha256": "07ebe492c7f8408ab0b75da976c89eecbd9e2b7d219900ebb48b743fbd63c285"
     },
     {
       "name": "ksrf-case-triage",
