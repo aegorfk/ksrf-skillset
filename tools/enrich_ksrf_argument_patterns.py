@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 
-DEFAULT_SKILL = Path(__file__).resolve().parent.parent
+DEFAULT_SKILL = Path(__file__).resolve().parent.parent / "skills" / "ksrf-argument-patterns"
 
 
 @dataclass(frozen=True)

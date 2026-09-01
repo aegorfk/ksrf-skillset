@@ -107,6 +107,14 @@ EXACT_MAINTAINER_FILES = (
         Path("references/argument_techniques_from_decisions.json"),
     ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
+    (
+        "ksrf-argument-patterns",
+        Path("scripts/enrich_ksrf_argument_patterns.py"),
+    ),
+    (
+        "ksrf-argument-patterns",
+        Path("scripts/extract_ksrf_argument_patterns.py"),
+    ),
 )
 
 
@@ -579,6 +587,25 @@ description: Используй этот навык для всего.
 
             self.assertEqual(report["status"], "pass")
             self.assertNotIn("SOURCE_ONLY_ARTIFACT_PRESENT", _codes(report))
+
+    def test_source_profile_rejects_benign_root_only_skill_duplicate(self) -> None:
+        for relative in (
+            Path("scripts/enrich_ksrf_argument_patterns.py"),
+            Path("scripts/extract_ksrf_argument_patterns.py"),
+        ):
+            with self.subTest(relative=relative.as_posix()):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+                    _write(skill / relative, "# benign duplicate\n")
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-argument-patterns",),
+                        profile="source",
+                    )
+
+                    self.assertIn("ROOT_ONLY_DUPLICATE_PRESENT", _codes(report))
 
     def test_source_profile_discloses_unavailable_public_source_guard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

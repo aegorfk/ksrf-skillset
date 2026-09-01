@@ -35,7 +35,7 @@
 #### Scenario: Пересборка реестра
 
 - **КОГДА** корпус постановлений меняется или обновляется таксономия
-- **ТОГДА** `scripts/extract_ksrf_argument_patterns.py` SHALL запускаться локально
+- **ТОГДА** `tools/extract_ksrf_argument_patterns.py` SHALL запускаться локально из корня репозитория
 - **И** создавать summary, corpus index, pattern hits, failures и pattern summary артефакты.
 
 ### Requirement: Сборщик пакета аргументов

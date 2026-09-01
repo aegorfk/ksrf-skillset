@@ -31,6 +31,12 @@ SKILL_NAMES = (
 
 RUNTIME_PARTS = frozenset({".git", ".serena", ".pytest_cache", "__pycache__"})
 DEVELOPMENT_ONLY_PARTS = frozenset({"evals", "tests"})
+ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
+    {
+        "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
+        "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
+    }
+)
 SOURCE_ONLY_SKILLSET_PATHS = frozenset(
     {
         "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
@@ -39,7 +45,7 @@ SOURCE_ONLY_SKILLSET_PATHS = frozenset(
         "ksrf-argument-patterns/references/language_formulas.json",
         "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
     }
-)
+) | ROOT_ONLY_TOOL_SKILL_PATHS
 RUNTIME_NAMES = frozenset({".DS_Store"})
 RUNTIME_SUFFIXES = frozenset({".pyc", ".pyo"})
 SECRET_NAMES = frozenset(
@@ -118,10 +124,47 @@ COMPLAINT_STRUCTURE_PATTERNS = {
 # sync can remove only that explicitly owned stale mirror.
 MIRRORED_TOOL_NAMES = (
     "build_constitutionalist_authority_corpus.py",
+)
+ROOT_ONLY_TOOL_NAMES = (
     "enrich_ksrf_argument_patterns.py",
     "extract_ksrf_argument_patterns.py",
 )
+ROOT_ONLY_RELEASE_PATHS = frozenset(f"tools/{name}" for name in ROOT_ONLY_TOOL_NAMES)
 RETIRED_MIRRORED_TOOL_NAMES: tuple[str, ...] = ()
+
+_TOOL_OWNERSHIP_GROUPS: tuple[frozenset[str], ...] = (
+    frozenset(MIRRORED_TOOL_NAMES),
+    frozenset(ROOT_ONLY_TOOL_NAMES),
+    frozenset(RETIRED_MIRRORED_TOOL_NAMES),
+)
+if any(
+    left & right
+    for index, left in enumerate(_TOOL_OWNERSHIP_GROUPS)
+    for right in _TOOL_OWNERSHIP_GROUPS[index + 1 :]
+):
+    raise RuntimeError("tool ownership groups must be disjoint")
+
+ABSOLUTE_LOCAL_PATH_PATTERNS = (
+    re.compile(
+        "/"
+        + r"Users/[A-Za-z0-9._-]+/(?:Documents|Desktop|Downloads|Library|\.codex)/[^\s`\"']+"
+    ),
+    re.compile(
+        "/"
+        + r"home/[A-Za-z0-9._-]+/(?:Documents|Desktop|Downloads|\.config|\.local)/[^\s`\"']+"
+    ),
+    re.compile(r"[A-Za-z]:\\Users\\[^\\\s]+\\[^\s`\"']+"),
+)
+PRIVATE_KEY_MARKER = re.compile("BEGIN " + r"(?:RSA |OPENSSH |EC )?PRIVATE KEY")
+TOKEN_LITERAL = re.compile(
+    r"(?<![A-Za-z0-9])(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|"
+    r"github_pat_[A-Za-z0-9_]{20,})"
+)
+SECRET_ASSIGNMENT = re.compile(
+    r"(?i)\b(?:api[_-]?key|access[_-]?token|secret|password|passwd)\b\s*[:=]\s*"
+    r"[\"']?([^\s\"']{12,})"
+)
+SAFE_SECRET_WORDS = ("example", "placeholder", "redacted", "replace", "dummy", "test")
 
 # The manifest cannot hash itself, but it covers every executable release tool.
 # Clean HEAD == live main additionally binds all other versioned documentation,
@@ -134,11 +177,37 @@ RELEASE_FILE_PATHS = (
     "tools/sync_global_skills.sh",
     "tools/verify_publication_state.py",
     *(f"tools/{name}" for name in MIRRORED_TOOL_NAMES),
+    *(f"tools/{name}" for name in ROOT_ONLY_TOOL_NAMES),
 )
 
 
 class FileContractError(RuntimeError):
     """A source tree cannot be represented by the public payload contract."""
+
+
+def _validate_root_only_release_tool_content(content: bytes, relative_path: Path) -> None:
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise FileContractError(
+            f"root-only release tool must be UTF-8 text: {relative_path}"
+        ) from exc
+
+    unsafe = False
+    for line in text.splitlines():
+        if any(pattern.search(line) for pattern in ABSOLUTE_LOCAL_PATH_PATTERNS):
+            unsafe = True
+        if PRIVATE_KEY_MARKER.search(line) or TOKEN_LITERAL.search(line):
+            unsafe = True
+        assignment = SECRET_ASSIGNMENT.search(line)
+        if assignment:
+            value = assignment.group(1).lower()
+            if not any(word in value for word in SAFE_SECRET_WORDS):
+                unsafe = True
+    if unsafe:
+        raise FileContractError(
+            f"unsafe root-only release tool content is forbidden: {relative_path}"
+        )
 
 
 def is_source_only(relative_path: Path, *, package_name: str | None = None) -> bool:
@@ -205,6 +274,8 @@ def validate_public_artifact(path: Path, relative_path: Path) -> None:
     content = path.read_bytes()
     identity = relative_path.as_posix()
     suffix = path.suffix.lower()
+    if identity in ROOT_ONLY_RELEASE_PATHS:
+        _validate_root_only_release_tool_content(content, relative_path)
     binary_source = suffix in FORBIDDEN_SOURCE_DOCUMENT_SUFFIXES or any(
         content.startswith(signature) for signature in FORBIDDEN_BINARY_SIGNATURES
     )
@@ -236,6 +307,13 @@ def validate_public_repository(root: Path) -> None:
         raise FileContractError(f"symlinked repository root is forbidden: {root}")
     for path in root.rglob("*"):
         relative = path.relative_to(root)
+        repository_identity = relative.as_posix()
+        if len(relative.parts) >= 2 and relative.parts[0] == "skills":
+            repository_identity = "/".join(relative.parts[1:])
+        if repository_identity in ROOT_ONLY_TOOL_SKILL_PATHS:
+            raise FileContractError(
+                f"root-only tool duplicate is forbidden in skills: {relative}"
+            )
         if is_excluded(relative, include_development=True):
             continue
         if path.is_symlink():

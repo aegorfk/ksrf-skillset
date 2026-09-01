@@ -49,6 +49,12 @@ MIN_BEHAVIORAL_EVALS = 3
 
 RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
 DEVELOPMENT_ONLY_PARTS = {"evals", "tests"}
+ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
+    {
+        "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
+        "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
+    }
+)
 SOURCE_ONLY_SKILLSET_PATHS = frozenset(
     {
         "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
@@ -57,7 +63,7 @@ SOURCE_ONLY_SKILLSET_PATHS = frozenset(
         "ksrf-argument-patterns/references/language_formulas.json",
         "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
     }
-)
+) | ROOT_ONLY_TOOL_SKILL_PATHS
 VALIDATION_PROFILES = ("source", "runtime")
 PUBLIC_SOURCE_CONTRACT_PATH = (
     Path(__file__).resolve().parents[3] / "tools" / "skillset_file_contract.py"
@@ -1016,6 +1022,19 @@ def _build_publish_manifest(
         for path in sorted(package_dir.rglob("*")):
             relative_path = _relative(path, skills_root)
             relative_object = Path(relative_path)
+            if (
+                validation_profile == "source"
+                and relative_object.as_posix() in ROOT_ONLY_TOOL_SKILL_PATHS
+            ):
+                findings.append(
+                    _finding(
+                        "error",
+                        "ROOT_ONLY_DUPLICATE_PRESENT",
+                        "Корневой инструмент сопровождения не должен иметь дубль в пользовательском скилле.",
+                        package=package,
+                        path=relative_path,
+                    )
+                )
             if _development_artifact(relative_object):
                 if validation_profile == "source" and path.is_symlink():
                     findings.append(

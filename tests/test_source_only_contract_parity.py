@@ -37,8 +37,23 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             getattr(portable, "SOURCE_ONLY_SKILLSET_PATHS", frozenset())
         )
 
-        self.assertEqual(len(canonical_paths), 5)
+        self.assertEqual(
+            canonical_paths,
+            {
+                "ksrf-argument-patterns/references/argument_techniques_from_decisions.json",
+                "ksrf-argument-patterns/references/evidence_maps.json",
+                "ksrf-argument-patterns/references/hearing_argument_techniques.json",
+                "ksrf-argument-patterns/references/language_formulas.json",
+                "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
+                "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
+                "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
+            },
+        )
         self.assertEqual(canonical_paths, portable_paths)
+        self.assertEqual(
+            set(canonical.ROOT_ONLY_TOOL_SKILL_PATHS),
+            set(portable.ROOT_ONLY_TOOL_SKILL_PATHS),
+        )
 
     def test_markdown_runtime_successors_remain_routed_from_skill(self) -> None:
         skill = REPO / "skills" / "ksrf-argument-patterns" / "SKILL.md"
