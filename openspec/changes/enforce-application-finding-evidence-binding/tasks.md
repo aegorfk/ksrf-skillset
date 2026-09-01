@@ -28,8 +28,8 @@
 
 ## 5. Candidate Publication
 
-- [ ] 5.1 Commit the isolated change and push only `codex/ksrf-application-finding-evidence-binding-20260901`.
-- [ ] 5.2 Confirm the remote feature SHA and confirm live `main` plus global skills remain unchanged.
+- [x] 5.1 Commit the isolated change and push only `codex/ksrf-application-finding-evidence-binding-20260901`.
+- [x] 5.2 Confirm the remote feature SHA and confirm live `main` plus global skills remain unchanged.
 
 ## 6. Human Promotion Gate
 
