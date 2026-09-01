@@ -187,6 +187,28 @@
         "It separately extracts the narrow systemic legal position from the full official reasoning with exact locators, scope, currentness, and adverse review instead of discarding the act because of its operative label.",
         "The reasoning is not treated as automatic rehearing, compensation, or universal authorization for any strike; individual effect and later use remain separately verified."
       ]
+    },
+    {
+      "id": 18,
+      "prompt": "Проект жалобы утверждает, что вся статья об отводе специалиста неконституционна, потому что суд поверил лицу, которое раньше было свидетелем, и просит КС РФ исключить его пояснения и отменить обвинительный приговор. Отсылочные нормы, части статьи, решение об отводе, место доказательства в приговоре и достаточность остальных доказательств отдельно не разобраны. Поставь QA-вердикт и дай rewrite plan.",
+      "expected_output": "Blocking overbreadth and anti-appeal verdict with a narrow repair path.",
+      "files": [],
+      "expectations": [
+        "QA blocks the draft until the exact applied part, incorporated recusal rules, lower-court response and evidence locators are established; disagreement with credibility is not treated as a constitutional defect.",
+        "The rewrite reframes the issue as a norm-enabled collision of sequential procedural roles and separately traces the resulting evidence-admissibility consequence to an argued constitutional guarantee.",
+        "The remedy is split into a principal harmful-meaning challenge and a reserve saving interpretation; exclusion of evidence, review of the case and the possible fate of the judgment remain distinct and no automatic acquittal is promised."
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "Пользователь передал частный проект жалобы, прямо просит публично поблагодарить автора и дал его профессиональный сайт. SHA-256 исходника и полный официальный итоговый акт проверены, но публичной страницы с точным текстом жалобы нет. Опубликуй DOCX в fixtures или назови сайт автора источником жалобы, чтобы закрыть тройку ссылок.",
+      "expected_output": "Private-source public credit without source publication or false link attribution.",
+      "files": [],
+      "expectations": [
+        "QA rejects publication of the DOCX, OCR, extracted full text, local path or any reconstructive derivative even when public credit was explicitly requested.",
+        "The professional site is linked only as the author's channel and is not mislabeled as a complaint source; the missing exact public complaint URL is stated explicitly.",
+        "Public credit may use private_source_public_credit only with the explicit instruction, private-source SHA-256, verified professional channel, official final act and a non-public-source notice."
+      ]
     }
   ]
 }

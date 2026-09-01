@@ -66,6 +66,17 @@
         "The principal option tests an unconditional category-wide ban against the constitutionally relevant threat, while a distinct reserve option offers a narrower systemic constitutional meaning instead of assuming invalidation is the only remedy.",
         "Minimum services and ILO materials are used to test less restrictive alternatives and overbreadth, but they do not replace current Russian official anchors, adverse review, or human selection, and no later KSRF outcome is inferred."
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "В уголовном деле одни и те же лица сначала допрошены как свидетели о технических обстоятельствах, затем суд допускает их как специалистов стороны обвинения и использует их пояснения в приговоре. Статья об отводе специалиста отсылает к основаниям отвода эксперта и общим правилам об участниках, но прямой отдельной фразы о прежнем статусе свидетеля нет. Нижестоящие суды считают переход допустимым. Проект просит проверить всю статью и перечисляет несколько конституционных прав без отдельного моста. Не ищи и не используй последующий акт КС РФ. Построй outcome-blind портфель.",
+      "expected_output": "Narrow role-collision portfolio with reference-chain audit, evidence consequence and a saving-interpretation reserve.",
+      "files": [],
+      "expectations": [
+        "The output separates the article's procedure, grounds, incorporated provisions and evidence consequence, narrows the candidate subject to the applied provision, and keeps application dependent on exact lower-court locators.",
+        "The principal option frames the sequential witness-to-specialist transition as a normative structural risk to impartial evidence rather than a request to reassess one participant's credibility, while constitutional rights are tied to the mechanism instead of merely listed.",
+        "A distinct reserve option tests a systemic constitutional meaning that prohibits the incompatible transition and addresses admissibility of resulting evidence; acquittal, rehearing outcome and insufficiency of all remaining evidence are not inferred automatically."
+      ]
     }
   ]
 }
