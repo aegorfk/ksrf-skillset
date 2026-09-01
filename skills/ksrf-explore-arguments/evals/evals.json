@@ -55,6 +55,17 @@
         "It remains comparative_authority and does not itself answer the Russian constitutional issue.",
         "A substantive option still requires Russian official anchors, case application, harm, adverse review, and transfer evidence."
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "В input-only пакете работнику железнодорожного транспорта прокурор вынес предостережение со ссылкой на специальный закон, формулирующий запрет забастовки для названной категории работников. Трудовой кодекс связывает запрет в организациях жизнеобеспечения с угрозой обороне, безопасности государства, жизни или здоровью людей; заявитель также ссылается на минимум необходимых услуг и материалы МОТ. Нижестоящий суд отказал в жалобе на предостережение, но его полный акт ещё нужно проверить. Не ищи и не используй последующий акт КС РФ. Построй outcome-blind портфель проблемы и вариантов результата.",
+      "expected_output": "Outcome-blind absolute-ban and systemic-interpretation portfolio with an unresolved application gate.",
+      "files": [],
+      "expectations": [
+        "The output keeps judicial application and causation at pass-candidate or unknown until the full lower-court act and locators are verified.",
+        "The principal option tests an unconditional category-wide ban against the constitutionally relevant threat, while a distinct reserve option offers a narrower systemic constitutional meaning instead of assuming invalidation is the only remedy.",
+        "Minimum services and ILO materials are used to test less restrictive alternatives and overbreadth, but they do not replace current Russian official anchors, adverse review, or human selection, and no later KSRF outcome is inferred."
+      ]
     }
   ]
 }

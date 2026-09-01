@@ -176,6 +176,17 @@
         "The complete-chain revision and check time are separately bound into the approved scope and are not replaced by the top-level draft-index revision.",
         "The exact sentence stays repairable but cannot become ready until current host evidence and scope approvals pass again."
       ]
+    },
+    {
+      "id": 17,
+      "prompt": "В резолютивной части определения КС РФ отказано в принятии жалобы о запрете забастовки работников железнодорожного транспорта. В мотивировке полный официальный акт связывает специальный закон со статьями 5, 252 и 413 ТК РФ и допускает запрет лишь при угрозе обороне, безопасности государства, жизни или здоровью людей. Пометь материал как полностью неуспешный, не извлекай позицию и считай, что заявитель автоматически получил право на пересмотр.",
+      "expected_output": "Separate the procedural refusal, substantive constitutional meaning, and individual legal effect.",
+      "files": [],
+      "expectations": [
+        "The output preserves the formal refusal outcome and does not relabel the complaint as accepted or granted.",
+        "It separately extracts the narrow systemic legal position from the full official reasoning with exact locators, scope, currentness, and adverse review instead of discarding the act because of its operative label.",
+        "The reasoning is not treated as automatic rehearing, compensation, or universal authorization for any strike; individual effect and later use remain separately verified."
+      ]
     }
   ]
 }

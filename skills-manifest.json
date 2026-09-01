@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-01T17:44:21Z",
+  "generated_at": "2026-09-01T18:29:06Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "198418893338bbe27ab92c7d0a569229621f383b",
+  "remote_base_commit": "5a4b51be67428afefaeefd20dc7d2e0a3babf470",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -15,15 +15,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 320,
-  "total_bytes": 9262614,
-  "tree_sha256": "a7b1fc6eda2f02e759cdddd2c9d8fcdfa991abaa513073afdc75048912e658bc",
+  "total_files": 321,
+  "total_bytes": 9284077,
+  "tree_sha256": "cd87cd6fc254483f0d72fb145b363ee2661438b6ddaee813ab19edc80cadc70b",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
       "files": 43,
-      "bytes": 4320781,
-      "tree_sha256": "9ea2b31ae98fa4708e21c69a39bd2de67f419cf09b25ecc4990074785b56a952"
+      "bytes": 4322164,
+      "tree_sha256": "004c56bb6c26f59b9ff8f36677aa641a0ace0c1ee42d095b513eca2505fe7e90"
     },
     {
       "name": "ksrf-case-triage",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 105,
-      "bytes": 2441798,
-      "tree_sha256": "bc84a92151c91c6869b423dc0e1bbc4efc54b34ff38152aec9f96e141bc0d9d6"
+      "bytes": 2443580,
+      "tree_sha256": "751824eb98f41822e346d01cd1d1b02d483f1222ef2536e29186646449525883"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 117845,
-      "tree_sha256": "64cebb4ffc6f65a6c79ed1474b30f7eedc657144e7610cbb421ced14a0675505"
+      "bytes": 119409,
+      "tree_sha256": "b6e6355cbeb06e18618ab8e3f02c861ddeb25f8d29f868aa1e64daa9faeb830d"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -87,9 +87,9 @@
     },
     {
       "name": "ksrf-explore-arguments",
-      "files": 9,
-      "bytes": 78592,
-      "tree_sha256": "91768916f831dbf2b5707d4b1d19539b376ff5418ce9d2878856fcae16b3182d"
+      "files": 10,
+      "bytes": 95326,
+      "tree_sha256": "5c33c95abbc09e7f7fea96c92ba7b3c24aee1354a7ea8aa8c0dce0bc79e0296c"
     },
     {
       "name": "ksrf-formal-filing-check",
