@@ -30,7 +30,7 @@ SKILL_NAMES = (
 )
 
 RUNTIME_PARTS = frozenset({".git", ".serena", ".pytest_cache", "__pycache__"})
-DEVELOPMENT_ONLY_PARTS = frozenset({"tests"})
+DEVELOPMENT_ONLY_PARTS = frozenset({"evals", "tests"})
 RUNTIME_NAMES = frozenset({".DS_Store"})
 RUNTIME_SUFFIXES = frozenset({".pyc", ".pyo"})
 SECRET_NAMES = frozenset(

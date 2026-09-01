@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -47,7 +48,11 @@ EARLY_TOC_LAST_LINE = 60
 MIN_BEHAVIORAL_EVALS = 3
 
 RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
-DEVELOPMENT_ONLY_PARTS = {"tests"}
+DEVELOPMENT_ONLY_PARTS = {"evals", "tests"}
+VALIDATION_PROFILES = ("source", "runtime")
+PUBLIC_SOURCE_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[3] / "tools" / "skillset_file_contract.py"
+)
 RUNTIME_NAMES = {".DS_Store"}
 RUNTIME_SUFFIXES = {".pyc", ".pyo"}
 SECRET_NAMES = {
@@ -987,6 +992,8 @@ def _build_publish_manifest(
     findings: list[dict[str, Any]],
     skills_root: Path,
     package_names: Sequence[str],
+    *,
+    validation_profile: str,
 ) -> dict[str, Any]:
     files: list[dict[str, Any]] = []
     for package in package_names:
@@ -998,6 +1005,35 @@ def _build_publish_manifest(
             relative_path = _relative(path, skills_root)
             relative_object = Path(relative_path)
             if _development_artifact(relative_object):
+                if validation_profile == "source" and path.is_symlink():
+                    findings.append(
+                        _finding(
+                            "error",
+                            "SYMLINK_NOT_PUBLISHABLE",
+                            "Символические ссылки не допускаются в source QA assets.",
+                            package=package,
+                            path=relative_path,
+                        )
+                    )
+                elif validation_profile == "source" and path.is_file():
+                    if _is_secret_path(path):
+                        findings.append(
+                            _finding(
+                                "error",
+                                "FORBIDDEN_SECRET_FILE",
+                                "Файл с секретным назначением запрещён в source QA assets.",
+                                package=package,
+                                path=relative_path,
+                            )
+                        )
+                    else:
+                        findings.extend(
+                            _content_security_findings(
+                                path,
+                                package=package,
+                                relative_path=relative_path,
+                            )
+                        )
                 continue
             if _runtime_artifact(relative_object):
                 if path.is_file():
@@ -1078,6 +1114,7 @@ def _build_publish_manifest(
     files.sort(key=lambda item: item["path"])
     return {
         "schema_version": SCHEMA_VERSION,
+        "validation_profile": validation_profile,
         "package_count": len(package_names),
         "packages": list(package_names),
         "files": files,
@@ -1152,13 +1189,144 @@ def _validate_unique_skill_entrypoints(
         )
 
 
+def _validate_runtime_profile_cleanliness(
+    findings: list[dict[str, Any]], package_dir: Path, skills_root: Path
+) -> None:
+    source_only_paths = [
+        _relative(path, skills_root)
+        for path in sorted(package_dir.rglob("*"))
+        if any(
+            part in DEVELOPMENT_ONLY_PARTS
+            for part in path.relative_to(package_dir).parts
+        )
+    ]
+    if source_only_paths:
+        findings.append(
+            _finding(
+                "error",
+                "SOURCE_ONLY_ARTIFACT_PRESENT",
+                "Runtime-профиль требует установленное дерево без tests/ и evals/.",
+                package=package_dir.name,
+                path=package_dir.name,
+                evidence={
+                    "count": len(source_only_paths),
+                    "examples": source_only_paths[:10],
+                },
+            )
+        )
+
+
+def _load_public_source_contract() -> tuple[Any, Any, type[Exception]]:
+    if not PUBLIC_SOURCE_CONTRACT_PATH.is_file():
+        raise FileNotFoundError(PUBLIC_SOURCE_CONTRACT_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "_ksrf_public_source_contract",
+        PUBLIC_SOURCE_CONTRACT_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("public source contract cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    artifact_validator = getattr(module, "validate_public_artifact", None)
+    repository_validator = getattr(module, "validate_public_repository", None)
+    error_type = getattr(module, "FileContractError", None)
+    if not callable(artifact_validator) or not callable(repository_validator):
+        raise RuntimeError("public source artifact validator is unavailable")
+    if not isinstance(error_type, type) or not issubclass(error_type, Exception):
+        raise RuntimeError("public source contract error type is unavailable")
+    return artifact_validator, repository_validator, error_type
+
+
+def _validate_source_public_safety(
+    findings: list[dict[str, Any]],
+    skills_root: Path,
+    package_names: Sequence[str],
+) -> tuple[str, str]:
+    try:
+        artifact_validator, repository_validator, contract_error = (
+            _load_public_source_contract()
+        )
+    except Exception:
+        findings.append(
+            _finding(
+                "warning",
+                "PUBLIC_SOURCE_SAFETY_NOT_CHECKED",
+                "Канонический public-source guard недоступен; source release QA не подтверждён.",
+                path="skills",
+            )
+        )
+        return "not_checked", "not_checked"
+
+    for package in package_names:
+        package_dir = skills_root / package
+        if not package_dir.is_dir():
+            continue
+        for path in sorted(package_dir.rglob("*")):
+            if path.is_symlink() or not path.is_file():
+                continue
+            relative_path = Path("skills") / path.relative_to(skills_root)
+            try:
+                artifact_validator(path, relative_path)
+            except contract_error:
+                findings.append(
+                    _finding(
+                        "error",
+                        "FORBIDDEN_PUBLIC_SOURCE_ARTIFACT",
+                        "Source QA обнаружил запрещённый публичный артефакт.",
+                        package=package,
+                        path=relative_path.as_posix(),
+                    )
+                )
+            except Exception:
+                findings.append(
+                    _finding(
+                        "error",
+                        "PUBLIC_SOURCE_GUARD_FAILED",
+                        "Public-source guard завершился ошибкой без разрешения публикации.",
+                        package=package,
+                        path=relative_path.as_posix(),
+                    )
+                )
+    repository_safety = "not_checked"
+    repository_root = PUBLIC_SOURCE_CONTRACT_PATH.parents[1]
+    canonical_skills_root = repository_root / "skills"
+    if skills_root.resolve() == canonical_skills_root.resolve():
+        repository_safety = "validated"
+        try:
+            repository_validator(repository_root)
+        except contract_error:
+            findings.append(
+                _finding(
+                    "error",
+                    "FORBIDDEN_PUBLIC_REPOSITORY_ARTIFACT",
+                    "Repository source QA обнаружил запрещённый публичный артефакт.",
+                    path="repository",
+                )
+            )
+        except Exception:
+            findings.append(
+                _finding(
+                    "error",
+                    "PUBLIC_REPOSITORY_GUARD_FAILED",
+                    "Repository public-source guard завершился ошибкой без разрешения публикации.",
+                    path="repository",
+                )
+            )
+    return "validated", repository_safety
+
+
 def validate_skillset(
     skills_root: str | Path,
     *,
     package_names: Sequence[str] = CANONICAL_KSRF_PACKAGES,
+    profile: str = "source",
 ) -> dict[str, Any]:
     """Validate packages and return a JSON-serializable evidence report."""
 
+    if profile not in VALIDATION_PROFILES:
+        raise ValueError(
+            f"unknown validation profile {profile!r}; expected source or runtime"
+        )
     root = Path(skills_root).expanduser().absolute()
     packages = tuple(package_names)
     findings: list[dict[str, Any]] = []
@@ -1196,13 +1364,31 @@ def validate_skillset(
         validated_packages.append(package)
         _validate_skill_file(findings, package_dir, root)
         _validate_agent_metadata(findings, package_dir, root)
-        _validate_behavioral_evals(findings, package_dir, root)
-        _validate_trigger_evals(findings, package_dir, root)
+        if profile == "source":
+            _validate_behavioral_evals(findings, package_dir, root)
+            _validate_trigger_evals(findings, package_dir, root)
+        else:
+            _validate_runtime_profile_cleanliness(findings, package_dir, root)
         _validate_markdown_links(findings, package_dir, root)
         _validate_reference_tocs(findings, package_dir, root)
         _validate_application_evidence_contract(findings, package_dir, root)
         _validate_markdown_mcp_references(findings, package_dir, root)
-    manifest = _build_publish_manifest(findings, root, packages)
+    public_source_safety = "not_checked"
+    public_repository_safety = "not_checked"
+    if profile == "source":
+        public_source_safety, public_repository_safety = (
+            _validate_source_public_safety(
+                findings,
+                root,
+                packages,
+            )
+        )
+    manifest = _build_publish_manifest(
+        findings,
+        root,
+        packages,
+        validation_profile=profile,
+    )
     severity_order = {"error": 0, "warning": 1}
     findings.sort(
         key=lambda item: (
@@ -1215,15 +1401,31 @@ def validate_skillset(
     )
     error_count = sum(item["severity"] == "error" for item in findings)
     warning_count = sum(item["severity"] == "warning" for item in findings)
+    source_release_eligible = (
+        profile == "source"
+        and packages == CANONICAL_KSRF_PACKAGES
+        and len(validated_packages) == len(packages)
+        and public_source_safety == "validated"
+        and public_repository_safety == "validated"
+        and error_count == 0
+        and warning_count == 0
+    )
     return {
         "schema_version": SCHEMA_VERSION,
+        "validation_profile": profile,
+        "validation_coverage": {
+            "evals": "validated" if profile == "source" else "not_checked",
+            "public_source_safety": public_source_safety,
+            "public_repository_safety": public_repository_safety,
+        },
+        "source_release_eligible": source_release_eligible,
         "status": "fail" if error_count else "pass",
         "expected_package_count": len(packages),
         "validated_package_count": len(validated_packages),
         "validated_packages": validated_packages,
         "summary": {"errors": error_count, "warnings": warning_count},
         "findings": findings,
-        "publish_manifest": manifest,
+        "publish_manifest": manifest if profile == "source" else None,
     }
 
 
@@ -1240,14 +1442,29 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 def _render_text(report: Mapping[str, Any]) -> str:
     summary = report["summary"]
     status = "ПРОЙДЕНО" if report["status"] == "pass" else "НЕ ПРОЙДЕНО"
+    profile = str(report["validation_profile"])
     lines = [
         f"Проверка KSRF skillset: {status}",
+        (
+            f"Профиль: {profile}; evals: "
+            f"{report['validation_coverage']['evals']}; "
+            "public-source safety: "
+            f"{report['validation_coverage']['public_source_safety']}; "
+            "public-repository safety: "
+            f"{report['validation_coverage']['public_repository_safety']}; "
+            "source/release QA: "
+            f"{'полностью подтверждено' if report['source_release_eligible'] else 'не подтверждено'}."
+        ),
         (
             f"Пакеты: {report['validated_package_count']}/"
             f"{report['expected_package_count']}; ошибок: {summary['errors']}; "
             f"предупреждений: {summary['warnings']}."
         ),
     ]
+    if profile == "runtime":
+        lines.append(
+            "Runtime-проверка не заменяет source/release QA и не даёт полномочий на публикацию."
+        )
     for item in report["findings"]:
         location = str(item.get("path") or item.get("package") or "skillset")
         if item.get("line"):
@@ -1286,13 +1503,29 @@ def main(
         action="store_true",
         help="Считать предупреждения ненулевым результатом процесса.",
     )
+    parser.add_argument(
+        "--profile",
+        choices=VALIDATION_PROFILES,
+        default="source",
+        help=(
+            "Профиль проверки: source требует evals и пригоден для release QA; "
+            "runtime проверяет установленное дерево без source-only assets."
+        ),
+    )
     args = parser.parse_args(argv)
     output = sys.stdout if stdout is None else stdout
     errors = sys.stderr if stderr is None else stderr
+    if args.profile == "runtime" and args.manifest_out:
+        errors.write(
+            "Runtime-профиль не создаёт standalone publish manifest; "
+            "используйте полный JSON-отчёт или source-профиль.\n"
+        )
+        return 2
     try:
         report = validate_skillset(
             args.skills_root,
             package_names=tuple(args.packages) if args.packages else CANONICAL_KSRF_PACKAGES,
+            profile=args.profile,
         )
         if args.report_out:
             _write_json(args.report_out, report)

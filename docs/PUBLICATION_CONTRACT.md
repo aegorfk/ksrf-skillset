@@ -4,7 +4,7 @@
 
 Работа над KSRF skillset не заканчивается локальной правкой. Любое изменение глобального скилла, reference, script, schema, fixture, eval, router, документации, release-tool или манифеста должно попасть в публичный `aegorfk/ksrf-skillset:main` в рамках той же задачи. Подтверждение завершённости — SHA точного атомарного commit, полученный свежим запросом к live remote.
 
-Каноническая рабочая копия скиллов находится в `~/.codex/skills/ksrf-*`. Этот репозиторий является публичной release-копией. Синхронизация не заменяет validation, commit, push и проверку live SHA.
+Глобальные `~/.codex/skills/ksrf-*` являются пользовательской runtime-копией. Этот репозиторий хранит канонический public source вместе с maintainer-only tests и evals. Обратная синхронизация заменяет runtime-файлы, но сохраняет source-only QA assets; она не заменяет validation, commit, push и проверку live SHA.
 
 ## Запрет публикации исходников жалоб
 
@@ -48,7 +48,7 @@
 - содержит дерево скиллов, не совпадающее с `skills-manifest.json`.
 - содержит исполняемые release-tools, не совпадающие с `skills-manifest.json`, либо недействительный `remote_base_commit`.
 
-Каноническая и clean-room установка используют один `skillset_file_contract.py`: `.env`, credentials/private keys, `*.pyc`, `__pycache__` и другие runtime/secret-файлы не копируются и не участвуют в payload; `.env.example` остаётся разрешённым публичным примером. Перед первой записью запрещаются `/`, home, symlinked target/skill destination и файл вместо каталога.
+Каноническая и clean-room установка используют один `skillset_file_contract.py`: source-only `tests/` и `evals/`, `.env`, credentials/private keys, `*.pyc`, `__pycache__` и другие runtime/secret-файлы не копируются и не участвуют в payload; `.env.example` остаётся разрешённым публичным примером. Source-профиль валидатора требует evals перед публикацией, а explicit runtime-профиль проверяет их отсутствие и не считается source/release QA. Перед первой записью запрещаются `/`, home, symlinked target/skill destination и файл вместо каталога.
 
 Для проверки старой версии без риска перезаписи глобальных скиллов разрешён только явно заданный отдельный каталог:
 

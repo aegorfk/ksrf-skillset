@@ -108,4 +108,4 @@ description: "Скилл организует полный цикл обраще
 - `references/crystal-themis-argument-examples.md` — учебные примеры конкретных конституционных тестов по совпавшей тематике, не authority и не готовый текст;
 - профильные references специализированного skill, который выполняет текущую стадию.
 
-После изменения набора выполни `scripts/verify_offline_self_containment.py`, behavioral/trigger evals и clean-room validation.
+Для проверки установленного набора выполни `scripts/verify_offline_self_containment.py` и `scripts/validate_ksrf_skillset.py --profile runtime --strict`. Behavioral/trigger evals выполняются только из source checkout перед публикацией; runtime-проверка не заменяет source/release QA.

@@ -78,6 +78,7 @@ def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
             ".serena/",
             ".pytest_cache/",
             "__pycache__/",
+            "evals/",
             "tests/",
             "*.pyc",
             "*.pyo",
