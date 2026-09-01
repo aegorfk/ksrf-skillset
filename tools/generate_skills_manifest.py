@@ -16,6 +16,7 @@ from skillset_file_contract import (
     file_digest,
     payload_files,
     tree_digest,
+    validate_public_repository,
 )
 
 
@@ -26,6 +27,10 @@ def _validate_base_commit(base_commit: str) -> None:
 
 def build_manifest(repo_root: Path, base_commit: str) -> dict[str, object]:
     _validate_base_commit(base_commit)
+    try:
+        validate_public_repository(repo_root)
+    except FileContractError as exc:
+        raise SystemExit(str(exc)) from exc
     skills_root = repo_root / "skills"
     skill_rows: list[dict[str, object]] = []
     all_files: list[Path] = []

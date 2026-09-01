@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-01T18:31:53Z",
+  "generated_at": "2026-09-01T18:53:51Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "57c2468c95a49ed0ef7fcadf1a1a4337e4d87224",
+  "remote_base_commit": "5cb3390fe8bd2e5ee085b56d19f37c95da232377",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -16,8 +16,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 321,
-  "total_bytes": 9292977,
-  "tree_sha256": "107d110eedf3fa06ac1a92f49f56c37644d86a3e053685a82d9f89beb9063967",
+  "total_bytes": 9296538,
+  "tree_sha256": "0b9f360abf3d7c8941c7921e16cdea56a0ed7e662f51444d888f2a091593904a",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 105,
-      "bytes": 2452480,
-      "tree_sha256": "ae7f9cdb53dd460f034a4dc67b555d57fe0c7a3c4d0a6d27a62824a128dabda2"
+      "bytes": 2455515,
+      "tree_sha256": "75acab2ac8eec9c4c81072fe0051ece2c614f3b53bdc1137af1fe03cdc4101c7"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -88,8 +88,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 10,
-      "bytes": 95326,
-      "tree_sha256": "5c33c95abbc09e7f7fea96c92ba7b3c24aee1354a7ea8aa8c0dce0bc79e0296c"
+      "bytes": 95852,
+      "tree_sha256": "d07cb9368afb90e5afbc461bed7e8c46fa12bba3e227d9cf512aebe39269e9ec"
     },
     {
       "name": "ksrf-formal-filing-check",
@@ -112,8 +112,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 185339,
-  "release_tree_sha256": "9a68f01905e7e2eeda775c5f8e9dc2de3bc6940802632a1e9f3385ba6a0aa507",
+  "total_release_bytes": 190206,
+  "release_tree_sha256": "8731d701930a599a6c1abb587732f492e4c06436963b852ca8ec71966cc7728a",
   "release_files": [
     {
       "path": "install.sh",
@@ -122,8 +122,8 @@
     },
     {
       "path": "tools/generate_skills_manifest.py",
-      "bytes": 4212,
-      "sha256": "b0a137ec70ff70b3bca70a5d67ae1b0396a44b13992fb667d52dd66b7dc835df"
+      "bytes": 4380,
+      "sha256": "86cddbbb6ceb7becdda7aa3274d532dd1121529fb0e1a8b0ef1fc6d91c09228a"
     },
     {
       "path": "tools/install_skillset.py",
@@ -132,8 +132,8 @@
     },
     {
       "path": "tools/skillset_file_contract.py",
-      "bytes": 4477,
-      "sha256": "9e4e65f5be9c6482ad46a4ecac61db1af3aa8e8a89e56f791f14f9ff08890962"
+      "bytes": 9176,
+      "sha256": "1970cc5144cce974d813cc3f76cf1a119e4e041e87bde8ac25cde0861f766767"
     },
     {
       "path": "tools/sync_global_skills.sh",
