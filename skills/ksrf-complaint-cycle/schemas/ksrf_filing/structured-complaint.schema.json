@@ -3,6 +3,11 @@
   "$id": "https://example.local/ksrf/structured-complaint.schema.json",
   "title": "Structured KSRF Complaint",
   "type": "object",
+  "$defs": {
+    "canonicalSentenceRole": {
+      "enum": ["narrative", "fact", "court_reasoning", "norm_text", "legal_holding", "application_finding", "practice_claim", "adverse_authority", "requested_remedy"]
+    }
+  },
   "required": ["schema_version", "matter_id", "draft_id", "title", "sections", "sentence_evidence_map", "norm_passport_ids", "issue_option_ids"],
   "properties": {
     "schema_version": {"const": "1.3"},
@@ -32,7 +37,7 @@
           "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
           "section_code": {"type": "string"},
           "text": {"type": "string", "minLength": 1},
-          "role": {"type": "string"},
+          "role": {"type": "string", "minLength": 1, "pattern": "\\S"},
           "evidence_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
           "support_status": {"enum": ["pending", "verified", "human_approved", "rejected"]},
           "claim_id": {"type": "string", "minLength": 1},
@@ -58,7 +63,12 @@
             "if": {
               "anyOf": [
                 {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
-                {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]}
+                {
+                  "allOf": [
+                    {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]},
+                    {"properties": {"role": {"$ref": "#/$defs/canonicalSentenceRole"}}, "required": ["role"]}
+                  ]
+                }
               ]
             },
             "then": {

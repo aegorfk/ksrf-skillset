@@ -48,6 +48,10 @@ from ksrf.filing.norm_versions import (  # noqa: E402
 from ksrf.filing.relief_binding import (  # noqa: E402
     build_relief_binding_index_resolution,
 )
+from ksrf.filing.sentence_roles import (  # noqa: E402
+    build_sentence_role_index_resolution,
+    sentence_role_binding,
+)
 from ksrf.filing.release import release_basis_sha256, verify_release_manifest  # noqa: E402
 
 
@@ -1251,6 +1255,8 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
 
     def test_filing_schema_allows_blocked_unbound_diagnostic_manifest(self) -> None:
         manifest, _authority = self._manifest_with_binding()
+        manifest["schema_version"] = "1.4"
+        manifest["sentence_role_index_receipt"] = None
         entry = manifest["sentence_evidence_map"][0]
         entry["relief_binding_status"] = "unbound"
         for key in (
@@ -1283,6 +1289,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
     def test_filing_schema_accepts_current_bound_manifest(self) -> None:
         manifest, _authority = self._manifest_with_binding()
         manifest["status"] = "ready_for_expert_review"
+        manifest["schema_version"] = "1.4"
         holding_index = build_holding_binding_index_resolution(
             matter_id=manifest["matter_id"],
             draft_id=manifest["draft_id"],
@@ -1301,6 +1308,27 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
         )
         practice_index.pop("status")
         manifest["practice_binding_index_receipt"] = practice_index
+        role_bindings = [
+            sentence_role_binding(
+                ordinal=ordinal,
+                sentence_id=entry["sentence_id"],
+                section_code=entry["section_code"],
+                text=entry["text"],
+                role=entry["role"],
+            )
+            for ordinal, entry in enumerate(
+                manifest["sentence_evidence_map"], start=1
+            )
+        ]
+        role_index = build_sentence_role_index_resolution(
+            matter_id=manifest["matter_id"],
+            draft_id=manifest["draft_id"],
+            bindings=role_bindings,
+            authority_revision_id="SENTENCE-ROLE-REGISTRY-REV-1",
+            checked_at="2026-09-01T10:00:00Z",
+        )
+        role_index.pop("status")
+        manifest["sentence_role_index_receipt"] = role_index
         schema = json.loads(FILING_SCHEMA_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(

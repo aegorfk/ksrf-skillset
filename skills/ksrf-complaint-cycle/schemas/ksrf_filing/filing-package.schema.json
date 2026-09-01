@@ -3,8 +3,42 @@
   "$id": "https://example.local/ksrf/filing-package.schema.json",
   "title": "KSRF Filing Package Manifest",
   "type": "object",
-  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "human_only_actions", "source_versions", "norm_passport_ids", "issue_option_ids", "sentence_evidence_map", "relief_binding_receipts", "relief_binding_index_receipt", "holding_binding_receipts", "holding_binding_index_receipt", "practice_binding_receipts", "practice_binding_index_receipt", "artifacts", "render_qa", "blockers"],
+  "required": ["schema_version", "matter_id", "draft_id", "status", "filing_performed", "human_only_actions", "source_versions", "norm_passport_ids", "issue_option_ids", "sentence_evidence_map", "sentence_role_index_receipt", "relief_binding_receipts", "relief_binding_index_receipt", "holding_binding_receipts", "holding_binding_index_receipt", "practice_binding_receipts", "practice_binding_index_receipt", "artifacts", "render_qa", "blockers"],
   "$defs": {
+    "canonicalSentenceRole": {
+      "enum": ["narrative", "fact", "court_reasoning", "norm_text", "legal_holding", "application_finding", "practice_claim", "adverse_authority", "requested_remedy"]
+    },
+    "sentenceRoleBinding": {
+      "type": "object",
+      "required": ["ordinal", "sentence_id", "section_code", "text_sha256", "role"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 1},
+        "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
+        "section_code": {"type": "string", "minLength": 1},
+        "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "role": {"$ref": "#/$defs/canonicalSentenceRole"}
+      },
+      "additionalProperties": false
+    },
+    "sentenceRoleIndexReceipt": {
+      "type": "object",
+      "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "matter_id": {"type": "string", "minLength": 1},
+        "draft_id": {"type": "string", "minLength": 1},
+        "bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Полный реестр строк текущего проекта жалобы, канонически отсортированный по сквозному ordinal от 1 без пропусков; runtime дополнительно проверяет уникальность ordinal.",
+          "items": {"$ref": "#/$defs/sentenceRoleBinding"}
+        },
+        "binding_index_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority_revision_id": {"type": "string", "minLength": 1},
+        "checked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
     "reliefBindingIndexReceipt": {
       "type": "object",
       "required": ["schema_version", "matter_id", "draft_id", "bindings", "binding_index_sha256", "authority_revision_id", "checked_at"],
@@ -418,7 +452,7 @@
     }
   },
   "properties": {
-    "schema_version": {"const": "1.3"},
+    "schema_version": {"const": "1.4"},
     "matter_id": {"type": "string", "minLength": 1},
     "draft_id": {"type": "string", "minLength": 1},
     "status": {"enum": ["blocked", "ready_for_expert_review", "ready_for_human_signing_filing"]},
@@ -451,7 +485,7 @@
           "sentence_id": {"type": "string", "pattern": "^sent-[0-9a-f]{16}$"},
           "section_code": {"type": "string", "minLength": 1},
           "text": {"type": "string", "minLength": 1},
-          "role": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1, "pattern": "\\S"},
           "evidence_ids": {
             "type": "array",
             "uniqueItems": true,
@@ -481,7 +515,12 @@
             "if": {
               "anyOf": [
                 {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
-                {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]}
+                {
+                  "allOf": [
+                    {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]},
+                    {"properties": {"role": {"$ref": "#/$defs/canonicalSentenceRole"}}, "required": ["role"]}
+                  ]
+                }
               ]
             },
             "then": {
@@ -555,6 +594,12 @@
         ],
         "additionalProperties": true
       }
+    },
+    "sentence_role_index_receipt": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/sentenceRoleIndexReceipt"}
+      ]
     },
     "relief_binding_receipts": {
       "type": "array",
@@ -724,6 +769,16 @@
           "norm_passport_ids": {"minItems": 1},
           "issue_option_ids": {"minItems": 1},
           "blockers": {"maxItems": 0},
+          "sentence_role_index_receipt": {
+            "allOf": [
+              {"$ref": "#/$defs/sentenceRoleIndexReceipt"},
+              {
+                "properties": {
+                  "bindings": {"minItems": 1}
+                }
+              }
+            ]
+          },
           "relief_binding_receipts": {"minItems": 1},
           "relief_binding_index_receipt": {"$ref": "#/$defs/reliefBindingIndexReceipt"},
           "holding_binding_index_receipt": {"$ref": "#/$defs/holdingBindingIndexReceipt"},
@@ -739,10 +794,18 @@
               "required": ["role", "relief_binding_status"]
             },
             "items": {
+              "properties": {
+                "role": {"$ref": "#/$defs/canonicalSentenceRole"}
+              },
               "if": {
                 "anyOf": [
                   {"properties": {"role": {"const": "requested_remedy"}}, "required": ["role"]},
-                  {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]}
+                  {
+                    "allOf": [
+                      {"properties": {"section_code": {"const": "requested_remedy"}}, "required": ["section_code"]},
+                      {"properties": {"role": {"$ref": "#/$defs/canonicalSentenceRole"}}, "required": ["role"]}
+                    ]
+                  }
                 ]
               },
               "then": {
@@ -754,6 +817,37 @@
                 },
                 "required": ["relief_binding_status", "claim_id", "issue_option_id", "norm_passport_id", "application_record_ids", "relief_binding_sha256"]
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "blocked"},
+          "sentence_evidence_map": {
+            "contains": {
+              "type": "object",
+              "required": ["role"],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {"$ref": "#/$defs/canonicalSentenceRole"}
+                }
+              }
+            }
+          }
+        },
+        "required": ["status", "sentence_evidence_map"]
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "contains": {
+              "type": "string",
+              "pattern": "^sentence_role_unknown:sent-[0-9a-f]{16}:[\\s\\S]+$"
             }
           }
         }

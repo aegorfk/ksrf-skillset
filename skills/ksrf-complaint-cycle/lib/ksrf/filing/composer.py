@@ -30,6 +30,13 @@ from .relief_binding import (
     resolve_relief_evidence_binding,
     resolve_relief_evidence_binding_index,
 )
+from .sentence_roles import (
+    CANONICAL_SENTENCE_ROLES,
+    FILING_SIGNIFICANT_SENTENCE_ROLES,
+    SentenceRoleIndexAuthority,
+    resolve_sentence_role_index,
+    sentence_role_binding,
+)
 
 SCHEMA_VERSION = "1.3"
 _SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
@@ -49,24 +56,19 @@ REQUIRED_SECTION_CODES: tuple[str, ...] = (
     "enclosures",
 )
 
-FILING_SIGNIFICANT_ROLES = frozenset(
-    {
-        "fact",
-        "court_reasoning",
-        "norm_text",
-        "legal_holding",
-        "application_finding",
-        "practice_claim",
-        "adverse_authority",
-        "requested_remedy",
-    }
-)
+FILING_SIGNIFICANT_ROLES = FILING_SIGNIFICANT_SENTENCE_ROLES
 
 SUPPORTED_STATES = frozenset({"verified", "human_approved"})
 
 
 class ComplaintModelError(ValueError):
     """Raised when a complaint model violates a release-significant contract."""
+
+    def __init__(
+        self, message: str, *, reason_codes: Sequence[str] = ()
+    ) -> None:
+        super().__init__(message)
+        self.reason_codes = tuple(dict.fromkeys(reason_codes))
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ class ReleaseSupportReceipts(Sequence[dict[str, Any]]):
     holding_binding_index_receipt: dict[str, Any] | None = None
     practice_binding_receipts: tuple[dict[str, Any], ...] = ()
     practice_binding_index_receipt: dict[str, Any] | None = None
+    sentence_role_index_receipt: dict[str, Any] | None = None
 
     def __len__(self) -> int:
         return len(self.relief_binding_receipts)
@@ -175,7 +178,13 @@ class SentenceEvidence:
         return self.role in FILING_SIGNIFICANT_ROLES
 
     @property
+    def role_known(self) -> bool:
+        return self.role in CANONICAL_SENTENCE_ROLES
+
+    @property
     def release_supported(self) -> bool:
+        if not self.role_known:
+            return False
         if not self.filing_significant:
             return True
         return bool(self.evidence_ids) and self.support_status in SUPPORTED_STATES
@@ -290,6 +299,27 @@ class StructuredComplaint:
                     ]
                 result.append(entry)
         return result
+
+    def sentence_role_index_bindings(self) -> list[dict[str, Any]]:
+        """Return the complete local role projection for host comparison."""
+
+        return [
+            sentence_role_binding(
+                ordinal=ordinal,
+                sentence_id=sentence.sentence_id,
+                section_code=section.code,
+                text=sentence.text,
+                role=sentence.role,
+            )
+            for ordinal, (section, sentence) in enumerate(
+                (
+                    (section, sentence)
+                    for section in self.sections
+                    for sentence in section.sentences
+                ),
+                start=1,
+            )
+        ]
 
     def relief_binding_request(
         self, sentence: SentenceEvidence
@@ -443,8 +473,25 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
 
         sentences: list[SentenceEvidence] = []
         for ordinal, item in enumerate(_iter_sentence_payloads(raw_section), start=1):
-            raw_role = _clean_text(item.get("role")) or "narrative"
-            role = "requested_remedy" if code == "requested_remedy" else raw_role
+            if "role" not in item:
+                raw_role = "narrative"
+            else:
+                raw_role_value = item.get("role")
+                if type(raw_role_value) is not str:
+                    raise ComplaintModelError(
+                        f"sentence_role_type_invalid:{code}:{ordinal}"
+                    )
+                if not raw_role_value.strip():
+                    raise ComplaintModelError(
+                        f"sentence_role_blank_invalid:{code}:{ordinal}"
+                    )
+                raw_role = raw_role_value
+            role = (
+                "requested_remedy"
+                if code == "requested_remedy"
+                and raw_role in CANONICAL_SENTENCE_ROLES
+                else raw_role
+            )
             text = (
                 _exact_sentence_text(
                     item.get("text"), label=f"Раздел {code}: practice_claim.text"
@@ -484,7 +531,7 @@ def build_structured_complaint(payload: Mapping[str, Any]) -> StructuredComplain
                     for value in item.get("evidence_ids", ())
                     if _clean_text(value)
                 )
-            if role == "requested_remedy":
+            if code == "requested_remedy":
                 application_record_ids = _strict_identifier_sequence(
                     item.get("application_record_ids", ()),
                     label=f"{sentence_id}.application_record_ids",
@@ -574,8 +621,10 @@ def require_release_support(
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
     practice_binding_authority: PracticeClaimEvidenceBindingAuthority | Any | None = None,
+    sentence_role_authority: SentenceRoleIndexAuthority | Any | None = None,
     require_holding_index: bool = False,
     require_practice_index: bool = False,
+    require_sentence_role_index: bool = False,
 ) -> ReleaseSupportReceipts:
     """Raise with exact sentence identifiers when filing support is incomplete."""
 
@@ -603,13 +652,34 @@ def require_release_support(
                     f"relief_binding_sentence_duplicate:{sentence.sentence_id}"
                 )
             seen_sentence_ids.add(sentence.sentence_id)
+            if sentence.role not in CANONICAL_SENTENCE_ROLES:
+                integrity_errors.append(
+                    f"sentence_role_unknown:{sentence.sentence_id}:{sentence.role}"
+                )
     for missing_code in sorted(set(REQUIRED_SECTION_CODES) - seen_section_codes):
         integrity_errors.append(f"complaint_section_missing:{missing_code}")
     if integrity_errors:
+        exact_integrity_errors = tuple(dict.fromkeys(integrity_errors))
         raise ComplaintModelError(
             "Нарушена целостность предложений жалобы: "
-            + ", ".join(dict.fromkeys(integrity_errors))
+            + ", ".join(exact_integrity_errors),
+            reason_codes=exact_integrity_errors,
         )
+
+    sentence_role_index_receipt: dict[str, Any] | None = None
+    if require_sentence_role_index or sentence_role_authority is not None:
+        role_errors, sentence_role_index_receipt = resolve_sentence_role_index(
+            matter_id=complaint.matter_id,
+            draft_id=complaint.draft_id,
+            expected_bindings=complaint.sentence_role_index_bindings(),
+            authority=sentence_role_authority,
+        )
+        if role_errors:
+            raise ComplaintModelError(
+                "Недействителен полный индекс ролей предложений: "
+                + ", ".join(role_errors),
+                reason_codes=role_errors,
+            )
 
     unsupported = complaint.unsupported_sentences()
     if unsupported:
@@ -882,4 +952,5 @@ def require_release_support(
         holding_binding_index_receipt=holding_index_receipt,
         practice_binding_receipts=tuple(practice_receipts),
         practice_binding_index_receipt=practice_index_receipt,
+        sentence_role_index_receipt=sentence_role_index_receipt,
     )

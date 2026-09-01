@@ -33,6 +33,13 @@ from .relief_binding import (
     resolve_relief_evidence_binding,
     resolve_relief_evidence_binding_index,
 )
+from .sentence_roles import (
+    CANONICAL_SENTENCE_ROLES,
+    SentenceRoleIndexAuthority,
+    resolve_sentence_role_index,
+    sentence_role_binding,
+    validate_sentence_role_index_receipt,
+)
 from .renderer import (
     convert_docx_to_pdf,
     file_sha256,
@@ -85,6 +92,7 @@ _MANIFEST_STATUSES = {
     "ready_for_expert_review",
     "ready_for_human_signing_filing",
 }
+_FILING_MANIFEST_SCHEMA_VERSION = "1.4"
 _PRACTICE_BINDING_RECEIPT_FIELDS = {
     "schema_version",
     "sentence_id",
@@ -496,6 +504,7 @@ def build_release_pack(
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
     ) = None,
+    sentence_role_authority: SentenceRoleIndexAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Create real filing artifacts and return a release manifest.
 
@@ -514,14 +523,17 @@ def build_release_pack(
     holding_binding_index_receipt: dict[str, Any] | None = None
     practice_binding_receipts: list[dict[str, Any]] = []
     practice_binding_index_receipt: dict[str, Any] | None = None
+    sentence_role_index_receipt: dict[str, Any] | None = None
     try:
         support_receipts = require_release_support(
             complaint,
             relief_binding_authority=relief_binding_authority,
             holding_binding_authority=holding_binding_authority,
             practice_binding_authority=practice_binding_authority,
+            sentence_role_authority=sentence_role_authority,
             require_holding_index=True,
             require_practice_index=True,
+            require_sentence_role_index=True,
         )
         relief_binding_receipts = list(
             support_receipts.relief_binding_receipts
@@ -540,8 +552,17 @@ def build_release_pack(
             practice_binding_index_receipt = dict(
                 support_receipts.practice_binding_index_receipt
             )
+        if support_receipts.sentence_role_index_receipt is not None:
+            sentence_role_index_receipt = dict(
+                support_receipts.sentence_role_index_receipt
+            )
     except ValueError as exc:
         blockers.append(str(exc))
+        blockers.extend(
+            reason
+            for reason in getattr(exc, "reason_codes", ())
+            if isinstance(reason, str) and reason
+        )
 
     docx_path = artifacts_dir / "constitutional-complaint.docx"
     pdf_path = artifacts_dir / "constitutional-complaint.pdf"
@@ -634,7 +655,7 @@ def build_release_pack(
     manifest_path = destination / "filing-package-manifest.json"
 
     manifest: dict[str, Any] = {
-        "schema_version": "1.3",
+        "schema_version": _FILING_MANIFEST_SCHEMA_VERSION,
         "matter_id": complaint.matter_id,
         "draft_id": complaint.draft_id,
         "created_at": _now(),
@@ -656,6 +677,7 @@ def build_release_pack(
         "holding_binding_index_receipt": holding_binding_index_receipt,
         "practice_binding_receipts": practice_binding_receipts,
         "practice_binding_index_receipt": practice_binding_index_receipt,
+        "sentence_role_index_receipt": sentence_role_index_receipt,
         "enclosure_refs": enclosure_refs,
         "artifacts": artifacts,
         "qa_artifacts": qa_artifacts,
@@ -826,6 +848,138 @@ def _upstream_approval_errors(
     return errors
 
 
+def _manifest_sentence_role_projection(
+    manifest: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Rebuild and validate the persisted complete sentence-role projection."""
+
+    errors: list[str] = []
+    raw_entries = manifest.get("sentence_evidence_map")
+    if not isinstance(raw_entries, Sequence) or isinstance(
+        raw_entries, (str, bytes)
+    ):
+        return [], ["sentence_role_index_sentence_evidence_map_invalid"]
+
+    ready_status = manifest.get("status") in {
+        "ready_for_expert_review",
+        "ready_for_human_signing_filing",
+    }
+    raw_blockers = manifest.get("blockers")
+    blockers = (
+        [item for item in raw_blockers if isinstance(item, str)]
+        if isinstance(raw_blockers, list)
+        else []
+    )
+    expected_bindings: list[dict[str, Any]] = []
+    has_unknown_role = False
+    for ordinal, raw in enumerate(raw_entries, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"sentence_role_index_entry_invalid:{ordinal}")
+            continue
+        sentence_id = raw.get("sentence_id")
+        role = raw.get("role")
+        if isinstance(role, str) and not role.strip():
+            errors.append(f"sentence_role_blank_invalid:{sentence_id or ordinal}")
+            continue
+        if (
+            isinstance(sentence_id, str)
+            and _SENTENCE_ID_RE.fullmatch(sentence_id)
+            and isinstance(role, str)
+            and role not in CANONICAL_SENTENCE_ROLES
+        ):
+            has_unknown_role = True
+            blocker = f"sentence_role_unknown:{sentence_id}:{role}"
+            if ready_status:
+                errors.append(blocker)
+            elif blocker not in blockers:
+                errors.append(
+                    f"sentence_role_unknown_blocker_missing:{sentence_id}:{role}"
+                )
+            continue
+        try:
+            expected_bindings.append(
+                sentence_role_binding(
+                    ordinal=ordinal,
+                    sentence_id=sentence_id,
+                    section_code=raw.get("section_code"),
+                    text=raw.get("text"),
+                    role=role,
+                )
+            )
+        except ValueError as exc:
+            errors.extend(
+                item.strip()
+                for item in str(exc).split(",")
+                if item.strip()
+            )
+
+    stored_receipt = manifest.get("sentence_role_index_receipt")
+    if stored_receipt is None:
+        if ready_status:
+            errors.append("sentence_role_index_receipt_missing")
+    elif not isinstance(stored_receipt, Mapping):
+        errors.append("sentence_role_index_receipt_invalid")
+    elif has_unknown_role:
+        errors.append("sentence_role_index_receipt_with_unknown_roles")
+    else:
+        matter_id = manifest.get("matter_id")
+        draft_id = manifest.get("draft_id")
+        if not isinstance(matter_id, str) or not matter_id:
+            errors.append("sentence_role_index_manifest_matter_id_invalid")
+        elif not isinstance(draft_id, str) or not draft_id:
+            errors.append("sentence_role_index_manifest_draft_id_invalid")
+        else:
+            errors.extend(
+                validate_sentence_role_index_receipt(
+                    stored_receipt,
+                    matter_id=matter_id,
+                    draft_id=draft_id,
+                    expected_bindings=expected_bindings,
+                )
+            )
+    return expected_bindings, errors
+
+
+def _manifest_sentence_role_projection_errors(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    _bindings, errors = _manifest_sentence_role_projection(manifest)
+    return errors
+
+
+def _manifest_sentence_role_authority_errors(
+    manifest: Mapping[str, Any],
+    authority: SentenceRoleIndexAuthority | Any | None,
+) -> list[str]:
+    expected_bindings, errors = _manifest_sentence_role_projection(manifest)
+    stored_receipt = manifest.get("sentence_role_index_receipt")
+    should_resolve = (
+        manifest.get("status")
+        in {"ready_for_expert_review", "ready_for_human_signing_filing"}
+        or isinstance(stored_receipt, Mapping)
+    )
+    if not should_resolve:
+        return errors
+    matter_id = manifest.get("matter_id")
+    draft_id = manifest.get("draft_id")
+    if not isinstance(matter_id, str) or not matter_id:
+        errors.append("sentence_role_index_manifest_matter_id_invalid")
+        return errors
+    if not isinstance(draft_id, str) or not draft_id:
+        errors.append("sentence_role_index_manifest_draft_id_invalid")
+        return errors
+    current_errors, current_receipt = resolve_sentence_role_index(
+        matter_id=matter_id,
+        draft_id=draft_id,
+        expected_bindings=expected_bindings,
+        authority=authority,
+    )
+    errors.extend(current_errors)
+    if current_receipt is not None and stored_receipt != current_receipt:
+        errors.append("sentence_role_index_receipt_stale")
+    return errors
+
+
 def _manifest_contract_errors(
     manifest: Mapping[str, Any],
     *,
@@ -833,7 +987,7 @@ def _manifest_contract_errors(
     verify_manifest_file: bool = True,
 ) -> list[str]:
     errors = _manifest_schema_errors(manifest)
-    if manifest.get("schema_version") != "1.3":
+    if manifest.get("schema_version") != _FILING_MANIFEST_SCHEMA_VERSION:
         errors.append("manifest_schema_version_invalid")
     if not str(manifest.get("matter_id") or "").strip():
         errors.append("manifest_matter_id_missing")
@@ -869,6 +1023,7 @@ def _manifest_contract_errors(
     errors.extend(_manifest_relief_binding_projection_errors(manifest))
     errors.extend(_manifest_holding_binding_projection_errors(manifest))
     errors.extend(_manifest_practice_binding_projection_errors(manifest))
+    errors.extend(_manifest_sentence_role_projection_errors(manifest))
 
     pack_root, manifest_path, location_errors = _pack_location(manifest)
     errors.extend(location_errors)
@@ -2182,6 +2337,7 @@ def approve_release_pack(
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
     ) = None,
+    sentence_role_authority: SentenceRoleIndexAuthority | Any | None = None,
 ) -> dict[str, Any]:
     """Именно и явно одобрить неизменившийся реальный пакет после визуальной проверки."""
 
@@ -2206,6 +2362,7 @@ def approve_release_pack(
         relief_binding_authority=relief_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
+        sentence_role_authority=sentence_role_authority,
     )
     if integrity_errors:
         raise ValueError("Нарушена целостность пакета: " + ", ".join(integrity_errors))
@@ -2249,6 +2406,7 @@ def approve_release_pack(
         relief_binding_authority=relief_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
+        sentence_role_authority=sentence_role_authority,
     )
     if approved_errors:
         raise ValueError(
@@ -2266,6 +2424,7 @@ def approve_release_pack(
         relief_binding_authority=relief_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
+        sentence_role_authority=sentence_role_authority,
     )
     if persisted_errors:
         _write_json(path, manifest)
@@ -2287,6 +2446,7 @@ def verify_release_manifest(
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
     ) = None,
+    sentence_role_authority: SentenceRoleIndexAuthority | Any | None = None,
 ) -> list[str]:
     """Return integrity errors without mutating the filing pack."""
 
@@ -2297,6 +2457,7 @@ def verify_release_manifest(
         relief_binding_authority=relief_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
+        sentence_role_authority=sentence_role_authority,
     )
 
 
@@ -2310,6 +2471,7 @@ def _verify_release_manifest(
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
     ),
+    sentence_role_authority: SentenceRoleIndexAuthority | Any | None,
 ) -> list[str]:
     """Validate a manifest projection, optionally before its persistence."""
 
@@ -2331,6 +2493,11 @@ def _verify_release_manifest(
     errors.extend(
         _manifest_practice_binding_authority_errors(
             manifest, practice_binding_authority
+        )
+    )
+    errors.extend(
+        _manifest_sentence_role_authority_errors(
+            manifest, sentence_role_authority
         )
     )
     observed_basis = release_basis_sha256(manifest)

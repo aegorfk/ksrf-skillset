@@ -32,6 +32,9 @@ from ksrf.filing.release import (  # noqa: E402
     release_basis_sha256,
     verify_release_manifest,
 )
+from ksrf.filing.sentence_roles import (  # noqa: E402
+    build_sentence_role_index_resolution,
+)
 from ksrf.filing.workflow import WorkflowRouter  # noqa: E402
 
 from test_remedy_evidence_binding import (  # noqa: E402
@@ -273,6 +276,22 @@ class StaticHoldingAuthority:
             draft_id=self.index_requests[-1]["draft_id"],
             bindings=self.binding_index_snapshot,
             authority_revision_id="HOLDING-DRAFT-REGISTRY-REV-1",
+            checked_at=CHECKED_AT,
+        )
+
+
+class StaticSentenceRoleAuthority:
+    def __init__(self, complaint: StructuredComplaint) -> None:
+        self.bindings = complaint.sentence_role_index_bindings()
+
+    def resolve_sentence_role_index(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any]:
+        return build_sentence_role_index_resolution(
+            matter_id=request["matter_id"],
+            draft_id=request["draft_id"],
+            bindings=self.bindings,
+            authority_revision_id="ROLE-DRAFT-REGISTRY-REV-1",
             checked_at=CHECKED_AT,
         )
 
@@ -800,6 +819,9 @@ class HoldingEvidenceBindingTests(unittest.TestCase):
                 router.workspace = Path(temp_dir)
                 router.relief_binding_authority = relief
                 router.holding_binding_authority = holding_authority
+                router.sentence_role_authority = StaticSentenceRoleAuthority(
+                    complaint
+                )
 
                 result = router._dispatch_supported(
                     "render",

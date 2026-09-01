@@ -40,6 +40,10 @@ from ksrf.filing.release import (  # noqa: E402
     release_basis_sha256,
     verify_release_manifest,
 )
+from ksrf.filing.sentence_roles import (  # noqa: E402
+    build_sentence_role_index_resolution,
+    sentence_role_binding,
+)
 from ksrf.filing.storage import canonical_json_bytes  # noqa: E402
 
 from test_remedy_evidence_binding import (  # noqa: E402
@@ -763,6 +767,28 @@ class PracticeClaimEvidenceBindingRedTests(unittest.TestCase):
         )
         holding_index.pop("status")
         manifest["holding_binding_index_receipt"] = holding_index
+        manifest["schema_version"] = "1.4"
+        role_bindings = [
+            sentence_role_binding(
+                ordinal=ordinal,
+                sentence_id=entry["sentence_id"],
+                section_code=entry["section_code"],
+                text=entry["text"],
+                role=entry["role"],
+            )
+            for ordinal, entry in enumerate(
+                manifest["sentence_evidence_map"], start=1
+            )
+        ]
+        role_index = build_sentence_role_index_resolution(
+            matter_id=manifest["matter_id"],
+            draft_id=manifest["draft_id"],
+            bindings=role_bindings,
+            authority_revision_id="sentence-role-index-revision-1",
+            checked_at="2026-09-01T09:54:00Z",
+        )
+        role_index.pop("status")
+        manifest["sentence_role_index_receipt"] = role_index
         schema = json.loads(FILING_SCHEMA_PATH.read_text(encoding="utf-8"))
 
         errors = list(Draft202012Validator(schema).iter_errors(manifest))

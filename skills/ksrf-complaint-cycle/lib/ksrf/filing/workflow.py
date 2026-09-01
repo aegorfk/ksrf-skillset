@@ -295,6 +295,7 @@ class WorkflowRouter:
         relief_binding_authority: Any | None = None,
         holding_binding_authority: Any | None = None,
         practice_binding_authority: Any | None = None,
+        sentence_role_authority: Any | None = None,
         failure_private_root: str | Path | None = None,
         failure_redaction_verifier: Any | None = None,
     ) -> None:
@@ -331,6 +332,7 @@ class WorkflowRouter:
         self.relief_binding_authority = relief_binding_authority
         self.holding_binding_authority = holding_binding_authority
         self.practice_binding_authority = practice_binding_authority
+        self.sentence_role_authority = sentence_role_authority
         self.failure_redaction_verifier = failure_redaction_verifier
 
     def _source_repository(self) -> SourceEvidenceRepository:
@@ -1274,7 +1276,86 @@ class WorkflowRouter:
         input_object: Optional[Mapping[str, Any]],
     ) -> dict[str, Any]:
         if action == "status":
-            return self._operation_status("render", "Рендеринг ещё не выполнялся.")
+            latest, latest_payload = self._latest_operation("render")
+            if latest is None:
+                return self._operation_status(
+                    "render", "Рендеринг ещё не выполнялся."
+                )
+            support_errors: list[str] = []
+            latest_result = latest.get("result")
+            stored_receipt = (
+                latest_result.get("sentence_role_index_receipt")
+                if isinstance(latest_result, Mapping)
+                else None
+            )
+            try:
+                from .composer import (
+                    build_structured_complaint,
+                    require_release_support,
+                )
+
+                current_payload = _mapping(
+                    latest_payload, label="render status payload"
+                )
+                complaint_payload = _mapping(
+                    current_payload.get("complaint"), label="complaint"
+                )
+                complaint = build_structured_complaint(complaint_payload)
+                support_receipts = require_release_support(
+                    complaint,
+                    relief_binding_authority=self.relief_binding_authority,
+                    holding_binding_authority=self.holding_binding_authority,
+                    practice_binding_authority=getattr(
+                        self, "practice_binding_authority", None
+                    ),
+                    sentence_role_authority=getattr(
+                        self, "sentence_role_authority", None
+                    ),
+                    require_holding_index=True,
+                    require_practice_index=True,
+                    require_sentence_role_index=True,
+                )
+                current_receipt = support_receipts.sentence_role_index_receipt
+                if stored_receipt != current_receipt:
+                    support_errors.append("sentence_role_index_receipt_stale")
+            except Exception as exc:
+                reason_codes = tuple(
+                    reason
+                    for reason in getattr(exc, "reason_codes", ())
+                    if isinstance(reason, str) and reason
+                )
+                support_errors.extend(reason_codes or (str(exc),))
+            state = (
+                str(latest.get("state") or "blocked")
+                if not support_errors
+                else "blocked"
+            )
+            return self._base_result(
+                "render",
+                action,
+                state=state,
+                implemented=True,
+                message=(
+                    "Последний результат рендеринга повторно проверен по текущим host-authorities."
+                    if not support_errors
+                    else "Последний результат рендеринга больше не подтверждён текущими host-authorities."
+                ),
+                result={
+                    "latest": latest,
+                    "support_revalidated": not support_errors,
+                    "support_errors": support_errors,
+                    "cached_render_qa_reused": True,
+                },
+                found=(
+                    ("Текущая поддержка строк повторно подтверждена",)
+                    if not support_errors
+                    else ()
+                ),
+                missing=tuple(support_errors),
+                next_actions=(
+                    "При изменении authority пересоберите DOCX/PDF и повторите визуальную проверку.",
+                ),
+            )
         if payload is None or input_object is None:
             raise WorkflowInputError("Для render build нужен версионированный --payload.")
         complaint_payload = _mapping(payload.get("complaint"), label="complaint")
@@ -1288,13 +1369,15 @@ class WorkflowRouter:
         preview_dir = output_dir / "previews"
         try:
             complaint = build_structured_complaint(complaint_payload)
-            require_release_support(
+            support_receipts = require_release_support(
                 complaint,
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                sentence_role_authority=getattr(self, "sentence_role_authority", None),
                 require_holding_index=True,
                 require_practice_index=True,
+                require_sentence_role_index=True,
             )
             docx = render_docx(complaint, artifacts_dir / "constitutional-complaint.docx")
             pdf = convert_docx_to_pdf(
@@ -1340,6 +1423,11 @@ class WorkflowRouter:
                 "docx": docx.to_dict(),
                 "pdf": pdf.to_dict(),
                 "qa": qa,
+                "sentence_role_index_receipt": (
+                    dict(support_receipts.sentence_role_index_receipt)
+                    if support_receipts.sentence_role_index_receipt is not None
+                    else None
+                ),
                 "preview_paths": [str(path) for path in sorted(preview_dir.glob("page-*.png"))],
             },
             found=("Реальный DOCX", "Реальный PDF", "Постраничные preview"),
@@ -1400,6 +1488,7 @@ class WorkflowRouter:
                                     relief_binding_authority=self.relief_binding_authority,
                                     holding_binding_authority=self.holding_binding_authority,
                                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                                    sentence_role_authority=getattr(self, "sentence_role_authority", None),
                                 )
             manifest_status = str((manifest or {}).get("status") or "blocked")
             state = (
@@ -1482,6 +1571,7 @@ class WorkflowRouter:
                     relief_binding_authority=self.relief_binding_authority,
                     holding_binding_authority=self.holding_binding_authority,
                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                    sentence_role_authority=getattr(self, "sentence_role_authority", None),
                 )
                 integrity_errors = verify_release_manifest(
                     manifest,
@@ -1489,6 +1579,7 @@ class WorkflowRouter:
                     relief_binding_authority=self.relief_binding_authority,
                     holding_binding_authority=self.holding_binding_authority,
                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                    sentence_role_authority=getattr(self, "sentence_role_authority", None),
                 )
             except Exception as exc:
                 return self._base_result(
@@ -1542,6 +1633,7 @@ class WorkflowRouter:
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                sentence_role_authority=getattr(self, "sentence_role_authority", None),
             )
             state = str(manifest.get("status") or "blocked") if not errors else "blocked"
             if state not in {"ready_for_expert_review", "ready_for_human_signing_filing"}:
@@ -1578,6 +1670,7 @@ class WorkflowRouter:
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                sentence_role_authority=getattr(self, "sentence_role_authority", None),
             )
             integrity_errors = verify_release_manifest(
                 manifest,
@@ -1585,6 +1678,7 @@ class WorkflowRouter:
                 relief_binding_authority=self.relief_binding_authority,
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
+                sentence_role_authority=getattr(self, "sentence_role_authority", None),
             )
         except ImportError as exc:
             return self._optional_runtime_block("release", action, exc)

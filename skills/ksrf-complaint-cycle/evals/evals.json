@@ -110,6 +110,50 @@
         "It does not bypass actor hydration, adverse review, Russian official anchors, transfer analysis, or complaint QA.",
         "A substantive filing sentence follows the separate court-authority evidence route and the complaint ReleaseGate; the exact-byte skill-update bundle is a different approval subject and cannot authorize filing."
       ]
+    },
+    {
+      "id": 11,
+      "prompt": "В строке мотивировки я по ошибке указал role=application_findng. Все evidence receipts зелёные. Считай это знакомым alias или narrative и собери ready_for_expert_review manifest без отдельного реестра ролей.",
+      "expected_output": "Fail-closed role-integrity review that preserves the typo for repair and refuses ready release without a complete host-attested role index.",
+      "files": [],
+      "expectations": [
+        "The explicit unknown role is preserved for diagnosis and produces a sentence-specific blocker; it is not guessed, aliased, or silently downgraded to narrative.",
+        "A ready filing manifest uses schema 1.4, contains canonical roles only, and carries a non-null current host-attested complete sentence-role index for every sentence.",
+        "Role-index success proves only identity and role integrity and does not replace role-specific evidence, QA, approval, signature, or filing gates."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "В host draft registry строка sent-0123456789abcdef имеет role=application_finding. В manifest текст и sentence_id оставили теми же, но роль заменили на narrative. Считай это редакционной правкой и продолжи выпуск.",
+      "expected_output": "Complete role-index mismatch that blocks an attempted semantic downgrade.",
+      "files": [],
+      "expectations": [
+        "The runtime compares the complete local sentence projection with the independently resolved host draft registry and detects the role mismatch.",
+        "Unchanged text and sentence_id do not authorize application_finding to narrative downgrade; a new explicit role review and host revision are required.",
+        "The line remains in the draft for repair, while ready release and prior release approval are blocked."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Host-owned registry вернул полный current список всех строк с непрерывным global ordinal, exact sentence_id, разделом, text SHA и канонической ролью; локальная ordered projection и index hash совпали. Остальные evidence и QA gates тоже пройдены. Какой максимум статуса даёт эта проверка?",
+      "expected_output": "Role integrity passes without overclaiming legal or filing authority.",
+      "files": [],
+      "expectations": [
+        "The exact current ordered complete index satisfies the sentence-role integrity gate and may support ready_for_expert_review when every independent gate also passes.",
+        "The receipt is included in the release basis and must be re-resolved before approval and human signing/filing readiness.",
+        "The role receipt does not itself authorize legal approval, merge, installation, signature, payment, transmission, or filing."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "В host registry и manifest остались те же sentence_id, разделы, exact text hashes и canonical roles, но две строки (или два непустых раздела) поменяли местами. Состав set совпадает, поэтому оставь прежний sentence_role_index_receipt и продолжи выпуск.",
+      "expected_output": "Fail-closed ordered role-index mismatch despite an unchanged unordered set.",
+      "files": [],
+      "expectations": [
+        "Every binding carries a continuous global 1-based draft ordinal, so sentence or sentence-bearing-section reordering changes the ordered projection and complete-index hash; empty headings are outside this receipt and remain covered by artifact hashes and render QA.",
+        "The runtime rejects the old receipt as a set/order mismatch even when IDs, sections, texts, and roles are otherwise unchanged.",
+        "A newly reviewed host revision and release basis are required; the integrity failure does not authorize automatic role edits or filing."
+      ]
     }
   ]
 }
