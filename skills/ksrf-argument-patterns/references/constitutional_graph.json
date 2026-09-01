@@ -58,21 +58,6 @@
       "label": "риск произвола"
     },
     {
-      "id": "tool:lower-court practice split finder",
-      "kind": "automation_hook",
-      "label": "lower-court practice split finder"
-    },
-    {
-      "id": "tool:holding clustering",
-      "kind": "automation_hook",
-      "label": "holding clustering"
-    },
-    {
-      "id": "tool:quote-window extractor",
-      "kind": "automation_hook",
-      "label": "quote-window extractor"
-    },
-    {
       "id": "decision:2-П/1995",
       "kind": "ksrf_decision",
       "label": "2-П/1995"
@@ -159,21 +144,6 @@
       "label": "хаотичное применение"
     },
     {
-      "id": "tool:norm ambiguity detector",
-      "kind": "automation_hook",
-      "label": "norm ambiguity detector"
-    },
-    {
-      "id": "tool:criteria extractor",
-      "kind": "automation_hook",
-      "label": "criteria extractor"
-    },
-    {
-      "id": "tool:predictability memo generator",
-      "kind": "automation_hook",
-      "label": "predictability memo generator"
-    },
-    {
       "id": "decision:12-П/1999",
       "kind": "ksrf_decision",
       "label": "12-П/1999"
@@ -243,21 +213,6 @@
       "id": "harm:невозможность защиты права без обязательного толкования",
       "kind": "harm_type",
       "label": "невозможность защиты права без обязательного толкования"
-    },
-    {
-      "id": "tool:constitutional meaning mapper",
-      "kind": "automation_hook",
-      "label": "constitutional meaning mapper"
-    },
-    {
-      "id": "tool:KSRF position retriever",
-      "kind": "automation_hook",
-      "label": "KSRF position retriever"
-    },
-    {
-      "id": "tool:demand formula drafter",
-      "kind": "automation_hook",
-      "label": "demand formula drafter"
     },
     {
       "id": "decision:5-П/1997",
@@ -336,21 +291,6 @@
       "label": "отсутствие менее обременительной альтернативы"
     },
     {
-      "id": "tool:proportionality worksheet",
-      "kind": "automation_hook",
-      "label": "proportionality worksheet"
-    },
-    {
-      "id": "tool:burden inventory",
-      "kind": "automation_hook",
-      "label": "burden inventory"
-    },
-    {
-      "id": "tool:less restrictive alternatives finder",
-      "kind": "automation_hook",
-      "label": "less restrictive alternatives finder"
-    },
-    {
       "id": "decision:1-П/1996",
       "kind": "ksrf_decision",
       "label": "1-П/1996"
@@ -410,21 +350,6 @@
       "id": "harm:доминирование сильной стороны",
       "kind": "harm_type",
       "label": "доминирование сильной стороны"
-    },
-    {
-      "id": "tool:balance worksheet",
-      "kind": "automation_hook",
-      "label": "balance worksheet"
-    },
-    {
-      "id": "tool:compensation checker",
-      "kind": "automation_hook",
-      "label": "compensation checker"
-    },
-    {
-      "id": "tool:burden distribution table",
-      "kind": "automation_hook",
-      "label": "burden distribution table"
     },
     {
       "id": "decision:15-П/1993",
@@ -498,21 +423,6 @@
       "label": "право не восстановлено"
     },
     {
-      "id": "tool:ignored-dovod checker",
-      "kind": "automation_hook",
-      "label": "ignored-dovod checker"
-    },
-    {
-      "id": "tool:remedy route mapper",
-      "kind": "automation_hook",
-      "label": "remedy route mapper"
-    },
-    {
-      "id": "tool:access-to-court barrier detector",
-      "kind": "automation_hook",
-      "label": "access-to-court barrier detector"
-    },
-    {
       "id": "decision:8-П/1992",
       "kind": "ksrf_decision",
       "label": "8-П/1992"
@@ -572,16 +482,6 @@
       "id": "harm:нарушена состязательность",
       "kind": "harm_type",
       "label": "нарушена состязательность"
-    },
-    {
-      "id": "tool:argument-response aligner",
-      "kind": "automation_hook",
-      "label": "argument-response aligner"
-    },
-    {
-      "id": "tool:procedural timeline checker",
-      "kind": "automation_hook",
-      "label": "procedural timeline checker"
     },
     {
       "id": "decision:19-П/1996",
@@ -645,21 +545,6 @@
       "label": "дискриминационный критерий"
     },
     {
-      "id": "tool:comparison group builder",
-      "kind": "automation_hook",
-      "label": "comparison group builder"
-    },
-    {
-      "id": "tool:differentiation table",
-      "kind": "automation_hook",
-      "label": "differentiation table"
-    },
-    {
-      "id": "tool:similarly situated cases finder",
-      "kind": "automation_hook",
-      "label": "similarly situated cases finder"
-    },
-    {
       "id": "decision:17-П/1993",
       "kind": "ksrf_decision",
       "label": "17-П/1993"
@@ -704,21 +589,6 @@
       "id": "harm:отсутствие переходного механизма",
       "kind": "harm_type",
       "label": "отсутствие переходного механизма"
-    },
-    {
-      "id": "tool:timeline checker",
-      "kind": "automation_hook",
-      "label": "timeline checker"
-    },
-    {
-      "id": "tool:transition-rule detector",
-      "kind": "automation_hook",
-      "label": "transition-rule detector"
-    },
-    {
-      "id": "tool:foreseeability memo generator",
-      "kind": "automation_hook",
-      "label": "foreseeability memo generator"
     },
     {
       "id": "decision:11-П/2004",
@@ -787,16 +657,6 @@
       "label": "наказание за прошлое поведение"
     },
     {
-      "id": "tool:retroactivity timeline checker",
-      "kind": "automation_hook",
-      "label": "retroactivity timeline checker"
-    },
-    {
-      "id": "tool:versioned-law comparator",
-      "kind": "automation_hook",
-      "label": "versioned-law comparator"
-    },
-    {
       "id": "decision:14-П/1993",
       "kind": "ksrf_decision",
       "label": "14-П/1993"
@@ -841,21 +701,6 @@
       "id": "harm:индивидуальная несправедливость",
       "kind": "harm_type",
       "label": "индивидуальная несправедливость"
-    },
-    {
-      "id": "tool:individualization checker",
-      "kind": "automation_hook",
-      "label": "individualization checker"
-    },
-    {
-      "id": "tool:circumstance extractor",
-      "kind": "automation_hook",
-      "label": "circumstance extractor"
-    },
-    {
-      "id": "tool:reasoning gap detector",
-      "kind": "automation_hook",
-      "label": "reasoning gap detector"
     },
     {
       "id": "decision:2-П/1996",
@@ -949,21 +794,6 @@
       "label": "нет индивидуализации"
     },
     {
-      "id": "tool:sanction individualization checker",
-      "kind": "automation_hook",
-      "label": "sanction individualization checker"
-    },
-    {
-      "id": "tool:mens rea mapper",
-      "kind": "automation_hook",
-      "label": "mens rea mapper"
-    },
-    {
-      "id": "tool:penalty proportionality worksheet",
-      "kind": "automation_hook",
-      "label": "penalty proportionality worksheet"
-    },
-    {
       "id": "decision:6-П/1993",
       "kind": "ksrf_decision",
       "label": "6-П/1993"
@@ -1040,21 +870,6 @@
       "label": "бремя публичной цели на одном лице"
     },
     {
-      "id": "tool:deprivation/compensation checker",
-      "kind": "automation_hook",
-      "label": "deprivation/compensation checker"
-    },
-    {
-      "id": "tool:good-faith evidence collector",
-      "kind": "automation_hook",
-      "label": "good-faith evidence collector"
-    },
-    {
-      "id": "tool:valuation gap detector",
-      "kind": "automation_hook",
-      "label": "valuation gap detector"
-    },
-    {
       "id": "decision:2-П/1993",
       "kind": "ksrf_decision",
       "label": "2-П/1993"
@@ -1119,21 +934,6 @@
       "id": "harm:иллюзорное социальное право",
       "kind": "harm_type",
       "label": "иллюзорное социальное право"
-    },
-    {
-      "id": "tool:benefit eligibility checker",
-      "kind": "automation_hook",
-      "label": "benefit eligibility checker"
-    },
-    {
-      "id": "tool:vulnerable status mapper",
-      "kind": "automation_hook",
-      "label": "vulnerable status mapper"
-    },
-    {
-      "id": "tool:positive-obligation evidence checklist",
-      "kind": "automation_hook",
-      "label": "positive-obligation evidence checklist"
     },
     {
       "id": "decision:5-П/1993",
@@ -1227,21 +1027,6 @@
       "label": "права зависят от уровня власти"
     },
     {
-      "id": "tool:competence map builder",
-      "kind": "automation_hook",
-      "label": "competence map builder"
-    },
-    {
-      "id": "tool:act hierarchy comparator",
-      "kind": "automation_hook",
-      "label": "act hierarchy comparator"
-    },
-    {
-      "id": "tool:federalism conflict detector",
-      "kind": "automation_hook",
-      "label": "federalism conflict detector"
-    },
-    {
       "id": "decision:5-П/1992",
       "kind": "ksrf_decision",
       "label": "5-П/1992"
@@ -1291,21 +1076,6 @@
       "id": "harm:зависимость от усмотрения",
       "kind": "harm_type",
       "label": "зависимость от усмотрения"
-    },
-    {
-      "id": "tool:gap detector",
-      "kind": "automation_hook",
-      "label": "gap detector"
-    },
-    {
-      "id": "tool:procedure model comparator",
-      "kind": "automation_hook",
-      "label": "procedure model comparator"
-    },
-    {
-      "id": "tool:legislative-duty formula drafter",
-      "kind": "automation_hook",
-      "label": "legislative-duty formula drafter"
     },
     {
       "id": "decision:11-П/1993",
@@ -1362,21 +1132,6 @@
       "id": "harm:оборот непредсказуем",
       "kind": "harm_type",
       "label": "оборот непредсказуем"
-    },
-    {
-      "id": "tool:good-faith fact extractor",
-      "kind": "automation_hook",
-      "label": "good-faith fact extractor"
-    },
-    {
-      "id": "tool:risk allocation table",
-      "kind": "automation_hook",
-      "label": "risk allocation table"
-    },
-    {
-      "id": "tool:abuse-of-right detector",
-      "kind": "automation_hook",
-      "label": "abuse-of-right detector"
     },
     {
       "id": "decision:7-П/1993",
@@ -1450,21 +1205,6 @@
       "label": "необратимое вмешательство в личную сферу"
     },
     {
-      "id": "tool:dignity impact checklist",
-      "kind": "automation_hook",
-      "label": "dignity impact checklist"
-    },
-    {
-      "id": "tool:consent/notification procedure checker",
-      "kind": "automation_hook",
-      "label": "consent/notification procedure checker"
-    },
-    {
-      "id": "tool:irreversibility mapper",
-      "kind": "automation_hook",
-      "label": "irreversibility mapper"
-    },
-    {
       "id": "decision:10-П/1995",
       "kind": "ksrf_decision",
       "label": "10-П/1995"
@@ -1519,21 +1259,6 @@
       "id": "harm:нет функционального аналога защиты",
       "kind": "harm_type",
       "label": "нет функционального аналога защиты"
-    },
-    {
-      "id": "tool:functional standard mapper",
-      "kind": "automation_hook",
-      "label": "functional standard mapper"
-    },
-    {
-      "id": "tool:comparative model table",
-      "kind": "automation_hook",
-      "label": "comparative model table"
-    },
-    {
-      "id": "tool:source-to-test linker",
-      "kind": "automation_hook",
-      "label": "source-to-test linker"
     },
     {
       "id": "decision:40-П/2025",
@@ -1602,21 +1327,6 @@
       "label": "аналогичное дело лишено эффекта"
     },
     {
-      "id": "tool:KSRF aftermath planner",
-      "kind": "automation_hook",
-      "label": "KSRF aftermath planner"
-    },
-    {
-      "id": "tool:analogy classifier",
-      "kind": "automation_hook",
-      "label": "analogy classifier"
-    },
-    {
-      "id": "tool:reconsideration route generator",
-      "kind": "automation_hook",
-      "label": "reconsideration route generator"
-    },
-    {
       "id": "decision:14-П/1995",
       "kind": "ksrf_decision",
       "label": "14-П/1995"
@@ -1672,21 +1382,6 @@
       "from": "harm:риск произвола",
       "to": "pattern:practice-split",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:practice-split",
-      "to": "tool:lower-court practice split finder",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:practice-split",
-      "to": "tool:holding clustering",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:practice-split",
-      "to": "tool:quote-window extractor",
-      "type": "supported_by"
     },
     {
       "from": "pattern:practice-split",
@@ -1815,21 +1510,6 @@
     },
     {
       "from": "pattern:legal-certainty",
-      "to": "tool:norm ambiguity detector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legal-certainty",
-      "to": "tool:criteria extractor",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legal-certainty",
-      "to": "tool:predictability memo generator",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legal-certainty",
       "to": "decision:12-П/1999",
       "type": "has_anchor"
     },
@@ -1937,21 +1617,6 @@
       "from": "harm:невозможность защиты права без обязательного толкования",
       "to": "pattern:constitutional-meaning",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:constitutional-meaning",
-      "to": "tool:constitutional meaning mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:constitutional-meaning",
-      "to": "tool:KSRF position retriever",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:constitutional-meaning",
-      "to": "tool:demand formula drafter",
-      "type": "supported_by"
     },
     {
       "from": "pattern:constitutional-meaning",
@@ -2072,21 +1737,6 @@
       "from": "harm:отсутствие менее обременительной альтернативы",
       "to": "pattern:proportionality",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:proportionality",
-      "to": "tool:proportionality worksheet",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:proportionality",
-      "to": "tool:burden inventory",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:proportionality",
-      "to": "tool:less restrictive alternatives finder",
-      "type": "supported_by"
     },
     {
       "from": "pattern:proportionality",
@@ -2215,21 +1865,6 @@
     },
     {
       "from": "pattern:interest-balance",
-      "to": "tool:balance worksheet",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:interest-balance",
-      "to": "tool:compensation checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:interest-balance",
-      "to": "tool:burden distribution table",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:interest-balance",
       "to": "decision:15-П/1993",
       "type": "has_anchor"
     },
@@ -2350,21 +1985,6 @@
     },
     {
       "from": "pattern:effective-remedy",
-      "to": "tool:ignored-dovod checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:effective-remedy",
-      "to": "tool:remedy route mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:effective-remedy",
-      "to": "tool:access-to-court barrier detector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:effective-remedy",
       "to": "decision:8-П/1992",
       "type": "has_anchor"
     },
@@ -2480,21 +2100,6 @@
     },
     {
       "from": "pattern:procedural-guarantees",
-      "to": "tool:ignored-dovod checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:procedural-guarantees",
-      "to": "tool:argument-response aligner",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:procedural-guarantees",
-      "to": "tool:procedural timeline checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:procedural-guarantees",
       "to": "decision:15-П/1993",
       "type": "has_anchor"
     },
@@ -2602,21 +2207,6 @@
       "from": "harm:дискриминационный критерий",
       "to": "pattern:equality-differentiation",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:equality-differentiation",
-      "to": "tool:comparison group builder",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:equality-differentiation",
-      "to": "tool:differentiation table",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:equality-differentiation",
-      "to": "tool:similarly situated cases finder",
-      "type": "supported_by"
     },
     {
       "from": "pattern:equality-differentiation",
@@ -2745,21 +2335,6 @@
     },
     {
       "from": "pattern:legitimate-expectations",
-      "to": "tool:timeline checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legitimate-expectations",
-      "to": "tool:transition-rule detector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legitimate-expectations",
-      "to": "tool:foreseeability memo generator",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legitimate-expectations",
       "to": "decision:11-П/2004",
       "type": "has_anchor"
     },
@@ -2872,21 +2447,6 @@
       "from": "harm:наказание за прошлое поведение",
       "to": "pattern:retroactivity",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:retroactivity",
-      "to": "tool:retroactivity timeline checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:retroactivity",
-      "to": "tool:versioned-law comparator",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:retroactivity",
-      "to": "tool:transition-rule detector",
-      "type": "supported_by"
     },
     {
       "from": "pattern:retroactivity",
@@ -3007,21 +2567,6 @@
       "from": "harm:индивидуальная несправедливость",
       "to": "pattern:non-mechanical-application",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:non-mechanical-application",
-      "to": "tool:individualization checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:non-mechanical-application",
-      "to": "tool:circumstance extractor",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:non-mechanical-application",
-      "to": "tool:reasoning gap detector",
-      "type": "supported_by"
     },
     {
       "from": "pattern:non-mechanical-application",
@@ -3155,21 +2700,6 @@
     },
     {
       "from": "pattern:liability-fairness",
-      "to": "tool:sanction individualization checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:liability-fairness",
-      "to": "tool:mens rea mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:liability-fairness",
-      "to": "tool:penalty proportionality worksheet",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:liability-fairness",
       "to": "decision:6-П/1993",
       "type": "has_anchor"
     },
@@ -3282,21 +2812,6 @@
       "from": "harm:бремя публичной цели на одном лице",
       "to": "pattern:property-compensation",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:property-compensation",
-      "to": "tool:deprivation/compensation checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:property-compensation",
-      "to": "tool:good-faith evidence collector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:property-compensation",
-      "to": "tool:valuation gap detector",
-      "type": "supported_by"
     },
     {
       "from": "pattern:property-compensation",
@@ -3435,21 +2950,6 @@
     },
     {
       "from": "pattern:social-state-positive-obligation",
-      "to": "tool:benefit eligibility checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:social-state-positive-obligation",
-      "to": "tool:vulnerable status mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:social-state-positive-obligation",
-      "to": "tool:positive-obligation evidence checklist",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:social-state-positive-obligation",
       "to": "decision:5-П/1993",
       "type": "has_anchor"
     },
@@ -3575,21 +3075,6 @@
     },
     {
       "from": "pattern:federalism-competence",
-      "to": "tool:competence map builder",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:federalism-competence",
-      "to": "tool:act hierarchy comparator",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:federalism-competence",
-      "to": "tool:federalism conflict detector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:federalism-competence",
       "to": "decision:5-П/1992",
       "type": "has_anchor"
     },
@@ -3712,21 +3197,6 @@
       "from": "harm:зависимость от усмотрения",
       "to": "pattern:legislative-gap",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:legislative-gap",
-      "to": "tool:gap detector",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legislative-gap",
-      "to": "tool:procedure model comparator",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:legislative-gap",
-      "to": "tool:legislative-duty formula drafter",
-      "type": "supported_by"
     },
     {
       "from": "pattern:legislative-gap",
@@ -3857,21 +3327,6 @@
       "from": "harm:оборот непредсказуем",
       "to": "pattern:good-faith-abuse",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:good-faith-abuse",
-      "to": "tool:good-faith fact extractor",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:good-faith-abuse",
-      "to": "tool:risk allocation table",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:good-faith-abuse",
-      "to": "tool:abuse-of-right detector",
-      "type": "supported_by"
     },
     {
       "from": "pattern:good-faith-abuse",
@@ -4010,21 +3465,6 @@
     },
     {
       "from": "pattern:constitutional-identity-human-dignity",
-      "to": "tool:dignity impact checklist",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:constitutional-identity-human-dignity",
-      "to": "tool:consent/notification procedure checker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:constitutional-identity-human-dignity",
-      "to": "tool:irreversibility mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:constitutional-identity-human-dignity",
       "to": "decision:10-П/1995",
       "type": "has_anchor"
     },
@@ -4155,21 +3595,6 @@
     },
     {
       "from": "pattern:international-standards",
-      "to": "tool:functional standard mapper",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:international-standards",
-      "to": "tool:comparative model table",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:international-standards",
-      "to": "tool:source-to-test linker",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:international-standards",
       "to": "decision:9-П/1992",
       "type": "has_anchor"
     },
@@ -4292,21 +3717,6 @@
       "from": "harm:аналогичное дело лишено эффекта",
       "to": "pattern:reconsideration-execution",
       "type": "may_trigger"
-    },
-    {
-      "from": "pattern:reconsideration-execution",
-      "to": "tool:KSRF aftermath planner",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:reconsideration-execution",
-      "to": "tool:analogy classifier",
-      "type": "supported_by"
-    },
-    {
-      "from": "pattern:reconsideration-execution",
-      "to": "tool:reconsideration route generator",
-      "type": "supported_by"
     },
     {
       "from": "pattern:reconsideration-execution",

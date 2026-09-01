@@ -522,9 +522,6 @@ def build_graph(registry: Dict[str, List[dict]]) -> dict:
         for value in item.harm_types:
             add_node(f"harm:{value}", "harm_type", value)
             edges.append({"from": f"harm:{value}", "to": f"pattern:{code}", "type": "may_trigger"})
-        for value in item.automation_hooks:
-            add_node(f"tool:{value}", "automation_hook", value)
-            edges.append({"from": f"pattern:{code}", "to": f"tool:{value}", "type": "supported_by"})
         for value in support_numbers(registry, code, 8):
             add_node(f"decision:{value}", "ksrf_decision", value)
             edges.append({"from": f"pattern:{code}", "to": f"decision:{value}", "type": "has_anchor"})
@@ -604,12 +601,8 @@ def write_counterarguments(refs: Path) -> None:
 
 
 def write_evidence_maps(refs: Path, registry: Dict[str, List[dict]]) -> None:
-    lines = [
-        "# Доказательственные карты по паттернам",
-        "",
-        "Каждый паттерн должен превращаться в проверяемую карту материалов, а не только в тезис.",
-        "",
-    ]
+    """Write source-only metadata without overwriting the curated runtime guide."""
+
     data = {}
     for code in PATTERN_ORDER:
         item = P[code]
@@ -621,27 +614,6 @@ def write_evidence_maps(refs: Path, registry: Dict[str, List[dict]]) -> None:
             "automation_hooks": item.automation_hooks,
             "decision_anchors": support_numbers(registry, code),
         }
-        lines.extend(
-            [
-                f"## {code}: {item.title}",
-                "",
-                "**Что доказать:**",
-                md_list(item.proof_tasks),
-                "",
-                "**Материалы:**",
-                md_list(item.evidence),
-                "",
-                "**Что ослабляет:**",
-                md_list(item.falsifiers),
-                "",
-                "**Автоматизация:**",
-                md_list(item.automation_hooks),
-                "",
-                f"**Постановления-опоры:** {', '.join(data[code]['decision_anchors'])}",
-                "",
-            ]
-        )
-    (refs / "evidence-maps.md").write_text("\n".join(lines), encoding="utf-8")
     (refs / "evidence_maps.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -672,7 +644,7 @@ def write_graph(refs: Path, graph: dict) -> None:
     lines = [
         "# Граф конституционно-правовой аргументации",
         "",
-        "Переносимый JSON-граф для перехода от фактов и дефектов нормы к статьям Конституции, паттернам, доказательствам и инструментам.",
+        "Переносимый JSON-граф для перехода от фактов и дефектов нормы к статьям Конституции, паттернам, решениям-опорам и способам защиты.",
         "",
         "## Количество узлов",
         "",
@@ -682,7 +654,7 @@ def write_graph(refs: Path, graph: dict) -> None:
     lines.extend(["", "## Количество связей", ""])
     for kind, count in sorted(edge_counts.items()):
         lines.append(f"- `{kind}`: {count}")
-    lines.extend(["", "## Как использовать", "", "- Начинай с узлов `norm:*` или `harm:*`, когда факты уже известны.", "- Переходи к узлам `pattern:*`, чтобы выбрать семейства аргументов.", "- Иди по связям `uses_article`, `has_anchor`, `supported_by` и пакетным связям, чтобы собрать раздел жалобы.", ""])
+    lines.extend(["", "## Как использовать", "", "- Начинай с узлов `norm:*` или `harm:*`, когда факты уже известны.", "- Переходи к узлам `pattern:*`, чтобы выбрать семейства аргументов.", "- Иди по связям `may_trigger`, `uses_article`, `has_anchor`, `reinforces_with`, `can_be_saved_by` и `remedy_with`, чтобы собрать раздел жалобы.", ""])
     (refs / "constitutional-graph.md").write_text("\n".join(lines), encoding="utf-8")
     (refs / "constitutional_graph.json").write_text(json.dumps(graph, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -701,6 +673,12 @@ def main() -> int:
     skill = Path(args.skill).expanduser().resolve()
     refs = skill / "references"
     refs.mkdir(parents=True, exist_ok=True)
+    curated_evidence_guide = refs / "evidence-maps.md"
+    if not curated_evidence_guide.is_file():
+        raise SystemExit(
+            "curated runtime evidence guide is required before enrichment: "
+            f"{curated_evidence_guide}"
+        )
 
     registry = load_registry(analysis / "expanded_pattern_registry.json")
     missing = [code for code in PATTERN_ORDER if code not in registry or code not in P]

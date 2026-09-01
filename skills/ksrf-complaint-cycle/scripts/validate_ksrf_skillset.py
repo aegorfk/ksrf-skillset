@@ -929,6 +929,113 @@ def _validate_application_evidence_contract(
         )
 
 
+def _validate_argument_graph_contract(
+    findings: list[dict[str, Any]], package_dir: Path, skills_root: Path
+) -> None:
+    """Reject graph records that present unshipped automation as runtime tools."""
+
+    if package_dir.name != "ksrf-argument-patterns":
+        return
+    graph_path = package_dir / "references" / "constitutional_graph.json"
+    if not graph_path.exists():
+        return
+
+    try:
+        graph = _read_json(graph_path)
+        nodes = graph["nodes"]
+        edges = graph["edges"]
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise ValueError("nodes and edges must be lists")
+        if any(not isinstance(node, dict) for node in nodes):
+            raise ValueError("every node must be an object")
+        if any(not isinstance(edge, dict) for edge in edges):
+            raise ValueError("every edge must be an object")
+        node_ids: list[str] = []
+        for index, node in enumerate(nodes):
+            node_id = node.get("id")
+            node_kind = node.get("kind")
+            if not isinstance(node_id, str) or not node_id.strip():
+                raise ValueError(f"node[{index}].id must be a non-empty string")
+            if not isinstance(node_kind, str) or not node_kind.strip():
+                raise ValueError(f"node[{index}].kind must be a non-empty string")
+            node_ids.append(node_id)
+        if len(node_ids) != len(set(node_ids)):
+            raise ValueError("node ids must be unique")
+        node_id_set = set(node_ids)
+        for index, edge in enumerate(edges):
+            for field in ("from", "to", "type"):
+                value = edge.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(
+                        f"edge[{index}].{field} must be a non-empty string"
+                    )
+            if edge["from"] not in node_id_set or edge["to"] not in node_id_set:
+                raise ValueError(f"edge[{index}] endpoints must reference existing nodes")
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "ARGUMENT_GRAPH_CONTRACT_INVALID",
+                f"Не удалось проверить пользовательский граф аргументации: {exc}",
+                package=package_dir.name,
+                path=_relative(graph_path, skills_root),
+            )
+        )
+        return
+
+    automation_kind_ids = [
+        str(node.get("id", ""))
+        for node in nodes
+        if node.get("kind") == "automation_hook"
+    ]
+    tool_node_ids = [
+        str(node.get("id", ""))
+        for node in nodes
+        if str(node.get("id", "")).startswith("tool:")
+    ]
+    supported_edge_indexes = [
+        index for index, edge in enumerate(edges) if edge.get("type") == "supported_by"
+    ]
+    tool_endpoint_indexes = [
+        index
+        for index, edge in enumerate(edges)
+        if str(edge.get("from", "")).startswith("tool:")
+        or str(edge.get("to", "")).startswith("tool:")
+    ]
+    if any(
+        (
+            automation_kind_ids,
+            tool_node_ids,
+            supported_edge_indexes,
+            tool_endpoint_indexes,
+        )
+    ):
+        findings.append(
+            _finding(
+                "error",
+                "UNSHIPPED_AUTOMATION_IN_RUNTIME_GRAPH",
+                (
+                    "Пользовательский граф выдаёт нереализованную автоматизацию "
+                    "за доступные инструменты или связи."
+                ),
+                package=package_dir.name,
+                path=_relative(graph_path, skills_root),
+                evidence={
+                    "automation_kind_count": len(automation_kind_ids),
+                    "tool_node_count": len(tool_node_ids),
+                    "supported_by_edge_count": len(supported_edge_indexes),
+                    "tool_endpoint_edge_count": len(tool_endpoint_indexes),
+                    "examples": (
+                        automation_kind_ids[:3]
+                        + tool_node_ids[:3]
+                        + [f"edge:{index}" for index in supported_edge_indexes[:2]]
+                        + [f"edge:{index}" for index in tool_endpoint_indexes[:2]]
+                    ),
+                },
+            )
+        )
+
+
 def _is_secret_path(path: Path) -> bool:
     name = path.name
     lowered = name.lower()
@@ -1408,6 +1515,7 @@ def validate_skillset(
         _validate_markdown_links(findings, package_dir, root)
         _validate_reference_tocs(findings, package_dir, root)
         _validate_application_evidence_contract(findings, package_dir, root)
+        _validate_argument_graph_contract(findings, package_dir, root)
         _validate_markdown_mcp_references(findings, package_dir, root)
     public_source_safety = "not_checked"
     public_repository_safety = "not_checked"
