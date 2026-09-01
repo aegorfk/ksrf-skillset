@@ -42,7 +42,8 @@
       "expectations": [
         "Raw assertions, cluster labels, and semantic hits remain candidates.",
         "An actor-separated hydrated ECHRArgumentPacket is required before a ResearchFinding.",
-        "The packet may affect only supported hypothesis relations and cannot bypass domestic hard gates or human selection."
+        "The packet may affect only supported hypothesis relations: every referencing hypothesis_id must be explicitly present in the finding hypothesis_ids.",
+        "The packet cannot bypass domestic hard gates or human selection."
       ]
     },
     {

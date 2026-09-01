@@ -70,6 +70,7 @@ def validate(payload: dict[str, Any]) -> list[str]:
         portfolio = {}
 
     finding_ids: set[str] = set()
+    finding_hypothesis_ids_by_id: dict[str, set[str]] = {}
     for index, finding in enumerate(findings):
         if not isinstance(finding, dict):
             errors.append(f"findings[{index}] must be an object")
@@ -81,6 +82,16 @@ def validate(payload: dict[str, Any]) -> list[str]:
             if finding_id in finding_ids:
                 errors.append(f"duplicate finding_id: {finding_id}")
             finding_ids.add(finding_id)
+            raw_hypothesis_ids = finding.get("hypothesis_ids", [])
+            finding_hypothesis_ids_by_id[finding_id] = (
+                {
+                    hypothesis_id
+                    for hypothesis_id in raw_hypothesis_ids
+                    if isinstance(hypothesis_id, str)
+                }
+                if isinstance(raw_hypothesis_ids, list)
+                else set()
+            )
         if finding.get("case_id") != case_id:
             errors.append(f"findings[{index}] crosses case scope")
         if finding.get("relation") not in RELATIONS:
@@ -112,6 +123,19 @@ def validate(payload: dict[str, Any]) -> list[str]:
         unknown = sorted(referenced - finding_ids)
         if unknown:
             errors.append(f"hypotheses[{index}] references unknown findings: {unknown}")
+        outside_membership = sorted(
+            finding_id
+            for finding_id in referenced & finding_ids
+            if not isinstance(hypothesis_id, str)
+            or not hypothesis_id.strip()
+            or hypothesis_id
+            not in finding_hypothesis_ids_by_id.get(finding_id, set())
+        )
+        if outside_membership:
+            errors.append(
+                f"hypotheses[{index}] references findings outside "
+                f"finding.hypothesis_ids: {outside_membership}"
+            )
 
     approval = portfolio.get("human_approval")
     if approval not in APPROVAL:
