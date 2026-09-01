@@ -1,14 +1,15 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-01T19:19:16Z",
+  "generated_at": "2026-09-01T20:19:10Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "92b403f48307d69108273423d182d828166d8f58",
+  "remote_base_commit": "925d8fb4848e1373e64b78a318750f45bcf107f1",
   "exclusions": [
     ".DS_Store",
     ".git/",
     ".serena/",
     ".pytest_cache/",
     "__pycache__/",
+    "evals/",
     "tests/",
     "*.pyc",
     "*.pyo",
@@ -16,105 +17,105 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 274,
-  "total_bytes": 8468492,
-  "tree_sha256": "2ff0ba6d5df7d5e0fa354ee56dd2a16c1bc34cb7a372e3eb983904afd38baf46",
+  "total_files": 244,
+  "total_bytes": 8385193,
+  "tree_sha256": "a921d8fc0ace765fbb8763c70b37d3cb2c53019730e465b73d4dc8d377efc522",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
-      "files": 43,
-      "bytes": 4322164,
-      "tree_sha256": "004c56bb6c26f59b9ff8f36677aa641a0ace0c1ee42d095b513eca2505fe7e90"
+      "files": 41,
+      "bytes": 4320718,
+      "tree_sha256": "b00bf265fbb50efcbfd26d4c70290b03d04a26d8a1a9c5e9057c94daca6bb7a2"
     },
     {
       "name": "ksrf-case-triage",
-      "files": 6,
-      "bytes": 58423,
-      "tree_sha256": "2abb82bffcc59e1b04353341f6ca9e30e76623d17581f40e29a894ef86fd96f6"
+      "files": 4,
+      "bytes": 55975,
+      "tree_sha256": "e53e2c8eefcd93bafd220989f71cb3835f2a5272e7556551fdf93e115c0e352e"
     },
     {
       "name": "ksrf-cassation-judicial-meaning",
-      "files": 34,
-      "bytes": 932366,
-      "tree_sha256": "717b7b13a763219ff87a3cc623299b15d2ac73946edc64c1eecd2d8a47492e6f"
+      "files": 32,
+      "bytes": 925063,
+      "tree_sha256": "3f87c0b2368c42cd3d0ffee4400cf1e5d4c543d24a33cce8d8a74ee1180837c9"
     },
     {
       "name": "ksrf-complaint-cycle",
-      "files": 93,
-      "bytes": 2021848,
-      "tree_sha256": "9d8f7f0b77b697d9bf92bec9cc8a525f7c8aafba77343d784faeabc1e54d9593"
+      "files": 91,
+      "bytes": 2012133,
+      "tree_sha256": "55537fe9cf1fcd0424bf6f4ee7276b7dddc58bf127e2a01a5d7507a2b8370cf0"
     },
     {
       "name": "ksrf-complaint-facts-demands",
-      "files": 11,
-      "bytes": 155340,
-      "tree_sha256": "6887fb1e0a422c5e74575548fd007a254b686dfbf5e97c447aea7d389b8a8f87"
+      "files": 9,
+      "bytes": 148602,
+      "tree_sha256": "99a6ba790f59e6d7f148584994ce4d8e020332ebb827aa6f3b1877dc4c8879e4"
     },
     {
       "name": "ksrf-complaint-qa",
-      "files": 8,
-      "bytes": 122874,
-      "tree_sha256": "d654fb8c672bc21a64467bde3bbcdddb9f10badc8b081beec3f03a478088fbfc"
+      "files": 6,
+      "bytes": 105466,
+      "tree_sha256": "85db517fb3bd8914736f2cf6f24685e60a72c845a73472191d823a6eceac96b0"
     },
     {
       "name": "ksrf-court-request-motion",
-      "files": 5,
-      "bytes": 46273,
-      "tree_sha256": "f1d61855217fc272c098cfed70489e6a28f13f76efd134c389c3d84e666c51f5"
+      "files": 3,
+      "bytes": 43833,
+      "tree_sha256": "e4952b3ebcbe2221d905867a1ede4ff54d2fa921113c591a809fb247c2ecfe43"
     },
     {
       "name": "ksrf-decision-execution",
-      "files": 7,
-      "bytes": 72859,
-      "tree_sha256": "abd54000b7b9e699c5783fcb2ce3b11ded573e96ad38c4baa0eca3a4737c2917"
+      "files": 5,
+      "bytes": 70494,
+      "tree_sha256": "aeb58341aecafc6b25a8b25ffcae5079ef22d0892d81860514a34d9d75ae37d9"
     },
     {
       "name": "ksrf-doctrine-research",
-      "files": 12,
-      "bytes": 173907,
-      "tree_sha256": "76f4b0617d2152a8b1ce744b0b60f93b4f9be4743d027a38fa67bff5e3b27c62"
+      "files": 10,
+      "bytes": 169577,
+      "tree_sha256": "7881a8a046acec4ae2bb82e9997d6fd2b3a34334bed1a3557273dd6626b5174c"
     },
     {
       "name": "ksrf-echr-argumentation",
-      "files": 11,
-      "bytes": 81159,
-      "tree_sha256": "93e9eb8cf2732d5bdcba8e65f6b06167b50b7f0d929ed1251e208acaabe5d6b8"
+      "files": 9,
+      "bytes": 73284,
+      "tree_sha256": "7ce14fe256535b3480a3ff6770b7562cd27e5890e4149c813f62fb640aa2cc94"
     },
     {
       "name": "ksrf-exhaustion-planner",
-      "files": 5,
-      "bytes": 31673,
-      "tree_sha256": "493b46bbb6bab530d4bc5ef3100174f54d6e9ff537875ab9dd807c10c61a8676"
+      "files": 3,
+      "bytes": 29442,
+      "tree_sha256": "efce853dfbb5538f89bc02fa44556691a6034a97957a5cf87697656a2255cebb"
     },
     {
       "name": "ksrf-explore-arguments",
-      "files": 11,
-      "bytes": 111619,
-      "tree_sha256": "ca8db64c74f413f02221b8c907250cbfbbc99c318ff2848082898575f73cff1a"
+      "files": 9,
+      "bytes": 103942,
+      "tree_sha256": "5c0d969d845894c76fb706a1141c7de12be2b07bac604aa764991c4d5ec02b43"
     },
     {
       "name": "ksrf-formal-filing-check",
-      "files": 5,
-      "bytes": 35481,
-      "tree_sha256": "423a85fc811dfaa2b3bffae06550f2d615a95b6bf67d1087f3123855d1d3bbde"
+      "files": 3,
+      "bytes": 33328,
+      "tree_sha256": "77dfc9994d02efd5c26e745558db4167361ef91bbe643595e599a681d266731c"
     },
     {
       "name": "ksrf-practice-authority-builder",
-      "files": 11,
-      "bytes": 112719,
-      "tree_sha256": "ced98920b8fd780327ed3b67ba821aa6ebc6c9a85c2ef27f6039b309de0d84a5"
+      "files": 9,
+      "bytes": 110612,
+      "tree_sha256": "8b9fe2a4cf4f72cdbd37972ccba4508522bf357777def634d29159119e5e7b5f"
     },
     {
       "name": "ksrf-rights-argument-builder",
-      "files": 12,
-      "bytes": 189787,
-      "tree_sha256": "c4ef2c1d1c583ade25bb4ba08d545dd7c7d4fd994362499bff2d24948f0362f7"
+      "files": 10,
+      "bytes": 182724,
+      "tree_sha256": "60c5755b9ffa00f73170ae4ada07342c01f2f06d705524aae493a10869f00cbc"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 194155,
-  "release_tree_sha256": "928c85463c90f20470c6ef5c2c17d1a5550da74190e50a9ba5b5467fb4d0fe1b",
+  "total_release_bytes": 194186,
+  "release_tree_sha256": "e968e63e80065616826262baa459e4b3278e4e287855431cd7b61405138b9624",
   "release_files": [
     {
       "path": "install.sh",
@@ -123,8 +124,8 @@
     },
     {
       "path": "tools/generate_skills_manifest.py",
-      "bytes": 4402,
-      "sha256": "7101399e7629c8d35719ba6f685b708c3aa3573a2b5c7347487b804d07d22e10"
+      "bytes": 4424,
+      "sha256": "bbba934d1efad90bd2c160747398f38b9b72f25b50cf9926c96ccecd1f4a2451"
     },
     {
       "path": "tools/install_skillset.py",
@@ -133,8 +134,8 @@
     },
     {
       "path": "tools/skillset_file_contract.py",
-      "bytes": 9885,
-      "sha256": "85832f72fde17fd25a36f28c33143757f0746f6ebb3c18b8b73747a6ebb10aab"
+      "bytes": 9894,
+      "sha256": "8d9965f04613cce41af4dabd1a13393f03c4bfd718601573e4f8bc0a7e0dadae"
     },
     {
       "path": "tools/sync_global_skills.sh",

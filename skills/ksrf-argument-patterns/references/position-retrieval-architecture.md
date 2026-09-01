@@ -168,7 +168,7 @@ python3 scripts/index_ksrf_position_retrieval.py \
 - Neo4j Browser: `http://localhost:7474`, Bolt `bolt://localhost:7687`, пользователь `neo4j`, пароль из `.env.example`.
 - Embedding model: `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`.
 - Reranker: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`.
-- Локальный Langfuse для golden/eval: `http://localhost:3001`, проект `KSRF Retrieval Eval`.
+- Локальный Langfuse для maintainer source-eval: `http://localhost:3001`, проект `KSRF Retrieval Eval`; для пользовательского runtime-поиска он не обязателен.
 
 CLI-поиск объединяет Qdrant, локальный lexical leg по формулам КС РФ, Neo4j-контекст и локальный reranker. Для быстрой диагностики можно отключить reranker через `--no-rerank`, но для реального подбора позиций оставляй reranker включенным.
 
@@ -197,18 +197,15 @@ CLI-поиск объединяет Qdrant, локальный lexical leg по 
 
 ## Оценка retrieval
 
-Golden dataset хранится в `evals/ksrf_retrieval_golden.jsonl`. Запускай:
+В пользовательской runtime-установке нет maintainer-наборов оценки и benchmark-runner. Не придумывай их пути и не сообщай, что автоматическая оценка выполнена. Для каждого найденного кандидата сохрани query, коллекцию, `top_k`, score/reranker, `source_anchor`, `quote_locator` и время поиска, затем выполни ручную проверку:
 
-```bash
-LANGFUSE_HOST=http://localhost:3001 \
-LANGFUSE_PUBLIC_KEY=pk-lf-ksrf-local \
-LANGFUSE_SECRET_KEY=sk-lf-ksrf-local \
-python3 scripts/evaluate_ksrf_retrieval.py --top-k 10
-```
+1. Открой официальный акт по `source_anchor`; если официальный текст недоступен, оставь кандидата `candidate_only`.
+2. Найди `quote_locator` в полном тексте и проверь контекст, субъектов, оспариваемую норму и итог КС РФ.
+3. Сопоставь не только векторную близость, но и статью Конституции, тип вреда, тест, remedy и предел переносимости.
+4. Проверь ближайший hard negative или альтернативную позицию; необъяснённое противоречие блокирует использование в жалобе.
+5. Отдели диагностический retrieval score от юридической силы: score никогда не заменяет официальный источник и ручной legal review.
 
-Минимальные метрики: hit rate at K и MRR. До использования результата для жалобы вручную проверь expected decisions и цитаты. DeepEval/LLM-judge добавляется после ручной валидации golden dataset, иначе judge будет закреплять ошибки разметки.
-
-Стартовый smoke-baseline deterministic collection (`--no-rerank --top-k 5 --candidate-limit 20`) дал `hit@5 = 0.4`, `MRR = 0.4` на 5 кейсах. Это диагностическая точка, а не целевая метрика: пополняй golden hard-cases и сравнивай deterministic vs semantic collection.
+Автоматические hit rate at K, MRR, DeepEval/LLM-judge и Langfuse-traces относятся только к отдельному maintainer source/release QA. Их можно считать выполненными лишь при наличии реального versioned harness и проверенного golden dataset в исходной рабочей копии; runtime-гайд сам по себе такого доказательства не даёт.
 
 ## Enrichment-слой корпуса
 

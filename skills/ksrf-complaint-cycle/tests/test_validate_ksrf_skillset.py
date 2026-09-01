@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = (
@@ -152,6 +154,7 @@ class KSRFSkillsetValidatorTests(unittest.TestCase):
             self.assertTrue(all(".serena" not in path for path in paths))
             self.assertTrue(all("__pycache__" not in path for path in paths))
             self.assertTrue(all("tests" not in Path(path).parts for path in paths))
+            self.assertTrue(all("evals" not in Path(path).parts for path in paths))
             self.assertTrue(all(not path.endswith(".pyc") for path in paths))
             self.assertIn("RUNTIME_ARTIFACT_EXCLUDED", _codes(report))
 
@@ -307,6 +310,213 @@ description: Используй этот навык для всего.
             codes = _codes(report)
             self.assertIn("BEHAVIORAL_EVALS_INSUFFICIENT", codes)
             self.assertIn("TRIGGER_EVAL_POLARITY_MISSING", codes)
+
+    def test_source_profile_is_default_and_missing_evals_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            (skill / "evals" / "evals.json").unlink()
+            (skill / "evals" / "trigger-evals.json").unlink()
+            (skill / "evals").rmdir()
+
+            report = VALIDATOR.validate_skillset(root, package_names=("ksrf-test",))
+
+            self.assertEqual(report["validation_profile"], "source")
+            self.assertEqual(report["validation_coverage"]["evals"], "validated")
+            self.assertFalse(report["source_release_eligible"])
+            self.assertIn("BEHAVIORAL_EVALS_MISSING", _codes(report))
+            self.assertIn("TRIGGER_EVALS_MISSING", _codes(report))
+
+    def test_runtime_profile_passes_without_evals_and_discloses_limited_scope(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            (skill / "evals" / "evals.json").unlink()
+            (skill / "evals" / "trigger-evals.json").unlink()
+            (skill / "evals").rmdir()
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="runtime",
+            )
+
+            self.assertEqual(report["status"], "pass")
+            self.assertEqual(report["validation_profile"], "runtime")
+            self.assertEqual(report["validation_coverage"]["evals"], "not_checked")
+            self.assertEqual(
+                report["validation_coverage"]["public_source_safety"],
+                "not_checked",
+            )
+            self.assertEqual(
+                report["validation_coverage"]["public_repository_safety"],
+                "not_checked",
+            )
+            self.assertFalse(report["source_release_eligible"])
+            self.assertIsNone(report["publish_manifest"])
+            self.assertNotIn("BEHAVIORAL_EVALS_MISSING", _codes(report))
+            self.assertNotIn("TRIGGER_EVALS_MISSING", _codes(report))
+            rendered = VALIDATOR._render_text(report)
+            self.assertIn("Профиль: runtime", rendered)
+            self.assertIn("не заменяет source/release QA", rendered)
+
+    def test_runtime_profile_rejects_source_only_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_valid_skill(root)
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="runtime",
+            )
+
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("SOURCE_ONLY_ARTIFACT_PRESENT", _codes(report))
+
+    def test_runtime_profile_keeps_non_eval_validation_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            (skill / "evals" / "evals.json").unlink()
+            (skill / "evals" / "trigger-evals.json").unlink()
+            (skill / "evals").rmdir()
+            _write(
+                skill / "SKILL.md",
+                (skill / "SKILL.md").read_text(encoding="utf-8")
+                + "\n[Нет файла](references/missing.md)\n",
+            )
+            _write(
+                skill / "references" / "leak.md",
+                "api_key = 'synthetic-live-value-123456789012345'\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="runtime",
+            )
+
+            codes = _codes(report)
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("BROKEN_MARKDOWN_LINK", codes)
+            self.assertIn("POTENTIAL_SECRET", codes)
+            self.assertNotIn("BEHAVIORAL_EVALS_MISSING", codes)
+            self.assertNotIn("TRIGGER_EVALS_MISSING", codes)
+
+    def test_source_profile_still_security_scans_excluded_evals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(skill / "evals" / ".env", "API_TOKEN=real-secret-value-1234567890\n")
+            _write(
+                skill / "evals" / "local.json",
+                '{"source": "/Users/alice/Documents/private-case/source.pdf"}\n',
+            )
+            _write(
+                skill / "evals" / "leak.json",
+                "api_key = 'synthetic-live-value-123456789012345'\n",
+            )
+            _write(
+                skill / "evals" / "private.md",
+                """В Конституционный Суд Российской Федерации
+
+Заявитель: Иванов Иван Иванович
+
+ЖАЛОБА
+
+ПРОШУ:
+""",
+            )
+
+            report = VALIDATOR.validate_skillset(root, package_names=("ksrf-test",))
+
+            codes = _codes(report)
+            paths = [item["path"] for item in report["publish_manifest"]["files"]]
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("FORBIDDEN_SECRET_FILE", codes)
+            self.assertIn("ABSOLUTE_RUNTIME_PATH", codes)
+            self.assertIn("POTENTIAL_SECRET", codes)
+            self.assertIn("FORBIDDEN_PUBLIC_SOURCE_ARTIFACT", codes)
+            self.assertEqual(
+                report["validation_coverage"]["public_source_safety"],
+                "validated",
+            )
+            self.assertEqual(
+                report["validation_coverage"]["public_repository_safety"],
+                "not_checked",
+            )
+            self.assertFalse(any("/evals/" in path for path in paths))
+
+    def test_source_profile_discloses_unavailable_public_source_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_valid_skill(root)
+
+            with mock.patch.object(
+                VALIDATOR,
+                "PUBLIC_SOURCE_CONTRACT_PATH",
+                root / "missing-public-source-contract.py",
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                )
+
+            self.assertEqual(
+                report["validation_coverage"]["public_source_safety"],
+                "not_checked",
+            )
+            self.assertEqual(
+                report["validation_coverage"]["public_repository_safety"],
+                "not_checked",
+            )
+            self.assertFalse(report["source_release_eligible"])
+            self.assertIn("PUBLIC_SOURCE_SAFETY_NOT_CHECKED", _codes(report))
+
+    def test_unknown_validation_profile_is_rejected_by_python_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_valid_skill(root)
+
+            with self.assertRaisesRegex(ValueError, "validation profile"):
+                VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="unknown",
+                )
+
+    def test_runtime_cli_refuses_standalone_publish_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            (skill / "evals" / "evals.json").unlink()
+            (skill / "evals" / "trigger-evals.json").unlink()
+            (skill / "evals").rmdir()
+            manifest_out = root / "runtime-manifest.json"
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            exit_code = VALIDATOR.main(
+                [
+                    "--skills-root",
+                    str(root),
+                    "--package",
+                    "ksrf-test",
+                    "--profile",
+                    "runtime",
+                    "--manifest-out",
+                    str(manifest_out),
+                ],
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+            self.assertEqual(exit_code, 2)
+            self.assertFalse(manifest_out.exists())
+            self.assertIn("runtime", stderr.getvalue().lower())
 
     def test_agent_metadata_must_reference_exact_skill_and_mcp_names_are_qualified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -60,7 +60,7 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 self.assertFalse((installed_skill / "__pycache__").exists())
             self.assertFalse((target / SKILL_NAMES[0] / "stale.txt").exists())
 
-    def test_copy_excludes_development_tests_but_keeps_evals(self) -> None:
+    def test_copy_excludes_development_tests_and_evals(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             source = self._source(root)
@@ -74,17 +74,24 @@ class ExactSkillsetInstallTests(unittest.TestCase):
             evals = skill / "evals"
             evals.mkdir()
             (evals / "evals.json").write_text("{}\n", encoding="utf-8")
+            references = skill / "references"
+            references.mkdir()
+            (references / "evals-guide.md").write_text(
+                "runtime guide\n", encoding="utf-8"
+            )
             target = root / "target"
 
             copy_skillset(source, target)
 
             self.assertTrue((skill / "tests" / "test_runtime.py").is_file())
+            self.assertTrue((skill / "evals" / "evals.json").is_file())
             self.assertFalse((target / SKILL_NAMES[0] / "tests").exists())
+            self.assertFalse((target / SKILL_NAMES[0] / "evals").exists())
             self.assertTrue(
-                (target / SKILL_NAMES[0] / "evals" / "evals.json").is_file()
+                (target / SKILL_NAMES[0] / "references" / "evals-guide.md").is_file()
             )
 
-    def test_source_sync_preserves_target_tests_while_replacing_runtime_files(
+    def test_source_sync_preserves_target_tests_and_evals_while_replacing_runtime_files(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -98,6 +105,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 "def test_source_contract():\n    assert True\n", encoding="utf-8"
             )
             (target_tests / "case.json").write_text("{}\n", encoding="utf-8")
+            target_evals = target_skill / "evals"
+            target_evals.mkdir()
+            (target_evals / "evals.json").write_text(
+                '{"source": "preserve"}\n', encoding="utf-8"
+            )
+            (target_evals / "trigger-evals.json").write_text(
+                "[]\n", encoding="utf-8"
+            )
             (target_skill / "stale-runtime.txt").write_text(
                 "stale\n", encoding="utf-8"
             )
@@ -108,6 +123,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 (target_skill / "tests" / "test_source_contract.py").is_file()
             )
             self.assertTrue((target_tests / "case.json").is_file())
+            self.assertEqual(
+                (target_evals / "evals.json").read_text(encoding="utf-8"),
+                '{"source": "preserve"}\n',
+            )
+            self.assertEqual(
+                (target_evals / "trigger-evals.json").read_text(encoding="utf-8"),
+                "[]\n",
+            )
             self.assertFalse((target_skill / "stale-runtime.txt").exists())
             self.assertTrue((target_skill / "nested" / "allowed.txt").is_file())
 
