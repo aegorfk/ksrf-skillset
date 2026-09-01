@@ -5,7 +5,7 @@
 Проход по корпусу намеренно сделан детерминированным и локальным:
 
 - источник: `ТЗ/Постановления КС РФ`;
-- скрипт: `scripts/extract_ksrf_argument_patterns.py`;
+- скрипт сопровождения репозитория: `tools/extract_ksrf_argument_patterns.py`;
 - выход: `analysis_results/ksrf_argument_patterns`;
 - извлечение текста из PDF: сначала PyPDF2, затем fallback на pdfplumber;
 - порядок: от старых к новым по году и номеру постановления.

@@ -112,6 +112,52 @@ class PublicSourceGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(FileContractError, "complaint-like full text"):
                 validate_public_repository(Path(temporary))
 
+    def test_rejects_unsafe_content_in_each_root_only_release_tool(self) -> None:
+        unsafe_samples = {
+            "secret assignment": "api_key = 'synthetic-live-value-123456789012345'\n",
+            "access token": "TOKEN = 'ghp_abcdefghijklmnopqrstuvwxyz123456'\n",
+            "private key": "KEY = '-----BEGIN PRIVATE KEY-----'\n",
+            "absolute path": 'SOURCE = "/Users/alice/Documents/private/input.pdf"\n',
+        }
+        for name in (
+            "enrich_ksrf_argument_patterns.py",
+            "extract_ksrf_argument_patterns.py",
+        ):
+            for label, content in unsafe_samples.items():
+                with self.subTest(name=name, label=label):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        path = Path(temporary) / name
+                        path.write_text(content, encoding="utf-8")
+                        with self.assertRaisesRegex(
+                            FileContractError,
+                            "unsafe root-only release tool content",
+                        ) as caught:
+                            validate_public_artifact(path, Path("tools") / name)
+                        self.assertNotIn("synthetic-live-value", str(caught.exception))
+                        self.assertNotIn("ghp_", str(caught.exception))
+
+    def test_repository_guard_rejects_benign_root_only_skill_duplicate(self) -> None:
+        for name in (
+            "enrich_ksrf_argument_patterns.py",
+            "extract_ksrf_argument_patterns.py",
+        ):
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as temporary:
+                    duplicate = (
+                        Path(temporary)
+                        / "skills"
+                        / "ksrf-argument-patterns"
+                        / "scripts"
+                        / name
+                    )
+                    duplicate.parent.mkdir(parents=True)
+                    duplicate.write_text("# benign duplicate\n", encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        FileContractError,
+                        "root-only tool duplicate is forbidden",
+                    ):
+                        validate_public_repository(Path(temporary))
+
     def test_allows_non_reconstructive_method_card(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             card = Path(temporary) / "card.md"

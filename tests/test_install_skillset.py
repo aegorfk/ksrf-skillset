@@ -20,6 +20,14 @@ EXACT_MAINTAINER_FILES = (
         Path("references/argument_techniques_from_decisions.json"),
     ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
+    (
+        "ksrf-argument-patterns",
+        Path("scripts/enrich_ksrf_argument_patterns.py"),
+    ),
+    (
+        "ksrf-argument-patterns",
+        Path("scripts/extract_ksrf_argument_patterns.py"),
+    ),
 )
 
 

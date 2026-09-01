@@ -237,7 +237,7 @@ def main() -> int:
     parser.add_argument(
         "--source",
         required=True,
-        help="Каталог PDF Постановлений КС РФ; maintenance-вход задаётся явно",
+        help="Каталог PDF постановлений КС РФ; служебный источник задаётся явно",
     )
     parser.add_argument(
         "--out",
