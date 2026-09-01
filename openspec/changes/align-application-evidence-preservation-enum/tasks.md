@@ -23,7 +23,7 @@
 - [x] 4.2 Перенести только содержательный patch без старого manifest и регенерировать manifest от актуального base SHA.
 - [x] 4.3 Повторить focused/full/root tests, strict skillset и OpenSpec validation, offline self-containment и clean-room hash check.
 - [x] 4.4 Получить независимый review актуального diff без нерешённых P1/P2.
-- [ ] 4.5 Опубликовать только refresh feature branch и подтвердить её SHA, неизменность `main` и глобальных skills.
+- [x] 4.5 Опубликовать только refresh feature branch и подтвердить её SHA, неизменность `main` и глобальных skills.
 
 ## 5. Человеческий promotion gate
 
