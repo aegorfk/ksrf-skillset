@@ -17,5 +17,5 @@
 
 - [x] 3.1 Run focused RED/GREEN, 602 tests across five suites, source strict 15/15 with 0/0, clean-room runtime strict 15/15 with 0/0, strict OpenSpec 14/14, exact payload verification, and diff checks.
 - [x] 3.2 Obtain independent semantic, test, and release review with no unresolved P1/P2; both discovered P2 findings were fixed and re-reviewed.
-- [ ] 3.3 Publish atomically to `main`, confirm remote SHA, install and verify the exact global payload.
-- [ ] 3.4 Archive the completed OpenSpec change and publish the final evidence commit.
+- [x] 3.3 Publish atomically to `main` at merge `742e05b345f974fe0b91340b1f24e0e7fe5f9153`, confirm the live remote SHA, and install/verify the exact global payload: 15 packages, 235 files, 8,052,188 bytes, tree `5f1162261f3956ad7cdf2d4d1b13f9b3cb3c8dfb4b43721e4130b12f7488d498`, tests/evals 0/0.
+- [x] 3.4 Archive the completed OpenSpec change and publish the final evidence commit.
