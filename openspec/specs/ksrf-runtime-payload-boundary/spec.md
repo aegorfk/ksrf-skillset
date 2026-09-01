@@ -5,21 +5,21 @@ TBD - created by archiving change exclude-development-tests-from-installed-paylo
 ## Requirements
 ### Requirement: Installed payload excludes maintainer-only tests
 
-The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file identities. It MUST classify `ksrf-argument-patterns/references/complaint-methodology-sources.md` as a tracked source-only provenance journal and MUST exclude that exact identity from user installation without excluding similarly named Markdown files. The two retired runtime identities `ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py` and `ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py` MUST NOT exist as tracked skill duplicates; their canonical root-only copies MUST remain under `tools/` and covered by the release manifest.
+The canonical KSRF install contract MUST exclude files under any skill-relative `tests` or `evals` path component and MUST exclude only the versioned exact maintainer-file identities. It MUST classify both `ksrf-argument-patterns/references/complaint-methodology-sources.md` and `ksrf-argument-patterns/references/automation-backlog.md` as tracked source-only maintainer documents and MUST exclude those exact identities from user installation without excluding similarly named Markdown files. The two retired runtime identities `ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py` and `ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py` MUST NOT exist as tracked skill duplicates; their canonical root-only copies MUST remain under `tools/` and covered by the release manifest.
 
-#### Scenario: Provenance journal is installed
+#### Scenario: Source-only maintainer document is installed
 
-- **WHEN** manifest generation or installation encounters the exact journal identity
+- **WHEN** manifest generation or installation encounters either exact source-only Markdown identity
 - **THEN** it is omitted, while source validation still scans it and lookalike Markdown remains eligible
 
-#### Scenario: Runtime contains the provenance journal
+#### Scenario: Runtime contains the automation backlog
 
-- **WHEN** runtime-profile validation encounters the exact journal identity
+- **WHEN** runtime-profile validation encounters the exact backlog identity
 - **THEN** validation fails with `SOURCE_ONLY_ARTIFACT_PRESENT`
 
-#### Scenario: Source repository contains the provenance journal
+#### Scenario: Source repository contains the automation backlog
 
-- **WHEN** source/release validation inspects the canonical tracked file
+- **WHEN** source/release validation inspects the canonical tracked backlog
 - **THEN** it remains required and covered by secret, local-path, symlink and public-artifact checks but is absent from the portable publish manifest
 
 #### Scenario: Retired nested generator is encountered
@@ -39,40 +39,40 @@ The canonical KSRF install contract MUST exclude files under any skill-relative 
 
 ### Requirement: One exact file contract governs distribution
 
-Manifest generation, runtime installation, tree-hash verification, source-only provenance ownership, release-tool ownership, and reverse synchronization MUST use the same versioned contract. The provenance journal MUST remain byte-preserved by reverse sync and MUST NOT be required in the installed runtime. No installed user-facing `SKILL.md`, Markdown/JSON reference, or operational builder/verifier MAY refer to its excluded basename; the portable validator MAY retain the exact identity solely as fail-closed policy data.
+Manifest generation, runtime installation, tree-hash verification, source-only maintainer ownership, release-tool ownership, and reverse synchronization MUST use the same versioned contract. Both source-only Markdown files MUST remain byte-preserved by reverse sync and MUST NOT be required in installed runtime. No installed user-facing `SKILL.md`, Markdown/JSON reference, or operational builder/verifier MAY refer to either excluded basename; the portable validator MAY retain exact identities solely as fail-closed policy data.
 
 #### Scenario: Global runtime is synchronized back to source
 
-- **WHEN** global KSRF skills do not contain the provenance journal or the two root-only generators
-- **THEN** reverse sync succeeds, preserves all three source-owned files byte-for-byte, and still mirrors `build_constitutionalist_authority_corpus.py`
+- **WHEN** global KSRF skills do not contain either source-only Markdown file or the two root-only generators
+- **THEN** reverse sync succeeds, preserves every source-owned file byte-for-byte, and still mirrors the canonical runtime builder
 
 #### Scenario: Clean-room runtime is inspected
 
 - **WHEN** the exact manifest payload is installed to an empty directory
-- **THEN** neither the provenance journal nor any backlink to its basename exists, and all successor references resolve inside runtime
+- **THEN** neither source-only Markdown file nor any user-facing backlink to either basename exists, and all replacement routes resolve inside runtime
 
-#### Scenario: Corpus metadata is generated
+#### Scenario: Same or similar basename is encountered outside the exact identity
 
-- **WHEN** the canonical builder regenerates `constitutionalist-authority-corpus.json`
-- **THEN** root/mirrored builders and generated metadata refer only to retained runtime references
+- **WHEN** another package contains `references/automation-backlog.md` or the canonical package contains `references/automation-backlog-runtime.md`
+- **THEN** it remains runtime-eligible if it passes all other checks
 
 ### Requirement: Cleanup does not weaken development or legal gates
 
-The provenance cleanup MUST preserve source/public security checks, source tests and evals, strict OpenSpec validation, explicit publication authority, all legal/human review gates, and an independently reviewed mapping from every transferable source method/check to `retained`, `superseded`, or `intentionally_rejected`. Automated validation MUST cover exact payload behavior, critical transferred gaps, and dead runtime routes; it MUST NOT be represented as a complete semantic proof of every mapping row.
+Runtime cleanup MUST preserve source/public security checks, source tests and evals, strict OpenSpec validation, explicit publication authority, all legal/human review gates, and an independently reviewed ownership map for every removed source-only method or proposed checker. Automated validation MUST cover exact payload behavior, route existence and dead runtime backlinks; it MUST NOT represent a planned automation as shipped functionality or an ownership table as substantive legal validation.
 
-#### Scenario: Provenance journal contains unsafe source material
+#### Scenario: Source-only backlog contains unsafe source material
 
-- **WHEN** the tracked journal contains a secret, absolute local path, symlink, or complaint-like artifact
-- **THEN** source/repository validation rejects it even though the runtime contract excludes it
+- **WHEN** the tracked backlog contains a secret, absolute local path, symlink, or complaint-like artifact
+- **THEN** source/repository validation rejects it even though runtime distribution excludes it
 
-#### Scenario: Critical transferred methodology is removed or unrouted
+#### Scenario: Replacement route is absent
 
-- **WHEN** either newly transferred hearing/remedy-access gate or a routed retained successor is absent
-- **THEN** regression validation or independent semantic review blocks publication rather than treating source-only exclusion as evidence that methodology survived
+- **WHEN** a runtime backlink is removed but its referenced operational owner does not exist in the installed payload
+- **THEN** regression validation blocks publication
 
 ### Requirement: Validator distinguishes source and runtime assurance
 
-The portable validator MUST provide explicit `source` and `runtime` profiles. The `source` profile MUST validate behavioral and trigger evals, security-scan all source-only assets, invoke the canonical public-source artifact contract, and remain the default. The `runtime` profile MAY skip only eval-specific checks, MUST reject any remaining source-only `tests/`, `evals/`, or exact maintainer-file artifact, and MUST preserve all other package, content, link, metadata, security, and cross-contract checks. Every report MUST identify the profile, state whether evals, skill-source safety, and repository-source safety were validated, and state whether it is eligible as source-release evidence. Missing public-source contract coverage or absence of a repository-wide scan in the canonical source checkout MUST prevent source release eligibility. A runtime report MUST NOT expose a `publish_manifest`, and runtime CLI invocation MUST reject standalone manifest output.
+The portable validator MUST provide explicit `source` and `runtime` profiles. The `source` profile MUST validate behavioral and trigger evals, security-scan all source-only assets, invoke the canonical public-source artifact contract, and remain the default. The `runtime` profile MAY skip only eval-specific checks, MUST reject any remaining source-only `tests/`, `evals/`, or versioned exact maintainer-file artifact, and MUST preserve all other package, content, link, metadata, security, and cross-contract checks. Every report MUST identify the profile, state whether evals, skill-source safety, and repository-source safety were validated, and state whether it is eligible as source-release evidence. Missing public-source contract coverage or absence of a repository-wide scan in the canonical source checkout MUST prevent source release eligibility. A runtime report MUST NOT expose a `publish_manifest`, and runtime CLI invocation MUST reject standalone manifest output.
 
 #### Scenario: Source profile has missing evals
 
@@ -81,7 +81,7 @@ The portable validator MUST provide explicit `source` and `runtime` profiles. Th
 
 #### Scenario: Source profile contains an exact maintainer file
 
-- **WHEN** source validation reaches one of the five exact files
+- **WHEN** source validation reaches any versioned exact maintainer file
 - **THEN** the file is excluded from the portable publish manifest but remains covered by secret, local-path, symlink, and public-source checks
 
 #### Scenario: Runtime profile validates an installed package
@@ -91,7 +91,7 @@ The portable validator MUST provide explicit `source` and `runtime` profiles. Th
 
 #### Scenario: Runtime profile is used on source checkout
 
-- **WHEN** runtime-profile validation finds a file under any `tests/` or `evals/` path component or at one of the five exact maintainer paths
+- **WHEN** runtime-profile validation finds a file under any `tests/` or `evals/` path component or at any versioned exact maintainer path
 - **THEN** validation fails with `SOURCE_ONLY_ARTIFACT_PRESENT`
 
 #### Scenario: Runtime result is rendered or serialized

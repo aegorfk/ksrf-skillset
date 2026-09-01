@@ -18,5 +18,5 @@
 - [x] 3.1 Run focused RED/GREEN, full source suites, source strict, clean-room runtime strict, strict OpenSpec, shell syntax and diff checks.
 - [x] 3.2 Confirm exact clean-room package, file, byte and tree hashes; confirm backlog tracked in source and absent from clean runtime.
 - [x] 3.3 Obtain independent semantic-ownership and security/release review with no unresolved P1/P2.
-- [ ] 3.4 Publish atomically to `main`, confirm remote SHA, install the exact global payload and verify its package/file/byte/tree hashes.
-- [ ] 3.5 Archive the completed OpenSpec change and publish the final evidence commit.
+- [x] 3.4 Publish atomically to `main`, confirm remote SHA, install the exact global payload and verify its package/file/byte/tree hashes.
+- [x] 3.5 Archive the completed OpenSpec change and publish the final evidence commit.
