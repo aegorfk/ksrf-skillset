@@ -14,6 +14,12 @@ from typing import Any, Iterable, Mapping, Sequence
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
+from .application_binding import (
+    ApplicationFindingEvidenceBindingAuthority,
+    build_application_finding_binding_request,
+    resolve_application_finding_evidence_binding,
+    resolve_application_finding_evidence_binding_index,
+)
 from .composer import StructuredComplaint, require_release_support
 from .holding_binding import (
     HoldingEvidenceBindingAuthority,
@@ -92,7 +98,24 @@ _MANIFEST_STATUSES = {
     "ready_for_expert_review",
     "ready_for_human_signing_filing",
 }
-_FILING_MANIFEST_SCHEMA_VERSION = "1.4"
+_FILING_MANIFEST_SCHEMA_VERSION = "1.5"
+_APPLICATION_BINDING_RECEIPT_FIELDS = {
+    "schema_version",
+    "sentence_id",
+    "section_code",
+    "application_binding_sha256",
+    "claim_id",
+    "norm_passport_id",
+    "application_record_ids",
+    "evidence_ids",
+    "maximum_supported_inference",
+    "chain_inventory_receipt",
+    "norm_version_gate_receipt",
+    "application_gate_receipts",
+    "scope_receipt",
+    "authority_revision_id",
+    "checked_at",
+}
 _PRACTICE_BINDING_RECEIPT_FIELDS = {
     "schema_version",
     "sentence_id",
@@ -500,6 +523,9 @@ def build_release_pack(
     soffice_path: str | Path | None = None,
     pdftoppm_path: str | Path | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    application_binding_authority: (
+        ApplicationFindingEvidenceBindingAuthority | Any | None
+    ) = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
@@ -519,6 +545,8 @@ def build_release_pack(
 
     blockers: list[str] = []
     relief_binding_receipts: list[dict[str, Any]] = []
+    application_binding_receipts: list[dict[str, Any]] = []
+    application_binding_index_receipt: dict[str, Any] | None = None
     holding_binding_receipts: list[dict[str, Any]] = []
     holding_binding_index_receipt: dict[str, Any] | None = None
     practice_binding_receipts: list[dict[str, Any]] = []
@@ -528,9 +556,11 @@ def build_release_pack(
         support_receipts = require_release_support(
             complaint,
             relief_binding_authority=relief_binding_authority,
+            application_binding_authority=application_binding_authority,
             holding_binding_authority=holding_binding_authority,
             practice_binding_authority=practice_binding_authority,
             sentence_role_authority=sentence_role_authority,
+            require_application_index=True,
             require_holding_index=True,
             require_practice_index=True,
             require_sentence_role_index=True,
@@ -538,6 +568,13 @@ def build_release_pack(
         relief_binding_receipts = list(
             support_receipts.relief_binding_receipts
         )
+        application_binding_receipts = list(
+            support_receipts.application_binding_receipts
+        )
+        if support_receipts.application_binding_index_receipt is not None:
+            application_binding_index_receipt = dict(
+                support_receipts.application_binding_index_receipt
+            )
         holding_binding_receipts = list(
             support_receipts.holding_binding_receipts
         )
@@ -645,6 +682,67 @@ def build_release_pack(
     if not complaint.issue_option_ids:
         blockers.append("issue_option_ids_missing")
 
+    # Rendering, conversion, visual QA, and enclosure collection are all
+    # potentially slow.  Re-read the host authorities after those steps so a
+    # manifest can never claim readiness with receipts captured before an
+    # intervening authority/index revision.
+    if not blockers:
+        try:
+            support_receipts = require_release_support(
+                complaint,
+                relief_binding_authority=relief_binding_authority,
+                application_binding_authority=application_binding_authority,
+                holding_binding_authority=holding_binding_authority,
+                practice_binding_authority=practice_binding_authority,
+                sentence_role_authority=sentence_role_authority,
+                require_application_index=True,
+                require_holding_index=True,
+                require_practice_index=True,
+                require_sentence_role_index=True,
+            )
+            relief_binding_receipts = list(
+                support_receipts.relief_binding_receipts
+            )
+            application_binding_receipts = list(
+                support_receipts.application_binding_receipts
+            )
+            application_binding_index_receipt = (
+                dict(support_receipts.application_binding_index_receipt)
+                if support_receipts.application_binding_index_receipt is not None
+                else None
+            )
+            holding_binding_receipts = list(
+                support_receipts.holding_binding_receipts
+            )
+            holding_binding_index_receipt = (
+                dict(support_receipts.holding_binding_index_receipt)
+                if support_receipts.holding_binding_index_receipt is not None
+                else None
+            )
+            practice_binding_receipts = list(
+                support_receipts.practice_binding_receipts
+            )
+            practice_binding_index_receipt = (
+                dict(support_receipts.practice_binding_index_receipt)
+                if support_receipts.practice_binding_index_receipt is not None
+                else None
+            )
+            sentence_role_index_receipt = (
+                dict(support_receipts.sentence_role_index_receipt)
+                if support_receipts.sentence_role_index_receipt is not None
+                else None
+            )
+        except Exception as exc:
+            blockers.append("support_revalidation_failed_after_artifact_generation")
+            reason_codes = tuple(getattr(exc, "reason_codes", ()))
+            blockers.extend(
+                reason
+                for reason in reason_codes
+                if isinstance(reason, str) and reason
+            )
+            if not reason_codes:
+                blockers.append(str(exc))
+
     release_status = "blocked" if blockers else "ready_for_expert_review"
     relief_binding_index_receipt = (
         dict(relief_binding_receipts[0].get("binding_index_receipt") or {})
@@ -673,6 +771,8 @@ def build_release_pack(
         "sentence_evidence_map": complaint.sentence_evidence_map(),
         "relief_binding_receipts": relief_binding_receipts,
         "relief_binding_index_receipt": relief_binding_index_receipt,
+        "application_binding_receipts": application_binding_receipts,
+        "application_binding_index_receipt": application_binding_index_receipt,
         "holding_binding_receipts": holding_binding_receipts,
         "holding_binding_index_receipt": holding_binding_index_receipt,
         "practice_binding_receipts": practice_binding_receipts,
@@ -1021,6 +1121,7 @@ def _manifest_contract_errors(
     } and blockers:
         errors.append("ready_manifest_has_blockers")
     errors.extend(_manifest_relief_binding_projection_errors(manifest))
+    errors.extend(_manifest_application_binding_projection_errors(manifest))
     errors.extend(_manifest_holding_binding_projection_errors(manifest))
     errors.extend(_manifest_practice_binding_projection_errors(manifest))
     errors.extend(_manifest_sentence_role_projection_errors(manifest))
@@ -1489,6 +1590,480 @@ def _manifest_relief_binding_authority_errors(
             }
         if dict(stored_receipt) != current_receipt:
             errors.append(f"relief_binding_receipt_stale:{sentence_id}")
+    return errors
+
+
+def _manifest_application_identifier_list(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return [], [f"application_binding_identifier_list_invalid:{label}"]
+    identifiers: list[str] = []
+    errors: list[str] = []
+    for ordinal, raw in enumerate(value, start=1):
+        if (
+            not isinstance(raw, str)
+            or not raw
+            or raw != " ".join(raw.split())
+        ):
+            errors.append(
+                f"application_binding_identifier_invalid:{label}:{ordinal}"
+            )
+            continue
+        identifiers.append(raw)
+    if not identifiers:
+        errors.append(f"application_binding_identifier_list_empty:{label}")
+    if len(identifiers) != len(set(identifiers)):
+        errors.append(f"application_binding_identifier_duplicate:{label}")
+    if identifiers != sorted(identifiers):
+        errors.append(f"application_binding_identifier_order_invalid:{label}")
+    return identifiers, errors
+
+
+def _manifest_application_string(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[str, list[str]]:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != " ".join(value.split())
+    ):
+        return "", [f"application_binding_string_invalid:{label}"]
+    return value, []
+
+
+def _manifest_application_text(
+    value: Any,
+    *,
+    label: str,
+) -> tuple[str, list[str]]:
+    """Validate exact reviewed wording without whitespace normalization."""
+
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\x00" in value
+    ):
+        return "", [f"application_binding_string_invalid:{label}"]
+    return value, []
+
+
+def _application_index_binding_from_request(
+    request: Mapping[str, Any],
+) -> dict[str, str]:
+    return {
+        "sentence_id": str(request.get("sentence_id") or ""),
+        "section_code": str(request.get("section_code") or ""),
+        "role": "application_finding",
+        "claim_id": str(request.get("claim_id") or ""),
+        "norm_passport_id": str(request.get("norm_passport_id") or ""),
+        "application_binding_sha256": str(
+            request.get("application_binding_sha256") or ""
+        ),
+    }
+
+
+def _manifest_application_binding_requests(
+    manifest: Mapping[str, Any],
+) -> tuple[
+    list[tuple[dict[str, Any], Mapping[str, Any]]],
+    list[dict[str, Any]],
+    list[dict[str, str]],
+    list[str],
+]:
+    raw_entries = manifest.get("sentence_evidence_map")
+    entries: list[Any] = []
+    errors: list[str] = []
+    if isinstance(raw_entries, Sequence) and not isinstance(
+        raw_entries, (str, bytes)
+    ):
+        entries = list(raw_entries)
+    else:
+        errors.append("application_binding_sentence_evidence_map_invalid")
+
+    raw_receipts = manifest.get("application_binding_receipts")
+    receipts: list[Any] = []
+    if isinstance(raw_receipts, Sequence) and not isinstance(
+        raw_receipts, (str, bytes)
+    ):
+        receipts = list(raw_receipts)
+    else:
+        errors.append("application_binding_receipts_invalid")
+
+    receipt_by_sentence: dict[str, Mapping[str, Any]] = {}
+    for ordinal, raw in enumerate(receipts, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"application_binding_receipt_invalid:{ordinal}")
+            continue
+        sentence_id = raw.get("sentence_id")
+        if not isinstance(sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            sentence_id
+        ):
+            errors.append(
+                f"application_binding_receipt_sentence_id_invalid:{ordinal}"
+            )
+            continue
+        if sentence_id in receipt_by_sentence:
+            errors.append(f"application_binding_receipt_duplicate:{sentence_id}")
+            continue
+        receipt_by_sentence[sentence_id] = raw
+
+    entry_sentence_ids: dict[int, str] = {}
+    seen_sentence_ids: set[str] = set()
+    for ordinal, raw in enumerate(entries, start=1):
+        if not isinstance(raw, Mapping):
+            errors.append(f"application_binding_manifest_entry_invalid:{ordinal}")
+            continue
+        sentence_id = raw.get("sentence_id")
+        if not isinstance(sentence_id, str) or not _SENTENCE_ID_RE.fullmatch(
+            sentence_id
+        ):
+            errors.append(f"application_binding_sentence_id_invalid:{ordinal}")
+            continue
+        entry_sentence_ids[ordinal] = sentence_id
+        if sentence_id in seen_sentence_ids:
+            errors.append(f"application_binding_sentence_duplicate:{sentence_id}")
+        seen_sentence_ids.add(sentence_id)
+
+    matter_id, matter_errors = _manifest_application_string(
+        manifest.get("matter_id"), label="matter_id"
+    )
+    draft_id, draft_errors = _manifest_application_string(
+        manifest.get("draft_id"), label="draft_id"
+    )
+    errors.extend(matter_errors)
+    errors.extend(draft_errors)
+    norm_passport_values, norm_passport_errors = (
+        _manifest_binding_identifier_list(
+            manifest.get("norm_passport_ids"), label="norm_passport_ids"
+        )
+    )
+    errors.extend(
+        error.replace("relief_binding_", "application_binding_", 1)
+        for error in norm_passport_errors
+    )
+    norm_passport_ids = set(norm_passport_values)
+
+    pairs: list[tuple[dict[str, Any], Mapping[str, Any]]] = []
+    requests: list[dict[str, Any]] = []
+    expected_receipt_sentence_ids: set[str] = set()
+    for ordinal, raw in enumerate(entries, start=1):
+        if (
+            not isinstance(raw, Mapping)
+            or raw.get("role") != "application_finding"
+        ):
+            continue
+        sentence_id = entry_sentence_ids.get(ordinal, f"<invalid:{ordinal}>")
+        expected_receipt_sentence_ids.add(sentence_id)
+        entry_errors: list[str] = []
+        if raw.get("application_binding_status") != "bound":
+            entry_errors.append(
+                f"application_binding_status_not_bound:{sentence_id}"
+            )
+        application_record_ids, record_errors = (
+            _manifest_application_identifier_list(
+                raw.get("application_record_ids"),
+                label=f"{sentence_id}:application_record_ids",
+            )
+        )
+        evidence_ids, evidence_errors = _manifest_application_identifier_list(
+            raw.get("evidence_ids"), label=f"{sentence_id}:evidence_ids"
+        )
+        entry_errors.extend(record_errors)
+        entry_errors.extend(evidence_errors)
+        required_values: dict[str, str] = {"sentence_id": sentence_id}
+        for key, source_key in (
+            ("section_code", "section_code"),
+            ("sentence_text", "text"),
+            ("claim_id", "claim_id"),
+            ("norm_passport_id", "norm_passport_id"),
+            ("maximum_supported_inference", "maximum_supported_inference"),
+        ):
+            value, value_errors = (
+                _manifest_application_text(
+                    raw.get(source_key), label=f"{sentence_id}:{source_key}"
+                )
+                if source_key == "text"
+                else _manifest_application_string(
+                    raw.get(source_key), label=f"{sentence_id}:{source_key}"
+                )
+            )
+            required_values[key] = value
+            entry_errors.extend(value_errors)
+        if entry_errors or not matter_id or not draft_id:
+            errors.extend(entry_errors)
+            continue
+
+        try:
+            request = build_application_finding_binding_request(
+                matter_id=matter_id,
+                draft_id=draft_id,
+                sentence_id=required_values["sentence_id"],
+                section_code=required_values["section_code"],
+                sentence_text=required_values["sentence_text"],
+                claim_id=required_values["claim_id"],
+                norm_passport_id=required_values["norm_passport_id"],
+                application_record_ids=application_record_ids,
+                evidence_ids=evidence_ids,
+                maximum_supported_inference=required_values[
+                    "maximum_supported_inference"
+                ],
+            )
+        except (TypeError, ValueError) as exc:
+            errors.append(
+                f"application_binding_request_invalid:{sentence_id}:{exc}"
+            )
+            continue
+        if (
+            raw.get("application_binding_sha256")
+            != request["application_binding_sha256"]
+        ):
+            errors.append(
+                f"application_binding_projection_sha_mismatch:{sentence_id}"
+            )
+        if required_values["norm_passport_id"] not in norm_passport_ids:
+            errors.append(
+                f"application_binding_norm_projection_mismatch:{sentence_id}"
+            )
+        requests.append(request)
+
+        receipt = receipt_by_sentence.get(sentence_id)
+        if receipt is None:
+            errors.append(f"application_binding_receipt_missing:{sentence_id}")
+            continue
+        expected_core = {
+            "schema_version": "1.0.0",
+            "sentence_id": sentence_id,
+            "section_code": request["section_code"],
+            "application_binding_sha256": request[
+                "application_binding_sha256"
+            ],
+            "claim_id": request["claim_id"],
+            "norm_passport_id": request["norm_passport_id"],
+            "application_record_ids": request["application_record_ids"],
+            "evidence_ids": request["evidence_ids"],
+            "maximum_supported_inference": request[
+                "maximum_supported_inference"
+            ],
+        }
+        if set(receipt) != _APPLICATION_BINDING_RECEIPT_FIELDS:
+            errors.append(
+                f"application_binding_receipt_fields_mismatch:{sentence_id}"
+            )
+        for field, expected_value in expected_core.items():
+            if receipt.get(field) != expected_value:
+                errors.append(
+                    f"application_binding_receipt_projection_mismatch:"
+                    f"{sentence_id}:{field}"
+                )
+        for field in (
+            "chain_inventory_receipt",
+            "norm_version_gate_receipt",
+            "application_gate_receipts",
+            "scope_receipt",
+        ):
+            if not isinstance(receipt.get(field), Mapping):
+                errors.append(
+                    f"application_binding_receipt_projection_invalid:"
+                    f"{sentence_id}:{field}"
+                )
+        chain_inventory = receipt.get("chain_inventory_receipt")
+        if isinstance(chain_inventory, Mapping):
+            if set(chain_inventory) != {
+                "chain_assessment",
+                "chain_fingerprint",
+                "chain_revision_id",
+                "checked_at",
+                "record_content_fingerprints",
+            }:
+                errors.append(
+                    f"application_binding_chain_inventory_fields_mismatch:"
+                    f"{sentence_id}"
+                )
+            if not isinstance(chain_inventory.get("chain_assessment"), Mapping):
+                errors.append(
+                    f"application_binding_chain_assessment_invalid:{sentence_id}"
+                )
+            if not isinstance(
+                chain_inventory.get("record_content_fingerprints"), Mapping
+            ):
+                errors.append(
+                    f"application_binding_chain_fingerprints_invalid:{sentence_id}"
+                )
+        application_gates = receipt.get("application_gate_receipts")
+        if isinstance(application_gates, Mapping):
+            if set(application_gates) != set(application_record_ids):
+                errors.append(
+                    f"application_binding_gate_record_set_mismatch:{sentence_id}"
+                )
+            if not all(
+                isinstance(gate, Mapping) for gate in application_gates.values()
+            ):
+                errors.append(
+                    f"application_binding_gate_receipt_invalid:{sentence_id}"
+                )
+        scope_receipt = receipt.get("scope_receipt")
+        if isinstance(scope_receipt, Mapping):
+            if set(scope_receipt) != {"scope_record", "scope_gate_receipt"}:
+                errors.append(
+                    f"application_binding_scope_receipt_fields_mismatch:"
+                    f"{sentence_id}"
+                )
+            elif not all(
+                isinstance(scope_receipt.get(field), Mapping)
+                for field in ("scope_record", "scope_gate_receipt")
+            ):
+                errors.append(
+                    f"application_binding_scope_receipt_invalid:{sentence_id}"
+                )
+        if "binding_index_receipt" in receipt:
+            errors.append(
+                f"application_binding_index_nested_in_receipt:{sentence_id}"
+            )
+        pairs.append((request, receipt))
+
+    extra_receipts = sorted(
+        set(receipt_by_sentence) - expected_receipt_sentence_ids
+    )
+    errors.extend(
+        f"application_binding_receipt_orphan:{sentence_id}"
+        for sentence_id in extra_receipts
+    )
+
+    expected_bindings = sorted(
+        (_application_index_binding_from_request(request) for request in requests),
+        key=lambda item: item["sentence_id"],
+    )
+    stored_index = manifest.get("application_binding_index_receipt")
+    ready_status = manifest.get("status") in {
+        "ready_for_expert_review",
+        "ready_for_human_signing_filing",
+    }
+    index_required = ready_status or bool(requests) or bool(receipts)
+    if stored_index is None:
+        if index_required:
+            errors.append("application_binding_index_receipt_missing")
+    elif not isinstance(stored_index, Mapping):
+        errors.append("application_binding_index_receipt_invalid")
+    else:
+        expected_index_fields = {
+            "schema_version",
+            "matter_id",
+            "draft_id",
+            "bindings",
+            "binding_index_sha256",
+            "authority_revision_id",
+            "checked_at",
+        }
+        if set(stored_index) != expected_index_fields:
+            errors.append("application_binding_index_receipt_fields_mismatch")
+        if stored_index.get("schema_version") != "1.0.0":
+            errors.append("application_binding_index_receipt_schema_invalid")
+        if stored_index.get("matter_id") != matter_id:
+            errors.append("application_binding_index_receipt_matter_mismatch")
+        if stored_index.get("draft_id") != draft_id:
+            errors.append("application_binding_index_receipt_draft_mismatch")
+        raw_bindings = stored_index.get("bindings")
+        stored_bindings = (
+            list(raw_bindings)
+            if isinstance(raw_bindings, Sequence)
+            and not isinstance(raw_bindings, (str, bytes))
+            else []
+        )
+        if not isinstance(raw_bindings, Sequence) or isinstance(
+            raw_bindings, (str, bytes)
+        ):
+            errors.append("application_binding_index_bindings_invalid")
+        if stored_bindings != expected_bindings:
+            errors.append("application_binding_index_projection_mismatch")
+        index_basis = {
+            "schema_version": "1.0.0",
+            "matter_id": matter_id,
+            "draft_id": draft_id,
+            "bindings": expected_bindings,
+        }
+        expected_index_sha = sha256(
+            canonical_json_bytes(index_basis)
+        ).hexdigest()
+        if stored_index.get("binding_index_sha256") != expected_index_sha:
+            errors.append("application_binding_index_sha256_mismatch")
+        if pairs:
+            index_revision = stored_index.get("authority_revision_id")
+            receipt_revisions = [
+                receipt.get("authority_revision_id")
+                for _request, receipt in pairs
+            ]
+            if (
+                not receipt_revisions
+                or any(
+                    revision != index_revision for revision in receipt_revisions
+                )
+            ):
+                errors.append("application_binding_authority_snapshot_mismatch")
+
+    return pairs, requests, expected_bindings, errors
+
+
+def _manifest_application_binding_projection_errors(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    _pairs, _requests, _expected_bindings, errors = (
+        _manifest_application_binding_requests(manifest)
+    )
+    return errors
+
+
+def _manifest_application_binding_authority_errors(
+    manifest: Mapping[str, Any],
+    authority: ApplicationFindingEvidenceBindingAuthority | Any | None,
+) -> list[str]:
+    pairs, requests, expected_bindings, errors = (
+        _manifest_application_binding_requests(manifest)
+    )
+    for request, stored_receipt in pairs:
+        binding_errors, current_receipt = (
+            resolve_application_finding_evidence_binding(request, authority)
+        )
+        sentence_id = str(request.get("sentence_id") or "")
+        errors.extend(
+            f"application_binding:{sentence_id}:{error}"
+            for error in binding_errors
+        )
+        if current_receipt is not None and dict(stored_receipt) != current_receipt:
+            errors.append(f"application_binding_receipt_stale:{sentence_id}")
+
+    stored_index = manifest.get("application_binding_index_receipt")
+    should_resolve_index = (
+        manifest.get("status")
+        in {"ready_for_expert_review", "ready_for_human_signing_filing"}
+        or bool(requests)
+        or isinstance(stored_index, Mapping)
+    )
+    if should_resolve_index:
+        matter_id, matter_errors = _manifest_application_string(
+            manifest.get("matter_id"), label="matter_id"
+        )
+        draft_id, draft_errors = _manifest_application_string(
+            manifest.get("draft_id"), label="draft_id"
+        )
+        errors.extend(matter_errors)
+        errors.extend(draft_errors)
+        index_errors, current_index = (
+            resolve_application_finding_evidence_binding_index(
+                matter_id=matter_id,
+                draft_id=draft_id,
+                expected_bindings=expected_bindings,
+                authority=authority,
+            )
+        )
+        errors.extend(index_errors)
+        if current_index is not None and stored_index != current_index:
+            errors.append("application_binding_index_receipt_stale")
     return errors
 
 
@@ -2333,6 +2908,9 @@ def approve_release_pack(
     reviewer: str | None = None,
     reviewed_at: str | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    application_binding_authority: (
+        ApplicationFindingEvidenceBindingAuthority | Any | None
+    ) = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
@@ -2360,6 +2938,7 @@ def approve_release_pack(
         manifest,
         approval_ledger=approval_ledger,
         relief_binding_authority=relief_binding_authority,
+        application_binding_authority=application_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
         sentence_role_authority=sentence_role_authority,
@@ -2404,6 +2983,7 @@ def approve_release_pack(
         approval_ledger=approval_ledger,
         verify_manifest_file=False,
         relief_binding_authority=relief_binding_authority,
+        application_binding_authority=application_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
         sentence_role_authority=sentence_role_authority,
@@ -2422,6 +3002,7 @@ def approve_release_pack(
         persisted_manifest,
         approval_ledger=approval_ledger,
         relief_binding_authority=relief_binding_authority,
+        application_binding_authority=application_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
         sentence_role_authority=sentence_role_authority,
@@ -2442,6 +3023,9 @@ def verify_release_manifest(
     *,
     approval_ledger: TrustedApprovalLedger | None = None,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None = None,
+    application_binding_authority: (
+        ApplicationFindingEvidenceBindingAuthority | Any | None
+    ) = None,
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None = None,
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
@@ -2455,6 +3039,7 @@ def verify_release_manifest(
         approval_ledger=approval_ledger,
         verify_manifest_file=True,
         relief_binding_authority=relief_binding_authority,
+        application_binding_authority=application_binding_authority,
         holding_binding_authority=holding_binding_authority,
         practice_binding_authority=practice_binding_authority,
         sentence_role_authority=sentence_role_authority,
@@ -2467,6 +3052,9 @@ def _verify_release_manifest(
     approval_ledger: TrustedApprovalLedger | None,
     verify_manifest_file: bool,
     relief_binding_authority: ReliefEvidenceBindingAuthority | Any | None,
+    application_binding_authority: (
+        ApplicationFindingEvidenceBindingAuthority | Any | None
+    ),
     holding_binding_authority: HoldingEvidenceBindingAuthority | Any | None,
     practice_binding_authority: (
         PracticeClaimEvidenceBindingAuthority | Any | None
@@ -2483,6 +3071,11 @@ def _verify_release_manifest(
     errors.extend(
         _manifest_relief_binding_authority_errors(
             manifest, relief_binding_authority
+        )
+    )
+    errors.extend(
+        _manifest_application_binding_authority_errors(
+            manifest, application_binding_authority
         )
     )
     errors.extend(

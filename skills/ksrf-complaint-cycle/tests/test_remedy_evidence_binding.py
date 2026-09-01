@@ -24,6 +24,9 @@ from ksrf.filing.application_evidence import (  # noqa: E402
     build_preservation_rule_evidence,
     preservation_rule_review_approval_request,
 )
+from ksrf.filing.application_binding import (  # noqa: E402
+    build_application_finding_binding_index_resolution,
+)
 from ksrf.filing.composer import (  # noqa: E402
     ComplaintModelError,
     REQUIRED_SECTION_CODES,
@@ -1099,7 +1102,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
                 ),
             )
 
-    def test_schema_1_3_distinguishes_bound_and_legacy_draft(self) -> None:
+    def test_schema_1_4_distinguishes_bound_and_legacy_draft(self) -> None:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         validator = Draft202012Validator(schema)
         text = "Признать норму неконституционной"
@@ -1121,7 +1124,7 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
             )
         ).to_dict()
 
-        self.assertEqual(bound["schema_version"], "1.3")
+        self.assertEqual(bound["schema_version"], "1.4")
         self.assertEqual(list(validator.iter_errors(bound)), [])
         bound_entry = next(
             item
@@ -1255,8 +1258,10 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
 
     def test_filing_schema_allows_blocked_unbound_diagnostic_manifest(self) -> None:
         manifest, _authority = self._manifest_with_binding()
-        manifest["schema_version"] = "1.4"
+        manifest["schema_version"] = "1.5"
         manifest["sentence_role_index_receipt"] = None
+        manifest["application_binding_receipts"] = []
+        manifest["application_binding_index_receipt"] = None
         entry = manifest["sentence_evidence_map"][0]
         entry["relief_binding_status"] = "unbound"
         for key in (
@@ -1289,7 +1294,17 @@ class RemedyEvidenceBindingTests(unittest.TestCase):
     def test_filing_schema_accepts_current_bound_manifest(self) -> None:
         manifest, _authority = self._manifest_with_binding()
         manifest["status"] = "ready_for_expert_review"
-        manifest["schema_version"] = "1.4"
+        manifest["schema_version"] = "1.5"
+        application_index = build_application_finding_binding_index_resolution(
+            matter_id=manifest["matter_id"],
+            draft_id=manifest["draft_id"],
+            bindings=[],
+            authority_revision_id="APPLICATION-REGISTRY-REV-1",
+            checked_at="2026-09-01T10:00:00Z",
+        )
+        application_index.pop("status")
+        manifest["application_binding_receipts"] = []
+        manifest["application_binding_index_receipt"] = application_index
         holding_index = build_holding_binding_index_resolution(
             matter_id=manifest["matter_id"],
             draft_id=manifest["draft_id"],

@@ -293,6 +293,7 @@ class WorkflowRouter:
         approval_ledger: TrustedApprovalLedger | None = None,
         source_identity_verifier: SourceIdentityVerifier | None = None,
         relief_binding_authority: Any | None = None,
+        application_binding_authority: Any | None = None,
         holding_binding_authority: Any | None = None,
         practice_binding_authority: Any | None = None,
         sentence_role_authority: Any | None = None,
@@ -330,6 +331,7 @@ class WorkflowRouter:
         )
         self.source_identity_verifier = source_identity_verifier
         self.relief_binding_authority = relief_binding_authority
+        self.application_binding_authority = application_binding_authority
         self.holding_binding_authority = holding_binding_authority
         self.practice_binding_authority = practice_binding_authority
         self.sentence_role_authority = sentence_role_authority
@@ -1288,6 +1290,16 @@ class WorkflowRouter:
                 if isinstance(latest_result, Mapping)
                 else None
             )
+            stored_application_receipts = (
+                latest_result.get("application_binding_receipts")
+                if isinstance(latest_result, Mapping)
+                else None
+            )
+            stored_application_index_receipt = (
+                latest_result.get("application_binding_index_receipt")
+                if isinstance(latest_result, Mapping)
+                else None
+            )
             try:
                 from .composer import (
                     build_structured_complaint,
@@ -1304,6 +1316,9 @@ class WorkflowRouter:
                 support_receipts = require_release_support(
                     complaint,
                     relief_binding_authority=self.relief_binding_authority,
+                    application_binding_authority=getattr(
+                        self, "application_binding_authority", None
+                    ),
                     holding_binding_authority=self.holding_binding_authority,
                     practice_binding_authority=getattr(
                         self, "practice_binding_authority", None
@@ -1311,6 +1326,7 @@ class WorkflowRouter:
                     sentence_role_authority=getattr(
                         self, "sentence_role_authority", None
                     ),
+                    require_application_index=True,
                     require_holding_index=True,
                     require_practice_index=True,
                     require_sentence_role_index=True,
@@ -1318,6 +1334,33 @@ class WorkflowRouter:
                 current_receipt = support_receipts.sentence_role_index_receipt
                 if stored_receipt != current_receipt:
                     support_errors.append("sentence_role_index_receipt_stale")
+                current_application_receipts = [
+                    dict(receipt)
+                    for receipt in getattr(
+                        support_receipts, "application_binding_receipts", ()
+                    )
+                ]
+                if stored_application_receipts != current_application_receipts:
+                    support_errors.append("application_binding_receipts_stale")
+                current_application_index_receipt = (
+                    dict(application_index_receipt)
+                    if (
+                        application_index_receipt := getattr(
+                            support_receipts,
+                            "application_binding_index_receipt",
+                            None,
+                        )
+                    )
+                    is not None
+                    else None
+                )
+                if (
+                    stored_application_index_receipt
+                    != current_application_index_receipt
+                ):
+                    support_errors.append(
+                        "application_binding_index_receipt_stale"
+                    )
             except Exception as exc:
                 reason_codes = tuple(
                     reason
@@ -1372,9 +1415,13 @@ class WorkflowRouter:
             support_receipts = require_release_support(
                 complaint,
                 relief_binding_authority=self.relief_binding_authority,
+                application_binding_authority=getattr(
+                    self, "application_binding_authority", None
+                ),
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 sentence_role_authority=getattr(self, "sentence_role_authority", None),
+                require_application_index=True,
                 require_holding_index=True,
                 require_practice_index=True,
                 require_sentence_role_index=True,
@@ -1408,6 +1455,52 @@ class WorkflowRouter:
                 next_actions=("Установите или укажите локальный LibreOffice и pdftoppm, затем повторите проверку.",),
             )
         passed = qa.get("passed") is True
+        if passed:
+            try:
+                support_receipts = require_release_support(
+                    complaint,
+                    relief_binding_authority=self.relief_binding_authority,
+                    application_binding_authority=getattr(
+                        self, "application_binding_authority", None
+                    ),
+                    holding_binding_authority=self.holding_binding_authority,
+                    practice_binding_authority=getattr(
+                        self, "practice_binding_authority", None
+                    ),
+                    sentence_role_authority=getattr(
+                        self, "sentence_role_authority", None
+                    ),
+                    require_application_index=True,
+                    require_holding_index=True,
+                    require_practice_index=True,
+                    require_sentence_role_index=True,
+                )
+            except Exception as exc:
+                reason_codes = tuple(getattr(exc, "reason_codes", ()))
+                return self._base_result(
+                    "render",
+                    action,
+                    state="blocked",
+                    implemented=True,
+                    message=(
+                        "После сборки изменилась текущая доказательственная "
+                        "поддержка; готовность снята."
+                    ),
+                    result={
+                        "error": str(exc),
+                        "reason_code": "support_revalidation_failed_after_qa",
+                        "support_errors": list(reason_codes),
+                        "output_dir": str(output_dir),
+                        "qa": qa,
+                    },
+                    missing=(
+                        reason_codes
+                        or ("Текущая host-поддержка после рендеринга",)
+                    ),
+                    next_actions=(
+                        "Повторно подтвердите изменившиеся данные и пересоберите DOCX/PDF.",
+                    ),
+                )
         return self._base_result(
             "render",
             action,
@@ -1423,6 +1516,24 @@ class WorkflowRouter:
                 "docx": docx.to_dict(),
                 "pdf": pdf.to_dict(),
                 "qa": qa,
+                "application_binding_receipts": [
+                    dict(receipt)
+                    for receipt in getattr(
+                        support_receipts, "application_binding_receipts", ()
+                    )
+                ],
+                "application_binding_index_receipt": (
+                    dict(application_index_receipt)
+                    if (
+                        application_index_receipt := getattr(
+                            support_receipts,
+                            "application_binding_index_receipt",
+                            None,
+                        )
+                    )
+                    is not None
+                    else None
+                ),
                 "sentence_role_index_receipt": (
                     dict(support_receipts.sentence_role_index_receipt)
                     if support_receipts.sentence_role_index_receipt is not None
@@ -1486,6 +1597,11 @@ class WorkflowRouter:
                                     manifest,
                                     approval_ledger=self.approvals,
                                     relief_binding_authority=self.relief_binding_authority,
+                                    application_binding_authority=getattr(
+                                        self,
+                                        "application_binding_authority",
+                                        None,
+                                    ),
                                     holding_binding_authority=self.holding_binding_authority,
                                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
                                     sentence_role_authority=getattr(self, "sentence_role_authority", None),
@@ -1569,6 +1685,9 @@ class WorkflowRouter:
                     reviewer=reviewer,
                     reviewed_at=reviewed_at,
                     relief_binding_authority=self.relief_binding_authority,
+                    application_binding_authority=getattr(
+                        self, "application_binding_authority", None
+                    ),
                     holding_binding_authority=self.holding_binding_authority,
                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
                     sentence_role_authority=getattr(self, "sentence_role_authority", None),
@@ -1577,6 +1696,9 @@ class WorkflowRouter:
                     manifest,
                     approval_ledger=self.approvals,
                     relief_binding_authority=self.relief_binding_authority,
+                    application_binding_authority=getattr(
+                        self, "application_binding_authority", None
+                    ),
                     holding_binding_authority=self.holding_binding_authority,
                     practice_binding_authority=getattr(self, "practice_binding_authority", None),
                     sentence_role_authority=getattr(self, "sentence_role_authority", None),
@@ -1631,6 +1753,9 @@ class WorkflowRouter:
                 manifest,
                 approval_ledger=self.approvals,
                 relief_binding_authority=self.relief_binding_authority,
+                application_binding_authority=getattr(
+                    self, "application_binding_authority", None
+                ),
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 sentence_role_authority=getattr(self, "sentence_role_authority", None),
@@ -1668,6 +1793,9 @@ class WorkflowRouter:
                 soffice_path=payload.get("soffice_path"),
                 pdftoppm_path=payload.get("pdftoppm_path"),
                 relief_binding_authority=self.relief_binding_authority,
+                application_binding_authority=getattr(
+                    self, "application_binding_authority", None
+                ),
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 sentence_role_authority=getattr(self, "sentence_role_authority", None),
@@ -1676,6 +1804,9 @@ class WorkflowRouter:
                 manifest,
                 approval_ledger=self.approvals,
                 relief_binding_authority=self.relief_binding_authority,
+                application_binding_authority=getattr(
+                    self, "application_binding_authority", None
+                ),
                 holding_binding_authority=self.holding_binding_authority,
                 practice_binding_authority=getattr(self, "practice_binding_authority", None),
                 sentence_role_authority=getattr(self, "sentence_role_authority", None),

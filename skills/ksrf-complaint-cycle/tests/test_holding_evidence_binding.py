@@ -23,6 +23,9 @@ from ksrf.filing.composer import (  # noqa: E402
     build_structured_complaint,
     require_release_support,
 )
+from ksrf.filing.application_binding import (  # noqa: E402
+    build_application_finding_binding_index_resolution,
+)
 from ksrf.filing.holding_binding import (  # noqa: E402
     build_holding_binding_index_resolution,
     build_holding_binding_resolution,
@@ -292,6 +295,19 @@ class StaticSentenceRoleAuthority:
             draft_id=request["draft_id"],
             bindings=self.bindings,
             authority_revision_id="ROLE-DRAFT-REGISTRY-REV-1",
+            checked_at=CHECKED_AT,
+        )
+
+
+class StaticEmptyApplicationAuthority:
+    def resolve_application_finding_evidence_binding_index(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any]:
+        return build_application_finding_binding_index_resolution(
+            matter_id=request["matter_id"],
+            draft_id=request["draft_id"],
+            bindings=[],
+            authority_revision_id="APPLICATION-DRAFT-REGISTRY-REV-1",
             checked_at=CHECKED_AT,
         )
 
@@ -818,6 +834,9 @@ class HoldingEvidenceBindingTests(unittest.TestCase):
                 router = object.__new__(WorkflowRouter)
                 router.workspace = Path(temp_dir)
                 router.relief_binding_authority = relief
+                router.application_binding_authority = (
+                    StaticEmptyApplicationAuthority()
+                )
                 router.holding_binding_authority = holding_authority
                 router.sentence_role_authority = StaticSentenceRoleAuthority(
                     complaint
