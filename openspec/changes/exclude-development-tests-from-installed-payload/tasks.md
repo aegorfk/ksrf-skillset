@@ -22,5 +22,5 @@
 - [x] 3.1 Пройти focused RED/GREEN, root/full tests, strict skillset и strict OpenSpec validation.
 - [x] 3.2 Подтвердить clean-room file/byte/package/tree hashes и отсутствие test paths.
 - [x] 3.3 Получить независимый review без нерешённых P1/P2.
-- [ ] 3.4 Опубликовать атомарно в `main`, подтвердить remote SHA и установить exact payload глобально.
-- [ ] 3.5 Подтвердить, что source tests сохранены, global tests отсутствуют, а evals присутствуют.
+- [x] 3.4 Опубликовать атомарно в `main`, подтвердить remote SHA и установить exact payload глобально.
+- [x] 3.5 Подтвердить, что source tests сохранены, global tests отсутствуют, а evals присутствуют.
