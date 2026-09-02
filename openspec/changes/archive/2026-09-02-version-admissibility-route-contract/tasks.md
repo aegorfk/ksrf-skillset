@@ -21,5 +21,5 @@
 
 - [x] 4.1 Regenerate the manifest and run focused/full suites, source strict, clean-room runtime/offline, OpenSpec strict and diff checks.
 - [x] 4.2 Obtain independent legal-contract, runtime and release reviews with no unresolved P1/P2.
-- [ ] 4.3 Publish atomically to `main`, confirm live SHA, install and verify the exact global payload.
-- [ ] 4.4 Archive the OpenSpec change, regenerate from the merge SHA and publish the final evidence commit.
+- [x] 4.3 Publish atomically to `main`, confirm live SHA, install and verify the exact global payload.
+- [x] 4.4 Archive the OpenSpec change, regenerate from the merge SHA and publish the final evidence commit.
