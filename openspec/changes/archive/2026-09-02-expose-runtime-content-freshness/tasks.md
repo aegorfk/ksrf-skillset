@@ -21,13 +21,13 @@
 ## 4. Verification
 
 - [x] 4.1 Pass focused validator and adversarial network tests with warnings fatal.
-- [ ] 4.2 Pass the full root suite, all skill tests, source/runtime strict validation, offline self-containment, and clean-room installation.
+- [x] 4.2 Pass the full root suite, all skill tests, source/runtime strict validation, offline self-containment, and clean-room installation.
 - [x] 4.3 Regenerate `skills-manifest.json`, validate OpenSpec strictly, and pass diff, shell, AST, and public-source checks.
 - [x] 4.4 Obtain independent security/state and user-contract reviews with no unresolved P1/P2.
 
 ## 5. Publication
 
-- [ ] 5.1 Commit and push the isolated feature branch.
-- [ ] 5.2 Merge to `main`, push, and confirm the exact live remote SHA.
-- [ ] 5.3 Install the exact published `main` globally and verify runtime identity, default offline behavior, online freshness, and no `tests/` or `evals/`.
-- [ ] 5.4 Archive this OpenSpec change only after publication evidence is complete.
+- [x] 5.1 Commit and push the isolated feature branch.
+- [x] 5.2 Merge to `main`, push, and confirm the exact live remote SHA.
+- [x] 5.3 Install the exact published `main` globally and verify runtime identity, default offline behavior, online freshness, and no `tests/` or `evals/`.
+- [x] 5.4 Archive this OpenSpec change only after publication evidence is complete.
