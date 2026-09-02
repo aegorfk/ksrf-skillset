@@ -42,6 +42,6 @@
 ## 6. Publication and Installation QA
 
 - [x] 6.1 Regenerate `skills-manifest.json` and verify exact release-file and release-tree hashes.
-- [ ] 6.2 Commit the isolated change, merge through the approved publication workflow, push `main`, and confirm the exact live remote SHA.
-- [ ] 6.3 Install the exact published `main` globally through the transactional path and verify source/runtime/offline profiles plus the installed tree hash.
-- [ ] 6.4 Archive this OpenSpec change only after published and globally installed evidence is complete.
+- [x] 6.2 Commit the isolated change, merge through the approved publication workflow, push `main`, and confirm the exact live remote SHA.
+- [x] 6.3 Install the exact published `main` globally through the transactional path and verify source/runtime/offline profiles plus the installed tree hash.
+- [x] 6.4 Archive this OpenSpec change only after published and globally installed evidence is complete.
