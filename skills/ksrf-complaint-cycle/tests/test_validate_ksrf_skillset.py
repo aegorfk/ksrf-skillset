@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 
@@ -13,6 +15,12 @@ SCRIPT = (
     Path(__file__).resolve().parents[1]
     / "scripts"
     / "validate_ksrf_skillset.py"
+)
+CANONICAL_AUTHORITY_CORPUS = (
+    SCRIPT.parents[2]
+    / "ksrf-argument-patterns"
+    / "references"
+    / "constitutionalist-authority-corpus.json"
 )
 SPEC = importlib.util.spec_from_file_location("validate_ksrf_skillset", SCRIPT)
 if SPEC is None or SPEC.loader is None:
@@ -95,6 +103,31 @@ policy:
             ensure_ascii=False,
         ),
     )
+    if name == "ksrf-argument-patterns":
+        _write(
+            skill
+            / "references"
+            / "constitutionalist-authority-corpus.json",
+            CANONICAL_AUTHORITY_CORPUS.read_text(encoding="utf-8"),
+        )
+        for reference in (
+            "constitutional-review-methods.md",
+            "science-support-pack.md",
+            "workflow-reference.md",
+            "sko-complaint-methods-2017-2026.md",
+            "evidence-impact-method.md",
+            "strategic-complaint-design.md",
+        ):
+            _write(
+                skill / "references" / reference,
+                f"# Тестовая цель {reference}\n",
+            )
+        for referenced_skill in (
+            "ksrf-case-triage",
+            "ksrf-court-request-motion",
+            "ksrf-decision-execution",
+        ):
+            _write(root / referenced_skill / "SKILL.md", "# Тестовая цель\n")
     return skill
 
 
@@ -126,11 +159,116 @@ EXACT_MAINTAINER_FILES = (
 )
 
 
-def _codes(report: dict[str, object]) -> set[str]:
+def _codes(report: dict[str, Any]) -> set[str]:
     return {
         str(item["code"])
         for item in report["findings"]
         if isinstance(item, dict)
+    }
+
+
+def _semantic_digest(value: object) -> str:
+    canonical = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _minimal_authority_corpus() -> dict[str, Any]:
+    status_legend = dict(
+        getattr(
+            VALIDATOR,
+            "AUTHORITY_CORPUS_STATUS_LABELS",
+            {
+                "method_integrated": "метод проверен",
+                "full_text_available": "доступен полный текст",
+                "triangulated_academic": "академический след подтверждён",
+                "academic_indexed": "автор есть в указателе",
+                "bibliographic_lead": "библиографический ориентир",
+                "discovery_only": "только разведочный кандидат",
+            },
+        )
+    )
+    route_legend = dict(
+        getattr(
+            VALIDATOR,
+            "AUTHORITY_CORPUS_ROUTE_LABELS",
+            {"admissibility_and_route": "Тестовый маршрут"},
+        )
+    )
+    route = "admissibility_and_route"
+    return {
+        "schema_version": "2.0",
+        "as_of": "2026-09-02",
+        "purpose": "Тестовый пользовательский корпус",
+        "warning": getattr(
+            VALIDATOR,
+            "AUTHORITY_CORPUS_WARNING",
+            "Корпус не заменяет официальные источники.",
+        ),
+        "status_legend": status_legend,
+        "route_legend": route_legend,
+        "sources": [
+            {
+                "kind": "blokhin_bibliography",
+                "label": "Тестовая библиография",
+                "coverage": "тестовый охват библиографии",
+            },
+            {
+                "kind": "sko_index",
+                "label": "Публичный указатель",
+                "coverage": "тестовый охват",
+                "url": "https://example.com/index.pdf",
+            },
+            {
+                "kind": "mp_index",
+                "label": "Второй публичный указатель",
+                "coverage": "второй тестовый охват",
+            },
+            {
+                "kind": "zakon_discovery",
+                "label": "Разведочный источник",
+                "coverage": "разведочный тестовый охват",
+            },
+            {
+                "kind": "curated_method",
+                "label": "Проверенная карточка",
+                "coverage": "проверенные тестовые карточки",
+            },
+        ],
+        "summary": {
+            "authorities_total": 1,
+            "status_counts": {"academic_indexed": 1},
+            "source_people_counts": {"sko_index": 1},
+            "route_counts": {route: 1},
+            "works_total": 1,
+            "needs_review_total": 1,
+        },
+        "authorities": [
+            {
+                "id": "authority-test",
+                "identity_key": "тестовый|автор",
+                "canonical_name": "Тестовый автор",
+                "status": "academic_indexed",
+                "status_label": status_legend["academic_indexed"],
+                "method_integrated": False,
+                "needs_identity_or_method_review": True,
+                "routes": [route],
+                "source_counts": {"sko_index": 1},
+                "full_text_sources": [],
+                "method_cards": [],
+                "works": [
+                    {
+                        "source": "sko_index",
+                        "title": "Тестовая работа",
+                        "url": "https://example.com/work",
+                    }
+                ],
+            }
+        ],
     }
 
 
@@ -223,6 +361,33 @@ description: Используй этот навык для всего.
 
             self.assertIn("FRONTMATTER_INVALID", _codes(report))
             self.assertEqual(report["status"], "fail")
+
+    def test_duplicate_eval_json_keys_are_reported_without_crashing(self) -> None:
+        cases = (
+            (
+                Path("evals/evals.json"),
+                '{"skill_name":"ksrf-test","skill_name":"other","evals":[]}',
+                "BEHAVIORAL_EVALS_INVALID",
+            ),
+            (
+                Path("evals/trigger-evals.json"),
+                '[{"query":"первая","query":"вторая","should_trigger":true}]',
+                "TRIGGER_EVALS_INVALID",
+            ),
+        )
+        for relative, content, expected_code in cases:
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _write(skill / relative, content)
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                )
+
+                self.assertEqual(report["status"], "fail")
+                self.assertIn(expected_code, _codes(report))
 
     def test_broken_or_escaping_markdown_links_and_late_toc_are_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1255,6 +1420,807 @@ tools:
                 findings[0]["evidence"],
                 {"expected": expected, "actual": actual},
             )
+
+    def test_authority_corpus_contract_accepts_clean_schema_two_payload(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutionalist-authority-corpus.json",
+                json.dumps(_minimal_authority_corpus(), ensure_ascii=False),
+            )
+            findings: list[dict[str, object]] = []
+            checker = getattr(VALIDATOR, "_validate_authority_corpus_contract", None)
+
+            self.assertTrue(callable(checker))
+            assert callable(checker)
+            checker(
+                findings,
+                skill,
+                root,
+                expected_semantic_sha256=_semantic_digest(
+                    _minimal_authority_corpus()
+                ),
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_authority_corpus_contract_accepts_full_text_without_method_card(
+        self,
+    ) -> None:
+        payload = _minimal_authority_corpus()
+        authority = payload["authorities"][0]
+        full_text_title = "Проверенный полный текст"
+        authority.update(
+            {
+                "status": "full_text_available",
+                "status_label": payload["status_legend"]["full_text_available"],
+                "needs_identity_or_method_review": False,
+                "source_counts": {
+                    "sko_index": 1,
+                    "curated_method": 1,
+                    "local_full_text": 1,
+                },
+                "full_text_sources": [full_text_title],
+                "method_cards": [],
+                "works": [
+                    *authority["works"],
+                    {
+                        "source": "curated_method",
+                        "title": full_text_title,
+                    },
+                ],
+            }
+        )
+        payload["summary"] = {
+            **payload["summary"],
+            "status_counts": {"full_text_available": 1},
+            "source_people_counts": {
+                "sko_index": 1,
+                "curated_method": 1,
+                "local_full_text": 1,
+            },
+            "works_total": 2,
+            "needs_review_total": 0,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutionalist-authority-corpus.json",
+                json.dumps(payload, ensure_ascii=False),
+            )
+            findings: list[dict[str, object]] = []
+
+            VALIDATOR._validate_authority_corpus_contract(
+                findings,
+                skill,
+                root,
+                expected_semantic_sha256=_semantic_digest(payload),
+            )
+
+            self.assertEqual(findings, [])
+
+    def test_authority_corpus_rejects_unresolvable_method_reference(self) -> None:
+        payload = _minimal_authority_corpus()
+        authority = payload["authorities"][0]
+        full_text_title = "Проверенный полный текст"
+        authority.update(
+            {
+                "status": "method_integrated",
+                "status_label": payload["status_legend"]["method_integrated"],
+                "method_integrated": True,
+                "needs_identity_or_method_review": False,
+                "source_counts": {
+                    "sko_index": 1,
+                    "curated_method": 1,
+                    "local_full_text": 1,
+                },
+                "full_text_sources": [full_text_title],
+                "method_cards": [
+                    {
+                        "method": "Проверять связь метода с источником",
+                        "usable_for": "контроль методической карточки",
+                        "guardrail": "Не использовать без доступного справочника",
+                        "skill_reference": "missing-reference.md",
+                    }
+                ],
+                "works": [
+                    *authority["works"],
+                    {
+                        "source": "curated_method",
+                        "title": full_text_title,
+                    },
+                ],
+            }
+        )
+        payload["summary"] = {
+            **payload["summary"],
+            "status_counts": {"method_integrated": 1},
+            "source_people_counts": {
+                "sko_index": 1,
+                "curated_method": 1,
+                "local_full_text": 1,
+            },
+            "works_total": 2,
+            "needs_review_total": 0,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutionalist-authority-corpus.json",
+                json.dumps(payload, ensure_ascii=False),
+            )
+            findings: list[dict[str, object]] = []
+
+            VALIDATOR._validate_authority_corpus_contract(
+                findings,
+                skill,
+                root,
+                expected_semantic_sha256=_semantic_digest(payload),
+            )
+
+            self.assertEqual(
+                [item["code"] for item in findings],
+                ["AUTHORITY_CORPUS_CONTRACT_INVALID"],
+            )
+
+    def test_authority_corpus_rejects_duplicate_json_key_with_hidden_coordinate(
+        self,
+    ) -> None:
+        payload_text = json.dumps(
+            _minimal_authority_corpus(),
+            ensure_ascii=False,
+        )
+        payload_text = payload_text.replace(
+            '"coverage": "тестовый охват библиографии"',
+            '"coverage": "ТЗ/private/hidden.pdf", '
+            '"coverage": "тестовый охват библиографии"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutionalist-authority-corpus.json",
+                payload_text,
+            )
+            findings: list[dict[str, object]] = []
+
+            VALIDATOR._validate_authority_corpus_contract(
+                findings,
+                skill,
+                root,
+                expected_semantic_sha256=_semantic_digest(
+                    _minimal_authority_corpus()
+                ),
+            )
+
+            self.assertEqual(
+                [item["code"] for item in findings],
+                ["AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT"],
+            )
+
+    def test_json_loader_rejects_duplicate_object_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "duplicate.json"
+            _write(path, '{"status": "candidate", "status": "approved"}')
+
+            with self.assertRaisesRegex(ValueError, "duplicate key: status"):
+                VALIDATOR._read_json(path)
+
+    def test_authority_corpus_contract_rejects_malformed_and_maintainer_data(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "old schema",
+                {**_minimal_authority_corpus(), "schema_version": "1.0"},
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "missing sources",
+                {key: value for key, value in _minimal_authority_corpus().items() if key != "sources"},
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "missing warning boundary",
+                {
+                    key: value
+                    for key, value in _minimal_authority_corpus().items()
+                    if key != "warning"
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "unknown promoted status",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "status": "PROMOTED_WITHOUT_REVIEW",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "known promotion without method card",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "status": "method_integrated",
+                            "status_label": _minimal_authority_corpus()[
+                                "status_legend"
+                            ]["method_integrated"],
+                            "method_integrated": True,
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "status_counts": {"method_integrated": 1},
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "fake full-text promotion",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "status": "full_text_available",
+                            "status_label": _minimal_authority_corpus()[
+                                "status_legend"
+                            ]["full_text_available"],
+                            "needs_identity_or_method_review": False,
+                            "source_counts": {
+                                "sko_index": 1,
+                                "local_full_text": 1,
+                            },
+                            "full_text_sources": [
+                                "Несуществующий локальный полный текст"
+                            ],
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "status_counts": {"full_text_available": 1},
+                        "source_people_counts": {
+                            "sko_index": 1,
+                            "local_full_text": 1,
+                        },
+                        "needs_review_total": 0,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "fake method-card promotion",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "status": "method_integrated",
+                            "status_label": _minimal_authority_corpus()[
+                                "status_legend"
+                            ]["method_integrated"],
+                            "method_integrated": True,
+                            "needs_identity_or_method_review": False,
+                            "source_counts": {
+                                "sko_index": 1,
+                                "curated_method": 1,
+                                "local_full_text": 1,
+                            },
+                            "full_text_sources": ["Поддельный полный текст"],
+                            "method_cards": [
+                                {
+                                    "method": "Поддельное повышение",
+                                    "usable_for": "автоматическое включение",
+                                    "guardrail": "Проверка не нужна",
+                                    "skill_reference": "missing-reference.md",
+                                }
+                            ],
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "status_counts": {"method_integrated": 1},
+                        "source_people_counts": {
+                            "sko_index": 1,
+                            "curated_method": 1,
+                            "local_full_text": 1,
+                        },
+                        "needs_review_total": 0,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "suppressed identity review",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "needs_identity_or_method_review": False,
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "needs_review_total": 0,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "unknown source suppresses identity review",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "needs_identity_or_method_review": False,
+                            "source_counts": {
+                                "sko_index": 1,
+                                "invented_authoritative_source": 1,
+                            },
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "source_people_counts": {
+                            "sko_index": 1,
+                            "invented_authoritative_source": 1,
+                        },
+                        "needs_review_total": 0,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "duplicate canonical identity",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        _minimal_authority_corpus()["authorities"][0],
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "id": "authority-test-duplicate",
+                        },
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "authorities_total": 2,
+                        "status_counts": {"academic_indexed": 2},
+                        "source_people_counts": {"sko_index": 2},
+                        "route_counts": {"admissibility_and_route": 2},
+                        "works_total": 2,
+                        "needs_review_total": 2,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "inverted warning",
+                {
+                    **_minimal_authority_corpus(),
+                    "warning": "Все записи можно цитировать без проверки.",
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "inverted status label",
+                {
+                    **_minimal_authority_corpus(),
+                    "status_legend": {
+                        **_minimal_authority_corpus()["status_legend"],
+                        "discovery_only": "Проверенная позиция",
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "inverted route label",
+                {
+                    **_minimal_authority_corpus(),
+                    "route_legend": {
+                        **_minimal_authority_corpus()["route_legend"],
+                        "admissibility_and_route": "Автоматически включить",
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "mismatched status label",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "status_label": "Другой статус",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "missing authority routes",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            key: value
+                            for key, value in _minimal_authority_corpus()[
+                                "authorities"
+                            ][0].items()
+                            if key != "routes"
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "empty work provenance",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "works": [{}],
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "non-object work",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "works": [17],
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "private source url",
+                {
+                    **_minimal_authority_corpus(),
+                    "sources": [
+                        {
+                            **_minimal_authority_corpus()["sources"][0],
+                            "url": "file:///tmp/private.pdf",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "loopback source url",
+                {
+                    **_minimal_authority_corpus(),
+                    "sources": [
+                        {
+                            **_minimal_authority_corpus()["sources"][0],
+                            "url": "http://127.0.0.1/private.pdf",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "private work url",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "works": [
+                                {
+                                    **_minimal_authority_corpus()["authorities"][
+                                        0
+                                    ]["works"][0],
+                                    "url": "file:///tmp/private.pdf",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "undeclared work source",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "source_counts": {"unknown_private_source": 1},
+                            "works": [
+                                {
+                                    **_minimal_authority_corpus()["authorities"][
+                                        0
+                                    ]["works"][0],
+                                    "source": "unknown_private_source",
+                                }
+                            ],
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "source_people_counts": {"unknown_private_source": 1},
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "duplicate authority route",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "routes": [
+                                "admissibility_and_route",
+                                "admissibility_and_route",
+                            ],
+                        }
+                    ],
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "route_counts": {"admissibility_and_route": 2},
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "forged derived summary",
+                {
+                    **_minimal_authority_corpus(),
+                    "summary": {
+                        **_minimal_authority_corpus()["summary"],
+                        "status_counts": {"discovery_only": 1},
+                        "route_counts": {},
+                        "source_people_counts": {"sko_index": 99},
+                        "needs_review_total": 0,
+                    },
+                },
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            ),
+            (
+                "retired queue",
+                {**_minimal_authority_corpus(), "next_extraction_wave": []},
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+            ),
+            (
+                "nested retired queue",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "next_extraction_wave": [],
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+            ),
+            (
+                "local hint",
+                {
+                    **_minimal_authority_corpus(),
+                    "sources": [
+                        {
+                            **_minimal_authority_corpus()["sources"][0],
+                            "local_source_hint": "ТЗ/private/source.pdf",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+            ),
+            (
+                "nested local hint without coordinate marker",
+                {
+                    **_minimal_authority_corpus(),
+                    "authorities": [
+                        {
+                            **_minimal_authority_corpus()["authorities"][0],
+                            "local_source_hint": "private/source.pdf",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+            ),
+            (
+                "local coordinate",
+                {
+                    **_minimal_authority_corpus(),
+                    "sources": [
+                        {
+                            **_minimal_authority_corpus()["sources"][0],
+                            "coverage": "ТЗ/private/source.pdf",
+                        }
+                    ],
+                },
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+            ),
+        )
+        for label, payload, expected_code in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = root / "ksrf-argument-patterns"
+                _write(
+                    skill
+                    / "references"
+                    / "constitutionalist-authority-corpus.json",
+                    json.dumps(payload, ensure_ascii=False),
+                )
+                findings: list[dict[str, object]] = []
+                checker = getattr(
+                    VALIDATOR,
+                    "_validate_authority_corpus_contract",
+                    None,
+                )
+
+                self.assertTrue(callable(checker))
+                assert callable(checker)
+                checker(
+                    findings,
+                    skill,
+                    root,
+                    expected_semantic_sha256=_semantic_digest(payload),
+                )
+
+                self.assertEqual([item["code"] for item in findings], [expected_code])
+
+    def test_authority_corpus_rejects_non_public_url_forms(self) -> None:
+        invalid_urls = (
+            "http://127.1/private.pdf",
+            "http://2130706433/private.pdf",
+            "http://0x7f000001/private.pdf",
+            "http://%31%32%37.0.0.1/private.pdf",
+            "http://intranet/private.pdf",
+            "https://source.internal/private.pdf",
+            "https://source.local/private.pdf",
+            "https://source.test/private.pdf",
+            "https://bad_host.com/private.pdf",
+            "https://bad..host.com/private.pdf",
+            "https://-bad.example.com/private.pdf",
+            "https://bad-.example.com/private.pdf",
+            "https://.example.com/private.pdf",
+            "https://example.onion/private.pdf",
+            "https://router.home.arpa/private.pdf",
+            "https://name.alt/private.pdf",
+            "http://foo.ｌｏｃａｌｈｏｓｔ/private.pdf",
+            "http://[v1.fe80]/private.pdf",
+            "https://example.com /private.pdf",
+            "http://example.com:abc/private.pdf",
+            "http://example.com:99999/private.pdf",
+        )
+        for url in invalid_urls:
+            with self.subTest(url=url), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = root / "ksrf-argument-patterns"
+                payload = {
+                    **_minimal_authority_corpus(),
+                    "sources": [
+                        {
+                            **_minimal_authority_corpus()["sources"][0],
+                            "url": url,
+                        },
+                        *_minimal_authority_corpus()["sources"][1:],
+                    ],
+                }
+                _write(
+                    skill
+                    / "references"
+                    / "constitutionalist-authority-corpus.json",
+                    json.dumps(payload, ensure_ascii=False),
+                )
+                findings: list[dict[str, object]] = []
+
+                VALIDATOR._validate_authority_corpus_contract(
+                    findings,
+                    skill,
+                    root,
+                    expected_semantic_sha256=_semantic_digest(payload),
+                )
+
+                self.assertEqual(
+                    [item["code"] for item in findings],
+                    ["AUTHORITY_CORPUS_CONTRACT_INVALID"],
+                )
+
+    def test_authority_corpus_semantic_seal_rejects_structurally_valid_substitute(
+        self,
+    ) -> None:
+        payload = _minimal_authority_corpus()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = root / "ksrf-argument-patterns"
+            _write(
+                skill / "references" / "constitutionalist-authority-corpus.json",
+                json.dumps(payload, ensure_ascii=False),
+            )
+            findings: list[dict[str, object]] = []
+
+            VALIDATOR._validate_authority_corpus_contract(findings, skill, root)
+
+            self.assertEqual(
+                [item["code"] for item in findings],
+                ["AUTHORITY_CORPUS_CONTRACT_INVALID"],
+            )
+
+    def test_both_profiles_enforce_authority_corpus_contract(self) -> None:
+        for profile in ("source", "runtime"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+                if profile == "runtime":
+                    for path in (skill / "evals").iterdir():
+                        path.unlink()
+                    (skill / "evals").rmdir()
+                payload = {
+                    **_minimal_authority_corpus(),
+                    "next_extraction_wave": [],
+                }
+                _write(
+                    skill
+                    / "references"
+                    / "constitutionalist-authority-corpus.json",
+                    json.dumps(payload, ensure_ascii=False),
+                )
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-argument-patterns",),
+                    profile=profile,
+                )
+
+                self.assertIn(
+                    "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+                    _codes(report),
+                )
+
+    def test_both_profiles_reject_missing_authority_corpus(self) -> None:
+        for profile in ("source", "runtime"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+                (
+                    skill
+                    / "references"
+                    / "constitutionalist-authority-corpus.json"
+                ).unlink()
+                if profile == "runtime":
+                    for path in (skill / "evals").iterdir():
+                        path.unlink()
+                    (skill / "evals").rmdir()
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-argument-patterns",),
+                    profile=profile,
+                )
+
+                self.assertIn(
+                    "AUTHORITY_CORPUS_CONTRACT_INVALID",
+                    _codes(report),
+                )
 
 
 if __name__ == "__main__":
