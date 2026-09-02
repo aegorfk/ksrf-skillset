@@ -1,0 +1,192 @@
+{
+  "$schema": "https://example.local/schemas/ksrf_filing/admissibility-matrix.v1.schema.json",
+  "schema_version": "1.0.0",
+  "artifact_type": "AdmissibilityMatrix",
+  "matrix_id": "REPLACE_WITH_MATRIX_ID",
+  "matter_id": "REPLACE_WITH_MATTER_ID_FROM_WORKSPACE",
+  "claim_id": "REPLACE_WITH_CLAIM_ID",
+  "official_rule_snapshot": {
+    "status": "missing",
+    "checked_at": "2000-01-01T00:00:00Z",
+    "evidence_ids": [
+      "official-rule-source-not-yet-attached"
+    ]
+  },
+  "gates": [
+    {
+      "gate_id": "competence_and_route",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: компетенция и маршрут ещё не проверены.",
+      "applicability_reason": "Порог обязателен для выбора между индивидуальной жалобой и запросом суда.",
+      "evidence_ids": ["competence-research-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Проверить действующие правила компетенции и определить доказанный маршрут.",
+      "disposition": "unknown"
+    },
+    {
+      "gate_id": "applicant_and_subjective_interest",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: статус заявителя и личная затронутость ещё не доказаны.",
+      "applicability_reason": "Порог обязателен для индивидуального обращения.",
+      "evidence_ids": ["applicant-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Связать заявителя, оспариваемую норму и конкретное нарушение права.",
+      "disposition": null
+    },
+    {
+      "gate_id": "case_status",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: стадия конкретного дела ещё не подтверждена.",
+      "applicability_reason": "Стадия дела определяет допустимый процессуальный маршрут.",
+      "evidence_ids": ["case-stage-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Получить актуальную карточку дела и полный комплект актов по стадиям.",
+      "disposition": "unknown"
+    },
+    {
+      "gate_id": "challenged_norm_version",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: точная норма и её редакция ещё не установлены.",
+      "applicability_reason": "КС РФ проверяет нормативное положение в доказанной редакции и смысле.",
+      "evidence_ids": ["norm-version-research-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Собрать официальный текст нормы и паспорт редакций по значимым датам.",
+      "disposition": null
+    },
+    {
+      "gate_id": "application_or_meaning",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: применение нормы или её нормативного смысла ещё не доказано.",
+      "applicability_reason": "Нужна причинно значимая связь нормы с конкретным делом.",
+      "evidence_ids": ["application-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Проверить полные акты и собрать evidence-bound запись применения.",
+      "disposition": null
+    },
+    {
+      "gate_id": "causation_and_rights_harm",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: причинная связь и нарушение конституционного права ещё не доказаны.",
+      "applicability_reason": "Жалоба должна показывать вред именно от применения спорной нормы.",
+      "evidence_ids": ["harm-causation-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Связать норму, вывод суда, последствие и затронутое право доказательствами.",
+      "disposition": null
+    },
+    {
+      "gate_id": "exhaustion_and_preservation",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: исчерпание и сохранение довода ещё не проверены.",
+      "applicability_reason": "Доступные способы защиты и история довода влияют на допустимость.",
+      "evidence_ids": ["exhaustion-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Построить карту стадий и проверить, где и как заявлялся довод.",
+      "disposition": null
+    },
+    {
+      "gate_id": "one_year_deadline",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: исходная дата годичного срока ещё не подтверждена.",
+      "applicability_reason": "Срок обращения проверяется по официальным правилам и акту дела.",
+      "evidence_ids": ["deadline-source-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Установить завершающий акт, дату и применимое правило исчисления срока.",
+      "disposition": null
+    },
+    {
+      "gate_id": "continuing_legal_effect",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: продолжающийся правовой эффект ещё не установлен.",
+      "applicability_reason": "Сохраняющееся последствие влияет на предмет и практическую пользу обращения.",
+      "evidence_ids": ["continuing-effect-record-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Зафиксировать текущее юридическое последствие и подтверждающие документы.",
+      "disposition": null
+    },
+    {
+      "gate_id": "anti_appeal_boundary",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: граница между нормативной проблемой и пересмотром фактов ещё не проверена.",
+      "applicability_reason": "КС РФ не выступает дополнительной инстанцией по оценке фактов.",
+      "evidence_ids": ["anti-appeal-analysis-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Отделить спор о нормативном смысле от просьбы переоценить доказательства.",
+      "disposition": null
+    },
+    {
+      "gate_id": "prior_ksrf_authority_delta",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: прежние позиции КС РФ и отличие нового вопроса ещё не исследованы.",
+      "applicability_reason": "Повторное обращение требует честной проверки прежней позиции и значимого отличия.",
+      "evidence_ids": ["prior-authority-research-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Найти официальные акты КС РФ и сформулировать проверяемое отличие.",
+      "disposition": null
+    },
+    {
+      "gate_id": "permissible_remedy",
+      "status": "unknown",
+      "rationale": "Стартовый шаблон: допустимый и practically useful способ защиты ещё не проверен.",
+      "applicability_reason": "Просительный результат должен оставаться в компетенции КС РФ.",
+      "evidence_ids": ["remedy-analysis-not-yet-completed"],
+      "official_rule_evidence_ids": ["official-rule-source-not-yet-attached"],
+      "official_checked_at": "2000-01-01T00:00:00Z",
+      "curability": "curable",
+      "record_availability": "controlled_retrieval",
+      "next_action": "Проверить основной и более узкий способ защиты по официальным полномочиям КС РФ.",
+      "disposition": "unknown"
+    }
+  ],
+  "route_context": {
+    "issue_assessment_status": "not_started",
+    "option_bindings": [],
+    "preferred_option_id": null,
+    "reserve_option_ids": [],
+    "expected_client_benefit": "Понять, какие условия обращения подтверждены и что нужно сделать дальше.",
+    "adverse_risks": [
+      "Матрица остаётся исследовательским шаблоном до проверки юристом."
+    ],
+    "alternatives_and_deadlines": [
+      "Проверить доступные обычные способы защиты и их ближайшие сроки."
+    ],
+    "next_actions_in_order": [
+      "Заменить все значения REPLACE_WITH и стартовые evidence IDs материалами конкретного дела."
+    ],
+    "reconsideration_conditions": [
+      "Повторно вывести маршрут после получения нового акта или официальной опоры."
+    ]
+  }
+}

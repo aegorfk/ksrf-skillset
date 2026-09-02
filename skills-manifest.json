@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T05:01:11Z",
+  "generated_at": "2026-09-02T05:49:26Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "5193d5cbabe1cea8c04167b4e7b428d9a239e347",
+  "remote_base_commit": "71b8a77bc61d2b18ae8840700e386055287f4ee6",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,9 +27,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 234,
-  "total_bytes": 8035436,
-  "tree_sha256": "5170d0355279f9e13ae3d04aa01dc40f2caf77c52777b0e94bf3ef537ec14856",
+  "total_files": 238,
+  "total_bytes": 8126687,
+  "tree_sha256": "3876b63b7d650e4a4ca08ede973d0a74abe639d22b34f3d7cb0b1beca6995c5b",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-case-triage",
       "files": 4,
-      "bytes": 59489,
-      "tree_sha256": "560132e600a7d9f6cf63c3b526116bef2a4150c9d4bdbc24e8a991ce58ab2c7f"
+      "bytes": 60530,
+      "tree_sha256": "2daddabe1ea98973d1f51e4c55147dc34574f4f97986087432d7ec1a6152eee3"
     },
     {
       "name": "ksrf-cassation-judicial-meaning",
@@ -51,9 +51,9 @@
     },
     {
       "name": "ksrf-complaint-cycle",
-      "files": 90,
-      "bytes": 2051763,
-      "tree_sha256": "aaef88c468d7e8334d81a4178912313773d82b29b79d0e13bc46bae3b9d36b04"
+      "files": 94,
+      "bytes": 2135981,
+      "tree_sha256": "f6b3a3acc54900548f6d7be5ffe3dfe3ce22ee0bfda4d2cb61add54d4b864534"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -64,8 +64,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 6,
-      "bytes": 111150,
-      "tree_sha256": "78ab06b4ff2dcd199c2623c66e0f0706b1c8e9afc4a9e401a1f5526d045b9657"
+      "bytes": 111875,
+      "tree_sha256": "d323ec8db6c6754115a05deadb5475d93115ecf9b9d841c68e74815e678e4c8d"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -100,8 +100,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 9,
-      "bytes": 118328,
-      "tree_sha256": "3770113841976c227cd76e9df46b6cfad46eb064d75a00d01c54006b46cc4955"
+      "bytes": 123595,
+      "tree_sha256": "409d6148067ec2a864a2cf0e470a3ac8485b1e95b9b8b58dd1e22215830d4594"
     },
     {
       "name": "ksrf-formal-filing-check",

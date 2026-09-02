@@ -9,6 +9,8 @@ description: "Скилл оценивает по УИД или материал�
 
 Сначала используй `../ksrf-complaint-cycle/references/official-source-and-version-gate.md` и `../ksrf-complaint-cycle/references/implicit-application-gate.md`. Triage принимает `NormVersionPassport` и per-stage application records; regex/поисковый кандидат нормы остаётся discovery. Операционная готовность профиля из `ksrf_setup_doctor.py` и юридическая допустимость — независимые оси.
 
+Исполняемые артефакты допустимости заданы схемами `../ksrf-complaint-cycle/schemas/ksrf_filing/admissibility-matrix.v1.schema.json` и `../ksrf-complaint-cycle/schemas/ksrf_filing/ksrf-route-recommendation.v1.schema.json`. Используй локальный маршрут из [контракта артефактов](../ksrf-explore-arguments/references/artifact-contracts.md#admissibilitymatrix-и-локальный-маршрут): он проверяет структуру, заново сверяет локальные официальные опоры и сохраняет историю, но не принимает юридическое решение. Любой результат сохраняет `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` и `filing_performed=false`; подписать и подать жалобу может только человек после отдельной юридической проверки.
+
 ## Порядок работы
 
 1. Если дан UID, сначала собери `UIDCaseDossier` по `../ksrf-complaint-cycle/references/uid-first-case-workflow.md`: разреши дело, скачай доступные акты, проверь ожидаемые стадии и зафиксируй незакрытые слоты. Если даны материалы либо каталог, затем собери `CaseFile` и `AutonomousIntakeRecord` по `../ksrf-complaint-cycle/references/ksrf-tool-layer.md`. Сам извлеки и проверь кандидатов спорной нормы, даты и события, предполагаемое право и непосредственное правовое последствие. Не проси пользователя подготовить эту юридическую выжимку и не заполняй неизвестное догадкой.

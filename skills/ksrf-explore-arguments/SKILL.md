@@ -28,6 +28,8 @@ description: Скилл исследует и сравнивает нескол�
 - сохраняющийся эффект и prior-decision/delta check;
 - anti-appeal filter и допустимый remedy.
 
+До исследования проверь матрицу по `../ksrf-complaint-cycle/schemas/ksrf_filing/admissibility-matrix.v1.schema.json`, а итоговый маршрут — по `../ksrf-complaint-cycle/schemas/ksrf_filing/ksrf-route-recommendation.v1.schema.json`. Исполняемые команды и переносимый пример находятся в [контракте исследовательских артефактов](references/artifact-contracts.md#admissibilitymatrix-и-локальный-маршрут). Машинный результат не выбирает позицию за юриста: в рекомендации всегда остаются `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` и `filing_performed=false`.
+
 Происхождение источника и точность цитаты проверяй отдельным `EvidenceGate`; case-scoped конфиденциальность — отдельным privacy gate. Ручной выбор остаётся содержательным решением человека, но перед filing-significant drafting/export он повышает статус только через заранее созданный host-attested approval полного candidate и всех gate bindings по `../ksrf-complaint-cycle/references/router-and-state-machine.md`. Эти проверки обязательны для использования результата, но не смешиваются с юридической допустимостью жалобы.
 
 **Адаптивные вопросы:**

@@ -44,9 +44,9 @@ description: "Скилл организует полный цикл обраще
 
 ### 4. Примени hard gates
 
-Сначала выдай `AdmissibilityMatrix`: компетенция/субъект, конкретное дело, норма/версия, judicial use, causal harm, preservation/exhaustion, срок, continuing effect, prior-position delta, anti-fourth-instance и допустимый remedy. `Unknown` не проходит.
+Сначала выдай `AdmissibilityMatrix`: компетенция/субъект, конкретное дело, норма/версия, judicial use, causal harm, preservation/exhaustion, срок, continuing effect, prior-position delta, anti-fourth-instance и допустимый remedy. Исполняемый формат матрицы и итоговой рекомендации задан схемами `schemas/ksrf_filing/admissibility-matrix.v1.schema.json` и `schemas/ksrf_filing/ksrf-route-recommendation.v1.schema.json`; порядок локальных команд описан в [контракте исследовательских артефактов](../ksrf-explore-arguments/references/artifact-contracts.md#admissibilitymatrix-и-локальный-маршрут). `Unknown` не проходит.
 
-Результат: `GO_TO_KSRF`, `FIX_FIRST`, `COURT_REQUEST_ROUTE`, `NO_GO_KSRF` либо `ABSTAIN_PENDING_RECORD`. Не генерируй filing-ready текст при critical unknown.
+Результат: `GO_TO_KSRF`, `FIX_FIRST`, `COURT_REQUEST_ROUTE`, `NO_GO_KSRF` либо `ABSTAIN_PENDING_RECORD`. Даже `GO_TO_KSRF` остаётся рекомендацией для юриста: `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` и `filing_performed=false`. Не генерируй filing-ready текст при critical unknown и не считай машинную валидацию разрешением подписать или подать жалобу.
 
 ### 5. Исследуй варианты и отказные аналоги
 

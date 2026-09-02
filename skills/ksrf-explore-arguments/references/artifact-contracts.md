@@ -7,6 +7,7 @@
 - [ArgumentHypothesis](#argumenthypothesis)
 - [ArgumentPortfolio](#argumentportfolio)
 - [ConstitutionalIssueOption](#constitutionalissueoption)
+- [AdmissibilityMatrix и локальный маршрут](#admissibilitymatrix-и-локальный-маршрут)
 - [KSRFRouteRecommendation](#ksrfrouterecommendation)
 - [Case isolation](#case-isolation)
 
@@ -110,17 +111,43 @@ submission, even reproduced in a judgment, не является original applic
 
 Показывай два–четыре существенно разных варианта, если они подтверждаются материалом. Не фабрикуй разнообразие: при одной жизнеспособной линии перечисли проверенные и отклонённые альтернативы. Выбор человека относится к стратегии principal/reserve, а не заменяет исследование нормы и нарушенного права.
 
+## AdmissibilityMatrix и локальный маршрут
+
+`AdmissibilityMatrix` версии `1.0.0` заполняется до итогового выбора маршрута. Его исполняемая схема — `admissibility-matrix.v1.schema.json`; схема результата — `ksrf-route-recommendation.v1.schema.json`. Возьми [безопасный стартовый файл](../../ksrf-complaint-cycle/references/admissibility-matrix-template.v1.json): все его пороги остаются `unknown`, поэтому он не может сам открыть маршрут `GO_TO_KSRF`. Матрица должна содержать каждый из двенадцати порогов ровно один раз, доказательства по каждой строке, дату проверки официального правила, устранимость, доступность материалов и следующий шаг. `unknown` не превращается в `pass`, а недоступный после полного поиска источник не доказывает отсутствие основания. Каждый `option_binding` использует штатный `issue-candidate-content:sha256:<64 lowercase hex>` и должен совпасть с последним сохранённым кандидатом того же дела и требования; простая подстановка похожего ID, выдуманного хеша, статуса `viable` или чужих доказательств блокирует маршрут.
+
+Локальный CLI выполняет три операции без сетевых и модельных вызовов:
+
+- `ksrf admissibility validate` проверяет матрицу и сохраняет точный вход и результат в журнале дела;
+- `ksrf admissibility derive` заново сверяет локальные официальные опоры, применяет фиксированный порядок решений и сохраняет `KSRFRouteRecommendation`;
+- `ksrf admissibility status` повторно проверяет последнюю матрицу и добавляет новое событие, не изменяя прежнее. Если официальная опора больше не подтверждается, прежний `GO_TO_KSRF` понижается до `ABSTAIN_PENDING_RECORD`.
+
+Переносимый пример для установленного набора skills:
+
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+KSRF_WORKSPACE="/абсолютный/путь/к/делу"
+KSRF_MATRIX="/абсолютный/путь/к/admissibility-matrix.json"
+
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" admissibility validate --workspace "$KSRF_WORKSPACE" --payload "$KSRF_MATRIX" --json
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" admissibility derive --workspace "$KSRF_WORKSPACE" --payload "$KSRF_MATRIX" --json
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" admissibility status --workspace "$KSRF_WORKSPACE" --json
+```
+
+Только `GO_TO_KSRF` завершает этот маршрут кодом `0`; `FIX_FIRST`, `COURT_REQUEST_ROUTE`, `NO_GO_KSRF` и `ABSTAIN_PENDING_RECORD` остаются заблокированными состояниями и возвращают код `3`. Ошибка входного контракта возвращает код `2`. Эти коды управляют локальным процессом, а не юридическим решением.
+
 ## KSRFRouteRecommendation
 
 Формируется после `AdmissibilityMatrix` и, когда hard gates допускают содержательный проход, после исследования, но до drafting. При раннем `NO_GO_KSRF` или `ABSTAIN_PENDING_RECORD` портфель не требуется:
 
 - `decision`: `GO_TO_KSRF`, `FIX_FIRST`, `COURT_REQUEST_ROUTE`, `NO_GO_KSRF` или `ABSTAIN_PENDING_RECORD`;
-- `decisive_gate_evidence`, `preferred_option_id`, `reserve_option_ids`; для решения до содержательного портфеля `preferred_option_id=null`, а `reserve_option_ids=[]`;
+- `matrix_revision_id`, `decision_rule_version`, `decisive_gate_evidence` и `blocker_codes`;
+- `option_bindings` с точными `content_fingerprint`, `preferred_option_id`, `reserve_option_ids`; для решения до содержательного портфеля `preferred_option_id=null`, а `reserve_option_ids=[]`;
+- `official_authority_evidence_ids` — только локально перепроверенные официальные опоры;
 - `expected_client_benefit`, `adverse_risks`, `alternatives_and_deadlines`;
 - `next_actions_in_order`, `reconsideration_conditions`;
-- `human_decision`: `pending`, `accepted`, `revise` или `declined`.
+- `human_decision=pending`, `human_legal_review_required=true`, `legal_assessment_automated=false`, `filing_authority=false`, `filing_performed=false`.
 
-`GO_TO_KSRF` означает юридически обоснованную готовность к подаче, а не прогноз принятия с ложной числовой точностью. `Unknown` требует `FIX_FIRST` или `ABSTAIN_PENDING_RECORD`, но не автоматически `NO_GO_KSRF`. Неустранимый fail или чисто фактический спор позволяют `NO_GO_KSRF` сразу после admissibility без выдуманного issue option.
+`GO_TO_KSRF` означает только машинно согласованную рекомендацию перейти к юридической проверке, а не прогноз принятия и не разрешение подать жалобу. Юрист отдельно проверяет вывод, человек отдельно принимает решение, подписывает и подаёт документы. `Unknown` требует `FIX_FIRST` или `ABSTAIN_PENDING_RECORD`, но не автоматически `NO_GO_KSRF`. Неустранимый fail или чисто фактический спор позволяют `NO_GO_KSRF` сразу после admissibility без выдуманного issue option.
 
 ## Case isolation
 

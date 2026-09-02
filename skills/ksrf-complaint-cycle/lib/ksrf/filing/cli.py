@@ -22,6 +22,7 @@ from .matter import (
 ROUTE_COMMANDS = {
     "intake",
     "sources",
+    "admissibility",
     "application",
     "issues",
     "failures",
@@ -32,6 +33,7 @@ ROUTE_COMMANDS = {
 
 ROUTE_TITLES = {
     "sources": "Проверка официальных источников и редакций норм",
+    "admissibility": "Проверка допустимости и выбор маршрута обращения",
     "application": "Доказательство прямого или имплицитного применения нормы",
     "issues": "Формирование вариантов конституционно-правовой проблемы",
     "failures": "Исследование неудачных обращений и неблагоприятной практики",
@@ -42,6 +44,7 @@ ROUTE_TITLES = {
 
 ROUTE_ACTIONS = {
     "sources": "verify",
+    "admissibility": "derive",
     "application": "analyze",
     "issues": "generate",
     "failures": "research",
@@ -116,6 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     aliases = {
         "sources": ["source"],
+        "admissibility": [],
         "application": ["norm-application"],
         "issues": ["issue"],
         "failures": ["failure-research", "corpus"],
@@ -128,8 +132,18 @@ def build_parser() -> argparse.ArgumentParser:
             route,
             aliases=route_aliases,
             help=ROUTE_TITLES[route],
+            description=ROUTE_TITLES[route],
         )
-        route_parser.add_argument("action", nargs="?", default=ROUTE_ACTIONS[route])
+        if route == "admissibility":
+            route_parser.add_argument(
+                "action",
+                nargs="?",
+                choices=("validate", "derive", "status"),
+                default=ROUTE_ACTIONS[route],
+                help="Действие: validate, derive или status (по умолчанию derive).",
+            )
+        else:
+            route_parser.add_argument("action", nargs="?", default=ROUTE_ACTIONS[route])
         route_parser.add_argument("--workspace", type=Path, required=True)
         route_parser.add_argument(
             "--payload",
