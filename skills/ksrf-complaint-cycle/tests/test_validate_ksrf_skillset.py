@@ -4,8 +4,12 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import shutil
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -615,7 +619,12 @@ description: Используй этот навык для всего.
                 "_FRESHNESS_OPENER",
                 side_effect=AssertionError("default runtime validation must stay offline"),
                 create=True,
-            ) as opener:
+            ) as opener, mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                side_effect=AssertionError("default runtime validation must not run git"),
+                create=True,
+            ) as git_runner:
                 report = VALIDATOR.validate_skillset(
                     root,
                     package_names=("ksrf-test",),
@@ -623,6 +632,7 @@ description: Используй этот навык для всего.
                 )
 
             opener.assert_not_called()
+            git_runner.assert_not_called()
             self.assertEqual(report["schema_version"], "1.1.0")
             self.assertEqual(
                 report["runtime_content"],
@@ -724,6 +734,11 @@ description: Используй этот навык для всего.
                         side_effect=opener,
                         create=True,
                     ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_FINDER",
+                        side_effect=AssertionError("REST success must not search for git"),
+                    ) as git_finder,
                 ):
                     report = VALIDATOR.validate_skillset(
                         root,
@@ -733,6 +748,7 @@ description: Используй этот навык для всего.
                     )
 
                 self.assertEqual([url for url, _ in calls], [ref_url, manifest_url])
+                git_finder.assert_not_called()
                 self.assertTrue(all(0 < timeout <= 10 for _, timeout in calls))
                 self.assertEqual(report["freshness"]["status"], expected_status)
                 self.assertEqual(
@@ -752,6 +768,379 @@ description: Используй этот навык для всего.
                         for size in response.read_sizes
                     )
                 )
+
+    def test_runtime_freshness_rest_network_error_uses_exact_hardened_git_fallback(
+        self,
+    ) -> None:
+        remote_sha = "c" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        for expected_status, remote_hash in (
+            ("current", None),
+            ("different", "d" * 64),
+        ):
+            with self.subTest(expected_status=expected_status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+                compared_hash = local_hash if remote_hash is None else remote_hash
+                manifest_payload = json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "digest_format": (
+                            "sha256 over 4-byte big-endian relative path length + "
+                            "relative path + 8-byte big-endian content length + content, "
+                            "files sorted by POSIX relative path"
+                        ),
+                        "total_skills": 1,
+                        "total_files": total_files,
+                        "total_bytes": total_bytes,
+                        "tree_sha256": compared_hash,
+                    }
+                ).encode()
+                opened: list[str] = []
+
+                def opener(request: object, *, timeout: float):
+                    self.assertGreater(timeout, 0)
+                    self.assertLessEqual(timeout, 5)
+                    url = str(getattr(request, "full_url", request))
+                    opened.append(url)
+                    if url == ref_url:
+                        raise TimeoutError("transient REST path failure")
+                    self.assertEqual(url, manifest_url)
+                    return _FakeHttpResponse(manifest_payload, manifest_url)
+
+                git_calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+                def git_runner(
+                    argv: tuple[str, ...],
+                    **kwargs: object,
+                ) -> tuple[int, bytes]:
+                    git_calls.append((argv, kwargs))
+                    return 0, f"{remote_sha}\trefs/heads/main\n".encode("ascii")
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_FINDER",
+                        return_value="/usr/bin/git",
+                        create=True,
+                    ) as git_finder,
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_RUNNER",
+                        side_effect=git_runner,
+                        create=True,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual(opened, [ref_url, manifest_url])
+                self.assertEqual(report["freshness"]["status"], expected_status)
+                self.assertEqual(report["freshness"]["remote_main_sha"], remote_sha)
+                git_finder.assert_called_once_with("git", path=os.defpath)
+                self.assertEqual(len(git_calls), 1)
+                argv, kwargs = git_calls[0]
+                self.assertEqual(
+                    argv,
+                    (
+                        "/usr/bin/git",
+                        "-c",
+                        "credential.helper=",
+                        "-c",
+                        "core.askPass=",
+                        "-c",
+                        "credential.interactive=never",
+                        "-c",
+                        "http.followRedirects=false",
+                        "ls-remote",
+                        "--exit-code",
+                        "--refs",
+                        "https://github.com/aegorfk/ksrf-skillset.git",
+                        "refs/heads/main",
+                    ),
+                )
+                self.assertEqual(kwargs["timeout"], 5.0)
+                self.assertEqual(kwargs["max_stdout"], 256)
+                self.assertEqual(kwargs["cwd"], Path(sys.executable).anchor or os.sep)
+                environment = kwargs["env"]
+                self.assertIsInstance(environment, dict)
+                self.assertEqual(
+                    environment,
+                    {
+                        "PATH": os.defpath,
+                        "LC_ALL": "C",
+                        "LANG": "C",
+                        "GIT_TERMINAL_PROMPT": "0",
+                        "GIT_CONFIG_NOSYSTEM": "1",
+                        "GIT_CONFIG_GLOBAL": os.devnull,
+                        "GIT_CONFIG_SYSTEM": os.devnull,
+                        "GIT_CONFIG_COUNT": "0",
+                        "GIT_DIR": os.devnull,
+                        "GIT_ALLOW_PROTOCOL": "https",
+                    },
+                )
+
+    def test_git_ref_fallback_rejects_missing_nonzero_and_noncanonical_output(
+        self,
+    ) -> None:
+        cases = (
+            ("missing", None, None, "network_error"),
+            ("relative-executable", "git", None, "network_error"),
+            ("transport", "/usr/bin/git", (1, b""), "network_error"),
+            ("signaled", "/usr/bin/git", (-15, b""), "network_error"),
+            ("no-ref", "/usr/bin/git", (2, b""), "invalid_response"),
+            ("empty", "/usr/bin/git", (0, b""), "invalid_response"),
+            ("crlf", "/usr/bin/git", (0, b"a" * 40 + b"\trefs/heads/main\r\n"), "invalid_response"),
+            ("uppercase", "/usr/bin/git", (0, b"A" * 40 + b"\trefs/heads/main\n"), "invalid_response"),
+            ("wrong-ref", "/usr/bin/git", (0, b"a" * 40 + b"\trefs/heads/dev\n"), "invalid_response"),
+            (
+                "duplicate",
+                "/usr/bin/git",
+                (0, (b"a" * 40 + b"\trefs/heads/main\n") * 2),
+                "invalid_response",
+            ),
+        )
+        for label, executable, outcome, expected_reason in cases:
+            with self.subTest(label=label), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_FINDER",
+                return_value=executable,
+                create=True,
+            ), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                return_value=outcome,
+                create=True,
+            ) as runner:
+                with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                    VALIDATOR._resolve_remote_main_sha_via_git()
+
+                self.assertEqual(caught.exception.reason_code, expected_reason)
+                if executable is None or not os.path.isabs(executable):
+                    runner.assert_not_called()
+                else:
+                    runner.assert_called_once()
+
+    def test_git_ref_fallback_preserves_bounded_runner_reason(self) -> None:
+        for reason in ("network_error", "response_too_large"):
+            with self.subTest(reason=reason), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_FINDER",
+                return_value="/usr/bin/git",
+                create=True,
+            ), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                side_effect=VALIDATOR._FreshnessLookupError(reason),
+                create=True,
+            ):
+                with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                    VALIDATOR._resolve_remote_main_sha_via_git()
+                self.assertEqual(caught.exception.reason_code, reason)
+
+    def test_hostile_rest_or_pinned_manifest_failure_never_runs_git(self) -> None:
+        remote_sha = "e" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        valid_ref = _FakeHttpResponse(
+            json.dumps(
+                {
+                    "ref": "refs/heads/main",
+                    "object": {"type": "commit", "sha": remote_sha},
+                }
+            ).encode(),
+            ref_url,
+        )
+        cases = (
+            ("invalid-rest", [ValueError("hostile redirect")], "invalid_response"),
+            (
+                "oversized-rest",
+                [_FakeHttpResponse(b"x" * 70_000, ref_url)],
+                "response_too_large",
+            ),
+            (
+                "manifest-network",
+                [valid_ref, TimeoutError("raw endpoint unavailable")],
+                "network_error",
+            ),
+        )
+        for label, outcomes, expected_reason in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                queue = list(outcomes)
+
+                def opener(request: object, *, timeout: float):
+                    del request, timeout
+                    outcome = queue.pop(0)
+                    if isinstance(outcome, BaseException):
+                        raise outcome
+                    return outcome
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_RUNNER",
+                        side_effect=AssertionError("git fallback must not run"),
+                        create=True,
+                    ) as runner,
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                runner.assert_not_called()
+                self.assertEqual(report["freshness"]["status"], "unknown")
+                self.assertEqual(report["freshness"]["reason_code"], expected_reason)
+
+    def test_bounded_process_runner_caps_output_and_kills_timed_out_process_group(
+        self,
+    ) -> None:
+        with self.assertRaises(VALIDATOR._FreshnessLookupError) as oversized:
+            VALIDATOR._run_bounded_freshness_process(
+                (sys.executable, "-c", "import os; os.write(1, b'x' * 300)"),
+                env=dict(os.environ),
+                cwd=Path(sys.executable).anchor or os.sep,
+                timeout=1.0,
+                max_stdout=256,
+            )
+        self.assertEqual(oversized.exception.reason_code, "response_too_large")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "orphan-wrote.txt"
+            child = (
+                "import pathlib,sys,time; time.sleep(.35); "
+                "pathlib.Path(sys.argv[1]).write_text('unexpected', encoding='utf-8')"
+            )
+            parent = (
+                "import subprocess,sys,time; "
+                "subprocess.Popen([sys.executable, '-c', sys.argv[2], sys.argv[1]]); "
+                "time.sleep(5)"
+            )
+            started = time.monotonic()
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as timed_out:
+                VALIDATOR._run_bounded_freshness_process(
+                    (sys.executable, "-c", parent, str(marker), child),
+                    env=dict(os.environ),
+                    cwd=tmp,
+                    timeout=0.1,
+                    max_stdout=256,
+                )
+            self.assertEqual(timed_out.exception.reason_code, "network_error")
+            self.assertLess(time.monotonic() - started, 2.0)
+            time.sleep(0.45)
+            self.assertFalse(marker.exists())
+
+    def test_hardened_git_environment_disables_repository_local_url_rewrite(
+        self,
+    ) -> None:
+        git = shutil.which("git", path=os.defpath)
+        if git is None:
+            self.skipTest("system git is unavailable")
+        canonical = "https://github.com/aegorfk/ksrf-skillset.git"
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(
+                (git, "init", "--quiet", tmp),
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                (
+                    git,
+                    "-C",
+                    tmp,
+                    "config",
+                    "url.file:///attacker/.insteadOf",
+                    "https://github.com/aegorfk/",
+                ),
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            result = subprocess.run(
+                (git, "ls-remote", "--get-url", canonical),
+                check=True,
+                cwd=tmp,
+                env=VALIDATOR._freshness_git_environment(),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+
+        self.assertEqual(result.stdout, f"{canonical}\n".encode("ascii"))
+
+    def test_bounded_process_runner_reaps_child_when_selector_setup_fails(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "unreaped-child.txt"
+            script = (
+                "import pathlib,sys,time; time.sleep(.35); "
+                "pathlib.Path(sys.argv[1]).write_text('unexpected', encoding='utf-8')"
+            )
+            with mock.patch.object(
+                VALIDATOR.selectors,
+                "DefaultSelector",
+                side_effect=OSError("synthetic selector exhaustion"),
+            ):
+                with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                    VALIDATOR._run_bounded_freshness_process(
+                        (sys.executable, "-c", script, str(marker)),
+                        env=dict(os.environ),
+                        cwd=tmp,
+                        timeout=1.0,
+                        max_stdout=256,
+                    )
+
+            self.assertEqual(caught.exception.reason_code, "network_error")
+            time.sleep(0.45)
+            self.assertFalse(marker.exists())
 
     def test_require_current_rechecks_local_identity_after_network_before_current(
         self,
@@ -871,6 +1260,11 @@ description: Используй этот навык для всего.
                     side_effect=TimeoutError("secret upstream detail"),
                     create=True,
                 ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    return_value=None,
+                ) as git_finder,
             ):
                 exit_code = VALIDATOR.main(
                     [
@@ -896,6 +1290,55 @@ description: Используй этот навык для всего.
             self.assertEqual(payload["freshness"]["reason_code"], "network_error")
             self.assertNotIn("secret upstream detail", stdout.getvalue())
             self.assertNotIn("TimeoutError", stdout.getvalue())
+            git_finder.assert_called_once_with("git", path=os.defpath)
+
+    def test_require_current_without_system_git_returns_stable_unknown_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=TimeoutError("bounded REST failure detail"),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    return_value=None,
+                ) as git_finder,
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--skills-root",
+                        str(root),
+                        "--profile",
+                        "runtime",
+                        "--check-updates",
+                        "--require-current",
+                        "--strict",
+                        "--json",
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 20)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(report["status"], "pass")
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertEqual(report["freshness"]["reason_code"], "network_error")
+            self.assertNotIn("bounded REST failure detail", stdout.getvalue())
+            git_finder.assert_called_once_with("git", path=os.defpath)
 
     def test_require_current_maps_freshness_to_stable_exit_codes(self) -> None:
         for freshness_status, expected_exit in (
@@ -1137,6 +1580,11 @@ description: Используй этот навык для всего.
                         "_FRESHNESS_OPENER",
                         side_effect=AssertionError("invalid scope must stay offline"),
                     ) as opener,
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_FINDER",
+                        side_effect=AssertionError("invalid scope must not search for git"),
+                    ) as git_finder,
                 ):
                     exit_code = VALIDATOR.main(
                         arguments,
@@ -1147,6 +1595,7 @@ description: Используй этот навык для всего.
                 self.assertEqual(exit_code, 2)
                 validate.assert_not_called()
                 opener.assert_not_called()
+                git_finder.assert_not_called()
                 self.assertIn("--require-current", stderr.getvalue())
 
     def test_require_current_rejects_report_file_before_write_or_network(self) -> None:
@@ -1165,6 +1614,11 @@ description: Используй этот навык для всего.
                     "_FRESHNESS_OPENER",
                     side_effect=AssertionError("invalid output mode must stay offline"),
                 ) as opener,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    side_effect=AssertionError("invalid output mode must not search for git"),
+                ) as git_finder,
             ):
                 exit_code = VALIDATOR.main(
                     [
@@ -1182,6 +1636,7 @@ description: Используй этот навык для всего.
             self.assertEqual(exit_code, 2)
             validate.assert_not_called()
             opener.assert_not_called()
+            git_finder.assert_not_called()
             self.assertFalse(report_path.exists())
             self.assertIn("--report-out", stderr.getvalue())
 
@@ -1426,6 +1881,11 @@ description: Используй этот навык для всего.
                     side_effect=AssertionError("invalid local identity must skip network"),
                     create=True,
                 ) as opener,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    side_effect=AssertionError("invalid local identity must skip git"),
+                ) as git_finder,
             ):
                 report = VALIDATOR.validate_skillset(
                     root,
@@ -1435,6 +1895,7 @@ description: Используй этот навык для всего.
                 )
 
             opener.assert_not_called()
+            git_finder.assert_not_called()
             self.assertEqual(report["status"], "fail")
             self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
 
@@ -1571,6 +2032,11 @@ description: Используй этот навык для всего.
                     side_effect=AssertionError("invalid local identity must skip network"),
                     create=True,
                 ) as opener,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    side_effect=AssertionError("invalid local identity must skip git"),
+                ) as git_finder,
             ):
                 report = VALIDATOR.validate_skillset(
                     root,
@@ -1580,6 +2046,7 @@ description: Используй этот навык для всего.
                 )
 
             opener.assert_not_called()
+            git_finder.assert_not_called()
             self.assertEqual(report["status"], "fail")
             self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
             self.assertIsNone(report["runtime_content"]["tree_sha256"])
@@ -1652,6 +2119,11 @@ description: Используй этот навык для всего.
                     side_effect=AssertionError("offline verification must not use network"),
                     create=True,
                 ) as opener,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    side_effect=AssertionError("offline verification must not search for git"),
+                ) as git_finder,
             ):
                 report = VALIDATOR.validate_skillset(
                     root,
@@ -1661,6 +2133,7 @@ description: Используй этот навык для всего.
                 )
 
             opener.assert_not_called()
+            git_finder.assert_not_called()
             self.assertGreaterEqual(calls, 2)
             self.assertEqual(report["status"], "fail")
             self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
@@ -1717,12 +2190,19 @@ description: Используй этот навык для всего.
             with self.subTest(label=label):
                 stdout = io.StringIO()
                 stderr = io.StringIO()
-                with mock.patch.object(
-                    VALIDATOR,
-                    "_FRESHNESS_OPENER",
-                    side_effect=AssertionError("invalid CLI must not open network"),
-                    create=True,
-                ) as opener:
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=AssertionError("invalid CLI must not open network"),
+                        create=True,
+                    ) as opener,
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_FINDER",
+                        side_effect=AssertionError("invalid CLI must not search for git"),
+                    ) as git_finder,
+                ):
                     exit_code = VALIDATOR.main(
                         arguments,
                         stdout=stdout,
@@ -1731,6 +2211,7 @@ description: Используй этот навык для всего.
 
                 self.assertEqual(exit_code, 2)
                 opener.assert_not_called()
+                git_finder.assert_not_called()
                 self.assertIn("--check-updates", stderr.getvalue())
 
     def test_update_check_accepts_complete_scope_in_any_order(self) -> None:
@@ -1754,6 +2235,11 @@ description: Используй этот навык для всего.
                     "_FRESHNESS_OPENER",
                     side_effect=TimeoutError("offline"),
                 ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    return_value=None,
+                ) as git_finder,
             ):
                 exit_code = VALIDATOR.main(
                     [
@@ -1777,6 +2263,7 @@ description: Используй этот навык для всего.
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(report["freshness"]["status"], "unknown")
             self.assertEqual(report["freshness"]["reason_code"], "network_error")
+            git_finder.assert_called_once_with("git", path=os.defpath)
 
     def test_runtime_profile_rejects_source_only_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

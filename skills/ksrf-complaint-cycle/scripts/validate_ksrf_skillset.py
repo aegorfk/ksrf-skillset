@@ -13,9 +13,14 @@ import importlib.util
 import json
 import os
 import re
+import selectors
+import shutil
+import signal
 import ssl
 import stat
+import subprocess
 import sys
+import time
 import unicodedata
 from collections import Counter
 from http.client import HTTPException
@@ -183,8 +188,11 @@ _FRESHNESS_REF_URL = (
 _FRESHNESS_RAW_PREFIX = (
     "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
 )
+_FRESHNESS_GIT_REPOSITORY = "https://github.com/aegorfk/ksrf-skillset.git"
+_FRESHNESS_GIT_REF = "refs/heads/main"
 _FRESHNESS_REF_MAX_BYTES = 64 * 1024
 _FRESHNESS_MANIFEST_MAX_BYTES = 256 * 1024
+_FRESHNESS_GIT_MAX_BYTES = 256
 _FRESHNESS_TIMEOUT_SECONDS = 5.0
 _FRESHNESS_REASON_LABELS = {
     "local_identity_unavailable": "локальный отпечаток недоступен",
@@ -229,6 +237,7 @@ def _default_freshness_opener(request: Request, *, timeout: float) -> Any:
 
 
 _FRESHNESS_OPENER = _default_freshness_opener
+_FRESHNESS_GIT_FINDER = shutil.which
 PUBLIC_SOURCE_CONTRACT_PATH = (
     Path(__file__).resolve().parents[3] / "tools" / "skillset_file_contract.py"
 )
@@ -2364,7 +2373,183 @@ def _read_freshness_json(
         raise _FreshnessLookupError("invalid_response") from exc
 
 
-def _resolve_remote_main_sha() -> str:
+def _kill_freshness_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Kill and reap a bounded helper without exposing process diagnostics."""
+
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            try:
+                process.kill()
+            except OSError:
+                pass
+    else:  # pragma: no cover - the public installer is POSIX-only
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=1.0)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _run_bounded_freshness_process(
+    argv: Sequence[str],
+    *,
+    env: Mapping[str, str],
+    cwd: str,
+    timeout: float,
+    max_stdout: int,
+) -> tuple[int, bytes]:
+    """Run one non-interactive helper with bounded time and stdout."""
+
+    process: subprocess.Popen[bytes] | None = None
+    selector: selectors.BaseSelector | None = None
+    completed = False
+    try:
+        process = subprocess.Popen(
+            tuple(argv),
+            shell=False,
+            cwd=cwd,
+            env=dict(env),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=os.name == "posix",
+        )
+        if process.stdout is None:  # pragma: no cover - PIPE guarantees the handle
+            raise _FreshnessLookupError("network_error")
+
+        output = bytearray()
+        deadline = time.monotonic() + timeout
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise _FreshnessLookupError("network_error")
+            events = selector.select(remaining)
+            if not events:
+                raise _FreshnessLookupError("network_error")
+            chunk = os.read(
+                process.stdout.fileno(),
+                min(4096, max_stdout + 1 - len(output)),
+            )
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > max_stdout:
+                raise _FreshnessLookupError("response_too_large")
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise _FreshnessLookupError("network_error")
+        try:
+            return_code = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            raise _FreshnessLookupError("network_error") from exc
+        completed = True
+        return return_code, bytes(output)
+    except _FreshnessLookupError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise _FreshnessLookupError("network_error") from exc
+    finally:
+        if process is not None and not completed:
+            _kill_freshness_process_group(process)
+        if selector is not None:
+            try:
+                selector.close()
+            except OSError:
+                pass
+        if process is not None and process.stdout is not None:
+            try:
+                process.stdout.close()
+            except OSError:
+                pass
+
+
+_FRESHNESS_GIT_RUNNER = _run_bounded_freshness_process
+
+
+def _freshness_git_environment() -> dict[str, str]:
+    """Return a minimal environment that cannot inherit Git routing policy."""
+
+    return {
+        "PATH": os.defpath,
+        "LC_ALL": "C",
+        "LANG": "C",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_CONFIG_COUNT": "0",
+        "GIT_DIR": os.devnull,
+        "GIT_ALLOW_PROTOCOL": "https",
+    }
+
+
+def _resolve_remote_main_sha_via_git() -> str:
+    git_executable = _FRESHNESS_GIT_FINDER("git", path=os.defpath)
+    if (
+        not isinstance(git_executable, str)
+        or not os.path.isabs(git_executable)
+    ):
+        raise _FreshnessLookupError("network_error")
+
+    argv = (
+        git_executable,
+        "-c",
+        "credential.helper=",
+        "-c",
+        "core.askPass=",
+        "-c",
+        "credential.interactive=never",
+        "-c",
+        "http.followRedirects=false",
+        "ls-remote",
+        "--exit-code",
+        "--refs",
+        _FRESHNESS_GIT_REPOSITORY,
+        _FRESHNESS_GIT_REF,
+    )
+    try:
+        return_code, payload = _FRESHNESS_GIT_RUNNER(
+            argv,
+            env=_freshness_git_environment(),
+            cwd=Path(sys.executable).anchor or os.sep,
+            timeout=_FRESHNESS_TIMEOUT_SECONDS,
+            max_stdout=_FRESHNESS_GIT_MAX_BYTES,
+        )
+    except _FreshnessLookupError:
+        raise
+    except (OSError, subprocess.SubprocessError, TimeoutError, TypeError, ValueError) as exc:
+        raise _FreshnessLookupError("network_error") from exc
+
+    if not isinstance(return_code, int) or isinstance(return_code, bool):
+        raise _FreshnessLookupError("invalid_response")
+    if not isinstance(payload, bytes):
+        raise _FreshnessLookupError("invalid_response")
+    if len(payload) > _FRESHNESS_GIT_MAX_BYTES:
+        raise _FreshnessLookupError("response_too_large")
+    if return_code == 2:
+        raise _FreshnessLookupError("invalid_response")
+    if return_code != 0:
+        raise _FreshnessLookupError("network_error")
+
+    expected = re.fullmatch(
+        rb"([0-9a-f]{40})\trefs/heads/main\n",
+        payload,
+    )
+    if expected is None:
+        raise _FreshnessLookupError("invalid_response")
+    return expected.group(1).decode("ascii")
+
+
+def _resolve_remote_main_sha_via_rest() -> str:
     payload = _read_freshness_json(
         _FRESHNESS_REF_URL,
         expected_host="api.github.com",
@@ -2387,6 +2572,15 @@ def _resolve_remote_main_sha() -> str:
     ):
         raise _FreshnessLookupError("invalid_response")
     return commit_sha
+
+
+def _resolve_remote_main_sha() -> str:
+    try:
+        return _resolve_remote_main_sha_via_rest()
+    except _FreshnessLookupError as exc:
+        if exc.reason_code != "network_error":
+            raise
+    return _resolve_remote_main_sha_via_git()
 
 
 def _fetch_remote_runtime_identity(commit_sha: str) -> dict[str, Any]:

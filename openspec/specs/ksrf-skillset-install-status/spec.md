@@ -231,19 +231,23 @@ non-installing route that first applies the existing offline status preflight,
 then validates the complete runtime target and compares its exact runtime
 identity with the manifest at the immutable SHA resolved from canonical
 `main`. It SHALL use the repository-side validator with runtime, strict,
-update-check, and current-required modes. After existing validation failures
-take precedence, the process SHALL return `0` for `current`, `10` for
-`different`, and `20` for `unknown`. Public human output SHALL be rendered from
-the structured report in concise Russian, preserve counts, content identity,
-remote version evidence, and bounded readable findings, and SHALL NOT expose normal
-users to internal coverage labels or enum tokens such as `runtime`, `evals`,
-`not_checked`, `validated`, `public-source`, `public-repository`, or
+update-check, and current-required modes. Ref resolution SHALL use REST first
+and SHALL attempt the validator's fixed, non-interactive, bounded Git fallback
+exactly once after a REST ref `network_error` when fixed-system Git is available;
+other REST evidence failures and all immutable
+manifest failures SHALL remain fail-closed without that fallback. After existing
+validation failures take precedence, the process SHALL return `0` for `current`,
+`10` for `different`, and `20` for `unknown`. Public human output SHALL be
+rendered from the structured report in concise Russian, preserve counts, content
+identity, remote version evidence, and bounded readable findings, and SHALL NOT
+expose normal users to internal coverage labels or enum tokens such as `runtime`,
+`evals`, `not_checked`, `validated`, `public-source`, `public-repository`, or
 `source/release QA`. The machine report and direct maintainer renderer SHALL
 remain unchanged. Human output SHALL preserve that equality is not installation
 provenance, legal-source freshness, publication authority, or filing readiness.
 Public wrapper errors SHALL use fixed actionable Russian wording and SHALL NOT
 expose `repo-side`, `preflight`, `postflight`, trusted-policy implementation
-terms, Python exception classes, or raw exception text.
+terms, Python exception classes, raw Git diagnostics, or raw exception text.
 
 #### Scenario: Human current verification
 
@@ -260,9 +264,14 @@ terms, Python exception classes, or raw exception text.
 - **WHEN** runtime validation passes and any manifest identity field differs, including file count or byte count when the tree hash is equal
 - **THEN** the report remains `freshness.status=different`, current-required mode returns `10` without calling the installer, and human output says the installed content differs without calling it corrupt or obsolete
 
+#### Scenario: REST ref network failure uses fixed fallback
+
+- **WHEN** explicit current verification receives bounded `network_error` from the REST ref lookup and the fixed Git fallback returns one valid exact-ref SHA
+- **THEN** verification compares against the immutable manifest at that SHA with unchanged public output and exit meanings
+
 #### Scenario: Incomplete freshness evidence
 
-- **WHEN** runtime validation passes but remote SHA or manifest evidence cannot be established
+- **WHEN** runtime validation passes but neither permitted ref-resolution route can establish a valid remote SHA, or immutable manifest evidence cannot be established
 - **THEN** the report remains `freshness.status=unknown`, current-required mode returns `20`, and human output says comparison could not be completed without emitting a positive conclusion
 
 #### Scenario: Existing validation failure takes precedence
@@ -280,10 +289,10 @@ terms, Python exception classes, or raw exception text.
 - **WHEN** automation runs `--verify-current` for a structurally clean target
 - **THEN** the exit code distinguishes current, different, unknown, validation failure, and usage failure without parsing prose
 
-#### Scenario: Explicit network boundary
+#### Scenario: Explicit network and subprocess boundary
 
 - **WHEN** neither `--verify-current` nor the internal `--check-updates` flag is selected
-- **THEN** installation and status do not initiate the freshness network lookup
+- **THEN** installation, offline verification, and status initiate neither the freshness network lookup nor its Git subprocess fallback
 
 #### Scenario: Unsafe or incomplete target
 
@@ -293,7 +302,7 @@ terms, Python exception classes, or raw exception text.
 #### Scenario: Trusted verification cannot complete
 
 - **WHEN** the repository-side policy raises unexpectedly or returns malformed current-release evidence
-- **THEN** the public wrapper returns `2`, prints no positive result, and asks the user in plain Russian to update the repository and retry without exposing implementation names or exception text
+- **THEN** the public wrapper returns `2`, prints no positive result, and asks the user in plain Russian to update the repository and retry without exposing implementation names, Git diagnostics, or exception text
 
 #### Scenario: Target changes during the network window
 
