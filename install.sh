@@ -95,7 +95,7 @@ if [[ "$verify_mode" == true || "$verify_current_mode" == true ]]; then
     ! -f "$validator" || -L "$validator" ||
     ! -f "$offline_policy" || -L "$offline_policy"
   ]]; then
-    echo "Repo-side валидатор или политика проверки недоступны; обновите репозиторий из опубликованного main" >&2
+    echo "Файлы проверки недоступны. Обновите репозиторий до текущей опубликованной версии и повторите проверку." >&2
     exit 1
   fi
   verify_args=(

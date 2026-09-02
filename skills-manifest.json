@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T15:45:41Z",
+  "generated_at": "2026-09-02T17:12:21Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "0b7eee807b01daab2680f09c232d19b4b1066927",
+  "remote_base_commit": "aec536c9d5a568221100139f556aa921162ac376",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -124,13 +124,13 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 351649,
-  "release_tree_sha256": "b9fb08748b3caf4fcca7d0bf3a82d152af0526337fa2c91064410ab46886b62c",
+  "total_release_bytes": 372063,
+  "release_tree_sha256": "adc2cae15a90cd8b7e268817b7f9832384f595f35c6613afdbcd58d3527fc1d5",
   "release_files": [
     {
       "path": "install.sh",
-      "bytes": 5153,
-      "sha256": "1b20722abe2043b8835eeac17a48dee712b201ba09673d3d32b7fa98efe49ed5"
+      "bytes": 5172,
+      "sha256": "f69f9fe15dc700d51ce574ab11cc8134df13744c5a8cacad163254cba4331065"
     },
     {
       "path": "tools/generate_skills_manifest.py",
@@ -139,8 +139,8 @@
     },
     {
       "path": "tools/install_skillset.py",
-      "bytes": 163135,
-      "sha256": "4624c9ae6670fa504d31cdafe987cef7730c9408a3ace8051ca5c8dea60544d0"
+      "bytes": 183530,
+      "sha256": "2d48496eb99645f4d75113bfefa0fdfa4a6e3ad35bfa4c763954ad89f4f9cbfd"
     },
     {
       "path": "tools/skillset_file_contract.py",

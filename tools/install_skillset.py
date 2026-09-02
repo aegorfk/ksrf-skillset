@@ -17,6 +17,7 @@ import shlex
 import shutil
 import stat
 import sys
+import tempfile
 from typing import Any, Iterator, Sequence, TextIO
 from uuid import uuid4
 
@@ -3390,6 +3391,170 @@ def _held_verification_working_directory(
             os.close(previous_descriptor)
 
 
+def _copy_verification_snapshot_directory(
+    source_descriptor: int,
+    destination: Path,
+    *,
+    expected_device: int,
+    expected_metadata: os.stat_result,
+    budget: _StatusScanBudget,
+    components: tuple[str, ...],
+) -> None:
+    """Copy one bounded directory through held no-follow descriptors only."""
+
+    directory_before = os.fstat(source_descriptor)
+    if (
+        not stat.S_ISDIR(directory_before.st_mode)
+        or directory_before.st_dev != expected_device
+        or _status_metadata_tuple(directory_before)
+        != _status_metadata_tuple(expected_metadata)
+    ):
+        raise _ObservationChanged(
+            "managed directory changed before verification snapshot read"
+        )
+    budget.account(components, directory_before)
+    destination.mkdir(mode=0o700)
+
+    for name in _status_bounded_names(source_descriptor, budget=budget):
+        child_components = (*components, name)
+        metadata = os.stat(
+            name,
+            dir_fd=source_descriptor,
+            follow_symlinks=False,
+        )
+        if metadata.st_dev != expected_device:
+            raise InstallationError(
+                "verification snapshot source crosses a device boundary"
+            )
+        if stat.S_ISDIR(metadata.st_mode):
+            child_descriptor, anchored = _status_open_directory_at(
+                source_descriptor,
+                name,
+                expected_device=expected_device,
+            )
+            try:
+                if _status_metadata_tuple(metadata) != _status_metadata_tuple(
+                    anchored
+                ):
+                    raise _ObservationChanged(
+                        "managed directory changed while opening snapshot source"
+                    )
+                _copy_verification_snapshot_directory(
+                    child_descriptor,
+                    destination / name,
+                    expected_device=expected_device,
+                    expected_metadata=anchored,
+                    budget=budget,
+                    components=child_components,
+                )
+            finally:
+                os.close(child_descriptor)
+            continue
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise InstallationError(
+                "verification snapshot refuses symlink, special, or hard-linked entry"
+            )
+        budget.account(child_components, metadata)
+        content, _, captured_metadata = _status_read_regular_at(
+            source_descriptor,
+            name,
+            expected_device=expected_device,
+            capture_limit=_STATUS_SCAN_MAX_FILE_BYTES,
+        )
+        if (
+            content is None
+            or _status_metadata_tuple(metadata) != captured_metadata
+        ):
+            raise _ObservationChanged(
+                "managed file changed during verification snapshot read"
+            )
+        output_descriptor = os.open(
+            destination / name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        try:
+            remaining = memoryview(content)
+            while remaining:
+                written = os.write(output_descriptor, remaining)
+                if written <= 0:
+                    raise OSError("verification snapshot write made no progress")
+                remaining = remaining[written:]
+        finally:
+            os.close(output_descriptor)
+
+    directory_after = os.fstat(source_descriptor)
+    if _status_metadata_tuple(directory_before) != _status_metadata_tuple(
+        directory_after
+    ):
+        raise _ObservationChanged(
+            "managed directory changed during verification snapshot read"
+        )
+
+
+@contextmanager
+def _immutable_verification_snapshot(
+    target_descriptor: int,
+    package_names: Sequence[str],
+) -> Iterator[Path]:
+    """Copy held managed packages once so every policy reads identical bytes."""
+
+    target_metadata = os.fstat(target_descriptor)
+    with tempfile.TemporaryDirectory(prefix="ksrf-verification-") as raw:
+        snapshot_root = Path(raw) / "skills"
+        snapshot_root.mkdir(mode=0o700)
+        budget = _StatusScanBudget()
+        for package in package_names:
+            try:
+                package_metadata = os.stat(
+                    package,
+                    dir_fd=target_descriptor,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                continue
+            if (
+                not stat.S_ISDIR(package_metadata.st_mode)
+                or package_metadata.st_dev != target_metadata.st_dev
+            ):
+                raise InstallationError(
+                    "managed package is unsafe while creating verification snapshot"
+                )
+            package_descriptor, anchored = _status_open_directory_at(
+                target_descriptor,
+                package,
+                expected_device=target_metadata.st_dev,
+            )
+            try:
+                if _status_metadata_tuple(package_metadata) != _status_metadata_tuple(
+                    anchored
+                ):
+                    raise _ObservationChanged(
+                        "managed package changed before verification snapshot"
+                    )
+                _copy_verification_snapshot_directory(
+                    package_descriptor,
+                    snapshot_root / package,
+                    expected_device=target_metadata.st_dev,
+                    expected_metadata=anchored,
+                    budget=budget,
+                    components=(package,),
+                )
+                if _status_metadata_tuple(anchored) != _status_metadata_tuple(
+                    os.fstat(package_descriptor)
+                ):
+                    raise _ObservationChanged(
+                        "managed package changed during verification snapshot"
+                    )
+            finally:
+                os.close(package_descriptor)
+        yield snapshot_root
+
+
 def _attach_offline_policy_errors(
     validator: Any,
     report: dict[str, Any],
@@ -3474,7 +3639,7 @@ def _render_offline_verification_report(
     runtime_content = report["runtime_content"]
     status = "НЕ ПРОЙДЕНА" if validation_failed else "ПРОЙДЕНА"
     lines = [
-        f"Проверка установленного набора: ОФЛАЙН-ПРОВЕРКА {status}",
+        f"Проверка установленного набора: ПРОВЕРКА БЕЗ СЕТИ {status}",
         (
             f"Проверено навыков: {report['validated_package_count']} из "
             f"{report['expected_package_count']}; ошибок: {summary['errors']}; "
@@ -3515,7 +3680,7 @@ def _render_offline_verification_report(
             "Служебные тестовые наборы исходного репозитория не запускались: "
             "они не входят в пользовательскую установку.",
             "Интернет не использовался; совпадение с текущей опубликованной "
-            "веткой main не проверялось.",
+            "версией не проверялось.",
             current_action,
             (
                 "Эта проверка не подтверждает актуальность норм и судебной "
@@ -3523,17 +3688,320 @@ def _render_offline_verification_report(
             ),
         )
     )
-    for item in report.get("findings", []):
-        location = str(item.get("path") or item.get("package") or "набор")
+    _append_public_verification_findings(lines, report)
+    return "\n".join(lines) + "\n"
+
+
+def _append_public_verification_findings(
+    lines: list[str],
+    report: dict[str, Any],
+) -> None:
+    """Append bounded validator findings to a public verification report."""
+
+    findings = report.get("findings", [])
+    if not isinstance(findings, list):
+        raise RuntimeError("runtime validator returned invalid findings")
+    finding_limit = 50
+    text_limit = 512
+
+    def bounded(value: object) -> str:
+        rendered = _status_public_text(str(value))
+        if len(rendered) > text_limit:
+            return rendered[: text_limit - 3] + "..."
+        return rendered
+
+    safe_messages = {
+        "SKILL_FILE_UNREADABLE": "Файл SKILL.md не удалось безопасно прочитать.",
+        "FRONTMATTER_INVALID": "Описание навыка в SKILL.md имеет неверный формат.",
+        "AGENT_METADATA_INVALID": "Служебное описание навыка имеет неверный формат.",
+        "BEHAVIORAL_EVALS_INVALID": "Служебный тест навыка имеет неверный формат.",
+        "TRIGGER_EVALS_INVALID": "Служебный тест запуска навыка имеет неверный формат.",
+        "MARKDOWN_UNREADABLE": "Текстовый файл не удалось безопасно прочитать.",
+        "MARKDOWN_LINK_ESCAPES_SKILLSET": (
+            "Ссылка в описании навыка ведёт за пределы установленного набора."
+        ),
+        "BROKEN_MARKDOWN_LINK": (
+            "Ссылка в описании навыка ведёт к отсутствующему файлу."
+        ),
+        "MCP_TOOL_NOT_FULLY_QUALIFIED": (
+            "В описании навыка указана некорректная ссылка на служебный инструмент."
+        ),
+        "APPLICATION_EVIDENCE_CONTRACT_INVALID": (
+            "Правила проверки применения жалобы отсутствуют или повреждены."
+        ),
+        "ARGUMENT_GRAPH_CONTRACT_INVALID": (
+            "Схема построения аргументации отсутствует или повреждена."
+        ),
+        "AUTHORITY_CORPUS_CONTRACT_INVALID": (
+            "Справочные материалы по авторитетным источникам отсутствуют или повреждены."
+        ),
+        "RUNTIME_TEXT_UNREADABLE": "Файл установки не удалось безопасно прочитать.",
+        "RUNTIME_FORMAT_UNCHECKED": "Формат файла установки не удалось проверить.",
+        "RUNTIME_REFERENCE_JSON_INVALID": (
+            "Структурированный справочный файл имеет неверный формат."
+        ),
+        "PUBLISH_FILE_UNREADABLE": "Файл выпуска не удалось безопасно прочитать.",
+        "RUNTIME_LOCAL_COORDINATE": (
+            "Файл содержит локальную ссылку, недоступную после установки."
+        ),
+        "RUNTIME_IDENTITY_CHANGED": (
+            "Содержимое установки изменилось во время проверки."
+        ),
+        "RUNTIME_ROOT_CHANGED": "Папка установки изменилась во время проверки.",
+        "OFFLINE_SELF_CONTAINMENT_FAILED": (
+            "Автономность установки не подтверждена: обязательные материалы "
+            "или связи отсутствуют либо повреждены."
+        ),
+    }
+
+    for item in findings[:finding_limit]:
+        if not isinstance(item, dict):
+            raise RuntimeError("runtime validator returned an invalid finding")
+        code = str(item.get("code") or "")
+        raw_location = str(item.get("path") or item.get("package") or "набор")
+        absolute_location = (
+            Path(raw_location).is_absolute()
+            or raw_location.startswith("~")
+            or (
+                len(raw_location) >= 3
+                and raw_location[1] == ":"
+                and raw_location[2] in {"/", "\\"}
+            )
+        )
+        location = (
+            "установка"
+            if raw_location == "runtime" or absolute_location
+            else raw_location
+        )
         if item.get("line"):
             location += f":{item['line']}"
         label = "ОШИБКА" if item.get("severity") == "error" else "ПРЕДУПРЕЖДЕНИЕ"
+        message = safe_messages.get(code, str(item.get("message", "")))
         lines.append(
-            f"- {label} {_status_public_text(str(item.get('code', 'UNKNOWN')))} "
-            f"[{_status_public_text(location)}]: "
-            f"{_status_public_text(str(item.get('message', '')))}"
+            f"- {label} [{bounded(location)}]: {bounded(message)}"
         )
+    omitted = len(findings) - finding_limit
+    if omitted > 0:
+        lines.append(
+            f"Показаны первые {finding_limit} проблем. Не показано: {omitted}."
+        )
+
+
+_CURRENT_FRESHNESS_REASON_LABELS = {
+    "local_identity_unavailable": "контрольный отпечаток содержимого недоступен",
+    "network_error": "сеть или удалённый сервис недоступны",
+    "response_too_large": "ответ удалённого сервиса превысил безопасный размер",
+    "invalid_response": "ответ удалённого сервиса не прошёл строгую проверку",
+}
+
+_PUBLIC_VERIFICATION_LOCAL_FAILURE = (
+    "Проверка не выполнена: указанная папка или файлы проверки недоступны, "
+    "небезопасны, неполны или изменились. Завершите установку, при необходимости "
+    "обновите репозиторий и повторите проверку."
+)
+_PUBLIC_VERIFICATION_INTERNAL_FAILURE = (
+    "Проверку не удалось завершить из-за внутренней ошибки. Обновите репозиторий "
+    "до текущей опубликованной версии и повторите проверку."
+)
+
+
+def _render_current_verification_report(
+    report: dict[str, Any],
+    *,
+    validation_failed: bool,
+) -> str:
+    """Render public current-release results without maintainer field names."""
+
+    summary = report["summary"]
+    runtime_content = report["runtime_content"]
+    freshness = report.get("freshness")
+    freshness_status = (
+        freshness.get("status") if isinstance(freshness, dict) else None
+    )
+    if validation_failed:
+        heading = "СОДЕРЖИМОЕ НЕ ПРОШЛО ПРОВЕРКУ"
+    elif freshness_status == "current":
+        heading = "СОДЕРЖИМОЕ СОВПАДАЕТ С ОПУБЛИКОВАННОЙ ВЕРСИЕЙ"
+    elif freshness_status == "different":
+        heading = "СОДЕРЖИМОЕ ОТЛИЧАЕТСЯ ОТ ОПУБЛИКОВАННОЙ ВЕРСИИ"
+    elif freshness_status == "unknown":
+        heading = "СРАВНЕНИЕ НЕ ЗАВЕРШЕНО"
+    else:
+        heading = "РЕЗУЛЬТАТ СРАВНЕНИЯ НЕ ПОЛУЧЕН"
+    lines = [
+        f"Проверка установленного набора: {heading}",
+        (
+            f"Проверено навыков: {report['validated_package_count']} из "
+            f"{report['expected_package_count']}; ошибок: {summary['errors']}; "
+            f"предупреждений: {summary['warnings']}."
+        ),
+    ]
+    local_tree_sha256 = runtime_content.get("tree_sha256")
+    if isinstance(local_tree_sha256, str):
+        lines.append(
+            "Контрольный отпечаток содержимого: "
+            f"{local_tree_sha256} ({runtime_content['total_files']} файлов; "
+            f"{runtime_content['total_bytes']} байт)."
+        )
+    else:
+        lines.append(
+            "Контрольный отпечаток не сформирован: содержимое изменилось "
+            "или было недоступно при проверке."
+        )
+    if validation_failed:
+        lines.append(
+            "Проверка обнаружила ошибки или предупреждения. Сравнение с "
+            "опубликованной версией не подтверждено."
+        )
+    elif freshness_status == "current":
+        remote_version = _status_public_text(str(freshness.get("remote_main_sha", "")))
+        lines.append(
+            f"Опубликованная версия: {remote_version}. Установленное содержимое "
+            "совпадает с ней на момент проверки."
+        )
+    elif freshness_status == "different":
+        remote_version = _status_public_text(str(freshness.get("remote_main_sha", "")))
+        lines.append(
+            f"Опубликованная версия: {remote_version}. Установленное содержимое "
+            "отличается от неё. Установленная копия может быть более старой, "
+            "более новой, настроенной или изменённой локально."
+        )
+    elif freshness_status == "unknown":
+        reason = _CURRENT_FRESHNESS_REASON_LABELS.get(
+            str(freshness.get("reason_code", "")),
+            "причина не установлена",
+        )
+        lines.append(f"Сравнение не завершено: {reason}.")
+    else:
+        lines.append(
+            "Сравнение с опубликованной версией не дало проверяемого результата."
+        )
+    lines.extend(
+        (
+            "Служебные тестовые наборы исходного репозитория не запускались: "
+            "они не входят в пользовательскую установку.",
+            "Проверка исходного репозитория и служебных материалов выпуска "
+            "выполняется отдельно; этот результат не даёт полномочий на публикацию.",
+            (
+                "Совпадение набора не подтверждает актуальность права и судебной "
+                "практики, происхождение установки или готовность жалобы к подаче."
+            ),
+        )
+    )
+    _append_public_verification_findings(lines, report)
     return "\n".join(lines) + "\n"
+
+
+def _is_lower_hex_digest(value: object, length: int) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == length
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _is_nonnegative_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _verification_summary_is_well_formed(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    return all(
+        _is_nonnegative_int(value.get(name))
+        for name in ("errors", "warnings")
+    )
+
+
+def _current_verification_exit_code(
+    report: dict[str, Any],
+    *,
+    validation_failed: bool,
+) -> int:
+    """Validate freshness evidence before any public success is rendered."""
+
+    if validation_failed:
+        return 1
+    summary = report.get("summary")
+    runtime_content = report.get("runtime_content")
+    freshness = report.get("freshness")
+    validation_coverage = report.get("validation_coverage")
+    validated_packages = report.get("validated_packages")
+    findings = report.get("findings")
+    validated_count = report.get("validated_package_count")
+    expected_count = report.get("expected_package_count")
+    if (
+        report.get("schema_version") != "1.1.0"
+        or report.get("validation_profile") != "runtime"
+        or validation_coverage
+        != {
+            "evals": "not_checked",
+            "runtime_self_containment": "validated",
+            "public_source_safety": "not_checked",
+            "public_repository_safety": "not_checked",
+        }
+        or report.get("source_release_eligible") is not False
+        or report.get("status") != "pass"
+        or not _verification_summary_is_well_formed(summary)
+        or summary["errors"] != 0
+        or summary["warnings"] != 0
+        or validated_packages != list(SKILL_NAMES)
+        or findings != []
+        or report.get("publish_manifest") is not None
+        or not isinstance(runtime_content, dict)
+        or not isinstance(freshness, dict)
+        or not _is_nonnegative_int(validated_count)
+        or not _is_nonnegative_int(expected_count)
+        or validated_count != len(SKILL_NAMES)
+        or expected_count != len(SKILL_NAMES)
+    ):
+        raise RuntimeError("runtime validator returned an invalid current report")
+    local_tree_sha256 = runtime_content.get("tree_sha256")
+    total_files = runtime_content.get("total_files")
+    total_bytes = runtime_content.get("total_bytes")
+    if (
+        runtime_content.get("algorithm") != "sha256-path-length-content-v1"
+        or not _is_lower_hex_digest(local_tree_sha256, 64)
+        or not _is_nonnegative_int(total_files)
+        or total_files <= 0
+        or not _is_nonnegative_int(total_bytes)
+        or freshness.get("local_tree_sha256") != local_tree_sha256
+    ):
+        raise RuntimeError("runtime validator returned invalid local identity evidence")
+    freshness_status = freshness.get("status")
+    remote_main_sha = freshness.get("remote_main_sha")
+    remote_tree_sha256 = freshness.get("remote_tree_sha256")
+    reason_code = freshness.get("reason_code")
+    if freshness_status in {"current", "different"}:
+        if (
+            not _is_lower_hex_digest(remote_main_sha, 40)
+            or not _is_lower_hex_digest(remote_tree_sha256, 64)
+            or reason_code
+            != ("content_matches" if freshness_status == "current" else "content_differs")
+            or (
+                freshness_status == "current"
+                and (total_files > 1_000_000 or total_bytes > (2**63 - 1))
+            )
+            or (
+                freshness_status == "current"
+                and remote_tree_sha256 != local_tree_sha256
+            )
+        ):
+            raise RuntimeError("runtime validator returned invalid remote identity evidence")
+        return 0 if freshness_status == "current" else 10
+    if freshness_status == "unknown":
+        if (
+            reason_code
+            not in {"network_error", "response_too_large", "invalid_response"}
+            or remote_tree_sha256 is not None
+            or (
+                remote_main_sha is not None
+                and not _is_lower_hex_digest(remote_main_sha, 40)
+            )
+        ):
+            raise RuntimeError("runtime validator returned invalid unknown evidence")
+        return 20
+    raise RuntimeError("runtime validator did not establish a freshness outcome")
 
 
 def _verify_installed_skillset_anchored(
@@ -3567,96 +4035,116 @@ def _verify_installed_skillset_anchored(
     preflight = _inspect_installation_status_anchored(target, target_descriptor)
     if int(preflight["exit_code"]) != 0:
         stderr.write(render_installation_status(preflight) + "\n")
-        action = "актуальности" if require_current else "содержимого"
-        stderr.write(
-            f"Проверка {action} не запускалась: сначала нужна безопасная полная установка\n"
-        )
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
     if not root_is_current():
-        stderr.write(
-            "Проверка остановлена: корень установленного набора изменился после preflight.\n"
-        )
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
 
     try:
-        with _held_verification_working_directory(
-            target_descriptor
+        with _immutable_verification_snapshot(
+            target_descriptor,
+            validator.CANONICAL_KSRF_PACKAGES,
         ) as validation_root:
-            baseline_report = validator.validate_skillset(
+            report = validator.validate_skillset(
                 validation_root,
                 package_names=validator.CANONICAL_KSRF_PACKAGES,
                 profile="runtime",
-                check_updates=False,
-                require_current=False,
-                expected_runtime_root_anchor=expected_anchor,
-                expected_runtime_root_descriptor=target_descriptor,
-                preserve_relative_runtime_root=True,
+                check_updates=require_current,
+                require_current=require_current,
             )
-            if not isinstance(baseline_report, dict):
+            if not isinstance(report, dict):
                 raise RuntimeError("runtime validator returned a non-object report")
-            baseline_summary = baseline_report.get("summary")
-            if not isinstance(baseline_summary, dict):
-                raise RuntimeError("runtime validator returned an invalid baseline report")
-            baseline_failed = baseline_report.get("status") != "pass" or bool(
-                baseline_summary.get("warnings")
+            snapshot_summary = report.get("summary")
+            if not _verification_summary_is_well_formed(snapshot_summary):
+                raise RuntimeError("runtime validator returned an invalid snapshot report")
+            assert isinstance(snapshot_summary, dict)
+            snapshot_failed = (
+                report.get("status") != "pass"
+                or snapshot_summary["errors"] > 0
+                or snapshot_summary["warnings"] > 0
             )
-            if baseline_failed:
-                report = baseline_report
-            else:
+            if not snapshot_failed:
                 offline_errors = offline_policy.validate_offline_self_containment(
                     validation_root,
                     package_names=validator.CANONICAL_KSRF_PACKAGES,
-                    preserve_relative_root=True,
                 )
-                report = validator.validate_skillset(
-                    validation_root,
-                    package_names=validator.CANONICAL_KSRF_PACKAGES,
-                    profile="runtime",
-                    check_updates=require_current,
-                    require_current=require_current,
-                    expected_runtime_root_anchor=expected_anchor,
-                    expected_runtime_root_descriptor=target_descriptor,
-                    preserve_relative_runtime_root=True,
+                with _held_verification_working_directory(
+                    target_descriptor
+                ) as live_root:
+                    live_report = validator.validate_skillset(
+                        live_root,
+                        package_names=validator.CANONICAL_KSRF_PACKAGES,
+                        profile="runtime",
+                        check_updates=False,
+                        require_current=False,
+                        expected_runtime_root_anchor=expected_anchor,
+                        expected_runtime_root_descriptor=target_descriptor,
+                        preserve_relative_runtime_root=True,
+                    )
+                if not isinstance(live_report, dict):
+                    raise RuntimeError("runtime validator returned an invalid live report")
+                live_summary = live_report.get("summary")
+                live_failed = (
+                    not _verification_summary_is_well_formed(live_summary)
+                    or live_report.get("status") != "pass"
+                    or live_summary["errors"] > 0
+                    or live_summary["warnings"] > 0
                 )
-                if not isinstance(report, dict):
-                    raise RuntimeError("runtime validator returned a non-object report")
-                if baseline_report.get("runtime_content") != report.get(
-                    "runtime_content"
+                if (
+                    live_failed
+                    or live_report.get("runtime_content")
+                    != report.get("runtime_content")
                 ):
                     _attach_runtime_identity_change(validator, report)
                 _attach_offline_policy_errors(validator, report, offline_errors)
+    except (
+        _ObservationChanged,
+        InstallationError,
+        FileNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        _ = exc
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
+        return 1
     except Exception as exc:
-        stderr.write(
-            "Проверка установленного набора остановлена без положительного результата: "
-            f"{_bounded_public_exception(exc)}\n"
-        )
+        _ = exc
+        stderr.write(_PUBLIC_VERIFICATION_INTERNAL_FAILURE + "\n")
         return 2
 
     if not root_is_current():
-        stderr.write(
-            "Проверка остановлена: корень установленного набора изменился во время проверки.\n"
-        )
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
     postflight = _inspect_installation_status_anchored(target, target_descriptor)
     if int(postflight["exit_code"]) != 0:
         stderr.write(render_installation_status(postflight) + "\n")
-        stderr.write(
-            "Проверка остановлена: состояние установки изменилось до postflight.\n"
-        )
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
     if not root_is_current():
-        stderr.write(
-            "Проверка остановлена: корень установленного набора изменился до postflight.\n"
-        )
+        stderr.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
 
     summary = report.get("summary")
-    if not isinstance(summary, dict):
-        stderr.write("Валидатор вернул неполную сводку.\n")
+    if not _verification_summary_is_well_formed(summary):
+        stderr.write(_PUBLIC_VERIFICATION_INTERNAL_FAILURE + "\n")
         return 2
-    validation_failed = report.get("status") != "pass" or bool(
-        summary.get("warnings")
+    assert isinstance(summary, dict)
+    validation_failed = (
+        report.get("status") != "pass"
+        or summary["errors"] > 0
+        or summary["warnings"] > 0
     )
+    current_exit_code: int | None = None
+    if require_current:
+        try:
+            current_exit_code = _current_verification_exit_code(
+                report,
+                validation_failed=validation_failed,
+            )
+        except RuntimeError:
+            stderr.write(_PUBLIC_VERIFICATION_INTERNAL_FAILURE + "\n")
+            return 2
     if not require_current:
         rendered = _render_offline_verification_report(
             report,
@@ -3664,26 +4152,15 @@ def _verify_installed_skillset_anchored(
             validation_failed=validation_failed,
         )
     else:
-        rendered = validator._render_text(
+        rendered = _render_current_verification_report(
             report,
-            require_current=True,
-            strict=True,
+            validation_failed=validation_failed,
         )
     stdout.write(rendered)
-    if validation_failed:
-        return 1
     if not require_current:
-        return 0
-    freshness = report.get("freshness")
-    if not isinstance(freshness, dict):
-        stderr.write("Валидатор не вернул результат актуальности.\n")
-        return 2
-    exit_codes = {"current": 0, "different": 10, "unknown": 20}
-    freshness_status = freshness.get("status")
-    if freshness_status not in exit_codes:
-        stderr.write("Валидатор не установил итог актуальности.\n")
-        return 2
-    return exit_codes[str(freshness_status)]
+        return 1 if validation_failed else 0
+    assert current_exit_code is not None
+    return current_exit_code
 
 
 def verify_installed_skillset(
@@ -3702,18 +4179,13 @@ def verify_installed_skillset(
     target = _absolute_without_resolving(target)
 
     def report_local_failure(exc: BaseException) -> int:
-        errors_output.write(
-            "Проверка установленного набора не запущена: "
-            f"папка {_status_public_text(str(target))}; "
-            f"{_bounded_public_exception(exc)}\n"
-        )
+        _ = exc
+        errors_output.write(_PUBLIC_VERIFICATION_LOCAL_FAILURE + "\n")
         return 1
 
     def report_internal_failure(exc: BaseException) -> int:
-        errors_output.write(
-            "Проверка установленного набора остановлена: внутренняя ошибка "
-            f"доверенной политики; {_bounded_public_exception(exc)}\n"
-        )
+        _ = exc
+        errors_output.write(_PUBLIC_VERIFICATION_INTERNAL_FAILURE + "\n")
         return 2
 
     try:
