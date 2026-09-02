@@ -86,6 +86,33 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             set(canonical.ROOT_ONLY_TOOL_SKILL_PATHS),
             set(portable.ROOT_ONLY_TOOL_SKILL_PATHS),
         )
+        self.assertEqual(
+            set(canonical.DEVELOPMENT_ONLY_PARTS),
+            set(portable.DEVELOPMENT_ONLY_PARTS),
+        )
+        cases = (
+            (Path("references/automation-backlog.md"), True),
+            (Path("references/sub/automation-backlog.md"), False),
+            (Path("references/automation-backlog.md.copy"), False),
+            (Path("tests/fixture.md"), True),
+            (Path("nested/evals/fixture.json"), True),
+            (Path("references/test-suite.md"), False),
+        )
+        for relative, expected in cases:
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    canonical.is_source_only(
+                        relative,
+                        package_name="ksrf-argument-patterns",
+                    ),
+                    expected,
+                )
+                self.assertEqual(
+                    portable.is_source_only_artifact(
+                        Path("ksrf-argument-patterns") / relative
+                    ),
+                    expected,
+                )
 
     def test_markdown_runtime_successors_remain_routed_from_skill(self) -> None:
         skill = REPO / "skills" / "ksrf-argument-patterns" / "SKILL.md"

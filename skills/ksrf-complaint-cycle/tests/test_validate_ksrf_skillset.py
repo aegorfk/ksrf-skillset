@@ -3940,6 +3940,302 @@ description: Используй этот навык для всего.
                     "validated",
                 )
 
+    def test_runtime_maintainer_workflow_markers_are_bounded(self) -> None:
+        cases = (
+            ("OpenSpec change", ("maintainer-change-workflow",)),
+            ("open-spec proposal", ("maintainer-change-workflow",)),
+            ("OPEN SPEC design", ("maintainer-change-workflow",)),
+            ("OpenSpecChange", ("maintainer-change-workflow",)),
+            ("internal task: 5.1", ("maintainer-task-coordinate",)),
+            ("maintainer tasks #5.1--5.6", ("maintainer-task-coordinate",)),
+            ("tasks.md#2.3—2.7", ("maintainer-task-coordinate",)),
+            ("internal task (5.1)", ("maintainer-task-coordinate",)),
+            ("maintainer tasks [5.1--5.6]", ("maintainer-task-coordinate",)),
+            ("repository task № 5.1", ("maintainer-task-coordinate",)),
+            ("tasks.md, item 2.3", ("maintainer-task-coordinate",)),
+            ("internal task `5.1`", ("maintainer-task-coordinate",)),
+            ("see `tasks.md`, item 5.1", ("maintainer-task-coordinate",)),
+            ("maintainer task «5.1»", ("maintainer-task-coordinate",)),
+            ("internal task: #5.1", ("maintainer-task-coordinate",)),
+            ("internal task **5.1**", ("maintainer-task-coordinate",)),
+            ("**tasks.md**, item **5.1**", ("maintainer-task-coordinate",)),
+            ("internal task:\n5.1", ("maintainer-task-coordinate",)),
+            ("internal task “5.1”", ("maintainer-task-coordinate",)),
+            ("tasks.md:\n5.1", ("maintainer-task-coordinate",)),
+            ("tasks.md — ‘5.1’", ("maintainer-task-coordinate",)),
+        )
+        for content, expected in cases:
+            with self.subTest(content=content):
+                markers = VALIDATOR.runtime_maintainer_workflow_markers(
+                    Path("references/guide.md"),
+                    content,
+                )
+                self.assertEqual(markers, expected)
+
+        allowed = (
+            "ст. 5.1",
+            "ч. 2.1",
+            "Article 5.1",
+            "§ 5.1",
+            "этапы 5.1–5.6",
+            "версия 5.1",
+            "05.01.2026",
+            "задача 5.1",
+            "Task 5.1: Сформулируйте довод",
+            "tasks 5.1--5.6 пользователя",
+            "open specification 5.1",
+            "OpenSpecification",
+            "MyOpenSpecChangeX",
+            "OpenSpecChanges",
+            "task (5.1) пользователя",
+            "Task **5.1** пользователя",
+            "internal taskforce **5.1**",
+            "список задач № 5.1",
+        )
+        for content in allowed:
+            with self.subTest(allowed=content):
+                self.assertEqual(
+                    VALIDATOR.runtime_maintainer_workflow_markers(
+                        Path("references/guide.md"),
+                        content,
+                    ),
+                    (),
+                )
+
+        self.assertEqual(
+            VALIDATOR.runtime_maintainer_workflow_markers(
+                Path("references/guide.json"),
+                '{"note":"Open\\u0053pec change"}',
+            ),
+            ("maintainer-change-workflow",),
+        )
+        self.assertEqual(
+            VALIDATOR.runtime_maintainer_workflow_markers(
+                Path("references/OpenSpecChange-guide.md"),
+                "Нейтральное содержимое.",
+            ),
+            ("maintainer-change-workflow",),
+        )
+        for logical_path in (
+            "references/draft_OpenSpecChange_guide.md",
+            "references/OpenSpecChange_guide.md",
+        ):
+            with self.subTest(logical_path=logical_path):
+                self.assertEqual(
+                    VALIDATOR.runtime_maintainer_workflow_markers(
+                        Path(logical_path),
+                        "Нейтральное содержимое.",
+                    ),
+                    ("maintainer-change-workflow",),
+                )
+        self.assertEqual(
+            VALIDATOR.runtime_maintainer_workflow_markers(
+                Path("references/tasks.md#5.1"),
+                "Нейтральное содержимое.",
+            ),
+            ("maintainer-task-coordinate",),
+        )
+        for logical_path in (
+            "references/internal/tasks/5.1.md",
+            "references/repository/tasks/5.1--5.6.md",
+            "references/maintainer_tasks/5.1.json",
+            "references/internal-task-5.1.md",
+            "references/maintainer_task_5.1.txt",
+            "references/internal_tasks_5.1.md",
+            "references/draft_internal_task_5.1.md",
+            "references/archive_tasks.md#5.1",
+            "references/internal-task-5.1_draft.md",
+            "references/internal/tasks/5.1_v2.md",
+            "references/internal.tasks.5.1.md",
+            "references/internal-task.5.1.md",
+            "references/tasks.md.5.1",
+        ):
+            with self.subTest(logical_path=logical_path):
+                self.assertEqual(
+                    VALIDATOR.runtime_maintainer_workflow_markers(
+                        Path(logical_path),
+                        "Нейтральное содержимое.",
+                    ),
+                    ("maintainer-task-coordinate",),
+                )
+
+    def test_runtime_scans_logical_paths_without_leaking_external_root(
+        self,
+    ) -> None:
+        for profile in ("source", "runtime"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                root = (
+                    Path(tmp)
+                    / "Users"
+                    / "alice"
+                    / "OpenSpecChange-external-root"
+                )
+                root.mkdir(parents=True)
+                skill = _make_valid_skill(root)
+                if profile == "runtime":
+                    _remove_evals(skill)
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile=profile,
+                )
+
+                codes = _codes(report)
+                self.assertNotIn("RUNTIME_MAINTAINER_WORKFLOW_REFERENCE", codes)
+                self.assertNotIn("RUNTIME_LOCAL_COORDINATE", codes)
+                self.assertNotIn("ABSOLUTE_RUNTIME_PATH", codes)
+
+        cases = (
+            (
+                "OpenSpecChange-guide.md",
+                b"Neutral UTF-8 content.\n",
+                "maintainer-change-workflow",
+            ),
+            (
+                "OpenSpecChange-binary.pdf",
+                b"\xff\xfe\x00",
+                "maintainer-change-workflow",
+            ),
+            (
+                "internal/tasks/5.1.pdf",
+                b"\xff\xfe\x00",
+                "maintainer-task-coordinate",
+            ),
+        )
+        for profile in ("source", "runtime"):
+            for filename, payload, marker_class in cases:
+                with (
+                    self.subTest(profile=profile, filename=filename),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root)
+                    if profile == "runtime":
+                        _remove_evals(skill)
+                    marked = skill / "references" / filename
+                    marked.parent.mkdir(parents=True, exist_ok=True)
+                    marked.write_bytes(payload)
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile=profile,
+                    )
+
+                    findings = [
+                        finding
+                        for finding in report["findings"]
+                        if finding["code"]
+                        == "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE"
+                    ]
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(
+                        findings[0]["path"],
+                        f"ksrf-test/references/{filename}",
+                    )
+                    self.assertEqual(
+                        findings[0]["evidence"],
+                        {"marker_classes": [marker_class]},
+                    )
+
+    def test_runtime_maintainer_workflow_gate_rejects_without_text_leak(
+        self,
+    ) -> None:
+        cases = (
+            ("OpenSpec change TOP_SECRET_MATCH", "maintainer-change-workflow"),
+            (
+                "internal tasks: 5.1--5.6 TOP_SECRET_MATCH",
+                "maintainer-task-coordinate",
+            ),
+        )
+        for profile in ("source", "runtime"):
+            for index, (content, marker_class) in enumerate(cases):
+                with (
+                    self.subTest(profile=profile, index=index),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root)
+                    if profile == "runtime":
+                        _remove_evals(skill)
+                    relative = Path("references") / f"maintainer-{index}.md"
+                    _write(skill / relative, content)
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile=profile,
+                    )
+
+                    self.assertIn(
+                        "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE",
+                        _codes(report),
+                    )
+                    findings = [
+                        finding
+                        for finding in report["findings"]
+                        if finding["code"]
+                        == "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE"
+                    ]
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(
+                        findings[0]["evidence"],
+                        {"marker_classes": [marker_class]},
+                    )
+                    rendered = json.dumps(findings[0], ensure_ascii=False)
+                    self.assertNotIn("TOP_SECRET_MATCH", rendered)
+                    self.assertNotIn("OpenSpec", rendered)
+                    self.assertNotIn("internal tasks", rendered)
+
+    def test_runtime_maintainer_gate_allows_legal_numbers_and_source_only_fixture(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(
+                skill / "references" / "legal-numbering.md",
+                (
+                    "Раздел 2.1; ст. 5.1 закона; коэффициент 3.14; "
+                    "этапы проверки 5.1–5.6.\n"
+                ),
+            )
+            _write(
+                skill / "tests" / "maintainer-fixture.md",
+                "OpenSpecChange; internal tasks: 5.1--5.6.\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="source",
+            )
+
+            self.assertNotIn(
+                "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE",
+                _codes(report),
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+            _write(
+                skill / "references" / "automation-backlog.md",
+                "OpenSpecChange; maintainer tasks #5.1--5.6.\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns",),
+                profile="source",
+            )
+
+            self.assertNotIn(
+                "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE",
+                _codes(report),
+            )
+
     def test_both_profiles_reject_unresolved_runtime_command_paths(self) -> None:
         cases = (
             (

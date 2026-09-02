@@ -5,6 +5,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import shlex
 import socket
@@ -451,7 +452,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertIn("без сети", action.lower())
             self.assertIn("нужна сеть", action.lower())
             self.assertIn("--verify-current", action)
-            self.assertNotIn("main", action)
+            self.assertIsNone(re.search(r"\bmain\b", action, re.IGNORECASE))
             self.assertNotIn("коды 10", action)
             self.assertNotIn("подтверждается обычной установкой", action)
             self.assertIn("Что делать:", human)

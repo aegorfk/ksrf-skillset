@@ -25,7 +25,7 @@
 6. `human_resolution_required`: юрист вручную выбирает ветвь, если от неё зависят объём права, бремя, результат или просительная формула.
 7. Допустимые статусы: `pass`, `fail`, `insufficient_evidence`, `not_applicable`, `model_conflict`, `human_resolution_required`. Единого числового score нет.
 
-До реализации требуется отдельный OpenSpec change, artifact contract, hard negatives, refusal/conflict cases, held-out evaluation, Langfuse/DeepEval, leakage review и human approval.
+До реализации нужен отдельно документированный и одобренный план внедрения, контракт артефактов, сложные отрицательные примеры, сценарии отказа и конфликта, проверка на отложенной выборке, Langfuse/DeepEval, контроль утечки и одобрение человеком.
 
 ## Общий evidence contract
 

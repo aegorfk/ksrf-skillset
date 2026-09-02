@@ -16,6 +16,7 @@ from validate_ksrf_skillset import (
     is_source_only_artifact,
     parse_runtime_json_strict,
     runtime_local_coordinate_markers,
+    runtime_maintainer_workflow_markers,
 )
 
 
@@ -186,6 +187,22 @@ def validate_runtime_payload_coordinates(
 ) -> None:
     """Mirror the portable validator's location-independence gate offline."""
 
+    def append_marker_errors(
+        logical_path: Path,
+        local_markers: Sequence[str],
+        maintainer_markers: Sequence[str],
+    ) -> None:
+        if local_markers:
+            errors.append(
+                "runtime local coordinate "
+                f"({', '.join(local_markers)}): {logical_path.as_posix()}"
+            )
+        if maintainer_markers:
+            errors.append(
+                "runtime maintainer workflow "
+                f"({', '.join(maintainer_markers)}): {logical_path.as_posix()}"
+            )
+
     for skill_dir in skill_dirs:
         for path in sorted(skill_dir.rglob("*")):
             if path.is_symlink() or not path.is_file():
@@ -196,18 +213,38 @@ def validate_runtime_payload_coordinates(
                 or is_source_only_artifact(logical_path)
             ):
                 continue
+            path_local_markers = runtime_local_coordinate_markers(logical_path, "")
+            path_maintainer_markers = runtime_maintainer_workflow_markers(
+                logical_path,
+                "",
+            )
             try:
                 text = path.read_text(encoding="utf-8")
             except UnicodeError as exc:
                 if path.suffix.casefold() in BINARY_RUNTIME_SUFFIXES:
+                    append_marker_errors(
+                        logical_path,
+                        path_local_markers,
+                        path_maintainer_markers,
+                    )
                     continue
                 errors.append(
                     f"unreadable runtime text: {logical_path.as_posix()}: {exc}"
+                )
+                append_marker_errors(
+                    logical_path,
+                    path_local_markers,
+                    path_maintainer_markers,
                 )
                 continue
             except OSError as exc:
                 errors.append(
                     f"unreadable runtime text: {logical_path.as_posix()}: {exc}"
+                )
+                append_marker_errors(
+                    logical_path,
+                    path_local_markers,
+                    path_maintainer_markers,
                 )
                 continue
             if path.suffix.casefold() == ".json":
@@ -217,12 +254,11 @@ def validate_runtime_payload_coordinates(
                     errors.append(
                         f"invalid runtime JSON: {logical_path.as_posix()}: {exc}"
                     )
-            markers = runtime_local_coordinate_markers(path, text)
-            if markers:
-                errors.append(
-                    "runtime local coordinate "
-                    f"({', '.join(markers)}): {logical_path.as_posix()}"
-                )
+            append_marker_errors(
+                logical_path,
+                runtime_local_coordinate_markers(logical_path, text),
+                runtime_maintainer_workflow_markers(logical_path, text),
+            )
 
 
 def _validate_offline_self_containment_unchecked(

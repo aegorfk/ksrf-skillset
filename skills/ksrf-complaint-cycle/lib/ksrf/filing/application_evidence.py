@@ -2,8 +2,8 @@
 
 The module deliberately keeps norm use, outcome causation, and procedural
 preservation as separate axes.  It does not import the wider filing contracts:
-these local dataclasses are the bounded contract for OpenSpec tasks 5.1--5.6
-and can be consolidated after the neighbouring package contracts stabilise.
+these local dataclasses are the bounded application-evidence contract and can
+be consolidated after the neighbouring package contracts stabilise.
 """
 
 from __future__ import annotations

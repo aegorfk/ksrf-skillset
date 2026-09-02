@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import unittest
+import unicodedata
 from pathlib import Path
 
 
@@ -50,16 +52,147 @@ def _canonical_digest(value: object) -> str:
 
 
 class RuntimeReferenceSelfContainmentTests(unittest.TestCase):
+    def test_exact_runtime_payload_has_no_maintainer_workflow_traces(self) -> None:
+        product_pattern = re.compile(
+            r"(?<![A-Za-z0-9])"
+            + "open"
+            + r"[ \t_-]*"
+            + "spec"
+            + r"(?:[ \t_-]*change)?(?![A-Za-z0-9])",
+            re.IGNORECASE,
+        )
+        task_separator = (
+            r"(?:[\t\r\n ,.:;#*/()_\[\]`'\"“”‘’«»—–-]|№|no\.?)"
+        )
+        task_pattern = re.compile(
+            r"(?:"
+            r"(?<![A-Za-z0-9])(?:internal|maintainer|repository)"
+            r"[\t _./-]+tasks?(?![A-Za-z0-9])|"
+            r"(?<![A-Za-z0-9])`?tasks?\.md`?(?![A-Za-z0-9])"
+            r")"
+            + task_separator
+            + r"{1,12}"
+            + r"(?:(?:item|task)(?![A-Za-z0-9])"
+            + task_separator
+            + r"{1,12})?"
+            + r"\d+\.\d+(?:[ \t]*(?:--?|–|—)[ \t]*\d+\.\d+)?"
+            + r"(?![A-Za-z0-9])",
+            re.IGNORECASE,
+        )
+
+        def marker_classes(*candidates: str) -> list[str]:
+            markers: list[str] = []
+            for candidate in candidates:
+                normalized = unicodedata.normalize("NFKC", candidate)
+                if product_pattern.search(normalized):
+                    markers.append("maintainer-change-workflow")
+                if task_pattern.search(normalized):
+                    markers.append("maintainer-task-coordinate")
+            return markers
+
+        offenders: list[str] = []
+        for package in CONTRACT.SKILL_NAMES:
+            package_root = REPO / "skills" / package
+            for path in CONTRACT.payload_files(package_root):
+                logical = f"{package}/{path.relative_to(package_root).as_posix()}"
+                markers = marker_classes(logical)
+                try:
+                    raw = path.read_text(encoding="utf-8")
+                except UnicodeError:
+                    if path.suffix.casefold() in VALIDATOR.BINARY_RUNTIME_SUFFIXES:
+                        if markers:
+                            offenders.append(
+                                f"{logical}: {', '.join(sorted(set(markers)))}"
+                            )
+                        continue
+                    offenders.append(
+                        f"{logical}: "
+                        "unchecked non-text format"
+                    )
+                    continue
+                searchable = raw
+                if path.suffix.casefold() == ".json":
+                    try:
+                        searchable = json.dumps(
+                            VALIDATOR.parse_runtime_json_strict(raw),
+                            ensure_ascii=False,
+                        )
+                    except (RecursionError, TypeError, ValueError):
+                        pass
+                markers.extend(marker_classes(searchable))
+                if markers:
+                    offenders.append(f"{logical}: {', '.join(sorted(set(markers)))}")
+
+        self.assertEqual(offenders, [])
+
+    def test_cleaned_runtime_text_preserves_implementation_safety_gates(
+        self,
+    ) -> None:
+        rights = (
+            REPO
+            / "skills"
+            / "ksrf-rights-argument-builder"
+            / "references"
+            / "equality-positive-obligations-and-right-boundaries.md"
+        ).read_text(encoding="utf-8")
+        evidence = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-facts-demands"
+            / "references"
+            / "evidence-inference-and-dependency-audit.md"
+        ).read_text(encoding="utf-8")
+        application = (
+            REPO
+            / "skills"
+            / "ksrf-complaint-cycle"
+            / "lib"
+            / "ksrf"
+            / "filing"
+            / "application_evidence.py"
+        ).read_text(encoding="utf-8")
+
+        for required in (
+            "документированный и одобренный план внедрения",
+            "контракт артефактов",
+            "сложные отрицательные примеры",
+            "сценарии отказа и конфликта",
+            "проверка на отложенной выборке",
+            "Langfuse/DeepEval",
+            "контроль утечки",
+            "одобрение человеком",
+        ):
+            self.assertIn(required, rights)
+        for required in (
+            "разделение выборок",
+            "проверки утечки и исключения признаков",
+            "воспроизводимую трассировку",
+            "документированный и одобренный план реализации",
+            "Langfuse-трассировка",
+            "DeepEval и проверка на отложенной выборке",
+            "явное человеческое одобрение",
+        ):
+            self.assertIn(required, evidence)
+        self.assertIn("bounded application-evidence contract", application)
+
     def test_exact_runtime_payload_has_no_repository_local_coordinates(self) -> None:
         offenders: list[str] = []
         for package in CONTRACT.SKILL_NAMES:
             package_root = REPO / "skills" / package
             for path in CONTRACT.payload_files(package_root):
                 logical = f"{package}/{path.relative_to(package_root).as_posix()}"
+                path_markers = VALIDATOR.runtime_local_coordinate_markers(
+                    Path(logical),
+                    "",
+                )
                 try:
                     raw = path.read_text(encoding="utf-8")
                 except UnicodeError:
                     if path.suffix.casefold() in VALIDATOR.BINARY_RUNTIME_SUFFIXES:
+                        if path_markers:
+                            offenders.append(
+                                f"{logical}: {', '.join(path_markers)}"
+                            )
                         continue
                     offenders.append(f"{logical}: unchecked non-text format")
                     continue
@@ -68,7 +201,10 @@ class RuntimeReferenceSelfContainmentTests(unittest.TestCase):
                         VALIDATOR.parse_runtime_json_strict(raw)
                     except (RecursionError, TypeError, ValueError) as exc:
                         offenders.append(f"{logical}: invalid JSON ({exc})")
-                markers = VALIDATOR.runtime_local_coordinate_markers(path, raw)
+                markers = VALIDATOR.runtime_local_coordinate_markers(
+                    Path(logical),
+                    raw,
+                )
                 if markers:
                     offenders.append(f"{logical}: {', '.join(markers)}")
 

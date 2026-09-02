@@ -350,6 +350,32 @@ TRIGGER_CUE = re.compile(
 # Concatenation keeps the validator from flagging its own rule definition.
 REPOSITORY_SOURCE_PREFIX = "Т" + "З/"
 PROJECT_ROOT_PLACEHOLDER = "<project" + "-root>"
+MAINTAINER_CHANGE_WORKFLOW = re.compile(
+    r"(?<![A-Za-z0-9])"
+    + "open"
+    + r"[ \t_-]*"
+    + "spec"
+    + r"(?:[ \t_-]*change)?(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+MAINTAINER_TASK_SEPARATOR = (
+    r"(?:[\t\r\n ,.:;#*/()_\[\]`'\"“”‘’«»—–-]|№|no\.?)"
+)
+MAINTAINER_TASK_COORDINATE = re.compile(
+    r"(?:"
+    r"(?<![A-Za-z0-9])(?:internal|maintainer|repository)"
+    r"[\t _./-]+tasks?(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])`?tasks?\.md`?(?![A-Za-z0-9])"
+    r")"
+    + MAINTAINER_TASK_SEPARATOR
+    + r"{1,12}"
+    + r"(?:(?:item|task)(?![A-Za-z0-9])"
+    + MAINTAINER_TASK_SEPARATOR
+    + r"{1,12})?"
+    + r"\d+\.\d+(?:[ \t]*(?:--?|–|—)[ \t]*\d+\.\d+)?(?![A-Za-z0-9])"
+    r"[ \t]*[\])]?",
+    re.IGNORECASE,
+)
 UNRESOLVED_COMMAND_ROOTS = (
     "<skill" + "-dir>",
     "<skill" + "-root>",
@@ -1987,6 +2013,7 @@ def runtime_local_coordinate_markers(
             searchable = [json.dumps(decoded, ensure_ascii=False)]
         except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
             pass
+    searchable.append(path.as_posix())
 
     markers: set[str] = set()
     for candidate in searchable:
@@ -2024,12 +2051,57 @@ def runtime_local_coordinate_markers(
     return tuple(sorted(markers))
 
 
+def runtime_maintainer_workflow_markers(
+    path: Path,
+    text: str,
+) -> tuple[str, ...]:
+    """Return bounded maintainer-trace classes without exposing matched text."""
+
+    searchable = [text]
+    if path.suffix.casefold() == ".json":
+        try:
+            decoded = parse_runtime_json_strict(text)
+            searchable = [json.dumps(decoded, ensure_ascii=False)]
+        except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
+            pass
+    searchable.append(path.as_posix())
+
+    markers: set[str] = set()
+    for candidate in searchable:
+        normalized = unicodedata.normalize("NFKC", candidate)
+        if MAINTAINER_CHANGE_WORKFLOW.search(normalized):
+            markers.add("maintainer-change-workflow")
+        if MAINTAINER_TASK_COORDINATE.search(normalized):
+            markers.add("maintainer-task-coordinate")
+    return tuple(sorted(markers))
+
+
+def _runtime_maintainer_workflow_finding(
+    *,
+    package: str,
+    relative_path: str,
+    markers: Sequence[str],
+) -> dict[str, Any]:
+    return _finding(
+        "error",
+        "RUNTIME_MAINTAINER_WORKFLOW_REFERENCE",
+        (
+            "Runtime-файл содержит служебную ссылку на внутренний "
+            "процесс сопровождения, недоступный после пользовательской "
+            "установки. Сохраните смысл проверки без внутренней координаты."
+        ),
+        package=package,
+        path=relative_path,
+        evidence={"marker_classes": list(markers)},
+    )
+
+
 def _validate_runtime_self_containment(
     findings: list[dict[str, Any]],
     package_dir: Path,
     skills_root: Path,
 ) -> None:
-    """Reject location-dependent content from every runtime-eligible text file."""
+    """Reject local coordinates and maintainer traces from runtime text."""
 
     for path in sorted(package_dir.rglob("*")):
         if path.is_symlink() or not path.is_file():
@@ -2041,10 +2113,22 @@ def _validate_runtime_self_containment(
         ):
             continue
         relative_path = _relative(path, skills_root)
+        path_maintainer_markers = runtime_maintainer_workflow_markers(
+            logical_path,
+            "",
+        )
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeError as exc:
             if path.suffix.casefold() in BINARY_RUNTIME_SUFFIXES:
+                if path_maintainer_markers:
+                    findings.append(
+                        _runtime_maintainer_workflow_finding(
+                            package=package_dir.name,
+                            relative_path=relative_path,
+                            markers=path_maintainer_markers,
+                        )
+                    )
                 continue
             code = (
                 "RUNTIME_TEXT_UNREADABLE"
@@ -2060,6 +2144,14 @@ def _validate_runtime_self_containment(
                     path=relative_path,
                 )
             )
+            if path_maintainer_markers:
+                findings.append(
+                    _runtime_maintainer_workflow_finding(
+                        package=package_dir.name,
+                        relative_path=relative_path,
+                        markers=path_maintainer_markers,
+                    )
+                )
             continue
         except OSError as exc:
             findings.append(
@@ -2071,6 +2163,14 @@ def _validate_runtime_self_containment(
                     path=relative_path,
                 )
             )
+            if path_maintainer_markers:
+                findings.append(
+                    _runtime_maintainer_workflow_finding(
+                        package=package_dir.name,
+                        relative_path=relative_path,
+                        markers=path_maintainer_markers,
+                    )
+                )
             continue
 
         if path.suffix.casefold() == ".json":
@@ -2087,7 +2187,7 @@ def _validate_runtime_self_containment(
                     )
                 )
 
-        markers = runtime_local_coordinate_markers(path, text)
+        markers = runtime_local_coordinate_markers(logical_path, text)
         if markers:
             marker_classes = ", ".join(markers)
             findings.append(
@@ -2102,6 +2202,19 @@ def _validate_runtime_self_containment(
                     package=package_dir.name,
                     path=relative_path,
                     evidence={"marker_classes": list(markers)},
+                )
+            )
+
+        maintainer_markers = runtime_maintainer_workflow_markers(
+            logical_path,
+            text,
+        )
+        if maintainer_markers:
+            findings.append(
+                _runtime_maintainer_workflow_finding(
+                    package=package_dir.name,
+                    relative_path=relative_path,
+                    markers=maintainer_markers,
                 )
             )
 
@@ -2986,7 +3099,10 @@ def _content_security_findings(
     except (OSError, UnicodeError):
         return []
     findings: list[dict[str, Any]] = []
-    if "user-home-absolute-path" in runtime_local_coordinate_markers(path, text):
+    if "user-home-absolute-path" in runtime_local_coordinate_markers(
+        Path(relative_path),
+        text,
+    ):
         findings.append(
             _finding(
                 "error",

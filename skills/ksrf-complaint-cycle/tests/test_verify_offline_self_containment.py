@@ -52,6 +52,42 @@ class OfflineSelfContainmentPolicyTests(unittest.TestCase):
             errors,
         )
 
+    def test_runtime_coordinate_gate_uses_only_logical_payload_path(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            external_root = (
+                Path(raw)
+                / "Users"
+                / "alice"
+                / "OpenSpecChange-external-root"
+            )
+            skill = external_root / "ksrf-clean"
+            (skill / "references").mkdir(parents=True)
+            (skill / "SKILL.md").write_text("# Чистый runtime\n", encoding="utf-8")
+            (skill / "references" / "guide.md").write_text(
+                "Пользовательская инструкция без локальных координат.\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            VERIFIER.validate_runtime_payload_coordinates(errors, [skill])
+
+        self.assertEqual(errors, [])
+
+    def test_runtime_coordinate_gate_scans_logical_path_before_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            skill = Path(raw) / "ksrf-clean"
+            (skill / "references").mkdir(parents=True)
+            (skill / "references" / "OpenSpecChange-binary.pdf").write_bytes(
+                b"\xff\xfe\x00"
+            )
+            errors: list[str] = []
+
+            VERIFIER.validate_runtime_payload_coordinates(errors, [skill])
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("runtime maintainer workflow", errors[0])
+        self.assertIn("ksrf-clean/references/OpenSpecChange-binary.pdf", errors[0])
+
 
 if __name__ == "__main__":
     unittest.main()
