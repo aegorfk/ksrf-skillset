@@ -9,6 +9,7 @@ from contextvars import ContextVar
 import errno
 import fcntl
 from hashlib import sha256
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,7 @@ import shlex
 import shutil
 import stat
 import sys
-from typing import Iterator, Sequence
+from typing import Any, Iterator, Sequence, TextIO
 from uuid import uuid4
 
 # The read-only status mode must not mutate even the source checkout when this
@@ -114,6 +115,13 @@ def _status_public_text(value: str) -> str:
         else:
             rendered.append(character)
     return "".join(rendered)
+
+
+def _bounded_public_exception(exc: BaseException, *, limit: int = 512) -> str:
+    detail = _status_public_text(str(exc))
+    if len(detail) > limit:
+        detail = detail[: limit - 3] + "..."
+    return f"{type(exc).__name__}: {detail}"
 
 
 class _StatusScanBudget:
@@ -2769,14 +2777,14 @@ def _status_observe_evidence(
             _STATUS_MOUNT_BOUNDARY.reset(boundary_token)
 
 
+def _shell_command_values_are_printable(*values: str) -> bool:
+    return all(character.isprintable() for value in values for character in value)
+
+
 def _status_runtime_freshness_action(target: Path) -> str:
     installer_entrypoint = Path(__file__).resolve().parents[1] / "install.sh"
     command_values = (str(installer_entrypoint), str(target))
-    if any(
-        not character.isprintable()
-        for value in command_values
-        for character in value
-    ):
+    if not _shell_command_values_are_printable(*command_values):
         return (
             "Путь содержит непечатаемые байты, поэтому безопасную shell-команду "
             "проверки сформировать нельзя. Повторите проверку для установки по "
@@ -2905,7 +2913,11 @@ def _status_target_matches(
     )
 
 
-def inspect_installation_status(target: Path) -> dict[str, object]:
+def inspect_installation_status(
+    target: Path,
+    *,
+    _anchored_descriptor: int | None = None,
+) -> dict[str, object]:
     """Inspect one target without issuing a write, lock, or recovery operation."""
 
     target = _absolute_without_resolving(target)
@@ -2913,35 +2925,42 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
     try:
         if target == root or target.resolve(strict=False) == Path.home().resolve():
             raise InstallationError(f"refusing broad install target: {target}")
-        try:
-            initial_metadata = target.lstat()
-        except FileNotFoundError:
+        if _anchored_descriptor is None:
             try:
-                target.lstat()
+                initial_metadata = target.lstat()
             except FileNotFoundError:
+                try:
+                    target.lstat()
+                except FileNotFoundError:
+                    return _status_report(
+                        "not_installed",
+                        target,
+                        target_exists=False,
+                        managed_skills={
+                            "expected": len(SKILL_NAMES),
+                            "present": 0,
+                            "missing": list(SKILL_NAMES),
+                        },
+                    )
                 return _status_report(
-                    "not_installed",
+                    "recovery_required",
                     target,
-                    target_exists=False,
-                    managed_skills={
-                        "expected": len(SKILL_NAMES),
-                        "present": 0,
-                        "missing": list(SKILL_NAMES),
-                    },
+                    target_exists=True,
+                    reason_code="target_appeared",
                 )
-            return _status_report(
-                "recovery_required",
-                target,
-                target_exists=True,
-                reason_code="target_appeared",
-            )
+        else:
+            initial_metadata = os.fstat(_anchored_descriptor)
         if stat.S_ISLNK(initial_metadata.st_mode) or not stat.S_ISDIR(
             initial_metadata.st_mode
         ):
             raise InstallationError("целевая папка является ссылкой или не каталогом")
 
         target_path = str(target.resolve(strict=True))
-        target_descriptor = os.open(target, _status_directory_flags())
+        target_descriptor = (
+            os.open(target, _status_directory_flags())
+            if _anchored_descriptor is None
+            else os.dup(_anchored_descriptor)
+        )
         first_top: dict[str, tuple[int, ...]] | None = None
         managed: dict[str, object] | None = None
         evidence_name: str | None = None
@@ -3180,6 +3199,18 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
         )
 
 
+def _inspect_installation_status_anchored(
+    target: Path,
+    target_descriptor: int,
+) -> dict[str, object]:
+    """Inspect the object held by a caller-owned directory descriptor."""
+
+    return inspect_installation_status(
+        target,
+        _anchored_descriptor=target_descriptor,
+    )
+
+
 def render_installation_status(report: dict[str, object]) -> str:
     labels = {
         "clean": "чисто",
@@ -3229,6 +3260,488 @@ def render_installation_status(report: dict[str, object]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _load_repo_verification_policy(repo: Path) -> tuple[Any, Any]:
+    """Load fixed verification policy from the checkout, never from target."""
+
+    scripts = repo / "skills" / "ksrf-complaint-cycle" / "scripts"
+    validator_path = scripts / "validate_ksrf_skillset.py"
+    offline_path = scripts / "verify_offline_self_containment.py"
+    for path in (validator_path, offline_path):
+        try:
+            metadata = path.lstat()
+        except OSError as exc:
+            raise InstallationError(
+                f"repo-side verification policy is unavailable: {path}: {exc}"
+            ) from exc
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise InstallationError(
+                f"repo-side verification policy is not a regular file: {path}"
+            )
+
+    validator_spec = importlib.util.spec_from_file_location(
+        "_ksrf_repo_runtime_validator",
+        validator_path,
+    )
+    if validator_spec is None or validator_spec.loader is None:
+        raise InstallationError("repo-side runtime validator cannot be loaded")
+    validator = importlib.util.module_from_spec(validator_spec)
+    validator_spec.loader.exec_module(validator)
+
+    previous_validator = sys.modules.get("validate_ksrf_skillset")
+    sys.modules["validate_ksrf_skillset"] = validator
+    try:
+        offline_spec = importlib.util.spec_from_file_location(
+            "_ksrf_repo_offline_policy",
+            offline_path,
+        )
+        if offline_spec is None or offline_spec.loader is None:
+            raise InstallationError("repo-side offline policy cannot be loaded")
+        offline_policy = importlib.util.module_from_spec(offline_spec)
+        offline_spec.loader.exec_module(offline_policy)
+    finally:
+        if previous_validator is None:
+            sys.modules.pop("validate_ksrf_skillset", None)
+        else:
+            sys.modules["validate_ksrf_skillset"] = previous_validator
+
+    required_validator_api = (
+        "CANONICAL_KSRF_PACKAGES",
+        "_finding",
+        "_render_text",
+        "_required_runtime_descriptor_matches",
+        "_required_runtime_root_anchor",
+        "_required_runtime_root_matches",
+        "validate_skillset",
+    )
+    if any(not hasattr(validator, name) for name in required_validator_api):
+        raise InstallationError("repo-side runtime validator API is incomplete")
+    if not callable(
+        getattr(offline_policy, "validate_offline_self_containment", None)
+    ):
+        raise InstallationError("repo-side offline policy API is incomplete")
+    return validator, offline_policy
+
+
+@contextmanager
+def _held_verification_root(
+    target: Path,
+) -> Iterator[tuple[int, tuple[int, int, int, str]]]:
+    """Hold one no-follow directory root across the complete verification."""
+
+    before = target.lstat()
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISDIR(before.st_mode):
+        raise InstallationError("целевая папка является ссылкой или не каталогом")
+    resolved_before = target.resolve(strict=True)
+    descriptor = os.open(target, _status_directory_flags())
+    try:
+        anchored = os.fstat(descriptor)
+        after = target.lstat()
+        resolved_after = target.resolve(strict=True)
+        if (
+            not _status_same_object(before, anchored)
+            or not _status_same_object(anchored, after)
+            or resolved_before != resolved_after
+        ):
+            raise _ObservationChanged(
+                "целевая папка изменилась при закреплении корня проверки"
+            )
+        anchor = (
+            anchored.st_dev,
+            anchored.st_ino,
+            stat.S_IFMT(anchored.st_mode),
+            str(resolved_before),
+        )
+        yield descriptor, anchor
+    finally:
+        os.close(descriptor)
+
+
+@contextmanager
+def _held_verification_working_directory(
+    target_descriptor: int,
+) -> Iterator[Path]:
+    """Resolve relative verification reads from the held root, then restore cwd."""
+
+    if not hasattr(os, "fchdir"):
+        raise InstallationError(
+            "операционная система не поддерживает закреплённую офлайн-проверку"
+        )
+    previous_descriptor = os.open(".", _status_directory_flags())
+    try:
+        os.fchdir(target_descriptor)
+        yield Path(".")
+    finally:
+        try:
+            os.fchdir(previous_descriptor)
+        finally:
+            os.close(previous_descriptor)
+
+
+def _attach_offline_policy_errors(
+    validator: Any,
+    report: dict[str, Any],
+    errors: Sequence[str],
+) -> None:
+    if not errors:
+        return
+    findings = report.get("findings")
+    summary = report.get("summary")
+    coverage = report.get("validation_coverage")
+    if (
+        not isinstance(findings, list)
+        or not isinstance(summary, dict)
+        or not isinstance(coverage, dict)
+    ):
+        raise RuntimeError("runtime validator returned an invalid report")
+    for message in errors:
+        findings.append(
+            validator._finding(
+                "error",
+                "OFFLINE_SELF_CONTAINMENT_FAILED",
+                _status_public_text(str(message)),
+                path="runtime",
+            )
+        )
+    summary["errors"] = int(summary.get("errors", 0)) + len(errors)
+    coverage["runtime_self_containment"] = "failed"
+    report["status"] = "fail"
+
+
+def _attach_runtime_identity_change(
+    validator: Any,
+    report: dict[str, Any],
+) -> None:
+    findings = report.get("findings")
+    summary = report.get("summary")
+    runtime_content = report.get("runtime_content")
+    freshness = report.get("freshness")
+    if (
+        not isinstance(findings, list)
+        or not isinstance(summary, dict)
+        or not isinstance(runtime_content, dict)
+        or not isinstance(freshness, dict)
+    ):
+        raise RuntimeError("runtime validator returned an invalid identity report")
+    if not any(item.get("code") == "RUNTIME_IDENTITY_CHANGED" for item in findings):
+        findings.append(
+            validator._finding(
+                "error",
+                "RUNTIME_IDENTITY_CHANGED",
+                (
+                    "Содержимое установленного набора изменилось между "
+                    "автономной проверкой и итоговым контрольным проходом."
+                ),
+                path="runtime",
+            )
+        )
+        summary["errors"] = int(summary.get("errors", 0)) + 1
+    runtime_content["tree_sha256"] = None
+    freshness_was_checked = freshness.get("status") != "not_checked"
+    freshness.update(
+        status=("unknown" if freshness_was_checked else "not_checked"),
+        reason_code=(
+            "local_identity_unavailable"
+            if freshness_was_checked
+            else "not_requested"
+        ),
+        local_tree_sha256=None,
+    )
+    report["status"] = "fail"
+
+
+def _render_offline_verification_report(
+    report: dict[str, Any],
+    *,
+    target: Path,
+    validation_failed: bool,
+) -> str:
+    """Render the public offline wrapper without internal validator jargon."""
+
+    summary = report["summary"]
+    runtime_content = report["runtime_content"]
+    status = "НЕ ПРОЙДЕНА" if validation_failed else "ПРОЙДЕНА"
+    lines = [
+        f"Проверка установленного набора: ОФЛАЙН-ПРОВЕРКА {status}",
+        (
+            f"Проверено навыков: {report['validated_package_count']} из "
+            f"{report['expected_package_count']}; ошибок: {summary['errors']}; "
+            f"предупреждений: {summary['warnings']}."
+        ),
+        (
+            "Локальная целостность и самодостаточность: обнаружены проблемы."
+            if validation_failed
+            else "Локальная целостность и самодостаточность: проверены."
+        ),
+    ]
+    local_tree_sha256 = runtime_content.get("tree_sha256")
+    if isinstance(local_tree_sha256, str):
+        lines.append(
+            "Контрольный отпечаток содержимого: "
+            f"{local_tree_sha256} ({runtime_content['total_files']} файлов; "
+            f"{runtime_content['total_bytes']} байт)."
+        )
+    else:
+        lines.append(
+            "Контрольный отпечаток не сформирован: содержимое изменилось "
+            "или было недоступно при проверке."
+        )
+    if _shell_command_values_are_printable(str(target)):
+        current_action = (
+            "Для сетевого сравнения запустите из этого репозитория: "
+            "./install.sh --verify-current --target "
+            f"{shlex.quote(str(target))}"
+        )
+    else:
+        current_action = (
+            "Путь содержит непечатаемые байты, поэтому безопасную команду "
+            "сетевого сравнения сформировать нельзя. Повторите проверку для "
+            "установки по обычному UTF-8-пути."
+        )
+    lines.extend(
+        (
+            "Служебные тестовые наборы исходного репозитория не запускались: "
+            "они не входят в пользовательскую установку.",
+            "Интернет не использовался; совпадение с текущей опубликованной "
+            "веткой main не проверялось.",
+            current_action,
+            (
+                "Эта проверка не подтверждает актуальность норм и судебной "
+                "практики, происхождение установки или готовность жалобы к подаче."
+            ),
+        )
+    )
+    for item in report.get("findings", []):
+        location = str(item.get("path") or item.get("package") or "набор")
+        if item.get("line"):
+            location += f":{item['line']}"
+        label = "ОШИБКА" if item.get("severity") == "error" else "ПРЕДУПРЕЖДЕНИЕ"
+        lines.append(
+            f"- {label} {_status_public_text(str(item.get('code', 'UNKNOWN')))} "
+            f"[{_status_public_text(location)}]: "
+            f"{_status_public_text(str(item.get('message', '')))}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _verify_installed_skillset_anchored(
+    target: Path,
+    *,
+    validator: Any,
+    offline_policy: Any,
+    expected_anchor: tuple[int, int, int, str],
+    target_descriptor: int,
+    require_current: bool,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    """Run all verification phases against one caller-held directory root."""
+
+    def root_is_current() -> bool:
+        try:
+            anchored = os.fstat(target_descriptor)
+        except OSError:
+            return False
+        descriptor_identity = (
+            anchored.st_dev,
+            anchored.st_ino,
+            stat.S_IFMT(anchored.st_mode),
+        )
+        return (
+            descriptor_identity == expected_anchor[:3]
+            and validator._required_runtime_root_matches(target, expected_anchor)
+        )
+
+    preflight = _inspect_installation_status_anchored(target, target_descriptor)
+    if int(preflight["exit_code"]) != 0:
+        stderr.write(render_installation_status(preflight) + "\n")
+        action = "актуальности" if require_current else "содержимого"
+        stderr.write(
+            f"Проверка {action} не запускалась: сначала нужна безопасная полная установка\n"
+        )
+        return 1
+    if not root_is_current():
+        stderr.write(
+            "Проверка остановлена: корень установленного набора изменился после preflight.\n"
+        )
+        return 1
+
+    try:
+        with _held_verification_working_directory(
+            target_descriptor
+        ) as validation_root:
+            baseline_report = validator.validate_skillset(
+                validation_root,
+                package_names=validator.CANONICAL_KSRF_PACKAGES,
+                profile="runtime",
+                check_updates=False,
+                require_current=False,
+                expected_runtime_root_anchor=expected_anchor,
+                expected_runtime_root_descriptor=target_descriptor,
+                preserve_relative_runtime_root=True,
+            )
+            if not isinstance(baseline_report, dict):
+                raise RuntimeError("runtime validator returned a non-object report")
+            baseline_summary = baseline_report.get("summary")
+            if not isinstance(baseline_summary, dict):
+                raise RuntimeError("runtime validator returned an invalid baseline report")
+            baseline_failed = baseline_report.get("status") != "pass" or bool(
+                baseline_summary.get("warnings")
+            )
+            if baseline_failed:
+                report = baseline_report
+            else:
+                offline_errors = offline_policy.validate_offline_self_containment(
+                    validation_root,
+                    package_names=validator.CANONICAL_KSRF_PACKAGES,
+                    preserve_relative_root=True,
+                )
+                report = validator.validate_skillset(
+                    validation_root,
+                    package_names=validator.CANONICAL_KSRF_PACKAGES,
+                    profile="runtime",
+                    check_updates=require_current,
+                    require_current=require_current,
+                    expected_runtime_root_anchor=expected_anchor,
+                    expected_runtime_root_descriptor=target_descriptor,
+                    preserve_relative_runtime_root=True,
+                )
+                if not isinstance(report, dict):
+                    raise RuntimeError("runtime validator returned a non-object report")
+                if baseline_report.get("runtime_content") != report.get(
+                    "runtime_content"
+                ):
+                    _attach_runtime_identity_change(validator, report)
+                _attach_offline_policy_errors(validator, report, offline_errors)
+    except Exception as exc:
+        stderr.write(
+            "Проверка установленного набора остановлена без положительного результата: "
+            f"{_bounded_public_exception(exc)}\n"
+        )
+        return 2
+
+    if not root_is_current():
+        stderr.write(
+            "Проверка остановлена: корень установленного набора изменился во время проверки.\n"
+        )
+        return 1
+    postflight = _inspect_installation_status_anchored(target, target_descriptor)
+    if int(postflight["exit_code"]) != 0:
+        stderr.write(render_installation_status(postflight) + "\n")
+        stderr.write(
+            "Проверка остановлена: состояние установки изменилось до postflight.\n"
+        )
+        return 1
+    if not root_is_current():
+        stderr.write(
+            "Проверка остановлена: корень установленного набора изменился до postflight.\n"
+        )
+        return 1
+
+    summary = report.get("summary")
+    if not isinstance(summary, dict):
+        stderr.write("Валидатор вернул неполную сводку.\n")
+        return 2
+    validation_failed = report.get("status") != "pass" or bool(
+        summary.get("warnings")
+    )
+    if not require_current:
+        rendered = _render_offline_verification_report(
+            report,
+            target=target,
+            validation_failed=validation_failed,
+        )
+    else:
+        rendered = validator._render_text(
+            report,
+            require_current=True,
+            strict=True,
+        )
+    stdout.write(rendered)
+    if validation_failed:
+        return 1
+    if not require_current:
+        return 0
+    freshness = report.get("freshness")
+    if not isinstance(freshness, dict):
+        stderr.write("Валидатор не вернул результат актуальности.\n")
+        return 2
+    exit_codes = {"current": 0, "different": 10, "unknown": 20}
+    freshness_status = freshness.get("status")
+    if freshness_status not in exit_codes:
+        stderr.write("Валидатор не установил итог актуальности.\n")
+        return 2
+    return exit_codes[str(freshness_status)]
+
+
+def verify_installed_skillset(
+    repo: Path,
+    target: Path,
+    *,
+    require_current: bool,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    """Coordinate one held-root, repo-side runtime verification."""
+
+    output = sys.stdout if stdout is None else stdout
+    errors_output = sys.stderr if stderr is None else stderr
+    repo = _absolute_without_resolving(repo)
+    target = _absolute_without_resolving(target)
+
+    def report_local_failure(exc: BaseException) -> int:
+        errors_output.write(
+            "Проверка установленного набора не запущена: "
+            f"папка {_status_public_text(str(target))}; "
+            f"{_bounded_public_exception(exc)}\n"
+        )
+        return 1
+
+    def report_internal_failure(exc: BaseException) -> int:
+        errors_output.write(
+            "Проверка установленного набора остановлена: внутренняя ошибка "
+            f"доверенной политики; {_bounded_public_exception(exc)}\n"
+        )
+        return 2
+
+    try:
+        target = _validate_target(target)
+    except (InstallationError, FileNotFoundError, OSError, ValueError) as exc:
+        return report_local_failure(exc)
+
+    try:
+        validator, offline_policy = _load_repo_verification_policy(repo)
+    except (InstallationError, FileNotFoundError, OSError, ValueError) as exc:
+        return report_local_failure(exc)
+    except Exception as exc:
+        return report_internal_failure(exc)
+
+    try:
+        with _held_verification_root(target) as (
+            target_descriptor,
+            expected_anchor,
+        ):
+            return _verify_installed_skillset_anchored(
+                target,
+                validator=validator,
+                offline_policy=offline_policy,
+                expected_anchor=expected_anchor,
+                target_descriptor=target_descriptor,
+                require_current=require_current,
+                stdout=output,
+                stderr=errors_output,
+            )
+    except (
+        _ObservationChanged,
+        InstallationError,
+        FileNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return report_local_failure(exc)
+    except Exception as exc:
+        return report_internal_failure(exc)
 
 
 def copy_skillset(
@@ -3579,6 +4092,16 @@ def _parser() -> argparse.ArgumentParser:
         help="без записи проверить установленный набор и служебные данные",
     )
     parser.add_argument(
+        "--verify-runtime",
+        action="store_true",
+        help="внутренний repo-side режим полной runtime-проверки",
+    )
+    parser.add_argument(
+        "--require-current",
+        action="store_true",
+        help="в режиме --verify-runtime дополнительно сравнить с текущим main",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="в режиме --status вывести стабильный JSON",
@@ -3589,11 +4112,14 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.status and args.verify_runtime:
+        parser.error("--status нельзя сочетать с --verify-runtime")
     if args.status:
         if (
             args.repo is not None
             or args.source_skills_root is not None
             or args.preserve_target_development
+            or args.require_current
         ):
             parser.error(
                 "--status нельзя сочетать с источником или "
@@ -3605,6 +4131,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(render_installation_status(report))
         return int(report["exit_code"])
+    if args.verify_runtime:
+        if (
+            args.repo is None
+            or args.source_skills_root is not None
+            or args.preserve_target_development
+            or args.json
+        ):
+            parser.error(
+                "--verify-runtime требует только --repo и --target; "
+                "--json и параметры установки недоступны"
+            )
+        return verify_installed_skillset(
+            args.repo,
+            args.target,
+            require_current=args.require_current,
+        )
+    if args.require_current:
+        parser.error("--require-current можно использовать только с --verify-runtime")
     if args.json:
         parser.error("--json можно использовать только вместе с --status")
     if args.repo is None and args.source_skills_root is None:

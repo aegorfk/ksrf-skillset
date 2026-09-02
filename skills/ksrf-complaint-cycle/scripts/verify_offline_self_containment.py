@@ -7,6 +7,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Sequence
 
 from validate_ksrf_skillset import (
     BINARY_RUNTIME_SUFFIXES,
@@ -74,15 +75,18 @@ UID_CONSUMERS = (
     "ksrf-explore-arguments",
     "ksrf-complaint-qa",
 )
+OFFLINE_VERIFIER_RELATIVE = Path(
+    "ksrf-complaint-cycle/scripts/verify_offline_self_containment.py"
+)
 
 
-def validate_uid_scenarios(errors: list[str]) -> None:
-    if not UID_SCENARIOS.is_file():
-        errors.append(f"missing UID-first scenario contract: {UID_SCENARIOS}")
+def validate_uid_scenarios(errors: list[str], uid_scenarios: Path) -> None:
+    if not uid_scenarios.is_file():
+        errors.append(f"missing UID-first scenario contract: {uid_scenarios}")
         return
 
     try:
-        payload = json.loads(UID_SCENARIOS.read_text(encoding="utf-8"))
+        payload = json.loads(uid_scenarios.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"invalid UID-first scenario contract: {exc}")
         return
@@ -221,13 +225,47 @@ def validate_runtime_payload_coordinates(
                 )
 
 
-def main() -> int:
+def _validate_offline_self_containment_unchecked(
+    skills_root: Path,
+    *,
+    package_names: Sequence[str] | None = None,
+    preserve_relative_root: bool = False,
+) -> list[str]:
+    """Apply the fixed repo-side offline policy to an explicit skills root."""
+
+    requested_root = Path(skills_root).expanduser()
+    if preserve_relative_root:
+        if requested_root != Path("."):
+            raise ValueError(
+                "preserved relative offline root must be the held working directory"
+            )
+        skills_root = requested_root
+    else:
+        skills_root = requested_root.absolute()
+    core = (
+        skills_root
+        / "ksrf-complaint-cycle"
+        / "references"
+        / "offline-practice-core.md"
+    )
+    uid_workflow = (
+        skills_root
+        / "ksrf-complaint-cycle"
+        / "references"
+        / "uid-first-case-workflow.md"
+    )
+    uid_scenarios = (
+        skills_root
+        / "ksrf-complaint-cycle"
+        / "references"
+        / "uid-first-scenario-contract.json"
+    )
     errors: list[str] = []
-    if not CORE.is_file():
-        errors.append(f"missing core: {CORE}")
+    if not core.is_file():
+        errors.append(f"missing core: {core}")
         core_text = ""
     else:
-        core_text = CORE.read_text(encoding="utf-8")
+        core_text = core.read_text(encoding="utf-8")
 
     for marker in FORBIDDEN_RUNTIME_MARKERS:
         if marker in core_text:
@@ -237,11 +275,11 @@ def main() -> int:
         if heading not in core_text:
             errors.append(f"core missing required section: {heading}")
 
-    if not UID_WORKFLOW.is_file():
-        errors.append(f"missing UID-first workflow: {UID_WORKFLOW}")
+    if not uid_workflow.is_file():
+        errors.append(f"missing UID-first workflow: {uid_workflow}")
         uid_text = ""
     else:
-        uid_text = UID_WORKFLOW.read_text(encoding="utf-8")
+        uid_text = uid_workflow.read_text(encoding="utf-8")
 
     for heading in REQUIRED_UID_HEADINGS:
         if heading not in uid_text:
@@ -255,17 +293,25 @@ def main() -> int:
         if marker in uid_text:
             errors.append(f"UID-first workflow contains external runtime marker: {marker}")
 
-    validate_uid_scenarios(errors)
+    validate_uid_scenarios(errors, uid_scenarios)
 
     # Runtime matter/workspace directories may intentionally share the
     # ``ksrf-*`` prefix.  A package participates in this check only when it has
     # the required skill entrypoint; workspace contents are neither skills nor
     # publication inputs.
-    skill_dirs = sorted(
-        path
-        for path in SKILLS_ROOT.glob("ksrf-*")
-        if path.is_dir() and (path / "SKILL.md").is_file()
-    )
+    if package_names is None:
+        skill_dirs = sorted(
+            path
+            for path in skills_root.glob("ksrf-*")
+            if path.is_dir() and (path / "SKILL.md").is_file()
+        )
+    else:
+        skill_dirs = [
+            skills_root / name
+            for name in package_names
+            if (skills_root / name).is_dir()
+            and (skills_root / name / "SKILL.md").is_file()
+        ]
     skill_files = [skill_dir / "SKILL.md" for skill_dir in skill_dirs]
     if not skill_files:
         errors.append("no KSRF skills found")
@@ -282,7 +328,7 @@ def main() -> int:
 
         for relative_link in re.findall(r"`([^`]*offline-practice-core\.md)`", text):
             resolved = (skill_file.parent / relative_link).resolve()
-            if resolved != CORE.resolve():
+            if resolved != core.resolve():
                 errors.append(
                     f"skill has broken offline core link: {skill_file.parent.name}: {relative_link}"
                 )
@@ -299,7 +345,7 @@ def main() -> int:
         for path in sorted(skill_dir.rglob("*")):
             if path.is_symlink():
                 try:
-                    path.resolve().relative_to(SKILLS_ROOT.resolve())
+                    path.resolve().relative_to(skills_root.resolve())
                 except (OSError, ValueError):
                     errors.append(f"external symlink: {path}")
 
@@ -321,31 +367,65 @@ def main() -> int:
                     continue
                 resolved = (markdown.parent / target).resolve()
                 try:
-                    resolved.relative_to(SKILLS_ROOT.resolve())
+                    resolved.relative_to(skills_root.resolve())
                 except ValueError:
                     errors.append(f"markdown path escapes skillset: {markdown}: {raw_target}")
                     continue
                 if not resolved.is_file():
                     errors.append(f"broken bundled markdown path: {markdown}: {raw_target}")
 
-    for script in sorted(SKILLS_ROOT.glob("ksrf-*/scripts/*.py")):
-        if script.resolve() == Path(__file__).resolve():
-            continue
-        script_text = script.read_text(encoding="utf-8")
-        for marker in FORBIDDEN_RUNTIME_MARKERS:
-            if marker in script_text:
-                errors.append(f"script contains external runtime marker {marker}: {script}")
+    for skill_dir in skill_dirs:
+        for script in sorted((skill_dir / "scripts").glob("*.py")):
+            if script.relative_to(skills_root) == OFFLINE_VERIFIER_RELATIVE:
+                continue
+            script_text = script.read_text(encoding="utf-8")
+            for marker in FORBIDDEN_RUNTIME_MARKERS:
+                if marker in script_text:
+                    errors.append(
+                        f"script contains external runtime marker {marker}: {script}"
+                    )
 
+    return errors
+
+
+def validate_offline_self_containment(
+    skills_root: Path,
+    *,
+    package_names: Sequence[str] | None = None,
+    preserve_relative_root: bool = False,
+) -> list[str]:
+    """Return target-data failures as validation findings, never coordinator faults."""
+
+    try:
+        return _validate_offline_self_containment_unchecked(
+            skills_root,
+            package_names=package_names,
+            preserve_relative_root=preserve_relative_root,
+        )
+    except (OSError, UnicodeError, ValueError, TypeError, RecursionError) as exc:
+        detail = str(exc)
+        if len(detail) > 512:
+            detail = detail[:509] + "..."
+        return [
+            "offline policy could not read installed target data: "
+            f"{type(exc).__name__}: {detail}"
+        ]
+
+
+def main() -> int:
+    errors = validate_offline_self_containment(SKILLS_ROOT)
     if errors:
         print("Offline self-containment verification failed:")
         for error in errors:
             print(f"- {error}")
         return 1
 
-    print(
-        f"Offline self-containment verified: {len(skill_files)} KSRF skills, "
-        f"core={CORE}"
+    skill_count = sum(
+        1
+        for path in SKILLS_ROOT.glob("ksrf-*")
+        if path.is_dir() and (path / "SKILL.md").is_file()
     )
+    print(f"Offline self-containment verified: {skill_count} KSRF skills, core={CORE}")
     return 0
 
 
