@@ -762,6 +762,7 @@ description: Используй этот навык для всего.
 
     def test_source_profile_rejects_benign_root_only_skill_duplicate(self) -> None:
         for relative in (
+            Path("scripts/build_constitutionalist_authority_corpus.py"),
             Path("scripts/enrich_ksrf_argument_patterns.py"),
             Path("scripts/extract_ksrf_argument_patterns.py"),
         ):

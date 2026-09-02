@@ -33,6 +33,7 @@ RUNTIME_PARTS = frozenset({".git", ".serena", ".pytest_cache", "__pycache__"})
 DEVELOPMENT_ONLY_PARTS = frozenset({"evals", "tests"})
 ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
     {
+        "ksrf-argument-patterns/scripts/build_constitutionalist_authority_corpus.py",
         "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
         "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
     }
@@ -121,13 +122,12 @@ COMPLAINT_STRUCTURE_PATTERNS = {
     ),
 }
 
-# These files are mirrored from ksrf-argument-patterns/scripts into repo tools/.
-# A rename/removal must move the old filename to RETIRED_MIRRORED_TOOL_NAMES so
-# sync can remove only that explicitly owned stale mirror.
-MIRRORED_TOOL_NAMES = (
-    "build_constitutionalist_authority_corpus.py",
-)
+# No user-runtime script currently owns a mirrored repo tool. Keep active and
+# retired lists explicit: a retired basename would delete the root tool during
+# reverse sync, so root-only migrations belong only to the exact skill-path set.
+MIRRORED_TOOL_NAMES: tuple[str, ...] = ()
 ROOT_ONLY_TOOL_NAMES = (
+    "build_constitutionalist_authority_corpus.py",
     "enrich_ksrf_argument_patterns.py",
     "extract_ksrf_argument_patterns.py",
 )

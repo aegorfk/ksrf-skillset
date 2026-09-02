@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T01:46:52Z",
+  "generated_at": "2026-09-02T01:59:52Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "99e41b43e15bec9bc9fb70a823a0fe08fe25347e",
+  "remote_base_commit": "ae1f66cdc61a61cad5a7e90474b5ac02b908a330",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -17,6 +17,7 @@
     "ksrf-argument-patterns/references/evidence_maps.json",
     "ksrf-argument-patterns/references/hearing_argument_techniques.json",
     "ksrf-argument-patterns/references/language_formulas.json",
+    "ksrf-argument-patterns/scripts/build_constitutionalist_authority_corpus.py",
     "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
     "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
     "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
@@ -26,15 +27,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 235,
-  "total_bytes": 8095658,
-  "tree_sha256": "459a945b686371c136bfaaa5034b4ba581bb2f032f68ea63d150c2d1eafd8e73",
+  "total_files": 234,
+  "total_bytes": 8007402,
+  "tree_sha256": "14835bdef7236dd160264113a2494c4ab253ebd7ae5f9817910dcba4a36cbf27",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
-      "files": 33,
-      "bytes": 4000178,
-      "tree_sha256": "25cd0e4ea9fa81d844e06ecec197293e94905a8c60b724e6100cadc79f757713"
+      "files": 32,
+      "bytes": 3911836,
+      "tree_sha256": "ea233c62c24e3d0148c112f0f8145a2cbae53ef7d61ec55810ab30d9b6f98d2e"
     },
     {
       "name": "ksrf-case-triage",
@@ -51,8 +52,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 90,
-      "bytes": 2011721,
-      "tree_sha256": "30543e2cfdc5dc40fb8e374538dc83daa51442f871de24e88c9993b7af7ec746"
+      "bytes": 2011807,
+      "tree_sha256": "c82b6afb0d89e5fd3ee423176d52e760d9abcba43eb1487db8837c12961e5d71"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -123,8 +124,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 197557,
-  "release_tree_sha256": "ef4d7395c10f436b13f4cd09ed450a65519a5dce78cd7f8a346b363c9ff80ddd",
+  "total_release_bytes": 197694,
+  "release_tree_sha256": "d2360331b988f58394ef5008281249af81c15bebbb9975223310d524e7dfab38",
   "release_files": [
     {
       "path": "install.sh",
@@ -143,13 +144,13 @@
     },
     {
       "path": "tools/skillset_file_contract.py",
-      "bytes": 14056,
-      "sha256": "d01a03885eb2e5c00aa74cf3fae07beed7a96f938538deadc232e88ba2664c08"
+      "bytes": 14176,
+      "sha256": "e70fae803e2377811ba4a71179f36e8fe3fa9e37a9cbb162b3e8b8d144a59411"
     },
     {
       "path": "tools/sync_global_skills.sh",
-      "bytes": 2333,
-      "sha256": "dcd0cc41f8766ae6549664a60668d181da8de0385ef793621272c15feab30f70"
+      "bytes": 2350,
+      "sha256": "c3d3947861a6b451951c9e935f7872701ad38ecb5dcc205f9ea5d43d0b038d85"
     },
     {
       "path": "tools/verify_publication_state.py",

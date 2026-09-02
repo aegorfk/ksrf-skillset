@@ -75,6 +75,7 @@ class SourceOnlyContractParityTests(unittest.TestCase):
                 "ksrf-argument-patterns/references/evidence_maps.json",
                 "ksrf-argument-patterns/references/hearing_argument_techniques.json",
                 "ksrf-argument-patterns/references/language_formulas.json",
+                "ksrf-argument-patterns/scripts/build_constitutionalist_authority_corpus.py",
                 "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
                 "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
                 "ksrf-complaint-cycle/scripts/add_reference_tocs.py",
@@ -166,11 +167,6 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             REPO / "tools" / "build_constitutionalist_authority_corpus.py",
             REPO
             / "skills"
-            / "ksrf-argument-patterns"
-            / "scripts"
-            / "build_constitutionalist_authority_corpus.py",
-            REPO
-            / "skills"
             / "ksrf-complaint-cycle"
             / "scripts"
             / "verify_offline_self_containment.py",
@@ -253,7 +249,7 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             '"strategic-complaint-design.md; science-support-pack.md"'
         )
         root_builder = REPO / "tools" / "build_constitutionalist_authority_corpus.py"
-        mirrored_builder = (
+        nested_builder = (
             REPO
             / "skills"
             / "ksrf-argument-patterns"
@@ -268,13 +264,13 @@ class SourceOnlyContractParityTests(unittest.TestCase):
             / "constitutionalist-authority-corpus.json"
         )
 
-        for path in (root_builder, mirrored_builder, generated):
+        self.assertFalse(nested_builder.exists())
+
+        for path in (root_builder, generated):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.relative_to(REPO).as_posix()):
                 self.assertNotIn(excluded_basename, text)
                 self.assertIn(expected_reference, text)
-
-        self.assertEqual(root_builder.read_bytes(), mirrored_builder.read_bytes())
 
         parsed = ast.parse(root_builder.read_text(encoding="utf-8"))
         curated = None
@@ -301,6 +297,44 @@ class SourceOnlyContractParityTests(unittest.TestCase):
         )
         for name in ("strategic-complaint-design.md", "science-support-pack.md"):
             self.assertTrue((reference_root / name).is_file())
+
+    def test_authority_builder_is_source_only_while_prebuilt_corpus_remains_runtime(self) -> None:
+        root_builder = REPO / "tools" / "build_constitutionalist_authority_corpus.py"
+        nested_builder = (
+            REPO
+            / "skills"
+            / "ksrf-argument-patterns"
+            / "scripts"
+            / "build_constitutionalist_authority_corpus.py"
+        )
+        reference_root = REPO / "skills" / "ksrf-argument-patterns" / "references"
+        json_corpus = reference_root / "constitutionalist-authority-corpus.json"
+        markdown_corpus = reference_root / "constitutionalist-authority-corpus.md"
+        skill = REPO / "skills" / "ksrf-argument-patterns" / "SKILL.md"
+        skill_text = skill.read_text(encoding="utf-8")
+
+        expected_digests = {
+            root_builder: "b1c393460420cc1c3382720d60188dbe4e52f9c72a78d87457f833682f67c33f",
+            json_corpus: "285b854f9d53a0a1ce3fa38c59f9d9ddeed8bd199979a40be6fa95b4570b7015",
+            markdown_corpus: "58405ad08d408147b72ee952b5e6422963e62da19c31c8b13a5c8d91a2375e98",
+        }
+        for path, expected in expected_digests.items():
+            with self.subTest(path=path.relative_to(REPO).as_posix()):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
+
+        self.assertFalse(nested_builder.exists())
+        payload = canonical.payload_files(REPO / "skills" / "ksrf-argument-patterns")
+        self.assertIn(json_corpus, payload)
+        self.assertIn(markdown_corpus, payload)
+        self.assertNotIn(nested_builder, payload)
+        self.assertNotIn(
+            "scripts/build_constitutionalist_authority_corpus.py",
+            skill_text,
+        )
+        self.assertIn("references/constitutionalist-authority-corpus.md", skill_text)
+        self.assertIn("references/constitutionalist-authority-corpus.json", skill_text)
+        self.assertIn("зафиксируй пробел", skill_text)
+        self.assertIn("Пересборка реестра не входит", skill_text)
 
 
 if __name__ == "__main__":
