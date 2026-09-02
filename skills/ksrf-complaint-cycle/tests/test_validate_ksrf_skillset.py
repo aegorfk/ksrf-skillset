@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -1583,6 +1584,89 @@ description: Используй этот навык для всего.
             self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
             self.assertIsNone(report["runtime_content"]["tree_sha256"])
             self.assertEqual(report["freshness"]["status"], "unknown")
+
+    def test_expected_runtime_root_anchor_rejects_replacement_before_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            container = Path(tmp)
+            root = container / "skills"
+            root.mkdir()
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            expected_anchor = VALIDATOR._required_runtime_root_anchor(root)
+            original = container / "original-skills"
+            root.rename(original)
+            shutil.copytree(original, root)
+
+            with mock.patch.object(
+                VALIDATOR,
+                "CANONICAL_KSRF_PACKAGES",
+                ("ksrf-test",),
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    expected_runtime_root_anchor=expected_anchor,
+                )
+
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("RUNTIME_ROOT_CHANGED", _codes(report))
+            self.assertIsNone(report["runtime_content"]["tree_sha256"])
+
+    def test_coordinated_offline_runtime_rechecks_final_content_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            expected_anchor = VALIDATOR._required_runtime_root_anchor(root)
+            original_identity = VALIDATOR._runtime_content_identity
+            calls = 0
+
+            def mutate_after_first_identity(*args, **kwargs):
+                nonlocal calls
+                result = original_identity(*args, **kwargs)
+                calls += 1
+                if calls == 1:
+                    _write(
+                        skill / "references" / "late-coordinator-change.md",
+                        "Изменение между проходами.\n",
+                    )
+                return result
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_runtime_content_identity",
+                    side_effect=mutate_after_first_identity,
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=AssertionError("offline verification must not use network"),
+                    create=True,
+                ) as opener,
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    expected_runtime_root_anchor=expected_anchor,
+                )
+
+            opener.assert_not_called()
+            self.assertGreaterEqual(calls, 2)
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+            self.assertIsNone(report["runtime_content"]["tree_sha256"])
+            self.assertEqual(report["freshness"]["status"], "not_checked")
+            self.assertIsNone(report["freshness"]["local_tree_sha256"])
 
     def test_runtime_identity_detects_late_source_only_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

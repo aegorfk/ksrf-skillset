@@ -2897,13 +2897,56 @@ def _required_runtime_root_matches(
     return observed == anchor
 
 
+def _required_runtime_descriptor_matches(
+    root: Path,
+    descriptor: int,
+    anchor: tuple[int, int, int, str],
+) -> bool:
+    """Bind a descriptor-backed traversal path to the caller-held root."""
+
+    try:
+        anchored = os.fstat(descriptor)
+        observed = root.stat()
+    except (OSError, ValueError):
+        return False
+    expected_identity = anchor[:3]
+    return (
+        stat.S_ISDIR(anchored.st_mode)
+        and stat.S_ISDIR(observed.st_mode)
+        and (
+            anchored.st_dev,
+            anchored.st_ino,
+            stat.S_IFMT(anchored.st_mode),
+        )
+        == expected_identity
+        == (
+            observed.st_dev,
+            observed.st_ino,
+            stat.S_IFMT(observed.st_mode),
+        )
+    )
+
+
+def _required_runtime_observation_matches(
+    root: Path,
+    anchor: tuple[int, int, int, str],
+    descriptor: int | None,
+) -> bool:
+    if descriptor is None:
+        return _required_runtime_root_matches(root, anchor)
+    return _required_runtime_descriptor_matches(root, descriptor, anchor)
+
+
 def _required_runtime_root_failure_report(
     packages: Sequence[str],
+    *,
+    code: str = "RUNTIME_ROOT_UNSAFE",
+    message: str = "Корень runtime-проверки небезопасен, слишком широк или недоступен.",
 ) -> dict[str, Any]:
     finding = _finding(
         "error",
-        "RUNTIME_ROOT_UNSAFE",
-        "Корень runtime-проверки небезопасен, слишком широк или недоступен.",
+        code,
+        message,
         path="runtime",
     )
     return {
@@ -2946,6 +2989,9 @@ def validate_skillset(
     profile: str = "source",
     check_updates: bool = False,
     require_current: bool = False,
+    expected_runtime_root_anchor: tuple[int, int, int, str] | None = None,
+    expected_runtime_root_descriptor: int | None = None,
+    preserve_relative_runtime_root: bool = False,
 ) -> dict[str, Any]:
     """Validate packages and return a JSON-serializable evidence report."""
 
@@ -2953,7 +2999,15 @@ def validate_skillset(
         raise ValueError(
             f"unknown validation profile {profile!r}; expected source or runtime"
         )
-    root = Path(skills_root).expanduser().absolute()
+    requested_root = Path(skills_root).expanduser()
+    if preserve_relative_runtime_root:
+        if requested_root != Path("."):
+            raise ValueError(
+                "preserved relative runtime root must be the held working directory"
+            )
+        root = requested_root
+    else:
+        root = requested_root.absolute()
     packages = tuple(package_names)
     if require_current and not check_updates:
         raise ValueError("require_current requires check_updates")
@@ -2963,8 +3017,52 @@ def validate_skillset(
         raise ValueError(
             "check_updates requires the runtime profile and complete canonical package scope"
         )
+    if expected_runtime_root_anchor is not None:
+        valid_expected_anchor = (
+            isinstance(expected_runtime_root_anchor, tuple)
+            and len(expected_runtime_root_anchor) == 4
+            and all(
+                isinstance(value, int) and not isinstance(value, bool)
+                for value in expected_runtime_root_anchor[:3]
+            )
+            and isinstance(expected_runtime_root_anchor[3], str)
+            and bool(expected_runtime_root_anchor[3])
+        )
+        if (
+            not valid_expected_anchor
+            or profile != "runtime"
+            or not _is_complete_canonical_scope(packages)
+        ):
+            raise ValueError(
+                "expected runtime root anchor requires the complete runtime profile"
+            )
+    if expected_runtime_root_descriptor is not None and (
+        expected_runtime_root_anchor is None
+        or not isinstance(expected_runtime_root_descriptor, int)
+        or isinstance(expected_runtime_root_descriptor, bool)
+        or expected_runtime_root_descriptor < 0
+    ):
+        raise ValueError(
+            "expected runtime root descriptor requires a valid expected root anchor"
+        )
+    if preserve_relative_runtime_root and expected_runtime_root_descriptor is None:
+        raise ValueError(
+            "preserved relative runtime root requires a held root descriptor"
+        )
     required_root_anchor: tuple[int, int, int, str] | None = None
-    if require_current:
+    if expected_runtime_root_anchor is not None:
+        required_root_anchor = expected_runtime_root_anchor
+        if not _required_runtime_observation_matches(
+            root,
+            required_root_anchor,
+            expected_runtime_root_descriptor,
+        ):
+            return _required_runtime_root_failure_report(
+                packages,
+                code="RUNTIME_ROOT_CHANGED",
+                message="Корень runtime-проверки изменился после исходного наблюдения.",
+            )
+    elif require_current:
         try:
             required_root_anchor = _required_runtime_root_anchor(root)
         except (OSError, ValueError):
@@ -3041,13 +3139,17 @@ def validate_skillset(
     )
     if (
         required_root_anchor is not None
-        and not _required_runtime_root_matches(root, required_root_anchor)
+        and not _required_runtime_observation_matches(
+            root,
+            required_root_anchor,
+            expected_runtime_root_descriptor,
+        )
     ):
         findings.append(
             _finding(
                 "error",
                 "RUNTIME_ROOT_CHANGED",
-                "Корень runtime-проверки был заменён до сетевого сравнения.",
+                "Корень runtime-проверки был заменён во время проверки.",
                 path="runtime",
             )
         )
@@ -3085,9 +3187,49 @@ def validate_skillset(
                 reason_code="local_identity_unavailable",
                 local_tree_sha256=None,
             )
+    elif expected_runtime_root_anchor is not None:
+        final_findings: list[dict[str, Any]] = []
+        final_content = _runtime_content_identity(
+            final_findings,
+            root,
+            packages,
+            manifest["files"],
+            validation_profile=profile,
+        )
+        if final_findings or final_content != runtime_content:
+            findings.extend(final_findings)
+            if not final_findings and not any(
+                item.get("code") == "RUNTIME_IDENTITY_CHANGED"
+                for item in findings
+            ):
+                findings.append(
+                    _finding(
+                        "error",
+                        "RUNTIME_IDENTITY_CHANGED",
+                        "Runtime-дерево изменилось между проходами проверки.",
+                        path="runtime",
+                    )
+                )
+            runtime_content = {
+                **runtime_content,
+                "tree_sha256": None,
+            }
+            freshness.update(
+                status="unknown" if check_updates else "not_checked",
+                reason_code=(
+                    "local_identity_unavailable"
+                    if check_updates
+                    else "not_requested"
+                ),
+                local_tree_sha256=None,
+            )
     if (
         required_root_anchor is not None
-        and not _required_runtime_root_matches(root, required_root_anchor)
+        and not _required_runtime_observation_matches(
+            root,
+            required_root_anchor,
+            expected_runtime_root_descriptor,
+        )
     ):
         if not any(
             item.get("code") == "RUNTIME_ROOT_CHANGED"
@@ -3097,7 +3239,7 @@ def validate_skillset(
                 _finding(
                     "error",
                     "RUNTIME_ROOT_CHANGED",
-                    "Корень runtime-проверки был заменён во время проверки актуальности.",
+                    "Корень runtime-проверки был заменён во время проверки.",
                     path="runtime",
                 )
             )
