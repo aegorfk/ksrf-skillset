@@ -69,6 +69,62 @@ class DoctrineResearchError(RuntimeError):
     """Controlled user-facing error."""
 
 
+class _RussianArgumentParser(argparse.ArgumentParser):
+    """Render stable argparse help scaffolding in Russian."""
+
+    _HELP_METAVARS = {
+        "command": "КОМАНДА",
+        "request": "ФАЙЛ",
+        "workspace": "ПАПКА",
+        "providers": "КАНАЛЫ",
+        "max_queries": "ЧИСЛО",
+        "max_results": "ЧИСЛО",
+        "timeout": "СЕКУНДЫ",
+        "request_delay": "СЕКУНДЫ",
+        "approved_query_plan_hash": "ХЕШ",
+    }
+
+    def format_usage(self) -> str:
+        suppressed = [
+            action
+            for action in self._actions
+            if action.dest == "offline_fixtures"
+            and action.help is argparse.SUPPRESS
+        ]
+        for action in suppressed:
+            action.help = None
+        try:
+            return super().format_usage()
+        finally:
+            for action in suppressed:
+                action.help = argparse.SUPPRESS
+
+    def format_help(self) -> str:
+        localized = [
+            (action, action.metavar)
+            for action in self._actions
+            if action.dest in self._HELP_METAVARS
+        ]
+        for action, _metavar in localized:
+            action.metavar = self._HELP_METAVARS[action.dest]
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in localized:
+                action.metavar = metavar
+        return (
+            rendered
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", "позиционные аргументы:", 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
 def load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as stream:
         return json.load(stream)
@@ -2155,44 +2211,146 @@ def run_rerank(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plan and run bounded legal-doctrine discovery.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = _RussianArgumentParser(
+        description=(
+            "Спланировать и выполнить ограниченный поиск правовой доктрины."
+        )
+    )
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        title="команды",
+    )
 
+    route_description = (
+        "Выбрать безопасный режим исследования доктрины до планирования "
+        "или поиска."
+    )
     route = subparsers.add_parser(
         "route",
-        help="Select the safest doctrine-research mode before planning or search.",
+        help=route_description,
+        description=route_description,
     )
-    route.add_argument("--request", required=True)
+    route.add_argument(
+        "--request",
+        required=True,
+        help="Путь к JSON-файлу с параметрами исследования.",
+    )
     route.set_defaults(func=run_route)
 
-    plan = subparsers.add_parser("plan", help="Create deterministic query and provider-routing artifacts.")
-    plan.add_argument("--request", required=True)
-    plan.add_argument("--workspace", required=True)
-    plan.add_argument("--providers", default="")
+    plan_description = (
+        "Создать воспроизводимый план поисковых запросов и выбора каналов поиска."
+    )
+    plan = subparsers.add_parser(
+        "plan",
+        help=plan_description,
+        description=plan_description,
+    )
+    plan.add_argument(
+        "--request",
+        required=True,
+        help="Путь к JSON-файлу с параметрами исследования.",
+    )
+    plan.add_argument(
+        "--workspace",
+        required=True,
+        help="Путь к рабочей папке исследования.",
+    )
+    plan.add_argument(
+        "--providers",
+        default="",
+        help="Список каналов поиска через запятую; по умолчанию ни один не выбран.",
+    )
     plan.set_defaults(func=run_plan)
 
-    search = subparsers.add_parser("search", help="Run selected documented API adapters.")
-    search.add_argument("--request", required=True)
-    search.add_argument("--workspace", required=True)
-    search.add_argument("--providers", default="openalex,crossref")
-    search.add_argument("--max-queries", type=int, default=12)
-    search.add_argument("--max-results", type=int, default=10)
-    search.add_argument("--timeout", type=float, default=20.0)
-    search.add_argument("--request-delay", type=float, default=0.15)
-    search.add_argument("--offline-fixtures")
+    search_description = "Выполнить поиск через выбранные каналы поиска."
+    search = subparsers.add_parser(
+        "search",
+        help=search_description,
+        description=search_description,
+    )
+    search.add_argument(
+        "--request",
+        required=True,
+        help="Путь к JSON-файлу с параметрами исследования.",
+    )
+    search.add_argument(
+        "--workspace",
+        required=True,
+        help="Путь к рабочей папке исследования.",
+    )
+    search.add_argument(
+        "--providers",
+        default="openalex,crossref",
+        help="Список разрешённых каналов поиска через запятую.",
+    )
+    search.add_argument(
+        "--max-queries",
+        type=int,
+        default=12,
+        help="Максимальное число поисковых запросов.",
+    )
+    search.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Максимальное число результатов на один запрос.",
+    )
+    search.add_argument(
+        "--timeout",
+        type=float,
+        default=20.0,
+        help="Предельное время одного сетевого запроса в секундах.",
+    )
+    search.add_argument(
+        "--request-delay",
+        type=float,
+        default=0.15,
+        help="Пауза между сетевыми запросами в секундах.",
+    )
+    search.add_argument("--offline-fixtures", help=argparse.SUPPRESS)
     search.add_argument(
         "--approved-query-plan-hash",
-        help="Required for case_scoped and hypothesis_verification after human review of query-plan.json.",
+        help=(
+            "Точное значение query_plan_hash из проверенного query-plan.json; "
+            "обязательно для режимов case_scoped и hypothesis_verification."
+        ),
     )
     search.set_defaults(func=run_search)
 
-    validate = subparsers.add_parser("validate", help="Validate a plan or completed bounded search workspace.")
-    validate.add_argument("--workspace", required=True)
+    validate_description = (
+        "Проверить план или завершённую рабочую папку ограниченного поиска."
+    )
+    validate = subparsers.add_parser(
+        "validate",
+        help=validate_description,
+        description=validate_description,
+    )
+    validate.add_argument(
+        "--workspace",
+        required=True,
+        help="Путь к рабочей папке исследования.",
+    )
     validate.set_defaults(func=run_validate)
 
-    rerank = subparsers.add_parser("rerank", help="Reapply the current legal-topic heuristic without network calls.")
-    rerank.add_argument("--request", required=True)
-    rerank.add_argument("--workspace", required=True)
+    rerank_description = (
+        "Повторно оценить найденные материалы по правовой теме без сетевых запросов."
+    )
+    rerank = subparsers.add_parser(
+        "rerank",
+        help=rerank_description,
+        description=rerank_description,
+    )
+    rerank.add_argument(
+        "--request",
+        required=True,
+        help="Путь к JSON-файлу с параметрами исследования.",
+    )
+    rerank.add_argument(
+        "--workspace",
+        required=True,
+        help="Путь к рабочей папке исследования.",
+    )
     rerank.set_defaults(func=run_rerank)
     return parser
 

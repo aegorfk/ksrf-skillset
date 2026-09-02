@@ -41,6 +41,35 @@ SENSITIVE_QUERY_KEYS = {
 }
 
 
+class _RussianArgumentParser(argparse.ArgumentParser):
+    """Render stable argparse help scaffolding in Russian."""
+
+    def format_help(self) -> str:
+        localized = [
+            (action, action.metavar)
+            for action in self._actions
+            if action.dest == "path"
+        ]
+        for action, _metavar in localized:
+            action.metavar = "ПУТЬ"
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in localized:
+                action.metavar = metavar
+        return (
+            rendered
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", "позиционные аргументы:", 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
 class Validator:
     def __init__(self, *, public: bool, require_drafting: bool) -> None:
         self.public = public
@@ -470,19 +499,27 @@ class Validator:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Validate a KSRF practice authority ledger JSON file."
+    parser = _RussianArgumentParser(
+        description=(
+            "Проверить JSON-реестр источников судебной практики для жалобы в КС РФ."
+        )
     )
-    parser.add_argument("path", type=Path, help="Path to authority ledger JSON")
+    parser.add_argument(
+        "path",
+        type=Path,
+        help="Путь к JSON-реестру источников судебной практики.",
+    )
     parser.add_argument(
         "--public",
         action="store_true",
-        help="Reject access/query tokens in URLs",
+        help="Отклонять URL с токенами доступа в параметрах запроса.",
     )
     parser.add_argument(
         "--require-drafting",
         action="store_true",
-        help="Require human approval and at least one drafting block",
+        help=(
+            "Требовать одобрения человеком и хотя бы одного блока для проекта жалобы."
+        ),
     )
     return parser.parse_args()
 

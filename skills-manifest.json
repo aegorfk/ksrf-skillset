@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T20:36:05Z",
+  "generated_at": "2026-09-02T21:07:39Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "5880ac61b25adaca6bff134d495f8241924e3363",
+  "remote_base_commit": "fc55b5cf208bf45efef21056ae37bb7460d2f25c",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 238,
-  "total_bytes": 8187375,
-  "tree_sha256": "bda229ac2f54067871098856f2567b1773dc7873324be8ffdd852b7c1e12bed6",
+  "total_bytes": 8193609,
+  "tree_sha256": "ee77e7c90e522883fa36ef00ba434bf67d304f25e424cf3face06b0f3565d3da",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -82,8 +82,8 @@
     {
       "name": "ksrf-doctrine-research",
       "files": 10,
-      "bytes": 169807,
-      "tree_sha256": "3af2ebd5fc268e562b6a6a35776952b019cd04436503b8914ab8ade29f71b24e"
+      "bytes": 174649,
+      "tree_sha256": "3c0304075849049be74a9db69c87a2742ef746c11a05f2011ce7cde0797e93c3"
     },
     {
       "name": "ksrf-echr-argumentation",
@@ -112,8 +112,8 @@
     {
       "name": "ksrf-practice-authority-builder",
       "files": 9,
-      "bytes": 111049,
-      "tree_sha256": "ce823cb0fdaadbf60aca79087104806baf26c6d584c1f75a0c6878dfbe2733f7"
+      "bytes": 112441,
+      "tree_sha256": "b76f3c89c1a3c9331feb51f433b79afac5eac1d2cf143afc168b2c5d1ee59d48"
     },
     {
       "name": "ksrf-rights-argument-builder",
