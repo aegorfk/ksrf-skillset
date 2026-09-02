@@ -95,7 +95,7 @@ description: Скилл превращает утверждённый портф
 - `../ksrf-argument-patterns/references/constitutional-argument-architecture.md` — главный тезис, трёхуровневая трасса, institutional competence и consequence critic с официальным российским gate.
 - `../ksrf-argument-patterns/references/legal-reasoning-model-branches.md` — competing readings, under-/over-inclusion, purpose и hard-case branches с ручным разрешением конфликта.
 - `../ksrf-complaint-qa/references/meta-argumentation-qa.md` — prerequisites баланса, идентичности и эволютивного подхода; научный trigger не заменяет российский тест.
-- `references/complaint-patterns.md` — идеи дополнительных линий.
+- `references/complaint-patterns.md` — исполняемые маршруты поиска позиции, карты практики, вариантов требования, портфеля материалов и проверки сохранения довода.
 - `../ksrf-argument-patterns/references/*` — optional analogies, evidence maps, counterarguments, language formulas и retrieval.
 - `../ksrf-argument-patterns/references/constitutionalist-authority-corpus.md` — выбор и проверка доктринального метода без name-dropping.
 - `../ksrf-argument-patterns/references/constitutional-methodology-reference-only-corpus.md` — route-indexed сравнительные и adverse методы по правам; только гипотезы, counterexamples и transfer limits, не обязательный тест.

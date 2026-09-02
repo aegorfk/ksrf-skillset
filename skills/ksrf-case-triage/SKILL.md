@@ -69,7 +69,7 @@ description: "Скилл оценивает по УИД или материал�
 - `../ksrf-complaint-cycle/references/uid-first-case-workflow.md` — получение полного доступного досье по UID и admissibility-first решение.
 - `../ksrf-complaint-cycle/references/source-authority-and-route.md` — маршрут и источники.
 - `references/workflow-reference.md` — подробный triage и форма memo.
-- `references/complaint-patterns.md` — возможные дополнительные направления.
+- `references/complaint-patterns.md` — исполняемые маршруты поиска позиции, карты практики, вариантов требования, портфеля материалов и проверки сохранения довода.
 - `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` — словарь дефектов и anti-patterns.
 - `../ksrf-argument-patterns/references/*` — optional corpus/refusal/hearing seeds и verification resources.
 - `../ksrf-argument-patterns/references/external-ks-complaint-webinar-methods.md` — вторичный checklist для первичной перспективности: пробел, несоразмерность, препятствие реализации права, неопределенность, устойчивость практики, запрос суда и реакция на возврат Секретариата; требует официальной перепроверки правил.

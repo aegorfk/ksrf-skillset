@@ -68,7 +68,8 @@ description: Скилл готовит факты, конституционны�
 - `references/evidence-inference-and-dependency-audit.md` — lifecycle бремени/презумпции, rival-explanation graph, evidential anchors, dependency/double-count audit и red-team объяснения Legal AI с российским нормативным gate.
 - `../ksrf-rights-argument-builder/references/social-rights-institutional-evidence.md` — социальные факты, качество индикаторов, access funnel и fail-closed проверка институционального довода.
 - `../ksrf-argument-patterns/references/constitutional-argument-architecture.md` — типы нормативной коррекции, двухтезисная проверка исключения и consequence/competence gates.
-- `references/complaint-patterns.md`, `../ksrf-argument-patterns/references/language-formulas.md` — optional drafting examples.
+- `references/complaint-patterns.md` — исполняемые маршруты поиска позиции, карты практики, вариантов требования, портфеля материалов и проверки сохранения довода.
+- `../ksrf-argument-patterns/references/language-formulas.md` — проверяемые варианты формулировок после выбора линии человеком.
 - `../ksrf-complaint-cycle/references/ksrf-defect-taxonomy.md` — словарь возможных дефектов.
 - `../ksrf-complaint-cycle/references/science-support-pack.md` — роль доктрины/эмпирики в фактах и приложениях.
 - `../ksrf-complaint-cycle/references/sko-complaint-methods-2017-2026.md` — конфигурация просимого результата, граница истолкования и проверка полного механизма remedy.

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T00:45:32Z",
+  "generated_at": "2026-09-02T01:00:27Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "4d74905b81525ace231edc6c5ac3f8c07968d576",
+  "remote_base_commit": "b94bdcdd4ab6e487c4de632b971f66b4d7fdff75",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,8 +27,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 235,
-  "total_bytes": 8069992,
-  "tree_sha256": "72c775d22eebfa7951a5d1fd47413777fda561c20ee5990910a618e361e97da1",
+  "total_bytes": 8081443,
+  "tree_sha256": "0459f1c36e4a042ed9a7a32a4be7705d7938f29aa7d6da5e5c79d19e2020523f",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -39,8 +39,8 @@
     {
       "name": "ksrf-case-triage",
       "files": 4,
-      "bytes": 55975,
-      "tree_sha256": "e53e2c8eefcd93bafd220989f71cb3835f2a5272e7556551fdf93e115c0e352e"
+      "bytes": 59489,
+      "tree_sha256": "560132e600a7d9f6cf63c3b526116bef2a4150c9d4bdbc24e8a991ce58ab2c7f"
     },
     {
       "name": "ksrf-cassation-judicial-meaning",
@@ -57,8 +57,8 @@
     {
       "name": "ksrf-complaint-facts-demands",
       "files": 9,
-      "bytes": 148602,
-      "tree_sha256": "99a6ba790f59e6d7f148584994ce4d8e020332ebb827aa6f3b1877dc4c8879e4"
+      "bytes": 152304,
+      "tree_sha256": "16c15f1d3c27c15b934307ef45d0fed2c69a788c5bd80725a11f9b11f5619632"
     },
     {
       "name": "ksrf-complaint-qa",
@@ -111,14 +111,14 @@
     {
       "name": "ksrf-practice-authority-builder",
       "files": 9,
-      "bytes": 110612,
-      "tree_sha256": "8b9fe2a4cf4f72cdbd37972ccba4508522bf357777def634d29159119e5e7b5f"
+      "bytes": 110953,
+      "tree_sha256": "2428f799fab7042073f3b8bc627af85a63014bdafe77e00df33f4471d5b20674"
     },
     {
       "name": "ksrf-rights-argument-builder",
       "files": 10,
-      "bytes": 182724,
-      "tree_sha256": "60c5755b9ffa00f73170ae4ada07342c01f2f06d705524aae493a10869f00cbc"
+      "bytes": 186618,
+      "tree_sha256": "464bd67140ccf8f914ec7f05517990b239fde73ecdc6a3a4bf65a194e2ce2044"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
