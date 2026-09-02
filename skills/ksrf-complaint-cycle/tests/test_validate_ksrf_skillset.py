@@ -34,6 +34,51 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _remove_evals(skill: Path) -> None:
+    (skill / "evals" / "evals.json").unlink()
+    (skill / "evals" / "trigger-evals.json").unlink()
+    (skill / "evals").rmdir()
+
+
+def _runtime_tree_digest(root: Path) -> tuple[str, int, int]:
+    files = sorted(
+        (path for path in root.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+    digest = hashlib.sha256()
+    total_bytes = 0
+    for path in files:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+        total_bytes += len(content)
+    return digest.hexdigest(), len(files), total_bytes
+
+
+class _FakeHttpResponse:
+    def __init__(self, payload: bytes, final_url: str) -> None:
+        self._stream = io.BytesIO(payload)
+        self._final_url = final_url
+        self.read_sizes: list[int] = []
+        self.status = 200
+
+    def __enter__(self) -> "_FakeHttpResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self, size: int = -1) -> bytes:
+        self.read_sizes.append(size)
+        return self._stream.read(size)
+
+    def geturl(self) -> str:
+        return self._final_url
+
+
 def _make_valid_skill(root: Path, name: str = "ksrf-test") -> Path:
     skill = root / name
     _write(
@@ -554,6 +599,623 @@ description: Используй этот навык для всего.
             rendered = VALIDATOR._render_text(report)
             self.assertIn("Профиль: runtime", rendered)
             self.assertIn("не заменяет source/release QA", rendered)
+
+    def test_runtime_identity_matches_exact_tree_algorithm_and_default_is_offline(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            expected_hash, expected_files, expected_bytes = _runtime_tree_digest(root)
+
+            with mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_OPENER",
+                side_effect=AssertionError("default runtime validation must stay offline"),
+                create=True,
+            ) as opener:
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                )
+
+            opener.assert_not_called()
+            self.assertEqual(report["schema_version"], "1.1.0")
+            self.assertEqual(
+                report["runtime_content"],
+                {
+                    "algorithm": "sha256-path-length-content-v1",
+                    "tree_sha256": expected_hash,
+                    "total_files": expected_files,
+                    "total_bytes": expected_bytes,
+                },
+            )
+            self.assertEqual(report["freshness"]["status"], "not_checked")
+            self.assertEqual(report["freshness"]["reason_code"], "not_requested")
+            self.assertIsNone(report["publish_manifest"])
+
+    def test_runtime_identity_matches_root_release_manifest(self) -> None:
+        repository = SCRIPT.parents[3]
+        release_manifest = json.loads(
+            (repository / "skills-manifest.json").read_text(encoding="utf-8")
+        )
+
+        report = VALIDATOR.validate_skillset(
+            repository / "skills",
+            profile="source",
+        )
+
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(
+            report["runtime_content"],
+            {
+                "algorithm": "sha256-path-length-content-v1",
+                "tree_sha256": release_manifest["tree_sha256"],
+                "total_files": release_manifest["total_files"],
+                "total_bytes": release_manifest["total_bytes"],
+            },
+        )
+
+    def test_runtime_freshness_uses_one_resolved_sha_for_current_and_different(
+        self,
+    ) -> None:
+        remote_sha = "a" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        for expected_status, remote_hash in (
+            ("current", None),
+            ("different", "f" * 64),
+        ):
+            with self.subTest(expected_status=expected_status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+                compared_hash = local_hash if remote_hash is None else remote_hash
+                ref_payload = json.dumps(
+                    {
+                        "ref": "refs/heads/main",
+                        "object": {"type": "commit", "sha": remote_sha},
+                    }
+                ).encode()
+                manifest_payload = json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "digest_format": (
+                            "sha256 over 4-byte big-endian relative path length + "
+                            "relative path + 8-byte big-endian content length + content, "
+                            "files sorted by POSIX relative path"
+                        ),
+                        "total_skills": 1,
+                        "total_files": total_files,
+                        "total_bytes": total_bytes,
+                        "tree_sha256": compared_hash,
+                    }
+                ).encode()
+                responses = {
+                    ref_url: _FakeHttpResponse(ref_payload, ref_url),
+                    manifest_url: _FakeHttpResponse(manifest_payload, manifest_url),
+                }
+                calls: list[tuple[str, float]] = []
+
+                def opener(request: object, *, timeout: float):
+                    url = str(getattr(request, "full_url", request))
+                    calls.append((url, timeout))
+                    return responses[url]
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                        create=True,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual([url for url, _ in calls], [ref_url, manifest_url])
+                self.assertTrue(all(0 < timeout <= 10 for _, timeout in calls))
+                self.assertEqual(report["freshness"]["status"], expected_status)
+                self.assertEqual(
+                    report["freshness"]["reason_code"],
+                    "content_matches" if expected_status == "current" else "content_differs",
+                )
+                self.assertEqual(report["freshness"]["remote_main_sha"], remote_sha)
+                self.assertEqual(report["freshness"]["local_tree_sha256"], local_hash)
+                self.assertEqual(
+                    report["freshness"]["remote_tree_sha256"],
+                    compared_hash,
+                )
+                self.assertTrue(
+                    all(
+                        size > 0
+                        for response in responses.values()
+                        for size in response.read_sizes
+                    )
+                )
+
+    def test_runtime_freshness_network_gap_is_unknown_and_does_not_change_exit(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=TimeoutError("secret upstream detail"),
+                    create=True,
+                ),
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--skills-root",
+                        str(root),
+                        "--package",
+                        "ksrf-test",
+                        "--profile",
+                        "runtime",
+                        "--check-updates",
+                        "--strict",
+                        "--json",
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(payload["status"], "pass")
+            self.assertEqual(payload["freshness"]["status"], "unknown")
+            self.assertEqual(payload["freshness"]["reason_code"], "network_error")
+            self.assertNotIn("secret upstream detail", stdout.getvalue())
+            self.assertNotIn("TimeoutError", stdout.getvalue())
+
+    def test_runtime_freshness_redirect_parse_error_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=ValueError("hostile redirect detail"),
+                ),
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    check_updates=True,
+                )
+
+            self.assertEqual(report["status"], "pass")
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertEqual(
+                report["freshness"]["reason_code"],
+                "invalid_response",
+            )
+            self.assertNotIn(
+                "hostile redirect detail",
+                json.dumps(report["freshness"], sort_keys=True),
+            )
+
+    def test_runtime_freshness_rejects_hostile_remote_responses_with_bounded_codes(
+        self,
+    ) -> None:
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        valid_ref = json.dumps(
+            {
+                "ref": "refs/heads/main",
+                "object": {"type": "commit", "sha": "b" * 40},
+            }
+        ).encode()
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{'b' * 40}/skills-manifest.json"
+        )
+        invalid_manifest = json.dumps(
+            {
+                "schema_version": "1.2",
+                "digest_format": (
+                    "sha256 over 4-byte big-endian relative path length + "
+                    "relative path + 8-byte big-endian content length + content, "
+                    "files sorted by POSIX relative path"
+                ),
+                "total_skills": 1,
+                "total_files": True,
+                "total_bytes": 1,
+                "tree_sha256": "c" * 64,
+            }
+        ).encode()
+        wrong_digest_manifest = json.dumps(
+            {
+                "schema_version": "1.2",
+                "digest_format": "sha256 over unspecified bytes",
+                "total_skills": 1,
+                "total_files": 1,
+                "total_bytes": 1,
+                "tree_sha256": "c" * 64,
+            }
+        ).encode()
+        cases = (
+            (
+                "oversized",
+                [_FakeHttpResponse(b"x" * 300_000, ref_url)],
+                "response_too_large",
+            ),
+            (
+                "malformed-json",
+                [_FakeHttpResponse(b"{not-json", ref_url)],
+                "invalid_response",
+            ),
+            (
+                "invalid-sha",
+                [
+                    _FakeHttpResponse(
+                        json.dumps(
+                            {
+                                "ref": "refs/heads/main",
+                                "object": {"type": "commit", "sha": "main"},
+                            }
+                        ).encode(),
+                        ref_url,
+                    )
+                ],
+                "invalid_response",
+            ),
+            (
+                "wrong-final-host",
+                [_FakeHttpResponse(valid_ref, "https://example.invalid/ref")],
+                "invalid_response",
+            ),
+            (
+                "malformed-final-url",
+                [_FakeHttpResponse(valid_ref, "https://[bad")],
+                "invalid_response",
+            ),
+            (
+                "duplicate-ref-key",
+                [
+                    _FakeHttpResponse(
+                        (
+                            b'{"ref":"refs/heads/main","object":'
+                            b'{"type":"commit","sha":"'
+                            + b"b" * 40
+                            + b'"},"object":{}}'
+                        ),
+                        ref_url,
+                    )
+                ],
+                "invalid_response",
+            ),
+            (
+                "oversized-pinned-manifest",
+                [
+                    _FakeHttpResponse(valid_ref, ref_url),
+                    _FakeHttpResponse(b"x" * 300_000, manifest_url),
+                ],
+                "response_too_large",
+            ),
+            (
+                "schema-invalid-pinned-manifest",
+                [
+                    _FakeHttpResponse(valid_ref, ref_url),
+                    _FakeHttpResponse(invalid_manifest, manifest_url),
+                ],
+                "invalid_response",
+            ),
+            (
+                "digest-format-mismatch",
+                [
+                    _FakeHttpResponse(valid_ref, ref_url),
+                    _FakeHttpResponse(wrong_digest_manifest, manifest_url),
+                ],
+                "invalid_response",
+            ),
+            (
+                "wrong-pinned-manifest-path",
+                [
+                    _FakeHttpResponse(valid_ref, ref_url),
+                    _FakeHttpResponse(
+                        invalid_manifest,
+                        manifest_url.replace("skills-manifest.json", "other.json"),
+                    ),
+                ],
+                "invalid_response",
+            ),
+        )
+        for label, responses, expected_reason in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                queue = list(responses)
+
+                def opener(*args: object, **kwargs: object):
+                    return queue.pop(0)
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                        create=True,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual(report["freshness"]["status"], "unknown")
+                self.assertEqual(
+                    report["freshness"]["reason_code"],
+                    expected_reason,
+                )
+                serialized = json.dumps(report["freshness"], sort_keys=True)
+                self.assertLess(len(serialized), 1000)
+                self.assertNotIn("not-json", serialized)
+
+    def test_runtime_identity_change_fails_and_skips_freshness_network(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            tracked_files = [path for path in root.rglob("*") if path.is_file()]
+            original_hash_file = VALIDATOR._hash_file
+            calls = 0
+
+            def mutate_after_manifest_hash(path: Path) -> str:
+                nonlocal calls
+                result = original_hash_file(path)
+                calls += 1
+                if calls == len(tracked_files):
+                    guide = skill / "references" / "guide.md"
+                    guide.write_text(
+                        guide.read_text(encoding="utf-8") + "Изменено.\n",
+                        encoding="utf-8",
+                    )
+                return result
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_hash_file",
+                    side_effect=mutate_after_manifest_hash,
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=AssertionError("invalid local identity must skip network"),
+                    create=True,
+                ) as opener,
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    check_updates=True,
+                )
+
+            opener.assert_not_called()
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+            self.assertIsNone(report["runtime_content"]["tree_sha256"])
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertEqual(
+                report["freshness"]["reason_code"],
+                "local_identity_unavailable",
+            )
+
+    def test_runtime_identity_detects_file_added_after_first_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            tracked_files = [path for path in root.rglob("*") if path.is_file()]
+            original_hash_file = VALIDATOR._hash_file
+            calls = 0
+
+            def add_after_manifest_hash(path: Path) -> str:
+                nonlocal calls
+                result = original_hash_file(path)
+                calls += 1
+                if calls == len(tracked_files):
+                    _write(skill / "references" / "late-added.md", "Новый файл.\n")
+                return result
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_hash_file",
+                    side_effect=add_after_manifest_hash,
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=AssertionError("invalid local identity must skip network"),
+                    create=True,
+                ) as opener,
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    check_updates=True,
+                )
+
+            opener.assert_not_called()
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+            self.assertIsNone(report["runtime_content"]["tree_sha256"])
+            self.assertEqual(report["freshness"]["status"], "unknown")
+
+    def test_runtime_identity_detects_late_source_only_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            tracked_files = [path for path in root.rglob("*") if path.is_file()]
+            original_hash_file = VALIDATOR._hash_file
+            calls = 0
+
+            def add_evals_after_manifest_hash(path: Path) -> str:
+                nonlocal calls
+                result = original_hash_file(path)
+                calls += 1
+                if calls == len(tracked_files):
+                    _write(skill / "evals" / "late.json", "{}\n")
+                return result
+
+            with mock.patch.object(
+                VALIDATOR,
+                "_hash_file",
+                side_effect=add_evals_after_manifest_hash,
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                )
+
+            self.assertEqual(report["status"], "fail")
+            self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+            self.assertIsNone(report["runtime_content"]["tree_sha256"])
+
+    def test_update_check_rejects_source_or_partial_runtime_before_network(self) -> None:
+        for label, arguments in (
+            ("source", ["--check-updates"]),
+            (
+                "partial-runtime",
+                [
+                    "--profile",
+                    "runtime",
+                    "--package",
+                    "ksrf-test",
+                    "--check-updates",
+                ],
+            ),
+        ):
+            with self.subTest(label=label):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=AssertionError("invalid CLI must not open network"),
+                    create=True,
+                ) as opener:
+                    exit_code = VALIDATOR.main(
+                        arguments,
+                        stdout=stdout,
+                        stderr=stderr,
+                    )
+
+                self.assertEqual(exit_code, 2)
+                opener.assert_not_called()
+                self.assertIn("--check-updates", stderr.getvalue())
+
+    def test_update_check_accepts_complete_scope_in_any_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = _make_valid_skill(root, name="ksrf-one")
+            second = _make_valid_skill(root, name="ksrf-two")
+            _remove_evals(first)
+            _remove_evals(second)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-one", "ksrf-two"),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=TimeoutError("offline"),
+                ),
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--skills-root",
+                        str(root),
+                        "--profile",
+                        "runtime",
+                        "--package",
+                        "ksrf-two",
+                        "--package",
+                        "ksrf-one",
+                        "--check-updates",
+                        "--json",
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertEqual(report["freshness"]["reason_code"], "network_error")
 
     def test_runtime_profile_rejects_source_only_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
