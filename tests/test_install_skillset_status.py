@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -624,7 +624,11 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
 
                     output = getattr(completed, stream_name)
                     self.assertEqual(completed.returncode, expected_exit)
-                    self.assertIn(r"\x0aЛОЖНЫЙ УСПЕХ", output)
+                    if mode == "--status":
+                        self.assertIn(r"\x0aЛОЖНЫЙ УСПЕХ", output)
+                    else:
+                        self.assertIn("Проверка не выполнена", output)
+                        self.assertNotIn(r"\x0aЛОЖНЫЙ УСПЕХ", output)
                     self.assertNotIn("\nЛОЖНЫЙ УСПЕХ", output)
 
     @unittest.skipUnless(os.name == "posix", "surrogateescaped paths require POSIX")
@@ -2087,7 +2091,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
 
             self.assertIn(exit_code, {0, 1})
             self.assertFalse(sentinel.exists())
-            self.assertIn("ОФЛАЙН-ПРОВЕРКА", stdout.getvalue())
+            self.assertIn("ПРОВЕРКА БЕЗ СЕТИ", stdout.getvalue())
             self.assertIn("не провер", stdout.getvalue().lower())
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(_snapshot(target), before)
@@ -2112,7 +2116,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             rendered = stdout.getvalue()
             self.assertEqual(exit_code, 0)
             self.assertEqual(stderr.getvalue(), "")
-            self.assertIn("ОФЛАЙН-ПРОВЕРКА ПРОЙДЕНА", rendered)
+            self.assertIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", rendered)
             self.assertIn("Проверено навыков: 15 из 15", rendered)
             self.assertIn("Интернет не использовался", rendered)
             self.assertIn("./install.sh --verify-current", rendered)
@@ -2120,6 +2124,464 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertNotIn("evals:", rendered)
             self.assertNotIn("runtime self-containment", rendered)
             self.assertNotIn("source/release QA", rendered)
+
+    def test_current_renderer_explains_every_outcome_without_maintainer_labels(
+        self,
+    ) -> None:
+        base_report = {
+            "status": "pass",
+            "summary": {"errors": 0, "warnings": 0},
+            "validated_package_count": 15,
+            "expected_package_count": 15,
+            "runtime_content": {
+                "tree_sha256": "a" * 64,
+                "total_files": 238,
+                "total_bytes": 8_165_136,
+            },
+            "freshness": {
+                "status": "current",
+                "reason_code": "content_matches",
+                "remote_main_sha": "b" * 40,
+            },
+            "findings": [],
+        }
+        cases = (
+            (
+                "current",
+                False,
+                "СОДЕРЖИМОЕ СОВПАДАЕТ С ОПУБЛИКОВАННОЙ ВЕРСИЕЙ",
+                "Установленное содержимое совпадает с ней",
+            ),
+            (
+                "different",
+                False,
+                "СОДЕРЖИМОЕ ОТЛИЧАЕТСЯ ОТ ОПУБЛИКОВАННОЙ ВЕРСИИ",
+                "может быть более старой, более новой, настроенной",
+            ),
+            (
+                "unknown",
+                False,
+                "СРАВНЕНИЕ НЕ ЗАВЕРШЕНО",
+                "сеть или удалённый сервис недоступны",
+            ),
+            (
+                "current",
+                True,
+                "СОДЕРЖИМОЕ НЕ ПРОШЛО ПРОВЕРКУ",
+                "Сравнение с опубликованной версией не подтверждено",
+            ),
+        )
+        forbidden = (
+            "Профиль: runtime",
+            "evals:",
+            "not_checked",
+            "validated",
+            "runtime self-containment",
+            "public-source",
+            "public-repository",
+            "source/release QA",
+        )
+
+        for freshness_status, validation_failed, heading, explanation in cases:
+            with self.subTest(
+                freshness_status=freshness_status,
+                validation_failed=validation_failed,
+            ):
+                report = json.loads(json.dumps(base_report))
+                report["freshness"]["status"] = freshness_status
+                if freshness_status == "unknown":
+                    report["freshness"]["reason_code"] = "network_error"
+                    report["freshness"]["remote_main_sha"] = None
+                if validation_failed:
+                    report["status"] = "fail"
+                    report["summary"] = {"errors": 1, "warnings": 0}
+                rendered = installer._render_current_verification_report(
+                    report,
+                    validation_failed=validation_failed,
+                )
+
+                self.assertIn(heading, rendered.splitlines()[0])
+                self.assertIn(explanation, rendered)
+                self.assertIn("Проверено навыков: 15 из 15", rendered)
+                self.assertIn("a" * 64, rendered)
+                self.assertIn("прав", rendered.lower())
+                self.assertIn("жалоб", rendered.lower())
+                self.assertIn("не входят в пользовательскую установку", rendered)
+                if freshness_status in {"current", "different"} and not validation_failed:
+                    self.assertIn("b" * 40, rendered)
+                for marker in forbidden:
+                    self.assertNotIn(marker, rendered)
+                self.assertNotIn("main", rendered.lower())
+
+    def test_current_renderer_keeps_bounded_findings_and_remote_version(self) -> None:
+        report = {
+            "status": "fail",
+            "summary": {"errors": 1, "warnings": 0},
+            "validated_package_count": 14,
+            "expected_package_count": 15,
+            "runtime_content": {
+                "tree_sha256": None,
+                "total_files": 237,
+                "total_bytes": 8_000_000,
+            },
+            "freshness": {
+                "status": "unknown",
+                "reason_code": "local_identity_unavailable",
+                "remote_main_sha": "b" * 40,
+            },
+            "findings": [
+                {
+                    "severity": "error",
+                    "code": "MISSING_FILE",
+                    "package": "ksrf-test",
+                    "path": "references/missing.md\nЛОЖНЫЙ УСПЕХ",
+                    "line": 7,
+                    "message": "Не найден обязательный файл.\x1b[31m",
+                }
+            ],
+        }
+
+        rendered = installer._render_current_verification_report(
+            report,
+            validation_failed=True,
+        )
+
+        self.assertIn("Контрольный отпечаток не сформирован", rendered)
+        self.assertIn("ОШИБКА [references/missing.md\\x0aЛОЖНЫЙ УСПЕХ:7]", rendered)
+        self.assertIn("Не найден обязательный файл.\\x1b[31m", rendered)
+        self.assertNotIn("MISSING_FILE", rendered)
+        self.assertNotIn("\nЛОЖНЫЙ УСПЕХ", rendered)
+        self.assertNotIn("\x1b[31m", rendered)
+        self.assertNotIn("СОВПАДАЕТ С ОПУБЛИКОВАННОЙ", rendered)
+
+    def test_public_verification_findings_are_count_bounded(self) -> None:
+        findings = [
+            {
+                "severity": "error",
+                "code": f"INTERNAL_{index}",
+                "path": f"references/finding-{index:02d}.md",
+                "message": f"Проблема {index}.",
+            }
+            for index in range(55)
+        ]
+        report = {
+            "status": "fail",
+            "summary": {"errors": 55, "warnings": 0},
+            "validated_package_count": 15,
+            "expected_package_count": 15,
+            "runtime_content": {
+                "tree_sha256": None,
+                "total_files": 238,
+                "total_bytes": 8_165_136,
+            },
+            "freshness": {
+                "status": "unknown",
+                "reason_code": "local_identity_unavailable",
+                "remote_main_sha": None,
+            },
+            "findings": findings,
+        }
+
+        rendered = installer._render_current_verification_report(
+            report,
+            validation_failed=True,
+        )
+
+        self.assertIn("references/finding-00.md", rendered)
+        self.assertIn("references/finding-49.md", rendered)
+        self.assertNotIn("references/finding-50.md", rendered)
+        self.assertIn("Показаны первые 50 проблем. Не показано: 5", rendered)
+        self.assertNotIn("INTERNAL_", rendered)
+        offline_rendered = installer._render_offline_verification_report(
+            report,
+            target=Path("/tmp/ksrf-runtime-target"),
+            validation_failed=True,
+        )
+        self.assertIn("Показаны первые 50 проблем. Не показано: 5", offline_rendered)
+        self.assertNotIn("INTERNAL_", offline_rendered)
+
+    def test_public_verification_findings_hide_internal_exception_details(self) -> None:
+        sensitive_codes = (
+            "SKILL_FILE_UNREADABLE",
+            "FRONTMATTER_INVALID",
+            "AGENT_METADATA_INVALID",
+            "BEHAVIORAL_EVALS_INVALID",
+            "TRIGGER_EVALS_INVALID",
+            "MARKDOWN_UNREADABLE",
+            "MARKDOWN_LINK_ESCAPES_SKILLSET",
+            "BROKEN_MARKDOWN_LINK",
+            "MCP_TOOL_NOT_FULLY_QUALIFIED",
+            "APPLICATION_EVIDENCE_CONTRACT_INVALID",
+            "ARGUMENT_GRAPH_CONTRACT_INVALID",
+            "AUTHORITY_CORPUS_CONTRACT_INVALID",
+            "RUNTIME_TEXT_UNREADABLE",
+            "RUNTIME_FORMAT_UNCHECKED",
+            "RUNTIME_REFERENCE_JSON_INVALID",
+            "PUBLISH_FILE_UNREADABLE",
+            "RUNTIME_LOCAL_COORDINATE",
+            "RUNTIME_IDENTITY_CHANGED",
+            "RUNTIME_ROOT_CHANGED",
+            "OFFLINE_SELF_CONTAINMENT_FAILED",
+        )
+        findings = []
+        for index, code in enumerate(sensitive_codes):
+            path = (
+                "/private/validator-secret"
+                if code == "PUBLISH_FILE_UNREADABLE"
+                else "runtime"
+                if code.startswith("RUNTIME_")
+                or code == "OFFLINE_SELF_CONTAINMENT_FAILED"
+                else f"ksrf-case-triage/references/problem-{index}.md"
+            )
+            findings.append(
+                {
+                    "severity": "error",
+                    "code": code,
+                    "path": path,
+                    "message": (
+                        "Raw policy detail: UnicodeDecodeError: invalid start byte; "
+                        "OSError: permission denied at /private/validator-secret; "
+                        "marker_classes=repository-source-tree; field_name=secret"
+                    ),
+                }
+            )
+        report = {
+            "status": "fail",
+            "summary": {"errors": len(findings), "warnings": 0},
+            "validated_package_count": 15,
+            "expected_package_count": 15,
+            "runtime_content": {
+                "tree_sha256": None,
+                "total_files": 238,
+                "total_bytes": 8_165_136,
+            },
+            "freshness": {
+                "status": "unknown",
+                "reason_code": "local_identity_unavailable",
+                "remote_main_sha": None,
+            },
+            "findings": findings,
+        }
+        original_report = json.loads(json.dumps(report))
+
+        rendered_outputs = (
+            installer._render_current_verification_report(
+                report,
+                validation_failed=True,
+            ),
+            installer._render_offline_verification_report(
+                report,
+                target=Path("/tmp/ksrf-runtime-target"),
+                validation_failed=True,
+            ),
+        )
+
+        self.assertEqual(report, original_report)
+        for rendered in rendered_outputs:
+            self.assertIn("Файл SKILL.md не удалось безопасно прочитать", rendered)
+            self.assertIn("ОШИБКА [установка]", rendered)
+            self.assertIn("Содержимое установки изменилось во время проверки", rendered)
+            self.assertIn("Автономность установки не подтверждена", rendered)
+            self.assertIn("локальную ссылку, недоступную после установки", rendered)
+            self.assertIn("ведёт за пределы установленного набора", rendered)
+            self.assertIn("ведёт к отсутствующему файлу", rendered)
+            self.assertIn("некорректная ссылка на служебный инструмент", rendered)
+            for forbidden in (
+                "UnicodeDecodeError",
+                "invalid start byte",
+                "OSError",
+                "permission denied",
+                "/private/validator-secret",
+                "[runtime]",
+                "marker_classes",
+                "repository-source-tree",
+                "field_name",
+                "Raw policy detail",
+            ):
+                self.assertNotIn(forbidden, rendered)
+
+    def test_current_coordinator_uses_public_renderer_and_preserves_exit_codes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "skills"
+            target.mkdir()
+            runtime_content = {
+                "algorithm": "sha256-path-length-content-v1",
+                "tree_sha256": "a" * 64,
+                "total_files": 238,
+                "total_bytes": 8_165_136,
+            }
+            base_report = {
+                "schema_version": "1.1.0",
+                "validation_profile": "runtime",
+                "validation_coverage": {
+                    "evals": "not_checked",
+                    "runtime_self_containment": "validated",
+                    "public_source_safety": "not_checked",
+                    "public_repository_safety": "not_checked",
+                },
+                "source_release_eligible": False,
+                "status": "pass",
+                "summary": {"errors": 0, "warnings": 0},
+                "validated_package_count": 15,
+                "expected_package_count": 15,
+                "validated_packages": list(installer.SKILL_NAMES),
+                "runtime_content": runtime_content,
+                "freshness": {
+                    "status": "not_checked",
+                    "reason_code": "not_requested",
+                    "remote_main_sha": None,
+                    "local_tree_sha256": "a" * 64,
+                    "remote_tree_sha256": None,
+                },
+                "findings": [],
+                "publish_manifest": None,
+            }
+            cases = (
+                ("current", "current", False, None, 0),
+                ("different", "different", False, None, 10),
+                ("different-count-only", "different", False, "same-tree", 10),
+                ("unknown", "unknown", False, None, 20),
+                (
+                    "contradictory-local-unavailable",
+                    "unknown",
+                    False,
+                    "local-unavailable",
+                    2,
+                ),
+                ("validation-failed", "current", True, None, 1),
+                ("missing-outcome", "not_checked", False, None, 2),
+                ("invalid-remote-sha", "current", False, "remote-sha", 2),
+                ("missing-local-digest", "current", False, "local-digest", 2),
+                ("boolean-summary", "current", False, "boolean-summary", 2),
+                ("float-package-count", "current", False, "float-package-count", 2),
+                ("wrong-profile", "current", False, "wrong-profile", 2),
+                ("mismatched-packages", "current", False, "mismatched-packages", 2),
+                ("inconsistent-findings", "current", False, "inconsistent-findings", 2),
+                ("current-files-over-cap", "current", False, "files-over-cap", 2),
+                ("current-bytes-over-cap", "current", False, "bytes-over-cap", 2),
+            )
+
+            with installer._held_verification_root(target) as (
+                target_descriptor,
+                expected_anchor,
+            ):
+                for (
+                    label,
+                    freshness_status,
+                    validation_failed,
+                    malformed,
+                    expected_exit,
+                ) in cases:
+                    with self.subTest(
+                        label=label,
+                        freshness_status=freshness_status,
+                        validation_failed=validation_failed,
+                    ):
+                        case_base_report = json.loads(json.dumps(base_report))
+                        if malformed == "local-digest":
+                            case_base_report["runtime_content"]["tree_sha256"] = None
+                            case_base_report["freshness"]["local_tree_sha256"] = None
+                        if malformed == "files-over-cap":
+                            case_base_report["runtime_content"]["total_files"] = 1_000_001
+                        if malformed == "bytes-over-cap":
+                            case_base_report["runtime_content"]["total_bytes"] = 2**63
+                        final_report = json.loads(json.dumps(case_base_report))
+                        remote_tree_sha256 = (
+                            "a" * 64
+                            if freshness_status == "current" or malformed == "same-tree"
+                            else "c" * 64
+                            if freshness_status == "different"
+                            else None
+                        )
+                        final_report["freshness"].update(
+                            status=freshness_status,
+                            reason_code=(
+                                "network_error"
+                                if freshness_status == "unknown"
+                                else "content_differs"
+                                if freshness_status == "different"
+                                else "content_matches"
+                            ),
+                            remote_main_sha=(
+                                None if freshness_status == "unknown" else "b" * 40
+                            ),
+                            remote_tree_sha256=remote_tree_sha256,
+                        )
+                        if malformed == "remote-sha":
+                            final_report["freshness"]["remote_main_sha"] = None
+                        if malformed == "boolean-summary":
+                            final_report["summary"] = {
+                                "errors": False,
+                                "warnings": False,
+                            }
+                        if malformed == "float-package-count":
+                            final_report["validated_package_count"] = 15.0
+                            final_report["expected_package_count"] = 15.0
+                        if malformed == "wrong-profile":
+                            final_report["validation_profile"] = "source"
+                        if malformed == "mismatched-packages":
+                            final_report["validated_packages"] = list(
+                                reversed(installer.SKILL_NAMES)
+                            )
+                        if malformed == "inconsistent-findings":
+                            final_report["findings"] = [
+                                {
+                                    "severity": "warning",
+                                    "code": "IMPOSSIBLE_PASS_FINDING",
+                                    "message": "Неучтённое предупреждение.",
+                                    "path": "runtime",
+                                }
+                            ]
+                        if malformed == "local-unavailable":
+                            final_report["freshness"]["reason_code"] = (
+                                "local_identity_unavailable"
+                            )
+                        if validation_failed:
+                            final_report["status"] = "fail"
+                            final_report["summary"] = {"errors": 1, "warnings": 0}
+                        validator = Mock()
+                        validator.CANONICAL_KSRF_PACKAGES = ("ksrf-test",)
+                        validator._required_runtime_root_matches.return_value = True
+                        validator._render_text.side_effect = AssertionError(
+                            "public coordinator must not forward maintainer prose"
+                        )
+                        validator.validate_skillset.side_effect = (
+                            [final_report]
+                            if validation_failed
+                            else [final_report, case_base_report]
+                        )
+                        offline_policy = Mock()
+                        offline_policy.validate_offline_self_containment.return_value = []
+                        stdout = io.StringIO()
+                        stderr = io.StringIO()
+
+                        with patch.object(
+                            installer,
+                            "_inspect_installation_status_anchored",
+                            return_value={"exit_code": 0},
+                        ):
+                            exit_code = installer._verify_installed_skillset_anchored(
+                                target,
+                                validator=validator,
+                                offline_policy=offline_policy,
+                                expected_anchor=expected_anchor,
+                                target_descriptor=target_descriptor,
+                                require_current=True,
+                                stdout=stdout,
+                                stderr=stderr,
+                            )
+
+                        self.assertEqual(exit_code, expected_exit)
+                        if expected_exit == 2:
+                            self.assertIn("внутренней ошибки", stderr.getvalue())
+                            self.assertIn("Обновите репозиторий", stderr.getvalue())
+                            self.assertNotIn("валидатор", stderr.getvalue().lower())
+                            self.assertEqual(stdout.getvalue(), "")
+                        else:
+                            self.assertEqual(stderr.getvalue(), "")
+                        self.assertNotIn("evals:", stdout.getvalue())
 
     @unittest.skipUnless(os.name == "posix", "symlink evidence requires POSIX")
     def test_verify_coordinator_cannot_hide_unsafe_state_during_both_status_calls(
@@ -2213,7 +2675,154 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 1)
-            self.assertNotIn("ОФЛАЙН-ПРОВЕРКА ПРОЙДЕНА", stdout.getvalue())
+            self.assertNotIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", stdout.getvalue())
+
+    def test_verify_coordinator_runs_offline_policy_on_one_immutable_snapshot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "skills"
+            installer.copy_skillset(REPO / "skills", target)
+            validator, offline_policy = installer._load_repo_verification_policy(REPO)
+            original_policy = offline_policy.validate_offline_self_containment
+            core = (
+                target
+                / "ksrf-complaint-cycle"
+                / "references"
+                / "offline-practice-core.md"
+            )
+            valid_text = core.read_text(encoding="utf-8")
+            invalid_text = valid_text.replace(
+                "## 0. Контракт автономности",
+                "## 0. Удалено",
+                1,
+            )
+            self.assertNotEqual(valid_text, invalid_text)
+            core.write_text(invalid_text, encoding="utf-8")
+
+            def expose_valid_live_tree_only_during_policy(
+                *args: object,
+                **kwargs: object,
+            ) -> list[str]:
+                core.write_text(valid_text, encoding="utf-8")
+                try:
+                    return original_policy(*args, **kwargs)
+                finally:
+                    core.write_text(invalid_text, encoding="utf-8")
+
+            offline_policy.validate_offline_self_containment = (
+                expose_valid_live_tree_only_during_policy
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(
+                installer,
+                "_load_repo_verification_policy",
+                return_value=(validator, offline_policy),
+            ):
+                exit_code = installer.verify_installed_skillset(
+                    REPO,
+                    target,
+                    require_current=False,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn("ПРОВЕРКА БЕЗ СЕТИ НЕ ПРОЙДЕНА", stdout.getvalue())
+            self.assertNotIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", stdout.getvalue())
+            self.assertEqual(stderr.getvalue(), "")
+
+    @unittest.skipUnless(os.name == "posix", "descriptor no-follow requires POSIX")
+    def test_verification_snapshot_refuses_nested_symlink_swap_before_read(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "skills"
+            installer.copy_skillset(REPO / "skills", target)
+            core = (
+                target
+                / "ksrf-complaint-cycle"
+                / "references"
+                / "offline-practice-core.md"
+            )
+            held = root / "held-offline-practice-core.md"
+            outside = root / "outside-private.md"
+            outside.write_text("НЕ ДОЛЖНО БЫТЬ ПРОЧИТАНО", encoding="utf-8")
+            original_core_text = core.read_text(encoding="utf-8")
+            original_read = installer._status_read_regular_at
+            swap_attempted = False
+            nofollow_rejected = False
+
+            def swap_regular_for_symlink_before_descriptor_read(
+                parent_descriptor: int,
+                name: str,
+                **kwargs: object,
+            ) -> tuple[bytes | None, str, tuple[int, ...]]:
+                nonlocal swap_attempted, nofollow_rejected
+                if name == core.name and not swap_attempted:
+                    swap_attempted = True
+                    core.rename(held)
+                    core.symlink_to(outside)
+                    try:
+                        try:
+                            return original_read(
+                                parent_descriptor,
+                                name,
+                                **kwargs,
+                            )
+                        except installer.InstallationError:
+                            nofollow_rejected = True
+                            raise
+                    finally:
+                        core.unlink()
+                        held.rename(core)
+                return original_read(parent_descriptor, name, **kwargs)
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(
+                installer,
+                "_status_read_regular_at",
+                side_effect=swap_regular_for_symlink_before_descriptor_read,
+            ):
+                exit_code = installer.verify_installed_skillset(
+                    REPO,
+                    target,
+                    require_current=False,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            self.assertTrue(swap_attempted)
+            self.assertTrue(nofollow_rejected)
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("Проверка не выполнена", stderr.getvalue())
+            self.assertEqual(core.read_text(encoding="utf-8"), original_core_text)
+
+    def test_verification_snapshot_refuses_oversized_unmanaged_file(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "skills"
+            installer.copy_skillset(REPO / "skills", target)
+            oversized = target / "ksrf-case-triage" / "unmanaged-large.bin"
+            with oversized.open("wb") as handle:
+                handle.truncate(installer._STATUS_SCAN_MAX_FILE_BYTES + 1)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            exit_code = installer.verify_installed_skillset(
+                REPO,
+                target,
+                require_current=False,
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("Проверка не выполнена", stderr.getvalue())
 
     def test_verify_coordinator_traverses_held_root_not_lexical_decoy(
         self,
@@ -2270,7 +2879,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(Path.cwd(), cwd_before)
             self.assertEqual(exit_code, 1)
             self.assertIn("НЕ ПРОЙДЕНА", stdout.getvalue())
-            self.assertNotIn("ОФЛАЙН-ПРОВЕРКА ПРОЙДЕНА", stdout.getvalue())
+            self.assertNotIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", stdout.getvalue())
 
     def test_verify_coordinator_maps_invalid_utf8_target_data_to_validation_failure(
         self,
@@ -2370,7 +2979,10 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(Path.cwd(), cwd_before)
             self.assertTrue((Path("tools") / "install_skillset.py").is_file())
             self.assertEqual(stdout.getvalue(), "")
-            self.assertIn("RuntimeError", stderr.getvalue())
+            self.assertIn("внутренней ошибки", stderr.getvalue())
+            self.assertIn("Обновите репозиторий", stderr.getvalue())
+            self.assertNotIn("RuntimeError", stderr.getvalue())
+            self.assertNotIn("trusted policy fault", stderr.getvalue())
 
     def test_verify_coordinator_maps_initial_root_race_to_local_failure(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -2399,8 +3011,10 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
-            self.assertIn("не запущена", stderr.getvalue())
+            self.assertIn("Проверка не выполнена", stderr.getvalue())
+            self.assertIn("повторите", stderr.getvalue().lower())
             self.assertNotIn("Traceback", stderr.getvalue())
+            self.assertNotIn("_ObservationChanged", stderr.getvalue())
 
     def test_verify_coordinator_maps_trusted_policy_load_fault_to_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -2424,9 +3038,17 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 2)
             self.assertEqual(stdout.getvalue(), "")
-            self.assertIn("внутренняя ошибка", stderr.getvalue().lower())
-            self.assertIn("SyntaxError", stderr.getvalue())
-            self.assertNotIn("Traceback", stderr.getvalue())
+            rendered_error = stderr.getvalue()
+            self.assertIn("внутренней ошибки", rendered_error.lower())
+            self.assertIn("Обновите репозиторий", rendered_error)
+            for marker in (
+                "SyntaxError",
+                "broken trusted policy",
+                "Traceback",
+                "доверенной политики",
+                "валидатор",
+            ):
+                self.assertNotIn(marker, rendered_error)
 
     def test_verify_success_omits_dead_current_command_for_control_character_target(
         self,
@@ -2448,7 +3070,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             rendered = stdout.getvalue()
             self.assertEqual(exit_code, 0)
             self.assertEqual(stderr.getvalue(), "")
-            self.assertIn("ОФЛАЙН-ПРОВЕРКА ПРОЙДЕНА", rendered)
+            self.assertIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", rendered)
             self.assertIn("сформировать нельзя", rendered)
             self.assertNotIn("--verify-current --target", rendered)
             self.assertNotIn("\nподмена", rendered)
@@ -2512,7 +3134,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     report["severity"] = "warning"
                     report["exit_code"] = 20
                     report["reason_code"] = "observation_changed"
-                    report["message"] = "Состояние изменилось перед postflight."
+                    report["message"] = "Состояние изменилось перед завершением проверки."
                 return report
 
             stdout = io.StringIO()
@@ -2532,7 +3154,9 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
-            self.assertIn("postflight", stderr.getvalue().lower())
+            self.assertIn("проверка не выполнена", stderr.getvalue().lower())
+            self.assertNotIn("postflight", stderr.getvalue().lower())
+            self.assertNotIn("preflight", stderr.getvalue().lower())
             self.assertNotIn("ПРОЙДЕНА", stderr.getvalue())
 
     def test_shell_verify_current_fails_honestly_without_python_or_validator(
@@ -2571,7 +3195,10 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             )
             self.assertEqual(no_validator.returncode, 1)
             self.assertEqual(no_validator.stdout, "")
-            self.assertIn("валидатор", no_validator.stderr.lower())
+            self.assertIn("Файлы проверки недоступны", no_validator.stderr)
+            self.assertIn("Обновите репозиторий", no_validator.stderr)
+            self.assertNotIn("repo-side", no_validator.stderr.lower())
+            self.assertNotIn("main", no_validator.stderr.lower())
 
     @unittest.skipUnless(os.name == "posix", "symlink preflight requires POSIX")
     def test_shell_verify_modes_preflight_blocks_unsafe_targets_before_policy(
