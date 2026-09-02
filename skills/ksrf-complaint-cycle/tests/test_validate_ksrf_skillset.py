@@ -767,10 +767,9 @@ description: Используй этот навык для всего.
     def test_runtime_coordinate_gate_allows_portable_runtime_routes(self) -> None:
         content = "\n".join(
             (
-                "<skill-dir>/references/source.md",
+                'KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"',
                 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/references/source.md",
                 "$HUDOC_ARCHIVE_ROOT/documents/source.pdf",
-                "~/.codex/skills/ksrf-complaint-cycle/references/source.md",
                 "/path/to/case-folder/source.pdf",
                 "path/to/file.json",
                 "/rooted/project/source.pdf",
@@ -783,6 +782,22 @@ description: Используй этот навык для всего.
                 "https://user@example.org/Users/alice/work/source.pdf",
                 "(https://example.org/Users/alice/work/source.pdf)",
                 'const u = "https:\\/\\/example.org\\/Users\\/alice\\/work.pdf";',
+                (
+                    'subprocess.run(["git", "-C", '
+                    'os.environ["HUDOC_KS_PARSER_REPO"], "rev-parse", '
+                    '"--show-toplevel"])'
+                ),
+                (
+                    "subprocess.run(\n"
+                    "    [\n"
+                    '        "git",\n'
+                    '        "-C",\n'
+                    '        os.environ["HUDOC_KS_PARSER_REPO"],\n'
+                    '        "rev-parse",\n'
+                    '        "--show-toplevel",\n'
+                    "    ]\n"
+                    ")"
+                ),
             )
         )
         for profile in ("source", "runtime"):
@@ -820,6 +835,203 @@ description: Используй этот навык для всего.
                     report["validation_coverage"]["runtime_self_containment"],
                     "validated",
                 )
+
+    def test_both_profiles_reject_unresolved_runtime_command_paths(self) -> None:
+        cases = (
+            (
+                "python3 <skill-dir>/scripts/tool.py --help\n",
+                "unresolved-command-root",
+            ),
+            (
+                "python3 <skill-root>/ksrf-test/scripts/tool.py --help\n",
+                "unresolved-command-root",
+            ),
+            (
+                "KSRF_SKILLS_ROOT=/path/to/installed/skills\n",
+                "unresolved-command-root",
+            ),
+            (
+                "python3 ~/.codex/skills/ksrf-test/scripts/tool.py --help\n",
+                "hardcoded-default-skill-root",
+            ),
+        )
+        for profile in ("source", "runtime"):
+            for index, (content, marker_class) in enumerate(cases):
+                with (
+                    self.subTest(profile=profile, index=index),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root)
+                    if profile == "runtime":
+                        for path in (skill / "evals").iterdir():
+                            path.unlink()
+                        (skill / "evals").rmdir()
+                    _write(
+                        skill / "references" / f"unresolved-command-{index}.md",
+                        content,
+                    )
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile=profile,
+                    )
+
+                    findings = [
+                        finding
+                        for finding in report["findings"]
+                        if finding["code"] == "RUNTIME_LOCAL_COORDINATE"
+                    ]
+                    self.assertEqual(len(findings), 1)
+                    self.assertIn(marker_class, findings[0]["message"])
+                    self.assertEqual(
+                        findings[0]["evidence"]["marker_classes"],
+                        [marker_class],
+                    )
+
+    def test_both_profiles_reject_implicit_external_repository_discovery(
+        self,
+    ) -> None:
+        cases = (
+            (
+                'repository = Path.home() / "Documents" / "ks_parser"\n',
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = Path(os.environ["HOME"]) / "Documents" '
+                    '/ "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = Path(os.environ.get("HOME", "/tmp")) '
+                    '/ "Documents" / "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = Path(os.getenv("HOME", "/tmp")) '
+                    '/ "Documents" / "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    "repository = Path(os.environ.get(\n"
+                    '    "HOME",\n'
+                    '    "/tmp",\n'
+                    ')) / "Documents" / "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    "repository = Path(os.getenv(\n"
+                    '    "HOME",\n'
+                    '    "/tmp",\n'
+                    ')) / "Documents" / "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = Path("~").expanduser() / "Documents" '
+                    '/ "ks_parser"\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = Path(os.path.expanduser('
+                    '"~/Documents/ks_parser"))\n'
+                ),
+                "implicit-home-repository-discovery",
+            ),
+            (
+                (
+                    'repository = subprocess.run(["git", "rev-parse", '
+                    '"--show-toplevel"], cwd=Path.cwd())\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+            (
+                (
+                    'repository = subprocess.run(["git", "rev-parse", '
+                    '"--show-toplevel"])\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+            (
+                (
+                    'repository = subprocess.run(["git", "rev-parse", '
+                    '"--show-toplevel"], cwd=".")\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+            (
+                (
+                    'configured = os.environ["HUDOC_KS_PARSER_REPO"]\n'
+                    'repository = subprocess.run(["git", "rev-parse", '
+                    '"--show-toplevel"])\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+            (
+                (
+                    'repository = subprocess.run(["git", "-C", ".", '
+                    'os.environ["HUDOC_KS_PARSER_REPO"], "rev-parse", '
+                    '"--show-toplevel"])\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+            (
+                (
+                    'repository = subprocess.run(["git", "-C", '
+                    'os.environ["OTHER_REPO"], "--config-env", '
+                    '"x=HUDOC_KS_PARSER_REPO", "rev-parse", '
+                    '"--show-toplevel"])\n'
+                ),
+                "implicit-cwd-repository-discovery",
+            ),
+        )
+        for profile in ("source", "runtime"):
+            for index, (content, marker_class) in enumerate(cases):
+                with (
+                    self.subTest(profile=profile, index=index),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root)
+                    if profile == "runtime":
+                        for path in (skill / "evals").iterdir():
+                            path.unlink()
+                        (skill / "evals").rmdir()
+                    _write(
+                        skill / "scripts" / f"implicit-discovery-{index}.py",
+                        content,
+                    )
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile=profile,
+                    )
+
+                    findings = [
+                        finding
+                        for finding in report["findings"]
+                        if finding["code"] == "RUNTIME_LOCAL_COORDINATE"
+                    ]
+                    self.assertEqual(len(findings), 1)
+                    self.assertIn(marker_class, findings[0]["message"])
+                    self.assertEqual(
+                        findings[0]["evidence"]["marker_classes"],
+                        [marker_class],
+                    )
 
     def test_runtime_coordinate_gate_allows_declared_non_text_binary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

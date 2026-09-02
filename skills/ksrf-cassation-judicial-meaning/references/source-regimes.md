@@ -52,7 +52,8 @@ Registry содержит контракт `2kas_civil_result_date_search_v1` д
 `source verify-manifest` проверяет структуру и внутреннюю непротиворечивость manifest. Эта команда сама по себе не делает route operational и не закрывает denominator:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py source verify-manifest \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" source verify-manifest \
   --input ./enumerator-candidate.json \
   --output ./enumerator-candidate.validated.json
 ```
@@ -70,7 +71,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py source verify-manifest \
 Там же нужны проверенные `adapter_id` и точный `closure_rule`. Promotion требует identified reviewer и ISO timestamp:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py source promote-enumerator \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" source promote-enumerator \
   --manifest ./enumerator-candidate.validated.json \
   --verification ./enumerator-verification.json \
   --reviewer "И.И. Иванов" \
@@ -85,7 +87,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py source promote-enumerator \
 Подготовьте JSON/JSONL с manifests, observations и route coverage, затем выполните:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py source reconcile \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" source reconcile \
   --manifests ./enumerator-manifests.json \
   --observations ./source-observations.jsonl \
   --route-coverage ./route-coverage.jsonl \

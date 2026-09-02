@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T04:18:56Z",
+  "generated_at": "2026-09-02T04:57:45Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "5ce86d479a8afc8339244710400819cdf6869c04",
+  "remote_base_commit": "be97aff33e0895976fe810b313453362301c0ec7",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,14 +28,14 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 234,
-  "total_bytes": 8022354,
-  "tree_sha256": "d3193937fd539c7d4142c05f3312620ddba4a1de6f8f43cce187c23e43ca2654",
+  "total_bytes": 8035436,
+  "tree_sha256": "5170d0355279f9e13ae3d04aa01dc40f2caf77c52777b0e94bf3ef537ec14856",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
       "files": 32,
-      "bytes": 3891140,
-      "tree_sha256": "2ae2d0e182ba9631366c98b2eb83e0f2f0cc0ccc11b14ea04e449c6f40f6528d"
+      "bytes": 3891205,
+      "tree_sha256": "25d6305770ac7ed3bd509841a69555dd03b229a07c562a5a41b07cdb2652c91c"
     },
     {
       "name": "ksrf-case-triage",
@@ -46,14 +46,14 @@
     {
       "name": "ksrf-cassation-judicial-meaning",
       "files": 32,
-      "bytes": 925063,
-      "tree_sha256": "3f87c0b2368c42cd3d0ffee4400cf1e5d4c543d24a33cce8d8a74ee1180837c9"
+      "bytes": 928343,
+      "tree_sha256": "b6ddd96f26489e96bce96a1ccf6604422d7b6db43f6ab99b33bec54769e33bf5"
     },
     {
       "name": "ksrf-complaint-cycle",
       "files": 90,
-      "bytes": 2047455,
-      "tree_sha256": "79dd9ebf278e91f542e061aa19eb35aba3f44cd08fdbdb467bdeee476c20bfce"
+      "bytes": 2051763,
+      "tree_sha256": "aaef88c468d7e8334d81a4178912313773d82b29b79d0e13bc46bae3b9d36b04"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -82,14 +82,14 @@
     {
       "name": "ksrf-doctrine-research",
       "files": 10,
-      "bytes": 169577,
-      "tree_sha256": "7881a8a046acec4ae2bb82e9997d6fd2b3a34334bed1a3557273dd6626b5174c"
+      "bytes": 169807,
+      "tree_sha256": "3af2ebd5fc268e562b6a6a35776952b019cd04436503b8914ab8ade29f71b24e"
     },
     {
       "name": "ksrf-echr-argumentation",
       "files": 9,
-      "bytes": 73284,
-      "tree_sha256": "7ce14fe256535b3480a3ff6770b7562cd27e5890e4149c813f62fb640aa2cc94"
+      "bytes": 78216,
+      "tree_sha256": "db9258475e7a5b164a0d814203d3799c3bc04e74ab91c66825816b61d1408ee6"
     },
     {
       "name": "ksrf-exhaustion-planner",
@@ -100,8 +100,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 9,
-      "bytes": 118157,
-      "tree_sha256": "30bf427f3c92b98f629cef58ecdf6796c0792244c943006bcff392dd246175f4"
+      "bytes": 118328,
+      "tree_sha256": "3770113841976c227cd76e9df46b6cfad46eb064d75a00d01c54006b46cc4955"
     },
     {
       "name": "ksrf-formal-filing-check",
@@ -112,8 +112,8 @@
     {
       "name": "ksrf-practice-authority-builder",
       "files": 9,
-      "bytes": 110953,
-      "tree_sha256": "2428f799fab7042073f3b8bc627af85a63014bdafe77e00df33f4471d5b20674"
+      "bytes": 111049,
+      "tree_sha256": "ce823cb0fdaadbf60aca79087104806baf26c6d584c1f75a0c6878dfbe2733f7"
     },
     {
       "name": "ksrf-rights-argument-builder",
@@ -124,13 +124,13 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 193459,
-  "release_tree_sha256": "afe11148478193f80ef30f8af08beac7ee82d0d2ff747c984dc62f550b613851",
+  "total_release_bytes": 193585,
+  "release_tree_sha256": "58063e5f8096842d433a895f874c6de6b124e52910609e0be34c1d5a4e0a35cd",
   "release_files": [
     {
       "path": "install.sh",
-      "bytes": 1623,
-      "sha256": "fa0e5be2794266503e1da8f15d9b71d1171329c885864cac2952d237a569cb13"
+      "bytes": 1749,
+      "sha256": "6896587a2fc5188003e6c0c7718cca23a36590921fef74acb7594e0db54236b9"
     },
     {
       "path": "tools/generate_skills_manifest.py",

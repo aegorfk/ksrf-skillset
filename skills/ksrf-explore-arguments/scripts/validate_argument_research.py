@@ -132,6 +132,9 @@ def validate(payload: dict[str, Any]) -> list[str]:
 
 
 def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] in {"-h", "--help"}:
+        print("usage: validate_argument_research.py PATH")
+        return 0
     if len(sys.argv) != 2:
         print("usage: validate_argument_research.py PATH", file=sys.stderr)
         return 2

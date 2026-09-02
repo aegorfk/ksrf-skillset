@@ -143,8 +143,9 @@ cd ksrf-skillset
 После установки исходное состояние — `skills_only`: наличие скиллов ещё не означает, что проверены программы, доступ к источникам и доказательства конкретного дела. Запустите безопасную диагностику; она ничего не устанавливает, не создаёт внешние аккаунты и не отправляет документы:
 
 ```bash
-python3 ~/.codex/skills/ksrf-complaint-cycle/scripts/ksrf.py start --profile basic
-python3 ~/.codex/skills/ksrf-complaint-cycle/scripts/ksrf.py doctor --profile basic
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" start --profile basic
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" doctor --profile basic
 ```
 
 Доступны три профиля: `basic` для локального разбора переданных актов и официальных источников; `research` для расширенного поиска; `expert` для трассировки, приватного корпуса, доверенной проверки решений эксперта и отдельной `outcome-blind` оценки — зарегистрированного прогона, в котором версия сначала получает только заранее зафиксированный вход без известного исхода. Три ретроспективные карточки не являются такими прогонами. Отсутствие Casus Legal, Firecrawl, коммерческой базы, Qdrant или Neo4j не блокирует базовый разбор. Диагностика различает `ready`, `degraded`, `blocked`, `not_configured`, `unavailable`, `interactive_required` и `unknown`, поэтому CAPTCHA, 403 или timeout не превращаются в ложный вывод об отсутствии акта. Без host verifier можно анализировать дело и собирать черновик, но положительные filing-significant переходы и финальный release остаются заблокированы.

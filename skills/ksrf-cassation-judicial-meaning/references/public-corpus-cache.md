@@ -28,10 +28,11 @@ Raw bytes разрешённого официального источника �
 ## 2. Инициализация, ingest и поиск
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache init \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache init \
   --root ./cassation-public-cache
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache register-seed \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache register-seed \
   --root ./cassation-public-cache \
   --url 'https://2kas.sudrf.ru/modules.php?name=sud_delo' \
   --role official_user_seed
@@ -40,7 +41,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache register-seed \
 Возьмите `seed_id` из JSON-ответа. `parser-manifest.json` должен раскрывать как минимум фактически использованные adapter/parser versions. Добавляйте только уже полученные публичные bytes и, при наличии, извлечённый текст:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache ingest \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache ingest \
   --root ./cassation-public-cache \
   --seed-id seed-sha256:<sha256> \
   --raw ./official-act.pdf \
@@ -49,7 +51,7 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache ingest \
   --parser-manifest ./parser-manifest.json \
   --text ./official-act.txt
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache search \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache search \
   --root ./cassation-public-cache \
   --query 'премия статья 135' \
   --limit 20
@@ -68,7 +70,8 @@ SQLite хранит seeds, observations, immutable snapshots, run pins, инде
 Записывайте source/court/period/enumerator dimensions уже на первом событии:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache funnel record \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache funnel record \
   --root ./cassation-public-cache \
   --chain-id 2kas:case-123 \
   --status enumerated \
@@ -78,13 +81,13 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache funnel record \
   --period-id post-2019 \
   --enumerator-id ksoyu_daily_v2
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache funnel record \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache funnel record \
   --root ./cassation-public-cache \
   --chain-id 2kas:case-123 \
   --status card \
   --snapshot-id snapshot-sha256:<sha256>
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache funnel report \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache funnel report \
   --root ./cassation-public-cache
 ```
 
@@ -95,7 +98,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache funnel report \
 Связь акта с постановлением КС РФ, разъяснением ВС РФ или иным authority сначала создаётся как candidate. `target-identity.json` — структурированная идентичность цели, например номер, дата и official URL.
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache treatment discover \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment discover \
   --root ./cassation-public-cache \
   --source-chain-id 2kas:case-123 \
   --source-court-id 2kas \
@@ -109,7 +113,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache treatment discover \
 Допустимые типы: `applies`, `follows`, `distinguishes`, `limits`, `rejects`, `does_not_reach`, `supersedes`, `unclear`. Candidate не имеет доказательственной силы. Для `verified` нужны совпадающий authority ID, подтверждённая structured identity, speaker именно `court`, точная цитата, locator, reviewer и ISO timestamp:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache treatment review \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment review \
   --root ./cassation-public-cache \
   --treatment-id treatment-sha256:<sha256> \
   --decision verified \
@@ -121,11 +126,11 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache treatment review \
   --target-identity-confirmed \
   --reviewed-at 2026-08-27T11:00:00Z
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache treatment list \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment list \
   --root ./cassation-public-cache \
   --verified-only
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache treatment history \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment history \
   --root ./cassation-public-cache \
   --treatment-id treatment-sha256:<sha256>
 ```
@@ -137,12 +142,13 @@ Review и его история неизменяемы. Новая оценка 
 Закрепите точный набор первичных snapshots за публичным запуском:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache pin-run \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache pin-run \
   --root ./cassation-public-cache \
   --run-id public-run-2026-08-27 \
   --snapshot snapshot-sha256:<sha256>
 
-python3 <skill-dir>/scripts/judicial_meaning.py cache export-run \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache export-run \
   --root ./cassation-public-cache \
   --run-id public-run-2026-08-27 \
   --output ./public-package
@@ -153,7 +159,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py cache export-run \
 Импорт сначала fail-closed проверяет manifest digest, object/content hashes, идентификаторы, URL/roles, observations, text provenance, pins, непрерывность funnel и неизменяемость treatment history; лишь затем выполняет идемпотентную запись:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache import-run \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache import-run \
   --root ./restored-public-cache \
   --input ./public-package
 ```
@@ -163,7 +170,8 @@ Roundtrip должен сохранять evidence digest, поиск с provena
 ## 6. Обновление
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py cache refresh-plan \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache refresh-plan \
   --root ./cassation-public-cache \
   --as-of 2026-08-27T12:00:00Z \
   --max-age-seconds 604800

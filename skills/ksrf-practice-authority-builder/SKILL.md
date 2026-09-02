@@ -99,14 +99,14 @@ description: Скилл official-first находит, проверяет и о�
 Проверь JSON:
 
 ```bash
-KSRF_SKILLS_ROOT=/path/to/installed/skills
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" path/to/authority-ledger.json
 ```
 
 Перед передачей в drafting сначала зафиксируй локальное reviewed-решение и проверь структуру ledger:
 
 ```bash
-KSRF_SKILLS_ROOT=/path/to/installed/skills
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" --require-drafting path/to/authority-ledger.json
 ```
 
@@ -115,7 +115,7 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_auth
 Перед публикацией обезличенного ledger проверь утечку токенизированных URL:
 
 ```bash
-KSRF_SKILLS_ROOT=/path/to/installed/skills
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-practice-authority-builder/scripts/validate_authority_ledger.py" --public path/to/authority-ledger.json
 ```
 

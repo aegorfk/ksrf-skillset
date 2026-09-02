@@ -62,3 +62,10 @@ else
 fi
 
 python3 "$repo_dir/tools/install_skillset.py" --repo "$repo_dir" --target "$target"
+
+python3 - "$resolved_target" <<'PY'
+import shlex
+import sys
+
+print(f"export KSRF_SKILLS_ROOT={shlex.quote(sys.argv[1])}")
+PY

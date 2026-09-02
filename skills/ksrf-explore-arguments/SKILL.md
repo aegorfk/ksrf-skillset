@@ -186,7 +186,7 @@ description: Скилл исследует и сравнивает нескол�
 Для машинного обмена проверь JSON командой:
 
 ```bash
-KSRF_SKILLS_ROOT=/path/to/installed/skills
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-explore-arguments/scripts/validate_argument_research.py" path/to/research.json
 ```
 

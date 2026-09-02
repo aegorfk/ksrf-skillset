@@ -19,7 +19,8 @@
 Сначала инвентаризируйте акты заявителя. Команда сохраняет приватную рабочую копию, публично безопасный manifest, SHA-256 и статус извлечения; она не отправляет материалы во внешний корпус.
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py intake \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" intake \
   --workspace ./judicial-meaning-run \
   --inputs ./acts/
 ```
@@ -88,7 +89,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py intake \
 Используйте фактический `document_id` из manifest:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py case prepare \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" case prepare \
   --workspace ./judicial-meaning-run \
   --answers ./case-answers.json
 ```
@@ -102,17 +104,18 @@ python3 <skill-dir>/scripts/judicial_meaning.py case prepare \
 Просмотрите `query-suggestions.jsonl` и до freeze явно примите каждый нужный ID. `--query-id` можно повторять:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py query accept \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" query accept \
   --workspace ./judicial-meaning-run \
   --query-id query-1111111111111111 \
   --query-id query-2222222222222222 \
   --reviewer "И.И. Иванов" \
   --confirmed-at 2026-08-27T10:00:00Z
 
-python3 <skill-dir>/scripts/judicial_meaning.py plan template \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" plan template \
   --workspace ./judicial-meaning-run
 
-python3 <skill-dir>/scripts/judicial_meaning.py plan freeze \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" plan freeze \
   --workspace ./judicial-meaning-run \
   --plan ./judicial-meaning-run/research-plan.json
 ```
@@ -120,7 +123,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py plan freeze \
 Принятые запросы получают `accepted_pre_freeze` и входят в `plan_sha256`. После freeze `query accept` запрещён. Новая проверочная формулировка добавляется только как `post_freeze_supplemental`; она входит в evidence trail, но имеет `changes_original_denominator=false` и не переопределяет исходную совокупность:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py query supplement \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" query supplement \
   --workspace ./judicial-meaning-run \
   --lane opposite_reading \
   --query 'ст. 135 ТК РФ выплата не входит в заработную плату' \
@@ -149,7 +153,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py query supplement \
 Довод стороны, упоминание нормы и чужая цитата без принятия судом не становятся позицией суда.
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py position check \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" position check \
   --input ./position-card.json \
   --workspace ./judicial-meaning-run
 ```
@@ -161,7 +166,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py position check \
 Сначала сравните все материальные признаки. При нескольких карточках обязательно укажите ID:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py compare \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" compare \
   --applicant ./judicial-meaning-run/case-fingerprint.json \
   --candidate ./candidate-features.json \
   --workspace ./judicial-meaning-run \
@@ -177,7 +183,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py compare \
 После этого отдельно классифицируйте отношение reading family к позиции заявителя:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py relation classify \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" relation classify \
   --position-card ./position-card.json \
   --comparison ./judicial-meaning-run/case-comparison.json \
   --applicant-position ./applicant-position.json \
@@ -191,7 +198,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py relation classify \
 Очередь может приоритизировать проверку, но не удалять кандидатов:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py queue build \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" queue build \
   --candidates ./screening-candidates.jsonl \
   --resolutions ./candidate-resolutions.json \
   --quotas ./review-quotas.json \
@@ -210,7 +218,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py queue build \
 Для каждой корзины JSON-карты должны содержать: выполненные query IDs; список неразрешённых сегментов; текстовое влияние результата или пробела на максимально допустимый вывод. Корзина завершена только при непустом списке выполненных запросов, пустом списке unresolved и непустом `maximum_claim_effect`.
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py adverse build \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" adverse build \
   --cards ./judicial-meaning-run/position-cards.jsonl \
   --searched-buckets opposite_reading narrower_reading alternative_ground later_authority \
   --completed-buckets opposite_reading narrower_reading alternative_ground later_authority \
@@ -236,7 +245,8 @@ python3 <skill-dir>/scripts/judicial_meaning.py adverse build \
 Supporting card допускается только при `speaker=court`, `necessary_to_outcome`, текущем одобренном `matched`-сравнении и relation `supports`. Adverse card требует одобренную карточку, `matched` и relation `adverse`.
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py bridge check \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" bridge check \
   --input ./normative-bridge.json \
   --workspace ./judicial-meaning-run \
   --maximum-permitted-claim corroborated_observed_corpus
@@ -247,13 +257,14 @@ python3 <skill-dir>/scripts/judicial_meaning.py bridge check \
 ## 8. Статус, отчёт, validation и handoff
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py status \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" status \
   --workspace ./judicial-meaning-run
 
-python3 <skill-dir>/scripts/judicial_meaning.py report \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" report \
   --workspace ./judicial-meaning-run
 
-python3 <skill-dir>/scripts/judicial_meaning.py validate \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" validate \
   --workspace ./judicial-meaning-run \
   --require-thesis-ready
 ```
