@@ -2781,7 +2781,7 @@ def _shell_command_values_are_printable(*values: str) -> bool:
     return all(character.isprintable() for value in values for character in value)
 
 
-def _status_runtime_freshness_action(target: Path) -> str:
+def _status_runtime_verification_action(target: Path) -> str:
     installer_entrypoint = Path(__file__).resolve().parents[1] / "install.sh"
     command_values = (str(installer_entrypoint), str(target))
     if not _shell_command_values_are_printable(*command_values):
@@ -2800,7 +2800,15 @@ def _status_runtime_freshness_action(target: Path) -> str:
             "репозитория. Обновите репозиторий до опубликованного main, затем "
             "повторите проверку или обычную установку."
         )
-    command = shlex.join(
+    offline_command = shlex.join(
+        [
+            str(installer_entrypoint),
+            "--verify",
+            "--target",
+            str(target),
+        ]
+    )
+    online_command = shlex.join(
         [
             str(installer_entrypoint),
             "--verify-current",
@@ -2809,10 +2817,13 @@ def _status_runtime_freshness_action(target: Path) -> str:
         ]
     )
     return (
-        f"Команда проверки: {command}\n"
-        "Код 10 означает известное отличие содержимого, код 20 — пробел сети "
-        "или проверки; ни один из них не подтверждает актуальность. Обновление "
-        "выполняется отдельно обычной установкой из опубликованного main."
+        f"Сначала — проверка содержимого без сети: {offline_command}\n"
+        "При необходимости — сравнение с текущей опубликованной версией "
+        "(нужна сеть): "
+        f"{online_command}\n"
+        "Первая команда проверяет установленное содержимое. Вторая только "
+        "сравнивает его с опубликованной версией и ничего не обновляет; "
+        "обновление запускается отдельно обычной установкой."
     )
 
 
@@ -2861,7 +2872,7 @@ def _status_report(
         ),
     }
     recommended_action = (
-        _status_runtime_freshness_action(target)
+        _status_runtime_verification_action(target)
         if status_name == "clean"
         else actions[status_name]
     )

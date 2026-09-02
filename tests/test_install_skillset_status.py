@@ -377,7 +377,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(incomplete["managed_skills"]["missing"], [missing_name])
             self.assertEqual(_snapshot(target), partial_before)
 
-    def test_clean_status_points_to_separate_runtime_freshness_check(self) -> None:
+    def test_clean_status_recommends_offline_then_optional_online_checks(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             source = _make_source(root, "A")
@@ -396,6 +396,16 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     "copy_skillset",
                     side_effect=AssertionError("status must not install"),
                 ),
+                patch.object(
+                    installer,
+                    "verify_installed_skillset",
+                    side_effect=AssertionError("status must not execute verification"),
+                ),
+                patch.object(
+                    installer,
+                    "_load_repo_verification_policy",
+                    side_effect=AssertionError("status must not load validator policy"),
+                ),
             ):
                 report = _status(target)
                 human = installer.render_installation_status(report)
@@ -407,13 +417,29 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertIn("содержим", str(report["message"]).lower())
             self.assertIn("актуальност", str(report["message"]).lower())
             action = str(report["recommended_action"])
-            command_line = action.splitlines()[0]
-            self.assertTrue(command_line.startswith("Команда проверки: "))
-            command = shlex.split(command_line.removeprefix("Команда проверки: "))
+            action_lines = action.splitlines()
+            offline_prefix = "Сначала — проверка содержимого без сети: "
+            online_prefix = (
+                "При необходимости — сравнение с текущей опубликованной версией "
+                "(нужна сеть): "
+            )
+            self.assertTrue(action_lines[0].startswith(offline_prefix))
+            self.assertTrue(action_lines[1].startswith(online_prefix))
+            offline_command = shlex.split(action_lines[0].removeprefix(offline_prefix))
+            online_command = shlex.split(action_lines[1].removeprefix(online_prefix))
             installer_entrypoint = REPO / "install.sh"
             self.assertTrue(installer_entrypoint.is_file())
             self.assertEqual(
-                command,
+                offline_command,
+                [
+                    str(installer_entrypoint),
+                    "--verify",
+                    "--target",
+                    str(installer._absolute_without_resolving(target)),
+                ],
+            )
+            self.assertEqual(
+                online_command,
                 [
                     str(installer_entrypoint),
                     "--verify-current",
@@ -421,46 +447,156 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     str(installer._absolute_without_resolving(target)),
                 ],
             )
+            self.assertLess(action.index(offline_prefix), action.index(online_prefix))
+            self.assertIn("без сети", action.lower())
+            self.assertIn("нужна сеть", action.lower())
             self.assertIn("--verify-current", action)
+            self.assertNotIn("main", action)
+            self.assertNotIn("коды 10", action)
             self.assertNotIn("подтверждается обычной установкой", action)
             self.assertIn("Что делать:", human)
+            self.assertIn("--verify", human)
             self.assertIn("--verify-current", human)
             self.assertEqual(_snapshot(target), before)
+
+    def test_clean_json_preserves_schema_while_exposing_ordered_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = _make_source(root, "A")
+            target = root / "target with spaces and 'quote'"
+            installer.copy_skillset(source, target)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = installer.main(
+                    ["--status", "--target", str(target), "--json"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(
+                set(report),
+                {
+                    "schema_version",
+                    "status",
+                    "severity",
+                    "exit_code",
+                    "reason_code",
+                    "target",
+                    "target_exists",
+                    "managed_skills",
+                    "transaction",
+                    "message",
+                    "recommended_action",
+                    "observation",
+                },
+            )
+            action_lines = str(report["recommended_action"]).splitlines()
+            offline_prefix = "Сначала — проверка содержимого без сети: "
+            online_prefix = (
+                "При необходимости — сравнение с текущей опубликованной версией "
+                "(нужна сеть): "
+            )
+            offline_command = shlex.split(
+                action_lines[0].removeprefix(offline_prefix)
+            )
+            online_command = shlex.split(
+                action_lines[1].removeprefix(online_prefix)
+            )
+            exact_target = str(installer._absolute_without_resolving(target))
+            self.assertEqual(offline_command[-3:], ["--verify", "--target", exact_target])
+            self.assertEqual(
+                online_command[-3:], ["--verify-current", "--target", exact_target]
+            )
+            self.assertEqual(offline_command[0], online_command[0])
+            self.assertFalse(report["observation"]["explicit_mutations_performed"])
 
     def test_clean_guidance_has_honest_fallback_without_repo_entrypoint(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             detached_tool = Path(raw) / "tools" / "install_skillset.py"
             with patch.object(installer, "__file__", str(detached_tool)):
-                action = installer._status_runtime_freshness_action(
+                action = installer._status_runtime_verification_action(
                     Path(raw) / "skills"
                 )
 
             self.assertIn("недоступна", action)
             self.assertIn("Обновите репозиторий", action)
-            self.assertNotIn("Команда проверки:", action)
+            self.assertNotIn("--verify", action)
 
     def test_clean_guidance_does_not_emit_non_executable_entrypoint(self) -> None:
         with patch.object(installer.os, "access", return_value=False):
-            action = installer._status_runtime_freshness_action(
+            action = installer._status_runtime_verification_action(
                 Path("/tmp/ksrf-runtime-target")
             )
 
         self.assertIn("недоступна", action)
         self.assertIn("Обновите репозиторий", action)
-        self.assertNotIn("Команда проверки:", action)
+        self.assertNotIn("--verify", action)
+
+    def test_clean_guidance_does_not_emit_symlinked_entrypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            tools = root / "tools"
+            tools.mkdir()
+            detached_tool = tools / "install_skillset.py"
+            actual_entrypoint = root / "actual-installer.sh"
+            actual_entrypoint.write_text("#!/bin/sh\n", encoding="utf-8")
+            actual_entrypoint.chmod(0o755)
+            (root / "install.sh").symlink_to(actual_entrypoint)
+
+            with patch.object(installer, "__file__", str(detached_tool)):
+                action = installer._status_runtime_verification_action(
+                    root / "skills"
+                )
+
+        self.assertIn("недоступна", action)
+        self.assertNotIn("--verify", action)
 
     def test_clean_guidance_rejects_control_characters_without_line_spoofing(
         self,
     ) -> None:
+        actions: set[str] = set()
         for marker in ("\nЛОЖНЫЙ УСПЕХ", "\rподмена", "\x1b[31mкрасный", "\tсдвиг"):
             with self.subTest(marker=repr(marker)):
-                action = installer._status_runtime_freshness_action(
+                action = installer._status_runtime_verification_action(
                     Path("/tmp/ksrf-runtime" + marker)
                 )
+                actions.add(action)
 
                 self.assertIn("сформировать нельзя", action)
-                self.assertNotIn("Команда проверки:", action)
+                self.assertNotIn("--verify", action)
                 self.assertNotIn(marker, action)
+        self.assertEqual(len(actions), 1)
+
+    def test_non_clean_actions_are_unchanged_and_do_not_inspect_entrypoint(self) -> None:
+        expected_actions = {
+            "not_installed": "Запустите обычную установку из опубликованного набора.",
+            "incomplete": "Запустите обычную установку, чтобы восстановить полный набор.",
+            "recovery_required": (
+                "Если установка ещё выполняется, дождитесь её завершения и повторите "
+                "проверку; иначе запустите обычную установку для проверенного восстановления."
+            ),
+            "unsafe": (
+                "Не удаляйте служебные данные вручную; сохраните найденные доказательства "
+                "и проверьте путь или журнал перед новой установкой."
+            ),
+        }
+
+        with patch.object(
+            installer,
+            "_status_runtime_verification_action",
+            side_effect=AssertionError("non-clean status must not inspect entrypoint"),
+        ):
+            for status_name, expected_action in expected_actions.items():
+                with self.subTest(status=status_name):
+                    report = installer._status_report(
+                        status_name,
+                        Path("/tmp/ksrf-status-target"),
+                        target_exists=status_name != "not_installed",
+                    )
+                    self.assertEqual(report["recommended_action"], expected_action)
 
     def test_status_and_verify_preflight_escape_control_characters_end_to_end(
         self,
@@ -495,12 +631,12 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
     def test_clean_guidance_does_not_emit_dead_command_for_non_utf8_target(self) -> None:
         target = Path(os.fsdecode(b"/tmp/ksrf-status-\xff"))
 
-        action = installer._status_runtime_freshness_action(target)
+        action = installer._status_runtime_verification_action(target)
 
         self.assertIn("непечатаемые байты", action)
         self.assertIn("сформировать нельзя", action)
         self.assertIn("UTF-8-пути", action)
-        self.assertNotIn("Команда проверки:", action)
+        self.assertNotIn("--verify", action)
 
     def test_status_never_creates_or_locks_persistent_lock_file(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
