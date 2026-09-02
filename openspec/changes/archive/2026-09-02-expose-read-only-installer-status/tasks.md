@@ -34,7 +34,7 @@
 
 ## 6. Publication
 
-- [ ] 6.1 Commit the isolated change and push the feature branch.
-- [ ] 6.2 Merge through the approved publication workflow, push `main`, and confirm the exact live remote SHA.
-- [ ] 6.3 Install the exact published `main` globally and verify runtime/offline status plus the installed tree hash.
-- [ ] 6.4 Archive this OpenSpec change only after publication and global-install evidence are complete.
+- [x] 6.1 Commit the isolated change and push the feature branch.
+- [x] 6.2 Merge through the approved publication workflow, push `main`, and confirm the exact live remote SHA.
+- [x] 6.3 Install the exact published `main` globally and verify runtime/offline status plus the installed tree hash.
+- [x] 6.4 Archive this OpenSpec change only after publication and global-install evidence are complete.
