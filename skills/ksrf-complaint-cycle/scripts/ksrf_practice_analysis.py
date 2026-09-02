@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 import threading
 import time
 import uuid
@@ -3400,6 +3401,79 @@ def _print_json(value: Any, *, stream: Any = None) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True), file=stream or sys.stdout)
 
 
+class _RussianHelpFormatter(argparse.HelpFormatter):
+    """Переносить справку по словам, не разрывая пути и машинные токены."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        if self._width < 72:
+            self._max_help_position = max(14, self._width - 42)
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        normalized = self._whitespace_matcher.sub(" ", text).strip()
+        return textwrap.wrap(
+            normalized,
+            width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
+        normalized = self._whitespace_matcher.sub(" ", text).strip()
+        return textwrap.fill(
+            normalized,
+            width,
+            initial_indent=indent,
+            subsequent_indent=indent,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+
+    def _format_usage(
+        self,
+        usage: str | None,
+        actions: Sequence[argparse.Action],
+        groups: Sequence[argparse._MutuallyExclusiveGroup],
+        prefix: str | None,
+    ) -> str:
+        localized_prefix = prefix or "Использование: "
+        if usage is not None or not actions or groups:
+            return super()._format_usage(
+                usage,
+                actions,
+                groups,
+                localized_prefix,
+            )
+
+        prog = self._prog
+        action_usage = self._format_actions_usage(actions, groups)
+        one_line = " ".join(item for item in (prog, action_usage) if item)
+        text_width = self._width - self._current_indent
+        if len(localized_prefix) + len(one_line) <= text_width:
+            return f"{localized_prefix}{one_line}\n\n"
+
+        indent = " " * len(localized_prefix)
+        action_parts = [
+            self._format_actions_usage([action], [])
+            for action in actions
+        ]
+        lines = [f"{localized_prefix}{prog}"]
+        current: list[str] = []
+        current_length = len(indent)
+        for part in action_parts:
+            additional = len(part) + (1 if current else 0)
+            if current and current_length + additional > text_width:
+                lines.append(indent + " ".join(current))
+                current = []
+                current_length = len(indent)
+                additional = len(part)
+            current.append(part)
+            current_length += additional
+        if current:
+            lines.append(indent + " ".join(current))
+        return "\n".join(lines) + "\n\n"
+
+
 class _RussianArgumentParser(argparse.ArgumentParser):
     """Показывать русскую справку, не меняя usage и ошибки выполнения."""
 
@@ -3428,6 +3502,7 @@ class _RussianArgumentParser(argparse.ArgumentParser):
         "finding_id": "ИДЕНТИФИКАТОР",
         "wording_text": "ТЕКСТ",
         "wording_source": "ФАЙЛ_ИСТОЧНИКА",
+        "decision": "РЕШЕНИЕ",
         "as_of": "ДАТА_ГГГГ-ММ-ДД",
         "official_check_ref": "ССЫЛКА",
         "corpus_cutoff": "ДАТА",
@@ -3448,11 +3523,14 @@ class _RussianArgumentParser(argparse.ArgumentParser):
             for action in self._actions
             if action.dest in self._HELP_METAVARS
         ]
+        original_formatter_class = self.formatter_class
+        self.formatter_class = _RussianHelpFormatter
         for action, _metavar in localized:
             action.metavar = self._HELP_METAVARS[action.dest]
         try:
             rendered = super().format_help()
         finally:
+            self.formatter_class = original_formatter_class
             for action, metavar in localized:
                 action.metavar = metavar
         return (
@@ -3485,10 +3563,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help=init_description,
         description=init_description,
     )
-    init.add_argument("--workspace", required=True)
-    init.add_argument("--case-id", required=True)
-    init.add_argument("--case-file", required=True)
-    init.add_argument("--argument-research")
+    init.add_argument(
+        "--workspace",
+        required=True,
+        help="Корневая папка дела; команда создаст в ней подпапку practice-analysis.",
+    )
+    init.add_argument(
+        "--case-id",
+        required=True,
+        help=(
+            "Непустой идентификатор дела; повторный запуск init разрешён "
+            "только с тем же значением."
+        ),
+    )
+    init.add_argument(
+        "--case-file",
+        required=True,
+        help=(
+            "JSON-файл CaseFile с данными дела; путь и контрольная сумма "
+            "сохраняются в привязке."
+        ),
+    )
+    init.add_argument(
+        "--argument-research",
+        help=(
+            "Необязательный JSON-файл ArgumentResearch с гипотезами; без флага "
+            "привязка гипотез очищается."
+        ),
+    )
 
     scan_description = "Найти утверждения, требующие проверки судебной практикой."
     scan = sub.add_parser(
@@ -3496,8 +3598,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help=scan_description,
         description=scan_description,
     )
-    scan.add_argument("--workspace", required=True)
-    scan.add_argument("--input", required=True)
+    scan.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела после init; результаты сканирования "
+            "сохраняются в practice-analysis."
+        ),
+    )
+    scan.add_argument(
+        "--input",
+        required=True,
+        help="Файл с утверждениями: JSON, UTF-8 TXT/MD или DOCX.",
+    )
 
     claim_description = "Проверить вручную, требуется ли анализ судебной практики."
     claim = sub.add_parser(
@@ -3514,8 +3627,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help=claim_review_description,
         description=claim_review_description,
     )
-    claim_review.add_argument("--workspace", required=True)
-    claim_review.add_argument("--claim-id", required=True)
+    claim_review.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела после scan; решение записывается в журнал "
+            "practice-analysis."
+        ),
+    )
+    claim_review.add_argument(
+        "--claim-id",
+        required=True,
+        help=(
+            "Локальный идентификатор активного утверждения из scan или status, "
+            "не внешний псевдоним."
+        ),
+    )
     claim_review.add_argument(
         "--decision",
         choices=("required", "not-required", "not_required"),
@@ -3525,8 +3652,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "not-required или not_required — анализ не нужен."
         ),
     )
-    claim_review.add_argument("--reviewer", required=True)
-    claim_review.add_argument("--reason", required=True)
+    claim_review.add_argument(
+        "--reviewer",
+        required=True,
+        help=(
+            "Имя или идентификатор проверяющего; сохраняется в журнале решения."
+        ),
+    )
+    claim_review.add_argument(
+        "--reason",
+        required=True,
+        help="Непустое обоснование ручного решения; сохраняется в журнале.",
+    )
 
     request_description = "Подготовить нейтральный запрос для исследования практики."
     request = sub.add_parser(
@@ -3543,9 +3680,31 @@ def _build_parser() -> argparse.ArgumentParser:
         help=request_create_description,
         description=request_create_description,
     )
-    request_create.add_argument("--workspace", required=True)
-    request_create.add_argument("--claim-id", action="append")
-    request_create.add_argument("--output")
+    request_create.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; запрос сохраняется в "
+            "practice-analysis/requests."
+        ),
+    )
+    request_create.add_argument(
+        "--claim-id",
+        action="append",
+        help=(
+            "Локальный ID утверждения; флаг можно повторять. Без него берутся "
+            "все required (анализ нужен), blocked (есть блокирующая проблема) "
+            "и stale (данные или привязки устарели); внешний запрос при "
+            "необходимости использует псевдоним."
+        ),
+    )
+    request_create.add_argument(
+        "--output",
+        help=(
+            "Дополнительный JSON-файл для копии запроса; основная копия всегда "
+            "сохраняется в рабочей папке."
+        ),
+    )
 
     run_description = (
         "Связать запрос с рабочей папкой исследования кассационной практики."
@@ -3557,19 +3716,47 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run_sub = run.add_subparsers(dest="run_command", required=True)
     run_attach_description = (
-        "Связать запрос с результатами исследования кассационной практики."
+        "Передать запрос в рабочую папку исследования кассационной практики."
     )
     run_attach = run_sub.add_parser(
         "attach",
         help=run_attach_description,
         description=run_attach_description,
     )
-    run_attach.add_argument("--workspace", required=True)
-    run_attach.add_argument("--request-id", required=True)
-    run_attach.add_argument("--cassation-workspace", required=True)
-    run_attach.add_argument("--skills-root")
+    run_attach.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; событие привязки записывается в "
+            "practice-analysis/run-attachments.jsonl."
+        ),
+    )
+    run_attach.add_argument(
+        "--request-id",
+        required=True,
+        help=(
+            "Идентификатор запроса handoff_id: SHA-256 в нижнем регистре из "
+            "request create."
+        ),
+    )
+    run_attach.add_argument(
+        "--cassation-workspace",
+        required=True,
+        help=(
+            "Рабочая папка исследования кассационной практики; если CLI найден, "
+            "папка создаётся и используется для handoff-inbox.jsonl. Привязка "
+            "не одобряет выводы исследования."
+        ),
+    )
+    run_attach.add_argument(
+        "--skills-root",
+        help=(
+            "Общая папка с каталогом ksrf-cassation-judicial-meaning; по "
+            "умолчанию берётся каталог на два уровня выше текущего скрипта."
+        ),
+    )
 
-    result_description = "Импортировать проверенный результат исследования."
+    result_description = "Импортировать результат исследования для проверки привязок."
     result = sub.add_parser(
         "result",
         help=result_description,
@@ -3577,18 +3764,54 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     result_sub = result.add_subparsers(dest="result_command", required=True)
     result_import_description = (
-        "Импортировать проверенный результат и проверить его привязки."
+        "Проверить и импортировать результат; недоверенный результат сохраняется "
+        "только для аудита."
     )
     result_import = result_sub.add_parser(
         "import",
         help=result_import_description,
         description=result_import_description,
     )
-    result_import.add_argument("--workspace", required=True)
-    result_import.add_argument("--input", required=True)
-    result_import.add_argument("--request-id", required=True)
-    result_import.add_argument("--trusted-source-workspace")
-    result_import.add_argument("--skills-root")
+    result_import.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; импорт сохраняется в "
+            "practice-analysis/results и журнале result-imports.jsonl."
+        ),
+    )
+    result_import.add_argument(
+        "--input",
+        required=True,
+        help=(
+            "JSON-файл результата исследования; после проверки сохраняется и "
+            "при статусе «только для аудита»."
+        ),
+    )
+    result_import.add_argument(
+        "--request-id",
+        required=True,
+        help=(
+            "Идентификатор исходного запроса handoff_id: SHA-256 в нижнем "
+            "регистре."
+        ),
+    )
+    result_import.add_argument(
+        "--trusted-source-workspace",
+        help=(
+            "Папка-источник для внешней сверки; по умолчанию берётся успешно "
+            "привязанная кассационная папка. Явный путь должен с ней совпадать "
+            "и сам по себе не снимает режим только для аудита."
+        ),
+    )
+    result_import.add_argument(
+        "--skills-root",
+        help=(
+            "Общая папка с каталогом ksrf-cassation-judicial-meaning для "
+            "проверяющего CLI; по умолчанию берётся CLI успешной привязки, "
+            "иначе каталог на два уровня выше текущего скрипта."
+        ),
+    )
 
     wording_description = "Проверить обоснованность итоговой формулировки."
     wording = sub.add_parser(
@@ -3605,9 +3828,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help=wording_review_description,
         description=wording_review_description,
     )
-    wording_review.add_argument("--workspace", required=True)
-    wording_review.add_argument("--claim-id", required=True)
-    wording_review.add_argument("--handoff-id", required=True)
+    wording_review.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; ручная проверка формулировки добавляется в "
+            "practice-analysis/wording-reviews.jsonl."
+        ),
+    )
+    wording_review.add_argument(
+        "--claim-id",
+        required=True,
+        help=(
+            "Локальный ID активного утверждения из scan или status, не внешний "
+            "псевдоним."
+        ),
+    )
+    wording_review.add_argument(
+        "--handoff-id",
+        required=True,
+        help=(
+            "Идентификатор импортированного результата v2 handoff_id, "
+            "пригодного для подготовки текста."
+        ),
+    )
     wording_review.add_argument(
         "--decision",
         choices=(
@@ -3624,11 +3868,46 @@ def _build_parser() -> argparse.ArgumentParser:
             "сильный; unclear — вывод неясен."
         ),
     )
-    wording_review.add_argument("--reviewer", required=True)
-    wording_review.add_argument("--reason", required=True)
-    wording_review.add_argument("--finding-id", action="append", required=True)
-    wording_review.add_argument("--wording-text", required=True)
-    wording_review.add_argument("--wording-source", required=True)
+    wording_review.add_argument(
+        "--reviewer",
+        required=True,
+        help=(
+            "Имя или идентификатор проверяющего; сохраняется в журнале проверки "
+            "формулировки и не означает готовность жалобы к подаче."
+        ),
+    )
+    wording_review.add_argument(
+        "--reason",
+        required=True,
+        help=(
+            "Непустое обоснование решения по формулировке; сохраняется в журнале."
+        ),
+    )
+    wording_review.add_argument(
+        "--finding-id",
+        action="append",
+        required=True,
+        help=(
+            "ID вывода из результата v2; флаг нужно повторить для каждого "
+            "проверяемого вывода."
+        ),
+    )
+    wording_review.add_argument(
+        "--wording-text",
+        required=True,
+        help=(
+            "Точная текущая формулировка утверждения; должна совпадать с "
+            "последним scan и отдельным фрагментом файла-источника."
+        ),
+    )
+    wording_review.add_argument(
+        "--wording-source",
+        required=True,
+        help=(
+            "Файл с этой формулировкой как отдельным фрагментом: JSON, UTF-8 "
+            "TXT/MD или DOCX."
+        ),
+    )
 
     refresh_description = (
         "Зафиксировать проверку актуальности практики перед подачей жалобы."
@@ -3647,17 +3926,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help=refresh_record_description,
         description=refresh_record_description,
     )
-    refresh_record.add_argument("--workspace", required=True)
+    refresh_record.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; после успешной проверки стадии drafting запись "
+            "добавляется в practice-analysis/refreshes.jsonl. Затем для подачи "
+            "нужен новый validate --stage filing."
+        ),
+    )
     refresh_record.add_argument(
         "--as-of",
         required=True,
-        help="Дата проверки в формате ГГГГ-ММ-ДД.",
+        help=(
+            "Дата проверки в формате ГГГГ-ММ-ДД: не в будущем и не старше "
+            "7 дней; не раньше последней проверки формулировки."
+        ),
     )
-    refresh_record.add_argument("--reviewer", required=True)
-    refresh_record.add_argument("--official-check-ref", required=True)
+    refresh_record.add_argument(
+        "--reviewer",
+        required=True,
+        help=(
+            "Имя или идентификатор проверяющего; сохраняется в журнале проверки "
+            "актуальности."
+        ),
+    )
+    refresh_record.add_argument(
+        "--official-check-ref",
+        required=True,
+        help=(
+            "Ссылка, номер или иной реквизит ручной проверки официального "
+            "источника; команда записывает его, но не проверяет автоматически."
+        ),
+    )
     refresh_record.add_argument(
         "--corpus-cutoff",
-        help="Дата, по которую проверен корпус; по умолчанию берётся --as-of.",
+        help=(
+            "Дата, по которую проверен корпус, в формате ГГГГ-ММ-ДД; не позже "
+            "--as-of, по умолчанию равна --as-of."
+        ),
     )
 
     terminal_descriptions = {
@@ -3666,23 +3973,45 @@ def _build_parser() -> argparse.ArgumentParser:
     }
     for name, description in terminal_descriptions.items():
         command = sub.add_parser(name, help=description, description=description)
-        command.add_argument("--workspace", required=True)
+        workspace_help = (
+            "Корневая папка дела; команда пересчитывает и обновляет "
+            "practice-analysis/state.json и claim-index.json."
+            if name == "status"
+            else (
+                "Корневая папка дела; команда записывает итог в "
+                "practice-analysis/validation-report.json."
+            )
+        )
+        command.add_argument("--workspace", required=True, help=workspace_help)
         command.add_argument(
             "--stage",
             choices=STAGES,
             default="drafting",
             help=(
-                "Этап проверки: options, drafting, qa или filing "
-                "(по умолчанию: drafting)."
+                "Этап локальной проверки: options — выбор варианта работы, "
+                "drafting — подготовка текста, qa — контроль качества, filing — "
+                "проверка перед подачей (по умолчанию: drafting). Первые три "
+                "этапа проверяют одно текущее состояние. На filing готовый набор "
+                "утверждений должен иметь связанную с ним проверку актуальности "
+                "не старше 7 дней. Команда не одобряет и не подаёт жалобу."
             ),
         )
-    lint_description = "Проверить структуру и взаимные ссылки файлов анализа."
+    lint_description = (
+        "Проверить структуру, контрольные суммы и цепочки журналов анализа."
+    )
     lint = sub.add_parser(
         "lint",
         help=lint_description,
         description=lint_description,
     )
-    lint.add_argument("--workspace", required=True)
+    lint.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Корневая папка дела; команда только читает и проверяет структуру "
+            "practice-analysis."
+        ),
+    )
     return parser
 
 

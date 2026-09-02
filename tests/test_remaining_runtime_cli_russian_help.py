@@ -264,9 +264,21 @@ REQUIRED_ROUTE_HELP = {
         "too-strong или too_strong",
         "--wording-source ФАЙЛ_ИСТОЧНИКА",
     ),
+    ("practice", ("run", "attach")): (
+        "Передать запрос в рабочую папку исследования кассационной практики",
+    ),
+    ("practice", ("result",)): (
+        "Импортировать результат исследования для проверки привязок",
+    ),
+    ("practice", ("result", "import")): (
+        "недоверенный результат сохраняется только для аудита",
+    ),
     ("practice", ("refresh", "record")): (
         "Дата проверки в формате ГГГГ-ММ-ДД",
-        "по умолчанию берётся --as-of",
+        "по умолчанию равна --as-of",
+    ),
+    ("practice", ("lint",)): (
+        "контрольные суммы и цепочки журналов анализа",
     ),
     ("ksrf", ("sources",)): ("verify — проверить официальные источники",),
     ("ksrf", ("application",)): ("analyze — проанализировать применение нормы",),
@@ -280,26 +292,198 @@ REQUIRED_ROUTE_HELP = {
     ),
 }
 
+REQUIRED_PRACTICE_ACTION_HELP = {
+    (("init",), "workspace"): ("Корневая папка дела", "practice-analysis"),
+    (("init",), "case_id"): ("повторный запуск init", "тем же значением"),
+    (("init",), "case_file"): ("JSON-файл CaseFile", "контрольная сумма"),
+    (("init",), "argument_research"): (
+        "Необязательный JSON-файл ArgumentResearch",
+        "без флага привязка гипотез очищается",
+    ),
+    (("scan",), "workspace"): ("Корневая папка дела после init", "practice-analysis"),
+    (("scan",), "input"): ("JSON", "UTF-8 TXT/MD", "DOCX"),
+    (("claim", "review"), "workspace"): (
+        "Корневая папка дела после scan",
+        "журнал practice-analysis",
+    ),
+    (("claim", "review"), "claim_id"): (
+        "Локальный идентификатор",
+        "не внешний псевдоним",
+    ),
+    (("claim", "review"), "decision"): (
+        "required — анализ практики нужен",
+        "not-required или not_required — анализ не нужен",
+    ),
+    (("claim", "review"), "reviewer"): ("проверяющего", "журнале решения"),
+    (("claim", "review"), "reason"): ("обоснование ручного решения", "журнале"),
+    (("request", "create"), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/requests",
+    ),
+    (("request", "create"), "claim_id"): (
+        "флаг можно повторять",
+        "required (анализ нужен)",
+        "blocked (есть блокирующая проблема)",
+        "stale (данные или привязки устарели)",
+        "псевдоним",
+    ),
+    (("request", "create"), "output"): (
+        "Дополнительный JSON-файл",
+        "основная копия всегда сохраняется в рабочей папке",
+    ),
+    (("run", "attach"), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/run-attachments.jsonl",
+    ),
+    (("run", "attach"), "request_id"): ("handoff_id", "SHA-256", "request create"),
+    (("run", "attach"), "cassation_workspace"): (
+        "если CLI найден, папка создаётся",
+        "handoff-inbox.jsonl",
+        "не одобряет выводы",
+    ),
+    (("run", "attach"), "skills_root"): (
+        "ksrf-cassation-judicial-meaning",
+        "каталог на два уровня выше текущего скрипта",
+    ),
+    (("result", "import"), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/results",
+        "result-imports.jsonl",
+    ),
+    (("result", "import"), "input"): (
+        "JSON-файл результата",
+        "сохраняется",
+        "только для аудита",
+    ),
+    (("result", "import"), "request_id"): ("handoff_id", "SHA-256"),
+    (("result", "import"), "trusted_source_workspace"): (
+        "по умолчанию берётся успешно привязанная кассационная папка",
+        "Явный путь должен с ней совпадать",
+        "сам по себе не снимает режим только для аудита",
+    ),
+    (("result", "import"), "skills_root"): (
+        "Общая папка с каталогом ksrf-cassation-judicial-meaning",
+        "по умолчанию берётся CLI успешной привязки",
+        "каталог на два уровня выше текущего скрипта",
+    ),
+    (("wording", "review"), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/wording-reviews.jsonl",
+    ),
+    (("wording", "review"), "claim_id"): (
+        "Локальный ID активного утверждения",
+        "не внешний псевдоним",
+    ),
+    (("wording", "review"), "handoff_id"): (
+        "импортированного результата v2 handoff_id",
+        "подготовки текста",
+    ),
+    (("wording", "review"), "decision"): (
+        "within-limit или within_limit",
+        "too-strong или too_strong",
+        "unclear",
+    ),
+    (("wording", "review"), "reviewer"): (
+        "проверяющего",
+        "не означает готовность жалобы к подаче",
+    ),
+    (("wording", "review"), "reason"): ("обоснование решения", "журнале"),
+    (("wording", "review"), "finding_id"): (
+        "флаг нужно повторить для каждого проверяемого вывода",
+    ),
+    (("wording", "review"), "wording_text"): (
+        "Точная текущая формулировка",
+        "совпадать с последним scan",
+    ),
+    (("wording", "review"), "wording_source"): (
+        "отдельным фрагментом",
+        "JSON, UTF-8 TXT/MD или DOCX",
+    ),
+    (("refresh", "record"), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/refreshes.jsonl",
+        "validate --stage filing",
+    ),
+    (("refresh", "record"), "as_of"): (
+        "ГГГГ-ММ-ДД",
+        "не в будущем",
+        "не старше 7 дней",
+    ),
+    (("refresh", "record"), "reviewer"): (
+        "проверяющего",
+        "журнале проверки актуальности",
+    ),
+    (("refresh", "record"), "official_check_ref"): (
+        "реквизит ручной проверки официального источника",
+        "не проверяет автоматически",
+    ),
+    (("refresh", "record"), "corpus_cutoff"): (
+        "не позже --as-of",
+        "по умолчанию равна --as-of",
+    ),
+    (("status",), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/state.json",
+        "claim-index.json",
+    ),
+    (("status",), "stage"): (
+        "Этап локальной проверки",
+        "options — выбор варианта работы",
+        "drafting — подготовка текста",
+        "qa — контроль качества",
+        "filing — проверка перед подачей",
+        "по умолчанию: drafting",
+        "готовый набор утверждений",
+        "связанную с ним проверку актуальности",
+        "не старше 7 дней",
+        "не одобряет и не подаёт жалобу",
+    ),
+    (("validate",), "workspace"): (
+        "Корневая папка дела",
+        "practice-analysis/validation-report.json",
+    ),
+    (("validate",), "stage"): (
+        "Этап локальной проверки",
+        "options — выбор варианта работы",
+        "drafting — подготовка текста",
+        "qa — контроль качества",
+        "filing — проверка перед подачей",
+        "по умолчанию: drafting",
+        "готовый набор утверждений",
+        "связанную с ним проверку актуальности",
+        "не старше 7 дней",
+        "не одобряет и не подаёт жалобу",
+    ),
+    (("lint",), "workspace"): (
+        "Корневая папка дела",
+        "только читает",
+        "структуру practice-analysis",
+    ),
+}
+
 _INVENTORY_CODE = r"""
 import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import re
 import sys
 
-repo = Path(sys.argv[1])
+root = Path(sys.argv[1])
+skills_root = root / "skills" if (root / "skills").is_dir() else root
 kind = sys.argv[2]
 if kind == "judicial":
-    sys.path.insert(0, str(repo / "skills" / "ksrf-cassation-judicial-meaning" / "lib"))
+    sys.path.insert(0, str(skills_root / "ksrf-cassation-judicial-meaning" / "lib"))
     from judicial_meaning.cli import build_parser
     parser = build_parser()
 elif kind == "ksrf":
-    sys.path.insert(0, str(repo / "skills" / "ksrf-complaint-cycle" / "lib"))
+    sys.path.insert(0, str(skills_root / "ksrf-complaint-cycle" / "lib"))
     from ksrf.filing.cli import build_parser
     parser = build_parser()
 elif kind == "practice":
-    path = repo / "skills" / "ksrf-complaint-cycle" / "scripts" / "ksrf_practice_analysis.py"
+    path = skills_root / "ksrf-complaint-cycle" / "scripts" / "ksrf_practice_analysis.py"
     spec = importlib.util.spec_from_file_location("practice_cli_help_inventory", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(path)
@@ -307,7 +491,7 @@ elif kind == "practice":
     spec.loader.exec_module(module)
     parser = module._build_parser()
 elif kind == "autocollect":
-    path = repo / "skills" / "ksrf-complaint-cycle" / "scripts" / "ksrf_autocollect.py"
+    path = skills_root / "ksrf-complaint-cycle" / "scripts" / "ksrf_autocollect.py"
     spec = importlib.util.spec_from_file_location("autocollect_cli_help_inventory", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(path)
@@ -387,6 +571,34 @@ walk(parser, [])
 before = state(rows)
 for _route, current in rows:
     current.format_help()
+rendering_violations = []
+if kind == "practice":
+    original_columns = os.environ.get("COLUMNS")
+    try:
+        for width in range(60, 81):
+            os.environ["COLUMNS"] = str(width)
+            for route, current in rows:
+                rendered = current.format_help()
+                line_lengths = [len(line) for line in rendered.splitlines()]
+                split_token = re.search(
+                    r"(?<=[0-9A-Za-zА-Яа-яЁё])-\n\s+"
+                    r"(?=[0-9A-Za-zА-Яа-яЁё])",
+                    rendered,
+                )
+                if max(line_lengths, default=0) > width or split_token is not None:
+                    rendering_violations.append(
+                        {
+                            "route": route,
+                            "width": width,
+                            "max_line": max(line_lengths, default=0),
+                            "split_token": split_token.group(0) if split_token else None,
+                        }
+                    )
+    finally:
+        if original_columns is None:
+            os.environ.pop("COLUMNS", None)
+        else:
+            os.environ["COLUMNS"] = original_columns
 after = state(rows)
 
 contract_json = json.dumps(
@@ -398,6 +610,7 @@ contract_json = json.dumps(
 for route, current in rows:
     value_actions = []
     choice_actions = []
+    public_actions = []
     for action in current._actions:
         if isinstance(action, argparse._SubParsersAction):
             choice_actions.append(
@@ -407,6 +620,15 @@ for route, current in rows:
                 }
             )
             continue
+        if not isinstance(action, argparse._HelpAction):
+            public_actions.append(
+                {
+                    "dest": action.dest,
+                    "options": list(action.option_strings),
+                    "suppressed": action.help is argparse.SUPPRESS,
+                    "help": action.help if isinstance(action.help, str) else None,
+                }
+            )
         if action.choices is not None and action.help is not argparse.SUPPRESS:
             choice_actions.append(
                 {
@@ -436,6 +658,7 @@ for route, current in rows:
             "route": route,
             "value_actions": value_actions,
             "choice_actions": choice_actions,
+            "public_actions": public_actions,
             "description": current.description,
             "has_subparsers": any(
                 isinstance(action, argparse._SubParsersAction)
@@ -459,15 +682,15 @@ print(json.dumps({
     "state_restored": before == after,
     "contract_sha256": hashlib.sha256(contract_json.encode("utf-8")).hexdigest(),
     "hidden_fixture": hidden_fixture,
+    "rendering_violations": rendering_violations,
 }, ensure_ascii=False, sort_keys=True))
 """
 
 
-@functools.lru_cache(maxsize=None)
-def _inventory(kind: str) -> dict[str, object]:
+def _inventory_at(kind: str, root: Path) -> dict[str, object]:
     completed = subprocess.run(
-        [PYTHON, "-c", _INVENTORY_CODE, str(REPO), kind],
-        cwd=REPO,
+        [PYTHON, "-c", _INVENTORY_CODE, str(root), kind],
+        cwd=root,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         text=True,
         capture_output=True,
@@ -476,6 +699,11 @@ def _inventory(kind: str) -> dict[str, object]:
     if completed.returncode != 0:
         raise AssertionError(completed.stderr)
     return json.loads(completed.stdout)
+
+
+@functools.lru_cache(maxsize=None)
+def _inventory(kind: str) -> dict[str, object]:
+    return _inventory_at(kind, REPO)
 
 
 def _normalized(text: str) -> str:
@@ -518,6 +746,86 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
             )
             self.assertEqual(install.returncode, 0, install.stderr)
 
+            practice_inventories = {
+                location: inventory
+                for location, inventory in (
+                    ("source", _inventory("practice")),
+                    ("installed", _inventory_at("practice", installed)),
+                )
+            }
+            practice_action_projections = {}
+            for location, inventory in practice_inventories.items():
+                public_actions = [
+                    (tuple(record["route"]), action)
+                    for record in inventory["records"]
+                    for action in record["public_actions"]
+                ]
+                actions_by_key = {
+                    (route, action["dest"]): action
+                    for route, action in public_actions
+                }
+                practice_action_projections[location] = {
+                    (route, action["dest"], tuple(action["options"])): (
+                        action["suppressed"],
+                        action["help"],
+                    )
+                    for route, action in public_actions
+                }
+                with self.subTest(practice_inventory=location):
+                    self.assertEqual(len(inventory["records"]), 18)
+                    self.assertEqual(
+                        inventory["contract_sha256"],
+                        EXPECTED_CONTRACT_SHA256["practice"],
+                    )
+                    self.assertTrue(inventory["state_restored"])
+                    self.assertEqual(inventory["rendering_violations"], [])
+                    self.assertEqual(len(public_actions), 42)
+                    self.assertEqual(len(actions_by_key), 42)
+                    self.assertEqual(
+                        set(actions_by_key),
+                        set(REQUIRED_PRACTICE_ACTION_HELP),
+                    )
+                    missing_help = [
+                        {
+                            "route": route,
+                            "dest": action["dest"],
+                            "options": action["options"],
+                        }
+                        for route, action in public_actions
+                        if action["suppressed"]
+                        or not isinstance(action["help"], str)
+                        or not action["help"].strip()
+                    ]
+                    self.assertEqual(missing_help, [])
+                    non_russian_help = [
+                        {
+                            "route": route,
+                            "dest": action["dest"],
+                            "options": action["options"],
+                        }
+                        for route, action in public_actions
+                        if isinstance(action["help"], str)
+                        and re.search(r"[А-Яа-яЁё]", action["help"]) is None
+                    ]
+                    self.assertEqual(non_russian_help, [])
+                    for key, required_fragments in REQUIRED_PRACTICE_ACTION_HELP.items():
+                        action = actions_by_key.get(key)
+                        self.assertIsNotNone(action, key)
+                        if action is None or not isinstance(action["help"], str):
+                            continue
+                        for required in required_fragments:
+                            self.assertIn(required, action["help"], key)
+
+            self.assertEqual(
+                practice_action_projections["installed"],
+                practice_action_projections["source"],
+            )
+
+            installed_practice_records = {
+                tuple(record["route"]): record
+                for record in practice_inventories["installed"]["records"]
+            }
+
             all_outputs: list[str] = []
             for kind, source in PARSER_SCRIPTS.items():
                 script = installed / INSTALLED_PACKAGES[kind] / "scripts" / source.name
@@ -525,10 +833,16 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
                 for record in records:
                     route = tuple(record["route"])
                     with self.subTest(kind=kind, route=route):
+                        route_env = {
+                            **os.environ,
+                            "PYTHONDONTWRITEBYTECODE": "1",
+                        }
+                        if kind == "practice":
+                            route_env["COLUMNS"] = "60"
                         completed = subprocess.run(
                             [PYTHON, str(script), *route, "--help"],
                             cwd=root,
-                            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                            env=route_env,
                             text=True,
                             capture_output=True,
                             check=False,
@@ -580,6 +894,27 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
                                 )
                         for required in REQUIRED_ROUTE_HELP.get((kind, route), ()):
                             self.assertIn(required, normalized)
+                        if kind == "practice":
+                            self.assertIsNone(
+                                re.search(
+                                    r"(?<=[0-9A-Za-zА-Яа-яЁё])-\n\s+"
+                                    r"(?=[0-9A-Za-zА-Яа-яЁё])",
+                                    completed.stdout,
+                                ),
+                                completed.stdout,
+                            )
+                            self.assertLessEqual(
+                                max(map(len, completed.stdout.splitlines())),
+                                60,
+                                completed.stdout,
+                            )
+                            for action in installed_practice_records[route]["public_actions"]:
+                                self.assertFalse(action["suppressed"], action)
+                                self.assertIn(
+                                    _normalized(action["help"]),
+                                    normalized,
+                                    {"route": route, "action": action},
+                                )
                         all_outputs.append(completed.stdout)
 
             for kind, source in STANDALONE_SCRIPTS.items():
