@@ -131,7 +131,7 @@ if [[ "$status_mode" == true ]]; then
 fi
 
 if [[ "$resolved_target" == "$resolved_canonical_target" ]]; then
-  python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir"
+  python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir" >/dev/null
 else
   echo "Установка в отдельную папку: глобальные навыки изменены не будут"
 fi

@@ -1,5 +1,7 @@
-from pathlib import Path
+from contextlib import redirect_stdout
+import io
 import json
+from pathlib import Path
 import sys
 import tempfile
 import unittest
@@ -21,6 +23,38 @@ BASE_SHA = "c" * 40
 
 
 class PublicationGuardTests(unittest.TestCase):
+    def test_direct_human_and_json_output_keep_maintainer_evidence(self) -> None:
+        result = {
+            "repository": "aegorfk/ksrf-skillset",
+            "local_sha": SHA,
+            "live_sha": SHA,
+            "manifest_tree_sha256": "tree-sha",
+            "release_tree_sha256": "release-tree-sha",
+            "remote_base_commit": BASE_SHA,
+        }
+        for extra_args, expected in (
+            (
+                [],
+                (
+                    "Verified published KSRF skillset: aegorfk/ksrf-skillset "
+                    f"live_sha={SHA} manifest_tree_sha256=tree-sha "
+                    "release_tree_sha256=release-tree-sha "
+                    f"remote_base_commit={BASE_SHA}\n"
+                ),
+            ),
+            (["--json"], json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n"),
+        ):
+            with self.subTest(extra_args=extra_args), patch.object(
+                guard,
+                "verify_publication_state",
+                return_value=result,
+            ):
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = guard.main(["--repo", ".", *extra_args])
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(stdout.getvalue(), expected)
+
     def test_accepts_expected_github_remote_forms(self) -> None:
         self.assertEqual(
             guard._github_repository("git@github.com:aegorfk/ksrf-skillset.git"),
