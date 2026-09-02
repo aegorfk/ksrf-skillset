@@ -24,5 +24,5 @@
 - [x] 4.1 Pass focused and full tests, strict source/runtime validators, shell syntax, OpenSpec, and diff checks.
 - [x] 4.2 Prove clean-room offline success, validation failure, absence of network access, and no installed tests/evals.
 - [x] 4.3 Obtain independent review with no unresolved P1/P2.
-- [ ] 4.4 Commit/push the feature branch, merge/publish exact `main`, install globally, and verify the live release.
-- [ ] 4.5 Archive the OpenSpec change and publish the final manifest-bound commit.
+- [x] 4.4 Commit/push the feature branch, merge/publish exact `main`, install globally, and verify the live release.
+- [x] 4.5 Archive the OpenSpec change and publish the final manifest-bound commit.
