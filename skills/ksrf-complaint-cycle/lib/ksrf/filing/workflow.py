@@ -16,6 +16,12 @@ import re
 from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import urlparse
 
+from .admissibility import (
+    AdmissibilityContractError,
+    derive_route_recommendation,
+    official_rule_evidence_ids,
+    validate_admissibility_matrix,
+)
 from .adapters import AdapterRequest, ManualImportAdapter
 from .application_evidence import (
     application_record_from_dict,
@@ -32,6 +38,8 @@ from .issue_options import (
     PracticeClaimGate,
     evaluate_issue_gates,
     generate_issue_candidates,
+    issue_candidate_content_fingerprint,
+    issue_candidate_from_dict,
 )
 from .matter import load_matter
 from .source_evidence import (
@@ -57,6 +65,7 @@ HUMAN_ONLY_ACTIONS = (
 )
 ROUTE_TITLES = {
     "sources": "Проверка официальных источников и редакций норм",
+    "admissibility": "Проверка допустимости и выбор маршрута",
     "application": "Доказательство применения нормы",
     "issues": "Варианты конституционно-правовой проблемы",
     "failures": "Корпус неудачных обращений",
@@ -79,6 +88,7 @@ SUPPORTED_ACTIONS = {
             "status",
         }
     ),
+    "admissibility": frozenset({"validate", "derive", "status"}),
     "application": frozenset({"evaluate", "status"}),
     "issues": frozenset({"generate", "status"}),
     "failures": frozenset({"ingest", "search", "coverage"}),
@@ -464,9 +474,19 @@ class WorkflowRouter:
         route_key = str(route).strip().lower()
         action_key = str(action).strip().lower()
         normalized_payload = validate_versioned_payload(payload) if payload is not None else None
+        if (
+            route_key == "admissibility"
+            and action_key in {"validate", "derive"}
+            and normalized_payload is not None
+        ):
+            self._normalized_admissibility_matrix(normalized_payload)
+        defer_input_object = (
+            route_key == "admissibility"
+            and action_key in {"validate", "derive"}
+        )
         input_object = (
             self.objects.put_bytes(canonical_json_bytes(normalized_payload))
-            if normalized_payload is not None
+            if normalized_payload is not None and not defer_input_object
             else None
         )
         if action_key not in SUPPORTED_ACTIONS.get(route_key, frozenset()):
@@ -493,6 +513,10 @@ class WorkflowRouter:
             raise
         except (KeyError, TypeError, ValueError) as exc:
             raise WorkflowInputError(f"Payload этапа {route_key}/{action_key} некорректен: {exc}") from exc
+        if defer_input_object and normalized_payload is not None:
+            input_object = self.objects.put_bytes(
+                canonical_json_bytes(normalized_payload)
+            )
         return self._persist(output, input_object)
 
     def _dispatch_supported(
@@ -506,6 +530,8 @@ class WorkflowRouter:
     ) -> dict[str, Any]:
         if route == "sources":
             return self._sources(action, payload, allow_network=allow_network)
+        if route == "admissibility":
+            return self._admissibility(action, payload)
         if route == "application":
             return self._application(action, payload)
         if route == "issues":
@@ -869,6 +895,381 @@ class WorkflowRouter:
             next_actions=(
                 "Именованный юрист должен сверить полные акты, причинность и исчерпание."
             ,),
+        )
+
+    def _current_admissibility_authority(
+        self,
+        matrix: Mapping[str, Any],
+    ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[dict[str, Any], ...]]:
+        """Resolve every declared official ID against current local authority."""
+
+        current_ids: list[str] = []
+        blockers: list[str] = []
+        checks: list[dict[str, Any]] = []
+        for evidence_id in official_rule_evidence_ids(matrix):
+            resolution = self._resolve_current_source_authority(evidence_id)
+            check_blockers: list[str] = []
+            resolved_exactly_once = isinstance(resolution, Mapping)
+            if not resolved_exactly_once:
+                check_blockers.append("official_evidence_not_resolved_exactly_once")
+                authority: Mapping[str, Any] = {}
+                evidence: Mapping[str, Any] = {}
+            else:
+                raw_evidence = resolution.get("evidence")
+                raw_authority = resolution.get("authority")
+                evidence = raw_evidence if isinstance(raw_evidence, Mapping) else {}
+                authority = raw_authority if isinstance(raw_authority, Mapping) else {}
+                if str(evidence.get("evidence_id") or "") != evidence_id:
+                    check_blockers.append("official_evidence_resolution_mismatch")
+                if not authority:
+                    check_blockers.append("current_official_authority_missing")
+
+            raw_authority_blockers = authority.get("blockers")
+            if isinstance(raw_authority_blockers, Sequence) and not isinstance(
+                raw_authority_blockers, (str, bytes)
+            ):
+                check_blockers.extend(
+                    str(item).strip()
+                    for item in raw_authority_blockers
+                    if str(item).strip()
+                )
+            elif raw_authority_blockers:
+                check_blockers.append("current_official_authority_blockers_invalid")
+            if authority.get("filing_ready") is not True:
+                check_blockers.append("current_official_authority_not_filing_ready")
+
+            normalized_blockers = sorted(set(check_blockers))
+            filing_ready = not normalized_blockers
+            if filing_ready:
+                current_ids.append(evidence_id)
+            else:
+                blockers.extend(
+                    f"{evidence_id}:{blocker}" for blocker in normalized_blockers
+                )
+            checks.append(
+                {
+                    "evidence_id": evidence_id,
+                    "resolved_exactly_once": resolved_exactly_once,
+                    "filing_ready": filing_ready,
+                    "blockers": normalized_blockers,
+                }
+            )
+        return (
+            tuple(sorted(current_ids)),
+            tuple(sorted(set(blockers))),
+            tuple(checks),
+        )
+
+    def _normalized_admissibility_matrix(
+        self,
+        payload: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Validate the matrix and case binding before any input bytes persist."""
+
+        try:
+            normalized = validate_admissibility_matrix(payload)
+        except AdmissibilityContractError as exc:
+            raise WorkflowInputError(f"Матрица допустимости некорректна: {exc}") from exc
+        if normalized["matter_id"] != self.matter["matter_id"]:
+            raise WorkflowInputError(
+                "AdmissibilityMatrix.matter_id не совпадает с matter_id рабочей папки."
+            )
+        return normalized
+
+    def _validate_current_issue_bindings(
+        self,
+        matrix: Mapping[str, Any],
+    ) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
+        """Reopen and independently revalidate every bound issue candidate."""
+
+        bindings = matrix["route_context"]["option_bindings"]
+        if not bindings:
+            return (), ()
+        try:
+            latest_issues, latest_payload = self._latest_operation("issues")
+        except (OSError, ValueError):
+            return (), ("issue_binding_event_unreadable",)
+        if latest_issues is None:
+            return (), ("issue_binding_event_missing",)
+
+        issues_result = latest_issues.get("result")
+        if not isinstance(issues_result, Mapping):
+            return (), ("issue_binding_event_result_invalid",)
+        raw_candidates = issues_result.get("candidates")
+        if not isinstance(raw_candidates, Sequence) or isinstance(
+            raw_candidates, (str, bytes)
+        ):
+            return (), ("issue_binding_candidates_invalid",)
+
+        blockers: list[str] = []
+        if latest_payload is None:
+            blockers.append("issue_binding_event_payload_missing")
+            raw_approval_ids: Mapping[str, Any] = {}
+            approval_as_of: str | None = None
+        else:
+            approval_ids_value = latest_payload.get("approval_ids") or {}
+            if not isinstance(approval_ids_value, Mapping):
+                blockers.append("issue_binding_approval_context_invalid")
+                raw_approval_ids = {}
+            else:
+                raw_approval_ids = approval_ids_value
+            approval_as_of = (
+                str(latest_payload.get("approval_as_of"))
+                if latest_payload.get("approval_as_of")
+                else None
+            )
+
+        candidates_by_id: dict[str, list[tuple[int, Any]]] = {}
+        for index, raw_candidate in enumerate(raw_candidates):
+            if not isinstance(raw_candidate, Mapping):
+                blockers.append(f"issue_binding_candidate_invalid:{index}")
+                continue
+            try:
+                candidate = issue_candidate_from_dict(raw_candidate)
+            except (KeyError, TypeError, ValueError):
+                blockers.append(f"issue_binding_candidate_invalid:{index}")
+                continue
+            candidates_by_id.setdefault(candidate.issue_id, []).append(
+                (index, candidate)
+            )
+
+        checks: list[dict[str, Any]] = []
+        for binding in bindings:
+            option_id = str(binding["option_id"])
+            matches = candidates_by_id.get(option_id, [])
+            if len(matches) != 1:
+                blockers.append(
+                    f"issue_binding_candidate_not_exactly_one:{option_id}"
+                )
+                continue
+
+            candidate_index, candidate = matches[0]
+            binding_blockers: list[str] = []
+            if candidate.claim_id != matrix["claim_id"]:
+                binding_blockers.append(
+                    f"issue_binding_claim_mismatch:{option_id}"
+                )
+
+            expected_fingerprint = issue_candidate_content_fingerprint(candidate)
+            if str(binding["content_fingerprint"]) != expected_fingerprint:
+                binding_blockers.append(
+                    f"issue_binding_fingerprint_mismatch:{option_id}"
+                )
+
+            candidate_approval_value = raw_approval_ids.get(candidate.issue_id) or {}
+            if not isinstance(candidate_approval_value, Mapping):
+                decision = None
+                binding_blockers.append(
+                    "issue_binding_approval_context_invalid"
+                )
+            else:
+                try:
+                    decision = evaluate_issue_gates(
+                        candidate,
+                        approval_ledger=self.approvals,
+                        approval_ids=candidate_approval_value,
+                        approval_as_of=approval_as_of,
+                    )
+                except (KeyError, TypeError, ValueError):
+                    decision = None
+                    binding_blockers.append(
+                        f"issue_binding_candidate_invalid:{candidate_index}"
+                    )
+
+            current_evidence_ids = set(candidate.application_evidence_ids)
+            current_evidence_ids.update(candidate.ksrf_authority_ids)
+            current_evidence_ids.update(candidate.adverse_authority_ids)
+            current_evidence_ids.update(candidate.anti_fourth_instance_gate.evidence_ids)
+            current_evidence_ids.update(candidate.adverse_authority_gate.evidence_ids)
+            current_evidence_ids.update(candidate.remedy_gate.evidence_ids)
+            for practice_claim in candidate.practice_claims:
+                current_evidence_ids.update(practice_claim.evidence_ids)
+                current_evidence_ids.update(practice_claim.counterexample_ids)
+            if decision is not None:
+                for evidence_values in decision.evidence_map.values():
+                    current_evidence_ids.update(evidence_values)
+
+            bound_evidence_ids = {
+                str(value) for value in binding["evidence_ids"]
+            }
+            for evidence_id in sorted(bound_evidence_ids - current_evidence_ids):
+                binding_blockers.append(
+                    f"issue_binding_evidence_not_current:{option_id}:{evidence_id}"
+                )
+
+            current_gate_passed = decision is not None and decision.passed is True
+            if binding["readiness"] == "viable" and not current_gate_passed:
+                binding_blockers.append(
+                    f"issue_binding_viability_unverified:{option_id}"
+                )
+                if decision is not None:
+                    binding_blockers.extend(
+                        f"issue_binding_gate_blocker:{option_id}:{blocker}"
+                        for blocker in decision.blockers
+                    )
+
+            blockers.extend(binding_blockers)
+            checks.append(
+                {
+                    "option_id": option_id,
+                    "claim_id": candidate.claim_id,
+                    "content_fingerprint": expected_fingerprint,
+                    "readiness": str(binding["readiness"]),
+                    "current_gate_passed": current_gate_passed,
+                    "bound_evidence_ids": sorted(bound_evidence_ids),
+                    "current_evidence_ids": sorted(current_evidence_ids),
+                    "blockers": sorted(set(binding_blockers)),
+                }
+            )
+        return tuple(checks), tuple(sorted(set(blockers)))
+
+    def _admissibility(
+        self,
+        action: str,
+        payload: Optional[Mapping[str, Any]],
+        *,
+        allow_stale_issue_bindings: bool = False,
+    ) -> dict[str, Any]:
+        if action == "status":
+            latest, latest_payload = self._latest_operation("admissibility")
+            current = (
+                self._admissibility(
+                    "derive",
+                    latest_payload,
+                    allow_stale_issue_bindings=True,
+                )
+                if latest is not None and latest_payload is not None
+                else None
+            )
+            current_result = dict(current.get("result") or {}) if current else {}
+            return self._base_result(
+                "admissibility",
+                action,
+                state=(str(current["state"]) if current else "blocked"),
+                implemented=True,
+                message=(
+                    "Последняя матрица повторно проверена по текущей локальной официальной доказательной базе."
+                    if current
+                    else "Матрица допустимости ещё не проверялась."
+                ),
+                result={
+                    "latest": latest,
+                    **current_result,
+                    "cached_result_reused_without_revalidation": False,
+                },
+                found=(tuple(current.get("found") or ()) if current else ()),
+                missing=(
+                    tuple(current.get("missing") or ())
+                    if current
+                    else ("Проверенная матрица допустимости",)
+                ),
+                next_actions=(
+                    tuple(current.get("next_actions") or ())
+                    if current
+                    else (
+                        "Передайте AdmissibilityMatrix в admissibility validate или derive.",
+                    )
+                ),
+            )
+
+        if payload is None:
+            raise WorkflowInputError(
+                f"Для admissibility {action} нужен версионированный --payload."
+            )
+        normalized = self._normalized_admissibility_matrix(payload)
+        issue_binding_checks, issue_binding_blockers = (
+            self._validate_current_issue_bindings(normalized)
+        )
+        if issue_binding_blockers and not allow_stale_issue_bindings:
+            raise WorkflowInputError(
+                "route_context.option_bindings не прошли текущую проверку: "
+                + ", ".join(issue_binding_blockers)
+            )
+
+        current_ids, authority_blockers, authority_checks = (
+            self._current_admissibility_authority(normalized)
+        )
+        common_result: dict[str, Any] = {
+            "matrix": normalized,
+            "current_official_evidence_ids": list(current_ids),
+            "official_authority_blockers": list(authority_blockers),
+            "authority_checks": list(authority_checks),
+            "issue_binding_checks": list(issue_binding_checks),
+            "issue_binding_blockers": list(issue_binding_blockers),
+        }
+        if action == "validate":
+            validation_blockers = set(authority_blockers)
+            snapshot_status = str(normalized["official_rule_snapshot"]["status"])
+            if snapshot_status != "verified_current":
+                validation_blockers.add(f"official_snapshot_{snapshot_status}")
+            ordered_validation_blockers = tuple(sorted(validation_blockers))
+            return self._base_result(
+                "admissibility",
+                action,
+                state="blocked",
+                implemented=True,
+                message=(
+                    "Матрица структурно проверена; текущая официальная доказательная база подтверждена."
+                    if not ordered_validation_blockers
+                    else "Матрица структурно проверена, но текущая официальная доказательная база подтверждена не полностью."
+                ),
+                result={
+                    **common_result,
+                    "blockers": list(ordered_validation_blockers),
+                },
+                found=(
+                    "Каноническая матрица из двенадцати порогов",
+                    *(
+                        ("Текущие официальные доказательства",)
+                        if current_ids
+                        else ()
+                    ),
+                ),
+                missing=ordered_validation_blockers,
+                next_actions=(
+                    "После устранения блокеров выполните admissibility derive.",
+                ),
+            )
+
+        recommendation = derive_route_recommendation(
+            normalized,
+            current_official_evidence_ids=current_ids,
+            current_issue_binding_blockers=issue_binding_blockers,
+        )
+        decision = str(recommendation["decision"])
+        combined_blockers = tuple(
+            sorted(
+                set(authority_blockers)
+                | {
+                    str(item)
+                    for item in recommendation.get("blocker_codes") or ()
+                    if str(item)
+                }
+            )
+        )
+        state = "ready_for_expert_review" if decision == "GO_TO_KSRF" else "blocked"
+        return self._base_result(
+            "admissibility",
+            action,
+            state=state,
+            implemented=True,
+            message=(
+                "Маршрут GO_TO_KSRF подготовлен только для экспертной правовой проверки."
+                if decision == "GO_TO_KSRF"
+                else f"Маршрут {decision} зафиксирован как блокирующий до действий человека."
+            ),
+            result={
+                **common_result,
+                "blockers": list(combined_blockers),
+                "recommendation": recommendation,
+            },
+            found=(
+                "Каноническая матрица из двенадцати порогов",
+                "Детерминированная рекомендация маршрута",
+            ),
+            missing=combined_blockers,
+            next_actions=tuple(recommendation.get("next_actions_in_order") or ())
+            or ("Именованный юрист должен проверить рекомендацию и доказательства.",),
         )
 
     def _issues(

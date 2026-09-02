@@ -1,0 +1,463 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/ksrf_filing/admissibility-matrix.v1.schema.json",
+  "title": "KSRF Admissibility Matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "artifact_type",
+    "matrix_id",
+    "matter_id",
+    "claim_id",
+    "official_rule_snapshot",
+    "gates",
+    "route_context"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://example.local/schemas/ksrf_filing/admissibility-matrix.v1.schema.json"
+    },
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "AdmissibilityMatrix"},
+    "matrix_id": {"$ref": "#/$defs/nonBlankString"},
+    "matter_id": {"$ref": "#/$defs/nonBlankString"},
+    "claim_id": {"$ref": "#/$defs/nonBlankString"},
+    "official_rule_snapshot": {"$ref": "#/$defs/officialRuleSnapshot"},
+    "gates": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/gate"},
+      "allOf": [
+        {"$ref": "#/$defs/containsCompetenceAndRoute"},
+        {"$ref": "#/$defs/containsApplicantAndSubjectiveInterest"},
+        {"$ref": "#/$defs/containsCaseStatus"},
+        {"$ref": "#/$defs/containsChallengedNormVersion"},
+        {"$ref": "#/$defs/containsApplicationOrMeaning"},
+        {"$ref": "#/$defs/containsCausationAndRightsHarm"},
+        {"$ref": "#/$defs/containsExhaustionAndPreservation"},
+        {"$ref": "#/$defs/containsOneYearDeadline"},
+        {"$ref": "#/$defs/containsContinuingLegalEffect"},
+        {"$ref": "#/$defs/containsAntiAppealBoundary"},
+        {"$ref": "#/$defs/containsPriorKsrfAuthorityDelta"},
+        {"$ref": "#/$defs/containsPermissibleRemedy"},
+        {
+          "if": {
+            "contains": {
+              "required": ["gate_id", "disposition"],
+              "properties": {
+                "gate_id": {"const": "competence_and_route"},
+                "disposition": {"const": "individual_complaint"}
+              }
+            }
+          },
+          "then": {
+            "contains": {
+              "required": ["gate_id", "disposition"],
+              "properties": {
+                "gate_id": {"const": "case_status"},
+                "disposition": {"const": "completed"}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "contains": {
+              "required": ["gate_id", "disposition"],
+              "properties": {
+                "gate_id": {"const": "competence_and_route"},
+                "disposition": {"const": "court_request"}
+              }
+            }
+          },
+          "then": {
+            "contains": {
+              "required": ["gate_id", "disposition"],
+              "properties": {
+                "gate_id": {"const": "case_status"},
+                "disposition": {"const": "active"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "route_context": {"$ref": "#/$defs/routeContext"}
+  },
+  "$defs": {
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "nullableNonBlankString": {
+      "oneOf": [
+        {"$ref": "#/$defs/nonBlankString"},
+        {"type": "null"}
+      ]
+    },
+    "stringList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonBlankString"}
+    },
+    "officialRuleSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checked_at", "evidence_ids"],
+      "properties": {
+        "status": {
+          "enum": [
+            "verified_current",
+            "missing",
+            "stale",
+            "unavailable_after_search"
+          ]
+        },
+        "checked_at": {"type": "string", "format": "date-time"},
+        "evidence_ids": {"$ref": "#/$defs/stringList"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {"status": {"const": "verified_current"}}
+          },
+          "then": {
+            "properties": {"evidence_ids": {"minItems": 1}}
+          }
+        }
+      ]
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id",
+        "status",
+        "rationale",
+        "applicability_reason",
+        "evidence_ids",
+        "official_rule_evidence_ids",
+        "official_checked_at",
+        "curability",
+        "record_availability",
+        "next_action",
+        "disposition"
+      ],
+      "properties": {
+        "gate_id": {"$ref": "#/$defs/gateId"},
+        "status": {"enum": ["pass", "fail", "unknown", "not_applicable"]},
+        "rationale": {"$ref": "#/$defs/nonBlankString"},
+        "applicability_reason": {"$ref": "#/$defs/nonBlankString"},
+        "evidence_ids": {"$ref": "#/$defs/stringList", "minItems": 1},
+        "official_rule_evidence_ids": {"$ref": "#/$defs/stringList"},
+        "official_checked_at": {"type": "string", "format": "date-time"},
+        "curability": {
+          "enum": ["not_applicable", "curable", "incurable", "unknown"]
+        },
+        "record_availability": {
+          "enum": [
+            "available",
+            "controlled_retrieval",
+            "unavailable_after_exhaustive_search",
+            "not_applicable"
+          ]
+        },
+        "next_action": {"$ref": "#/$defs/nullableNonBlankString"},
+        "disposition": {
+          "type": ["string", "null"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {"status": {"const": "pass"}}
+          },
+          "then": {
+            "properties": {
+              "curability": {"const": "not_applicable"},
+              "record_availability": {"const": "available"}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {"status": {"const": "fail"}}
+          },
+          "then": {
+            "properties": {
+              "curability": {"enum": ["curable", "incurable"]},
+              "next_action": {"$ref": "#/$defs/nonBlankString"}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {"status": {"const": "unknown"}}
+          },
+          "then": {
+            "properties": {
+              "curability": {"enum": ["curable", "unknown"]},
+              "next_action": {"$ref": "#/$defs/nonBlankString"}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": {"status": {"const": "not_applicable"}}
+          },
+          "then": {
+            "properties": {
+              "applicability_reason": {"$ref": "#/$defs/nonBlankString"},
+              "official_rule_evidence_ids": {"minItems": 1},
+              "curability": {"const": "not_applicable"},
+              "record_availability": {"const": "not_applicable"},
+              "next_action": {"const": null}
+            }
+          }
+        }
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "gate_id": {"const": "competence_and_route"},
+            "disposition": {
+              "enum": [
+                "individual_complaint",
+                "court_request",
+                "ordinary_process",
+                "none",
+                "unknown"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"disposition": {"enum": ["individual_complaint", "court_request"]}}},
+              "then": {"properties": {"status": {"const": "pass"}, "curability": {"const": "not_applicable"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "ordinary_process"}}},
+              "then": {"properties": {"status": {"const": "fail"}, "curability": {"const": "curable"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "none"}}},
+              "then": {"properties": {"status": {"const": "fail"}, "curability": {"const": "incurable"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "unknown"}}},
+              "then": {"properties": {"status": {"const": "unknown"}}}
+            }
+          ]
+        },
+        {
+          "properties": {
+            "gate_id": {"const": "case_status"},
+            "disposition": {"enum": ["completed", "active", "unknown"]}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"disposition": {"enum": ["completed", "active"]}}},
+              "then": {"properties": {"status": {"const": "pass"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "unknown"}}},
+              "then": {"properties": {"status": {"const": "unknown"}}}
+            }
+          ]
+        },
+        {
+          "properties": {
+            "gate_id": {"const": "permissible_remedy"},
+            "disposition": {"enum": ["viable", "not_viable", "unknown"]}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"disposition": {"const": "viable"}}},
+              "then": {"properties": {"status": {"const": "pass"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "not_viable"}}},
+              "then": {"properties": {"status": {"const": "fail"}, "curability": {"const": "incurable"}}}
+            },
+            {
+              "if": {"properties": {"disposition": {"const": "unknown"}}},
+              "then": {"properties": {"status": {"const": "unknown"}}}
+            }
+          ]
+        },
+        {
+          "properties": {
+            "gate_id": {
+              "enum": [
+                "applicant_and_subjective_interest",
+                "challenged_norm_version",
+                "application_or_meaning",
+                "causation_and_rights_harm",
+                "exhaustion_and_preservation",
+                "one_year_deadline",
+                "continuing_legal_effect",
+                "anti_appeal_boundary",
+                "prior_ksrf_authority_delta"
+              ]
+            },
+            "disposition": {"const": null}
+          }
+        }
+      ]
+    },
+    "gateId": {
+      "enum": [
+        "competence_and_route",
+        "applicant_and_subjective_interest",
+        "case_status",
+        "challenged_norm_version",
+        "application_or_meaning",
+        "causation_and_rights_harm",
+        "exhaustion_and_preservation",
+        "one_year_deadline",
+        "continuing_legal_effect",
+        "anti_appeal_boundary",
+        "prior_ksrf_authority_delta",
+        "permissible_remedy"
+      ]
+    },
+    "routeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_assessment_status",
+        "option_bindings",
+        "preferred_option_id",
+        "reserve_option_ids",
+        "expected_client_benefit",
+        "adverse_risks",
+        "alternatives_and_deadlines",
+        "next_actions_in_order",
+        "reconsideration_conditions"
+      ],
+      "properties": {
+        "issue_assessment_status": {
+          "enum": ["not_started", "incomplete", "complete"]
+        },
+        "option_bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/optionBinding"}
+        },
+        "preferred_option_id": {"$ref": "#/$defs/nullableNonBlankString"},
+        "reserve_option_ids": {"$ref": "#/$defs/stringList"},
+        "expected_client_benefit": {"$ref": "#/$defs/nonBlankString"},
+        "adverse_risks": {"$ref": "#/$defs/stringList", "minItems": 1},
+        "alternatives_and_deadlines": {"$ref": "#/$defs/stringList", "minItems": 1},
+        "next_actions_in_order": {"$ref": "#/$defs/stringList", "minItems": 1},
+        "reconsideration_conditions": {"$ref": "#/$defs/stringList", "minItems": 1}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["issue_assessment_status"],
+            "properties": {
+              "issue_assessment_status": {"enum": ["not_started", "incomplete"]}
+            }
+          },
+          "then": {
+            "properties": {
+              "option_bindings": {"maxItems": 0},
+              "preferred_option_id": {"const": null},
+              "reserve_option_ids": {"maxItems": 0}
+            }
+          }
+        }
+      ]
+    },
+    "optionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "option_id",
+        "content_fingerprint",
+        "readiness",
+        "evidence_ids"
+      ],
+      "properties": {
+        "option_id": {"$ref": "#/$defs/nonBlankString"},
+        "content_fingerprint": {
+          "type": "string",
+          "pattern": "^issue-candidate-content:sha256:[0-9a-f]{64}$"
+        },
+        "readiness": {"enum": ["viable", "conditional", "rejected"]},
+        "evidence_ids": {"$ref": "#/$defs/stringList", "minItems": 1}
+      }
+    },
+    "containsCompetenceAndRoute": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "competence_and_route"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsApplicantAndSubjectiveInterest": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "applicant_and_subjective_interest"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsCaseStatus": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "case_status"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsChallengedNormVersion": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "challenged_norm_version"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsApplicationOrMeaning": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "application_or_meaning"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsCausationAndRightsHarm": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "causation_and_rights_harm"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsExhaustionAndPreservation": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "exhaustion_and_preservation"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsOneYearDeadline": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "one_year_deadline"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsContinuingLegalEffect": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "continuing_legal_effect"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsAntiAppealBoundary": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "anti_appeal_boundary"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPriorKsrfAuthorityDelta": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "prior_ksrf_authority_delta"}}},
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "containsPermissibleRemedy": {
+      "contains": {"required": ["gate_id"], "properties": {"gate_id": {"const": "permissible_remedy"}}},
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}

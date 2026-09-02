@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/ksrf_filing/ksrf-route-recommendation.v1.schema.json",
+  "title": "KSRF Route Recommendation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "artifact_type",
+    "recommendation_id",
+    "matrix_id",
+    "matrix_revision_id",
+    "matter_id",
+    "claim_id",
+    "decision_rule_version",
+    "decision",
+    "decisive_gate_evidence",
+    "blocker_codes",
+    "official_authority_evidence_ids",
+    "option_bindings",
+    "preferred_option_id",
+    "reserve_option_ids",
+    "expected_client_benefit",
+    "adverse_risks",
+    "alternatives_and_deadlines",
+    "next_actions_in_order",
+    "reconsideration_conditions",
+    "human_decision",
+    "human_legal_review_required",
+    "legal_assessment_automated",
+    "filing_authority",
+    "filing_performed"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://example.local/schemas/ksrf_filing/ksrf-route-recommendation.v1.schema.json"
+    },
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "KSRFRouteRecommendation"},
+    "recommendation_id": {
+      "type": "string",
+      "pattern": "^ksrf-route-recommendation:sha256:[0-9a-f]{64}$"
+    },
+    "matrix_id": {"$ref": "#/$defs/nonBlankString"},
+    "matrix_revision_id": {
+      "type": "string",
+      "pattern": "^admissibility-matrix-revision:sha256:[0-9a-f]{64}$"
+    },
+    "matter_id": {"$ref": "#/$defs/nonBlankString"},
+    "claim_id": {"$ref": "#/$defs/nonBlankString"},
+    "decision_rule_version": {"const": "ksrf-route-precedence.v1"},
+    "decision": {
+      "enum": [
+        "GO_TO_KSRF",
+        "FIX_FIRST",
+        "COURT_REQUEST_ROUTE",
+        "NO_GO_KSRF",
+        "ABSTAIN_PENDING_RECORD"
+      ]
+    },
+    "decisive_gate_evidence": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/decisiveGateEvidence"}
+    },
+    "blocker_codes": {"$ref": "#/$defs/stringList"},
+    "official_authority_evidence_ids": {"$ref": "#/$defs/stringList"},
+    "option_bindings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/optionBinding"}
+    },
+    "preferred_option_id": {"$ref": "#/$defs/nullableNonBlankString"},
+    "reserve_option_ids": {"$ref": "#/$defs/stringList"},
+    "expected_client_benefit": {"$ref": "#/$defs/nonBlankString"},
+    "adverse_risks": {"$ref": "#/$defs/stringList"},
+    "alternatives_and_deadlines": {"$ref": "#/$defs/stringList"},
+    "next_actions_in_order": {"$ref": "#/$defs/stringList"},
+    "reconsideration_conditions": {"$ref": "#/$defs/stringList"},
+    "human_decision": {"const": "pending"},
+    "human_legal_review_required": {"const": true},
+    "legal_assessment_automated": {"const": false},
+    "filing_authority": {"const": false},
+    "filing_performed": {"const": false}
+  },
+  "$defs": {
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "nullableNonBlankString": {
+      "oneOf": [
+        {"$ref": "#/$defs/nonBlankString"},
+        {"type": "null"}
+      ]
+    },
+    "stringList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonBlankString"}
+    },
+    "gateId": {
+      "enum": [
+        "competence_and_route",
+        "applicant_and_subjective_interest",
+        "case_status",
+        "challenged_norm_version",
+        "application_or_meaning",
+        "causation_and_rights_harm",
+        "exhaustion_and_preservation",
+        "one_year_deadline",
+        "continuing_legal_effect",
+        "anti_appeal_boundary",
+        "prior_ksrf_authority_delta",
+        "permissible_remedy"
+      ]
+    },
+    "optionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "option_id",
+        "content_fingerprint",
+        "readiness",
+        "evidence_ids"
+      ],
+      "properties": {
+        "option_id": {"$ref": "#/$defs/nonBlankString"},
+        "content_fingerprint": {
+          "type": "string",
+          "pattern": "^issue-candidate-content:sha256:[0-9a-f]{64}$"
+        },
+        "readiness": {"enum": ["viable", "conditional", "rejected"]},
+        "evidence_ids": {"$ref": "#/$defs/stringList", "minItems": 1}
+      }
+    },
+    "decisiveGateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate_id", "evidence_ids"],
+      "properties": {
+        "gate_id": {"$ref": "#/$defs/gateId"},
+        "evidence_ids": {"$ref": "#/$defs/stringList", "minItems": 1}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": {"decision": {"const": "GO_TO_KSRF"}}
+      },
+      "then": {
+        "properties": {
+          "blocker_codes": {"maxItems": 0},
+          "decisive_gate_evidence": {"minItems": 1},
+          "official_authority_evidence_ids": {"minItems": 1},
+          "option_bindings": {
+            "minItems": 1,
+            "contains": {
+              "required": ["readiness"],
+              "properties": {"readiness": {"const": "viable"}}
+            },
+            "minContains": 1
+          },
+          "preferred_option_id": {"$ref": "#/$defs/nonBlankString"}
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": {"decision": {"const": "COURT_REQUEST_ROUTE"}}
+      },
+      "then": {
+        "properties": {"blocker_codes": {"maxItems": 0}}
+      }
+    },
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": {
+          "decision": {
+            "enum": ["FIX_FIRST", "NO_GO_KSRF", "ABSTAIN_PENDING_RECORD"]
+          }
+        }
+      },
+      "then": {
+        "properties": {"blocker_codes": {"minItems": 1}}
+      }
+    }
+  ]
+}

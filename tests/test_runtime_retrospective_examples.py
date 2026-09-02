@@ -34,9 +34,9 @@ TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        199,
-        28_994,
-        "db3edad49e64fc3a0a80937827010a13f1d87fbbb52ea8dbeb81a02e532332aa",
+        201,
+        29_809,
+        "694795320a0cc417f9cf4e0d0da9fc5450cbfbdb3d3f576f4b0357e8b8966d96",
     ),
     EXAMPLES["275"]: (
         136,

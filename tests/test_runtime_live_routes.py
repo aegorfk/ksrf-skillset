@@ -92,9 +92,9 @@ SOURCE_ONLY_FILES = {
 
 REVIEWED_RUNTIME_FILES = {
     REPO / "skills/ksrf-case-triage/SKILL.md": (
-        81,
-        15_398,
-        "20353ccb95b6acc692f34f4fb4fc099f7cb444410c22548b836910aac19a3ce1",
+        83,
+        16_439,
+        "a8e9fb94b882cd9a0227f4e0cff75b9e9b8e277591849f232763e8415b89e6ce",
     ),
     REPO / "skills/ksrf-case-triage/references/complaint-patterns.md": (
         86,
