@@ -17,5 +17,5 @@
 
 - [x] 3.1 Run focused RED/GREEN, full suites, source strict, clean-room runtime strict, OpenSpec strict, manifest verification and diff checks.
 - [x] 3.2 Obtain independent semantic, user-surface and release reviews with no unresolved P1/P2.
-- [ ] 3.3 Publish atomically to `main`, confirm live SHA, install and verify the exact global payload.
-- [ ] 3.4 Archive the completed OpenSpec change, regenerate the manifest from the merge SHA and publish the final evidence commit.
+- [x] 3.3 Publish atomically to `main`, confirm live SHA, install and verify the exact global payload.
+- [x] 3.4 Archive the completed OpenSpec change, regenerate the manifest from the merge SHA and publish the final evidence commit.
