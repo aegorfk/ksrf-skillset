@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "generated_at": "2026-08-27",
   "family": "KSRF",
   "layer": "methodology_only",
@@ -7,13 +7,9 @@
   "source_scope": {
     "publisher_group": "Lawinfo",
     "years": "2023-2026",
-    "original_inbox": "ТЗ/Гайды/Новое",
-    "archive_roots": [
-      "ТЗ/Наука/Конституционное правосудие/russian_argumentation_methodology/lawinfo_issues_2018_2026",
-      "ТЗ/Наука/Конституционное правосудие/russian_argumentation_methodology/books_and_monographs",
-      "ТЗ/Гайды/Жалобы"
-    ],
-    "excluded_path": "ТЗ/Гайды/Новое/Конституционалисты",
+    "runtime_reference": "lawinfo-constitutional-methods-2023-2026.md",
+    "source_materials_bundled": false,
+    "public_locator_field": "sources[].doi",
     "supported_pdf_count_audited": 39,
     "readable_pdf_count": 37,
     "unreadable_or_empty_text_count": 2

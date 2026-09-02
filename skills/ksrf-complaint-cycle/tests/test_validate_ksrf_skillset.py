@@ -599,6 +599,374 @@ description: Используй этот навык для всего.
             self.assertNotIn("BEHAVIORAL_EVALS_MISSING", codes)
             self.assertNotIn("TRIGGER_EVALS_MISSING", codes)
 
+    def test_both_profiles_reject_runtime_local_coordinates(self) -> None:
+        cases = (
+            (
+                Path("references/local-coordinate.md"),
+                "Открой <project-root>/private/source.pdf\n",
+            ),
+            (
+                Path("references/repository-coordinate.md"),
+                "Открой ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("references/local-coordinate.json"),
+                '{"path":"\\u0422\\u0417/private/source.pdf"}\n',
+            ),
+            (
+                Path("scripts/runtime-helper.py"),
+                'SOURCE = "/Users/alice/Documents/private/source.pdf"\n',
+            ),
+            (
+                Path("scripts/linux-runtime-helper.py"),
+                'SOURCE = "/home/alice/work/private/source.pdf"\n',
+            ),
+            (
+                Path("scripts/root-runtime-helper.py"),
+                'SOURCE = "/root/work/private/source.pdf"\n',
+            ),
+            (
+                Path("scripts/windows-runtime-helper.py"),
+                'SOURCE = r"C:\\Users\\alice\\work\\private\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/unc-runtime-helper.py"),
+                'SOURCE = r"\\\\server\\share\\Users\\alice\\work\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/lowercase-windows-runtime-helper.py"),
+                'SOURCE = r"c:\\users\\alice\\work\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/lowercase-unc-runtime-helper.py"),
+                'SOURCE = r"\\\\server\\share\\users\\alice\\work\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/lowercase-macos-runtime-helper.py"),
+                'SOURCE = "/users/alice/work/source.pdf"\n',
+            ),
+            (
+                Path("scripts/unicode-macos-runtime-helper.py"),
+                'SOURCE = "/Users/алиса/work/source.pdf"\n',
+            ),
+            (
+                Path("scripts/unicode-linux-runtime-helper.py"),
+                'SOURCE = "/home/пользователь/work/source.pdf"\n',
+            ),
+            (
+                Path("scripts/unicode-windows-runtime-helper.py"),
+                'SOURCE = r"C:\\Users\\Иван\\work\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/verify_offline_self_containment-copy.py"),
+                'MARKER = "ТЗ/private"\n',
+            ),
+            (
+                Path("scripts/backslash-coordinate.py"),
+                'SOURCE = r"ТЗ\\private\\source.pdf"\n',
+            ),
+            (
+                Path("scripts/mixed-slash-coordinate.py"),
+                'SOURCE = r"ТЗ\\/private/source.pdf"\n',
+            ),
+            (
+                Path("scripts/fullwidth-slash-coordinate.py"),
+                'SOURCE = "ТЗ／private/source.pdf"\n',
+            ),
+            (
+                Path("references/malformed-http-coordinate.md"),
+                "https:/Users/alice/work/source.pdf\n",
+            ),
+            (
+                Path("references/empty-host-coordinate.md"),
+                "https:///ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("references/file-url-coordinate.md"),
+                "file:///Users/alice/work/source.pdf\n",
+            ),
+            (
+                Path("references/bad-port-coordinate.md"),
+                "https://example.org:bad/ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("references/repeated-macos-separator.md"),
+                "/Users//alice/private/source.pdf\n",
+            ),
+            (
+                Path("references/repeated-linux-separator.md"),
+                "/home//alice/private/source.pdf\n",
+            ),
+            (
+                Path("references/repeated-windows-separator.md"),
+                "C:/Users//alice/private/source.pdf\n",
+            ),
+            (
+                Path("references/prefixed-http-coordinate.md"),
+                "xhttps://example.org/ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("references/compound-scheme-coordinate.md"),
+                "ftphttps://example.org/Users/alice/private/source.pdf\n",
+            ),
+            (
+                Path("references/javascript-scheme-coordinate.md"),
+                "javascript:https://example.org/ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("references/runtime.ini"),
+                "source=/Users/alice/work/source.pdf\n",
+            ),
+            (
+                Path("references/disguised.png"),
+                "ТЗ/private/source.pdf\n",
+            ),
+            (
+                Path("scripts/escaped-repository-route.js"),
+                'const source = "ТЗ\\/private\\/source.pdf";\n',
+            ),
+            (
+                Path("references/lowercase-repository-coordinate.md"),
+                "тз/private/source.pdf\n",
+            ),
+            (
+                Path("references/mixed-case-repository-coordinate.md"),
+                "Тз/private/source.pdf\n",
+            ),
+            (
+                Path("references/mixed-case-project-root.md"),
+                "<Project-Root>/private/source.pdf\n",
+            ),
+            (
+                Path("references/fullwidth-project-root.md"),
+                "<PROJECT－ROOT>／private/source.pdf\n",
+            ),
+        )
+        for profile in ("source", "runtime"):
+            for relative, content in cases:
+                with (
+                    self.subTest(profile=profile, relative=relative),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root)
+                    if profile == "runtime":
+                        for path in (skill / "evals").iterdir():
+                            path.unlink()
+                        (skill / "evals").rmdir()
+                    _write(skill / relative, content)
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile=profile,
+                    )
+
+                    self.assertIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+
+    def test_runtime_coordinate_gate_allows_portable_runtime_routes(self) -> None:
+        content = "\n".join(
+            (
+                "<skill-dir>/references/source.md",
+                "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/references/source.md",
+                "$HUDOC_ARCHIVE_ROOT/documents/source.pdf",
+                "~/.codex/skills/ksrf-complaint-cycle/references/source.md",
+                "/path/to/case-folder/source.pdf",
+                "path/to/file.json",
+                "/rooted/project/source.pdf",
+                "/root@work/source.pdf",
+                "/root+tmp/source.pdf",
+                "/root:tmp/source.pdf",
+                "https://example.org/Users/alice/work/source.pdf",
+                "https://example.org/ТЗ/public/source.pdf",
+                "https://[2001:db8::1]/Users/alice/work/source.pdf",
+                "https://user@example.org/Users/alice/work/source.pdf",
+                "(https://example.org/Users/alice/work/source.pdf)",
+                'const u = "https:\\/\\/example.org\\/Users\\/alice\\/work.pdf";',
+            )
+        )
+        for profile in ("source", "runtime"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                if profile == "runtime":
+                    for path in (skill / "evals").iterdir():
+                        path.unlink()
+                    (skill / "evals").rmdir()
+                _write(skill / "references" / "portable-routes.md", content)
+                _write(
+                    skill / "scripts" / "portable-routes.js",
+                    'const u = "https:\\/\\/example.org\\/Users\\/alice\\/work.pdf";\n',
+                )
+                _write(
+                    skill / "references" / "portable-routes.json",
+                    (
+                        "{\n"
+                        '  "home": "https:\\/\\/example.org\\/Users\\/alice\\/work.pdf",\n'
+                        '  "repository": "https:\\/\\/example.org\\/ТЗ\\/public.pdf"\n'
+                        "}\n"
+                    ),
+                )
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile=profile,
+                )
+
+                self.assertNotIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+                self.assertNotIn("ABSOLUTE_RUNTIME_PATH", _codes(report))
+                self.assertEqual(
+                    report["validation_coverage"]["runtime_self_containment"],
+                    "validated",
+                )
+
+    def test_runtime_coordinate_gate_allows_declared_non_text_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            (skill / "references" / "image.png").write_bytes(
+                b"\x89PNG\r\n\x1a\n\xff"
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="source",
+            )
+
+            self.assertNotIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+            self.assertNotIn("RUNTIME_FORMAT_UNCHECKED", _codes(report))
+
+    def test_runtime_coordinate_gate_rejects_duplicate_or_invalid_runtime_json(
+        self,
+    ) -> None:
+        cases = (
+            '{"path":"\\u0422\\u0417/private","path":"safe"}\n',
+            '{"path": ',
+            '{"value":NaN}\n',
+            '{"value":Infinity}\n',
+            '{"value":-Infinity}\n',
+        )
+        for content in cases:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _write(skill / "references" / "runtime.json", content)
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="source",
+                )
+
+                self.assertIn("RUNTIME_REFERENCE_JSON_INVALID", _codes(report))
+
+    def test_runtime_coordinate_gate_reports_json_recursion_without_crashing(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(skill / "references" / "runtime.json", "{}\n")
+
+            with mock.patch.object(
+                VALIDATOR,
+                "parse_runtime_json_strict",
+                side_effect=RecursionError("nested JSON"),
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="source",
+                )
+
+            self.assertIn("RUNTIME_REFERENCE_JSON_INVALID", _codes(report))
+
+    def test_runtime_coordinate_gate_fails_closed_on_unreadable_runtime_text(
+        self,
+    ) -> None:
+        cases = (
+            ("runtime.csv", "RUNTIME_TEXT_UNREADABLE"),
+            ("runtime.bin", "RUNTIME_FORMAT_UNCHECKED"),
+        )
+        for filename, expected_code in cases:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                (skill / "references" / filename).write_bytes(b"\xff\xfe")
+
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="source",
+                )
+
+                self.assertIn(expected_code, _codes(report))
+
+    def test_runtime_coordinate_gate_skips_generated_runtime_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _write(
+                skill / "__pycache__" / "ignored.md",
+                "Служебный путь: ТЗ/private/source.pdf\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="source",
+            )
+
+            self.assertNotIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+
+    def test_runtime_coordinate_gate_skips_only_exact_source_artifacts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root, name="ksrf-argument-patterns")
+            _write(
+                skill / "references" / "complaint-methodology-sources.md",
+                "Служебный источник: ТЗ/private/source.pdf\n",
+            )
+
+            report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-argument-patterns",),
+            )
+
+            self.assertNotIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+
+        for policy_owner in (
+            "validate_ksrf_skillset.py",
+            "verify_offline_self_containment.py",
+        ):
+            for profile in ("source", "runtime"):
+                with (
+                    self.subTest(policy_owner=policy_owner, profile=profile),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    root = Path(tmp)
+                    skill = _make_valid_skill(root, name="ksrf-complaint-cycle")
+                    if profile == "runtime":
+                        for path in (skill / "evals").iterdir():
+                            path.unlink()
+                        (skill / "evals").rmdir()
+                    _write(
+                        skill / "scripts" / policy_owner,
+                        'OPERATIONAL_SOURCE = "ТЗ/private/source.pdf"\n',
+                    )
+
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-complaint-cycle",),
+                        profile=profile,
+                    )
+
+                    self.assertIn("RUNTIME_LOCAL_COORDINATE", _codes(report))
+
     def test_source_profile_still_security_scans_excluded_evals(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

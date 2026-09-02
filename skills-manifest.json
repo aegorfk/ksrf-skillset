@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T03:30:01Z",
+  "generated_at": "2026-09-02T04:09:16Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "4dbcd45911064a103d3d8ab33497d5de8015724b",
+  "remote_base_commit": "ad980d5cbe648e58fed28ec97645f3125c90791f",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,14 +28,14 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 234,
-  "total_bytes": 8014038,
-  "tree_sha256": "0067e91e9a2a038eac41474a3cc24adad43e8fc19aa8439cd0c814863b95c140",
+  "total_bytes": 8022354,
+  "tree_sha256": "d3193937fd539c7d4142c05f3312620ddba4a1de6f8f43cce187c23e43ca2654",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
       "files": 32,
-      "bytes": 3891589,
-      "tree_sha256": "b8bbca81286af633e602aedc59b3a18eda8f9621e95fe7539b43054073c66dee"
+      "bytes": 3891140,
+      "tree_sha256": "2ae2d0e182ba9631366c98b2eb83e0f2f0cc0ccc11b14ea04e449c6f40f6528d"
     },
     {
       "name": "ksrf-case-triage",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 90,
-      "bytes": 2038690,
-      "tree_sha256": "54e74d06f65dc6b5ddd5116ae6f5ee7600bd5d1594705b14f3656cfe82827096"
+      "bytes": 2047455,
+      "tree_sha256": "79dd9ebf278e91f542e061aa19eb35aba3f44cd08fdbdb467bdeee476c20bfce"
     },
     {
       "name": "ksrf-complaint-facts-demands",
