@@ -11,14 +11,20 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import ssl
+import stat
 import sys
 import unicodedata
 from collections import Counter
+from http.client import HTTPException
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence, TextIO
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 try:
     import yaml
@@ -26,7 +32,7 @@ except ImportError:  # pragma: no cover - exercised as a fail-closed runtime pat
     yaml = None
 
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 CANONICAL_KSRF_PACKAGES = (
     "ksrf-argument-patterns",
     "ksrf-case-triage",
@@ -166,6 +172,63 @@ SOURCE_ONLY_SKILLSET_PATHS = frozenset(
     }
 ) | ROOT_ONLY_TOOL_SKILL_PATHS
 VALIDATION_PROFILES = ("source", "runtime")
+RUNTIME_CONTENT_ALGORITHM = "sha256-path-length-content-v1"
+RUNTIME_CONTENT_DIGEST_FORMAT = (
+    "sha256 over 4-byte big-endian relative path length + relative path + "
+    "8-byte big-endian content length + content, files sorted by POSIX relative path"
+)
+_FRESHNESS_REF_URL = (
+    "https://api.github.com/repos/aegorfk/ksrf-skillset/git/ref/heads/main"
+)
+_FRESHNESS_RAW_PREFIX = (
+    "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+)
+_FRESHNESS_REF_MAX_BYTES = 64 * 1024
+_FRESHNESS_MANIFEST_MAX_BYTES = 256 * 1024
+_FRESHNESS_TIMEOUT_SECONDS = 5.0
+_FRESHNESS_REASON_LABELS = {
+    "local_identity_unavailable": "локальный отпечаток недоступен",
+    "network_error": "сеть или удалённый сервис недоступны",
+    "response_too_large": "ответ превысил безопасный размер",
+    "invalid_response": "удалённый ответ не прошёл строгую проверку",
+}
+
+
+class _NoFreshnessRedirects(HTTPRedirectHandler):
+    """Reject redirects before a request can leave either fixed endpoint."""
+
+    def redirect_request(
+        self,
+        req: Any,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+def _default_freshness_opener(request: Request, *, timeout: float) -> Any:
+    context = ssl.create_default_context()
+    default_paths = ssl.get_default_verify_paths()
+    if default_paths.cafile is None and default_paths.capath is None:
+        system_root = Path(Path(sys.executable).anchor)
+        for ca_file in (
+            system_root.joinpath("etc", "ssl", "cert.pem"),
+            system_root.joinpath("private", "etc", "ssl", "cert.pem"),
+        ):
+            if ca_file.is_file():
+                context.load_verify_locations(cafile=str(ca_file))
+                break
+    opener = build_opener(
+        HTTPSHandler(context=context),
+        _NoFreshnessRedirects(),
+    )
+    return opener.open(request, timeout=timeout)
+
+
+_FRESHNESS_OPENER = _default_freshness_opener
 PUBLIC_SOURCE_CONTRACT_PATH = (
     Path(__file__).resolve().parents[3] / "tools" / "skillset_file_contract.py"
 )
@@ -360,6 +423,14 @@ SECRET_ASSIGNMENT = re.compile(
 SAFE_SECRET_WORDS = ("example", "placeholder", "redacted", "replace", "dummy", "test")
 
 
+class _FreshnessLookupError(RuntimeError):
+    """A bounded public reason for an optional freshness lookup failure."""
+
+    def __init__(self, reason_code: str) -> None:
+        super().__init__(reason_code)
+        self.reason_code = reason_code
+
+
 if yaml is not None:
     class _UniqueKeyLoader(yaml.SafeLoader):
         pass
@@ -412,6 +483,15 @@ def _finding(
     if evidence is not None:
         item["evidence"] = evidence
     return item
+
+
+def _is_complete_canonical_scope(package_names: Sequence[str]) -> bool:
+    packages = tuple(package_names)
+    return (
+        len(packages) == len(CANONICAL_KSRF_PACKAGES)
+        and len(packages) == len(set(packages))
+        and set(packages) == set(CANONICAL_KSRF_PACKAGES)
+    )
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -2010,6 +2090,396 @@ def _hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _runtime_path_snapshot(
+    skills_root: Path,
+    package_names: Sequence[str],
+    *,
+    validation_profile: str,
+) -> tuple[str, ...]:
+    """Observe the complete eligible path set without reading file content."""
+
+    paths: list[str] = []
+    try:
+        for package in package_names:
+            package_dir = skills_root / package
+            if not package_dir.is_dir():
+                continue
+            for path in sorted(package_dir.rglob("*")):
+                relative = path.relative_to(skills_root).as_posix()
+                relative_object = Path(relative)
+                if _development_artifact(relative_object):
+                    if validation_profile == "runtime":
+                        paths.append(f"!invalid:{relative}")
+                    continue
+                if is_runtime_artifact(relative_object):
+                    continue
+                metadata = path.lstat()
+                if stat.S_ISDIR(metadata.st_mode):
+                    continue
+                if not stat.S_ISREG(metadata.st_mode) or _is_secret_path(path):
+                    paths.append(f"!invalid:{relative}")
+                    continue
+                paths.append(relative)
+    except (OSError, ValueError):
+        return ("!snapshot-unavailable",)
+    return tuple(sorted(paths))
+
+
+def _runtime_content_identity(
+    findings: list[dict[str, Any]],
+    skills_root: Path,
+    package_names: Sequence[str],
+    files: Sequence[Mapping[str, Any]],
+    *,
+    validation_profile: str,
+) -> dict[str, Any]:
+    """Re-read manifest rows and derive the deterministic runtime tree identity."""
+
+    total_files = len(files)
+    total_bytes = sum(
+        int(item.get("size", 0))
+        for item in files
+        if isinstance(item.get("size"), int)
+        and not isinstance(item.get("size"), bool)
+    )
+    aggregate = hashlib.sha256()
+    root_resolved = skills_root.resolve()
+    expected_paths = tuple(str(item.get("path", "")) for item in files)
+
+    if (
+        _runtime_path_snapshot(
+            skills_root,
+            package_names,
+            validation_profile=validation_profile,
+        )
+        != expected_paths
+    ):
+        findings.append(
+            _finding(
+                "error",
+                "RUNTIME_IDENTITY_CHANGED",
+                "Состав runtime-дерева изменился между проходами проверки.",
+                path="runtime",
+            )
+        )
+        return {
+            "algorithm": RUNTIME_CONTENT_ALGORITHM,
+            "tree_sha256": None,
+            "total_files": total_files,
+            "total_bytes": total_bytes,
+        }
+
+    for item in files:
+        relative = item.get("path")
+        expected_hash = item.get("sha256")
+        expected_size = item.get("size")
+        relative_object = Path(relative) if isinstance(relative, str) else Path(".")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or relative_object.is_absolute()
+            or ".." in relative_object.parts
+            or relative_object.as_posix() != relative
+            or not isinstance(expected_hash, str)
+            or re.fullmatch(r"[0-9a-f]{64}", expected_hash) is None
+            or not isinstance(expected_size, int)
+            or isinstance(expected_size, bool)
+            or expected_size < 0
+        ):
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_IDENTITY_CHANGED",
+                    "Runtime-дерево нельзя однозначно перечитать для итогового отпечатка.",
+                    path=relative if isinstance(relative, str) else "runtime",
+                )
+            )
+            return {
+                "algorithm": RUNTIME_CONTENT_ALGORITHM,
+                "tree_sha256": None,
+                "total_files": total_files,
+                "total_bytes": total_bytes,
+            }
+
+        path = skills_root / relative_object
+        file_digest = hashlib.sha256()
+        observed_size = 0
+        try:
+            resolved_before = path.resolve(strict=True)
+            resolved_before.relative_to(root_resolved)
+            entry_before = path.lstat()
+            if not stat.S_ISREG(entry_before.st_mode):
+                raise OSError("not a regular directory entry")
+            with path.open("rb") as handle:
+                before = os.fstat(handle.fileno())
+                if not stat.S_ISREG(before.st_mode):
+                    raise OSError("not a regular file")
+                aggregate.update(len(relative.encode("utf-8")).to_bytes(4, "big"))
+                aggregate.update(relative.encode("utf-8"))
+                aggregate.update(before.st_size.to_bytes(8, "big"))
+                while chunk := handle.read(1024 * 1024):
+                    observed_size += len(chunk)
+                    file_digest.update(chunk)
+                    aggregate.update(chunk)
+                after = os.fstat(handle.fileno())
+            resolved_after = path.resolve(strict=True)
+            entry_after = path.lstat()
+        except (OSError, ValueError):
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_IDENTITY_CHANGED",
+                    "Runtime-файл изменился или стал недоступен при повторной проверке.",
+                    path=relative,
+                )
+            )
+            return {
+                "algorithm": RUNTIME_CONTENT_ALGORITHM,
+                "tree_sha256": None,
+                "total_files": total_files,
+                "total_bytes": total_bytes,
+            }
+
+        stable_file = (
+            resolved_before == resolved_after
+            and stat.S_ISREG(entry_after.st_mode)
+            and entry_before.st_dev == before.st_dev == after.st_dev == entry_after.st_dev
+            and entry_before.st_ino == before.st_ino == after.st_ino == entry_after.st_ino
+            and entry_before.st_size == before.st_size == after.st_size == entry_after.st_size == observed_size
+            and entry_before.st_mtime_ns
+            == before.st_mtime_ns
+            == after.st_mtime_ns
+            == entry_after.st_mtime_ns
+        )
+        if (
+            not stable_file
+            or observed_size != expected_size
+            or file_digest.hexdigest() != expected_hash
+        ):
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_IDENTITY_CHANGED",
+                    "Runtime-файл изменился между проходами проверки.",
+                    path=relative,
+                )
+            )
+            return {
+                "algorithm": RUNTIME_CONTENT_ALGORITHM,
+                "tree_sha256": None,
+                "total_files": total_files,
+                "total_bytes": total_bytes,
+            }
+
+    if (
+        _runtime_path_snapshot(
+            skills_root,
+            package_names,
+            validation_profile=validation_profile,
+        )
+        != expected_paths
+    ):
+        findings.append(
+            _finding(
+                "error",
+                "RUNTIME_IDENTITY_CHANGED",
+                "Состав runtime-дерева изменился во время повторной проверки.",
+                path="runtime",
+            )
+        )
+        return {
+            "algorithm": RUNTIME_CONTENT_ALGORITHM,
+            "tree_sha256": None,
+            "total_files": total_files,
+            "total_bytes": total_bytes,
+        }
+
+    return {
+        "algorithm": RUNTIME_CONTENT_ALGORITHM,
+        "tree_sha256": aggregate.hexdigest(),
+        "total_files": total_files,
+        "total_bytes": total_bytes,
+    }
+
+
+def _read_freshness_json(
+    url: str,
+    *,
+    expected_host: str,
+    max_bytes: int,
+) -> Any:
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json, application/json",
+            "User-Agent": "ksrf-runtime-validator/1",
+        },
+    )
+    try:
+        with _FRESHNESS_OPENER(
+            request,
+            timeout=_FRESHNESS_TIMEOUT_SECONDS,
+        ) as response:
+            try:
+                final_url = str(response.geturl())
+                requested = urlsplit(url)
+                final = urlsplit(final_url)
+                final_port = final.port
+            except ValueError as exc:
+                raise _FreshnessLookupError("invalid_response") from exc
+            if (
+                final.scheme != "https"
+                or final.hostname != expected_host
+                or final_port not in {None, 443}
+                or final.username is not None
+                or final.password is not None
+                or final.path != requested.path
+                or final.query != requested.query
+                or final.fragment
+                or getattr(response, "status", 200) != 200
+            ):
+                raise _FreshnessLookupError("invalid_response")
+            payload = response.read(max_bytes + 1)
+    except _FreshnessLookupError:
+        raise
+    except HTTPError as exc:
+        reason = "invalid_response" if 300 <= exc.code < 400 else "network_error"
+        raise _FreshnessLookupError(reason) from exc
+    except ValueError as exc:
+        raise _FreshnessLookupError("invalid_response") from exc
+    except (HTTPException, OSError, TimeoutError, URLError) as exc:
+        raise _FreshnessLookupError("network_error") from exc
+
+    if not isinstance(payload, bytes):
+        raise _FreshnessLookupError("invalid_response")
+    if len(payload) > max_bytes:
+        raise _FreshnessLookupError("response_too_large")
+    try:
+        return json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_nonfinite_json_constant,
+        )
+    except (UnicodeError, json.JSONDecodeError, RecursionError, TypeError, ValueError) as exc:
+        raise _FreshnessLookupError("invalid_response") from exc
+
+
+def _resolve_remote_main_sha() -> str:
+    payload = _read_freshness_json(
+        _FRESHNESS_REF_URL,
+        expected_host="api.github.com",
+        max_bytes=_FRESHNESS_REF_MAX_BYTES,
+    )
+    if not isinstance(payload, Mapping):
+        raise _FreshnessLookupError("invalid_response")
+    reference = payload.get("ref")
+    git_object = payload.get("object")
+    if (
+        reference != "refs/heads/main"
+        or not isinstance(git_object, Mapping)
+        or git_object.get("type") != "commit"
+    ):
+        raise _FreshnessLookupError("invalid_response")
+    commit_sha = git_object.get("sha")
+    if (
+        not isinstance(commit_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None
+    ):
+        raise _FreshnessLookupError("invalid_response")
+    return commit_sha
+
+
+def _fetch_remote_runtime_identity(commit_sha: str) -> dict[str, Any]:
+    manifest_url = f"{_FRESHNESS_RAW_PREFIX}{commit_sha}/skills-manifest.json"
+    payload = _read_freshness_json(
+        manifest_url,
+        expected_host="raw.githubusercontent.com",
+        max_bytes=_FRESHNESS_MANIFEST_MAX_BYTES,
+    )
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("schema_version") != "1.2"
+        or payload.get("digest_format") != RUNTIME_CONTENT_DIGEST_FORMAT
+    ):
+        raise _FreshnessLookupError("invalid_response")
+
+    total_skills = payload.get("total_skills")
+    total_files = payload.get("total_files")
+    total_bytes = payload.get("total_bytes")
+    tree_sha256 = payload.get("tree_sha256")
+    valid_counts = (
+        isinstance(total_skills, int)
+        and not isinstance(total_skills, bool)
+        and total_skills == len(CANONICAL_KSRF_PACKAGES)
+        and isinstance(total_files, int)
+        and not isinstance(total_files, bool)
+        and 0 < total_files <= 1_000_000
+        and isinstance(total_bytes, int)
+        and not isinstance(total_bytes, bool)
+        and 0 <= total_bytes <= (2**63 - 1)
+    )
+    if (
+        not valid_counts
+        or not isinstance(tree_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", tree_sha256) is None
+    ):
+        raise _FreshnessLookupError("invalid_response")
+    return {
+        "tree_sha256": tree_sha256,
+        "total_files": total_files,
+        "total_bytes": total_bytes,
+    }
+
+
+def _runtime_freshness(
+    runtime_content: Mapping[str, Any],
+    *,
+    check_updates: bool,
+) -> dict[str, Any]:
+    local_hash = runtime_content.get("tree_sha256")
+    result: dict[str, Any] = {
+        "status": "not_checked",
+        "reason_code": "not_requested",
+        "remote_main_sha": None,
+        "local_tree_sha256": local_hash if isinstance(local_hash, str) else None,
+        "remote_tree_sha256": None,
+    }
+    if not check_updates:
+        return result
+    if not isinstance(local_hash, str):
+        result.update(
+            status="unknown",
+            reason_code="local_identity_unavailable",
+        )
+        return result
+
+    remote_sha: str | None = None
+    try:
+        remote_sha = _resolve_remote_main_sha()
+        remote_content = _fetch_remote_runtime_identity(remote_sha)
+    except _FreshnessLookupError as exc:
+        result.update(
+            status="unknown",
+            reason_code=exc.reason_code,
+            remote_main_sha=remote_sha,
+        )
+        return result
+
+    remote_hash = str(remote_content["tree_sha256"])
+    matches = (
+        local_hash == remote_hash
+        and runtime_content.get("total_files") == remote_content["total_files"]
+        and runtime_content.get("total_bytes") == remote_content["total_bytes"]
+    )
+    result.update(
+        status="current" if matches else "different",
+        reason_code="content_matches" if matches else "content_differs",
+        remote_main_sha=remote_sha,
+        remote_tree_sha256=remote_hash,
+    )
+    return result
+
+
 def _content_security_findings(
     path: Path,
     *,
@@ -2397,6 +2867,7 @@ def validate_skillset(
     *,
     package_names: Sequence[str] = CANONICAL_KSRF_PACKAGES,
     profile: str = "source",
+    check_updates: bool = False,
 ) -> dict[str, Any]:
     """Validate packages and return a JSON-serializable evidence report."""
 
@@ -2406,6 +2877,12 @@ def validate_skillset(
         )
     root = Path(skills_root).expanduser().absolute()
     packages = tuple(package_names)
+    if check_updates and (
+        profile != "runtime" or not _is_complete_canonical_scope(packages)
+    ):
+        raise ValueError(
+            "check_updates requires the runtime profile and complete canonical package scope"
+        )
     findings: list[dict[str, Any]] = []
     if yaml is None:
         findings.append(
@@ -2469,6 +2946,17 @@ def validate_skillset(
         packages,
         validation_profile=profile,
     )
+    runtime_content = _runtime_content_identity(
+        findings,
+        root,
+        packages,
+        manifest["files"],
+        validation_profile=profile,
+    )
+    freshness = _runtime_freshness(
+        runtime_content,
+        check_updates=check_updates,
+    )
     severity_order = {"error": 0, "warning": 1}
     findings.sort(
         key=lambda item: (
@@ -2483,7 +2971,7 @@ def validate_skillset(
     warning_count = sum(item["severity"] == "warning" for item in findings)
     source_release_eligible = (
         profile == "source"
-        and packages == CANONICAL_KSRF_PACKAGES
+        and _is_complete_canonical_scope(packages)
         and len(validated_packages) == len(packages)
         and public_source_safety == "validated"
         and public_repository_safety == "validated"
@@ -2506,6 +2994,8 @@ def validate_skillset(
         "validated_packages": validated_packages,
         "summary": {"errors": error_count, "warnings": warning_count},
         "findings": findings,
+        "runtime_content": runtime_content,
+        "freshness": freshness,
         "publish_manifest": manifest if profile == "source" else None,
     }
 
@@ -2524,6 +3014,8 @@ def _render_text(report: Mapping[str, Any]) -> str:
     summary = report["summary"]
     status = "ПРОЙДЕНО" if report["status"] == "pass" else "НЕ ПРОЙДЕНО"
     profile = str(report["validation_profile"])
+    runtime_content = report["runtime_content"]
+    local_tree_sha256 = runtime_content["tree_sha256"]
     lines = [
         f"Проверка KSRF skillset: {status}",
         (
@@ -2544,9 +3036,53 @@ def _render_text(report: Mapping[str, Any]) -> str:
             f"предупреждений: {summary['warnings']}."
         ),
     ]
+    if isinstance(local_tree_sha256, str):
+        lines.append(
+            "Отпечаток runtime-содержимого: "
+            f"{local_tree_sha256} ({runtime_content['total_files']} файлов; "
+            f"{runtime_content['total_bytes']} байт)."
+        )
+    else:
+        lines.append(
+            "Отпечаток runtime-содержимого не сформирован: дерево изменилось "
+            "или было недоступно при проверке."
+        )
     if profile == "runtime":
+        freshness = report["freshness"]
+        freshness_status = freshness["status"]
+        if freshness_status == "current":
+            lines.append(
+                "Актуальность установленного набора: содержимое побайтно "
+                "совпадает с текущим main "
+                f"({freshness['remote_main_sha']}); это не доказывает происхождение установки."
+            )
+        elif freshness_status == "different":
+            lines.append(
+                "Актуальность установленного набора: содержимое отличается от текущего main "
+                f"({freshness['remote_main_sha']}); набор может быть старым, "
+                "настроенным или локально изменённым."
+            )
+        elif freshness_status == "unknown":
+            reason = _FRESHNESS_REASON_LABELS.get(
+                str(freshness["reason_code"]),
+                "причина не распознана",
+            )
+            lines.append(
+                "Актуальность установленного набора не установлена: проверка не получила достаточных "
+                f"данных ({reason})."
+            )
+        else:
+            lines.append(
+                "Актуальность установленного набора по сети не проверялась; "
+                "для явной проверки добавьте "
+                "--check-updates."
+            )
         lines.append(
             "Runtime-проверка не заменяет source/release QA и не даёт полномочий на публикацию."
+        )
+        lines.append(
+            "Совпадение набора не подтверждает актуальность права и практики "
+            "или готовность конкретной жалобы к подаче."
         )
     for item in report["findings"]:
         location = str(item.get("path") or item.get("package") or "skillset")
@@ -2595,6 +3131,14 @@ def main(
             "runtime проверяет установленное дерево без source-only assets."
         ),
     )
+    parser.add_argument(
+        "--check-updates",
+        action="store_true",
+        help=(
+            "В runtime-профиле сравнить локальный отпечаток с manifest текущего "
+            "canonical main; сеть используется только по этому явному флагу."
+        ),
+    )
     args = parser.parse_args(argv)
     output = sys.stdout if stdout is None else stdout
     errors = sys.stderr if stderr is None else stderr
@@ -2604,11 +3148,24 @@ def main(
             "используйте полный JSON-отчёт или source-профиль.\n"
         )
         return 2
+    requested_packages = (
+        tuple(args.packages) if args.packages else CANONICAL_KSRF_PACKAGES
+    )
+    if args.check_updates and (
+        args.profile != "runtime"
+        or not _is_complete_canonical_scope(requested_packages)
+    ):
+        errors.write(
+            "--check-updates доступен только для runtime-профиля и полного "
+            "canonical набора KSRF-пакетов.\n"
+        )
+        return 2
     try:
         report = validate_skillset(
             args.skills_root,
-            package_names=tuple(args.packages) if args.packages else CANONICAL_KSRF_PACKAGES,
+            package_names=requested_packages,
             profile=args.profile,
+            check_updates=args.check_updates,
         )
         if args.report_out:
             _write_json(args.report_out, report)
