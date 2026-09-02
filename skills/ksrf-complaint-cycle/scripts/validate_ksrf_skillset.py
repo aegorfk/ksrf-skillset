@@ -29,7 +29,13 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
-from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
+from urllib.request import (
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 try:
     import yaml
@@ -188,8 +194,15 @@ _FRESHNESS_REF_URL = (
 _FRESHNESS_RAW_PREFIX = (
     "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
 )
+_FRESHNESS_CONTENTS_MANIFEST_PREFIX = (
+    "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+    "skills-manifest.json?ref="
+)
 _FRESHNESS_GIT_REPOSITORY = "https://github.com/aegorfk/ksrf-skillset.git"
 _FRESHNESS_GIT_REF = "refs/heads/main"
+_FRESHNESS_JSON_ACCEPT = "application/vnd.github+json, application/json"
+_FRESHNESS_CONTENTS_ACCEPT = "application/vnd.github.raw+json"
+_FRESHNESS_GITHUB_API_VERSION = "2026-03-10"
 _FRESHNESS_REF_MAX_BYTES = 64 * 1024
 _FRESHNESS_MANIFEST_MAX_BYTES = 256 * 1024
 _FRESHNESS_GIT_MAX_BYTES = 256
@@ -230,6 +243,7 @@ def _default_freshness_opener(request: Request, *, timeout: float) -> Any:
                 context.load_verify_locations(cafile=str(ca_file))
                 break
     opener = build_opener(
+        ProxyHandler({}),
         HTTPSHandler(context=context),
         _NoFreshnessRedirects(),
     )
@@ -2316,13 +2330,25 @@ def _read_freshness_json(
     *,
     expected_host: str,
     max_bytes: int,
+    accept: str = _FRESHNESS_JSON_ACCEPT,
+    api_version: str | None = None,
+    strict_manifest_http: bool = False,
 ) -> Any:
+    if accept not in {_FRESHNESS_JSON_ACCEPT, _FRESHNESS_CONTENTS_ACCEPT}:
+        raise _FreshnessLookupError("invalid_response")
+    if api_version not in {None, _FRESHNESS_GITHUB_API_VERSION}:
+        raise _FreshnessLookupError("invalid_response")
+    if not isinstance(strict_manifest_http, bool):
+        raise _FreshnessLookupError("invalid_response")
+    headers = {
+        "Accept": accept,
+        "User-Agent": "ksrf-runtime-validator/1",
+    }
+    if api_version is not None:
+        headers["X-GitHub-Api-Version"] = api_version
     request = Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json, application/json",
-            "User-Agent": "ksrf-runtime-validator/1",
-        },
+        headers=headers,
     )
     try:
         with _FRESHNESS_OPENER(
@@ -2345,14 +2371,25 @@ def _read_freshness_json(
                 or final.path != requested.path
                 or final.query != requested.query
                 or final.fragment
-                or getattr(response, "status", 200) != 200
+                or getattr(
+                    response,
+                    "status",
+                    None if strict_manifest_http else 200,
+                ) != 200
             ):
                 raise _FreshnessLookupError("invalid_response")
             payload = response.read(max_bytes + 1)
     except _FreshnessLookupError:
         raise
     except HTTPError as exc:
-        reason = "invalid_response" if 300 <= exc.code < 400 else "network_error"
+        if strict_manifest_http:
+            reason = (
+                "network_error"
+                if exc.code in {408, 429} or 500 <= exc.code <= 599
+                else "invalid_response"
+            )
+        else:
+            reason = "invalid_response" if 300 <= exc.code < 400 else "network_error"
         raise _FreshnessLookupError(reason) from exc
     except ValueError as exc:
         raise _FreshnessLookupError("invalid_response") from exc
@@ -2583,13 +2620,37 @@ def _resolve_remote_main_sha() -> str:
     return _resolve_remote_main_sha_via_git()
 
 
-def _fetch_remote_runtime_identity(commit_sha: str) -> dict[str, Any]:
+def _fetch_remote_runtime_manifest(commit_sha: str) -> Any:
+    if (
+        not isinstance(commit_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None
+    ):
+        raise _FreshnessLookupError("invalid_response")
     manifest_url = f"{_FRESHNESS_RAW_PREFIX}{commit_sha}/skills-manifest.json"
-    payload = _read_freshness_json(
-        manifest_url,
-        expected_host="raw.githubusercontent.com",
+    try:
+        return _read_freshness_json(
+            manifest_url,
+            expected_host="raw.githubusercontent.com",
+            max_bytes=_FRESHNESS_MANIFEST_MAX_BYTES,
+            strict_manifest_http=True,
+        )
+    except _FreshnessLookupError as exc:
+        if exc.reason_code != "network_error":
+            raise
+
+    contents_url = f"{_FRESHNESS_CONTENTS_MANIFEST_PREFIX}{commit_sha}"
+    return _read_freshness_json(
+        contents_url,
+        expected_host="api.github.com",
         max_bytes=_FRESHNESS_MANIFEST_MAX_BYTES,
+        accept=_FRESHNESS_CONTENTS_ACCEPT,
+        api_version=_FRESHNESS_GITHUB_API_VERSION,
+        strict_manifest_http=True,
     )
+
+
+def _fetch_remote_runtime_identity(commit_sha: str) -> dict[str, Any]:
+    payload = _fetch_remote_runtime_manifest(commit_sha)
     if (
         not isinstance(payload, Mapping)
         or payload.get("schema_version") != "1.2"

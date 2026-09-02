@@ -64,11 +64,18 @@ def _runtime_tree_digest(root: Path) -> tuple[str, int, int]:
 
 
 class _FakeHttpResponse:
-    def __init__(self, payload: bytes, final_url: str) -> None:
+    def __init__(
+        self,
+        payload: bytes,
+        final_url: str,
+        *,
+        status: int | None = 200,
+    ) -> None:
         self._stream = io.BytesIO(payload)
         self._final_url = final_url
         self.read_sizes: list[int] = []
-        self.status = 200
+        if status is not None:
+            self.status = status
 
     def __enter__(self) -> "_FakeHttpResponse":
         return self
@@ -723,6 +730,16 @@ description: Используй этот навык для всего.
                     return responses[url]
 
                 with (
+                    mock.patch.dict(
+                        os.environ,
+                        {
+                            "GH_TOKEN": "must-not-be-sent",
+                            "GITHUB_TOKEN": "must-not-be-sent",
+                            "HTTP_PROXY_AUTH": "must-not-be-sent",
+                            "COOKIE": "must-not-be-sent",
+                        },
+                        clear=False,
+                    ),
                     mock.patch.object(
                         VALIDATOR,
                         "CANONICAL_KSRF_PACKAGES",
@@ -903,6 +920,744 @@ description: Используй этот навык для всего.
                     },
                 )
 
+    def test_raw_manifest_network_error_uses_exact_contents_api_fallback(
+        self,
+    ) -> None:
+        remote_sha = "f" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        for expected_status, remote_hash in (
+            ("current", None),
+            ("different", "0" * 64),
+        ):
+            with self.subTest(expected_status=expected_status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+                manifest_payload = json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "digest_format": (
+                            "sha256 over 4-byte big-endian relative path length + "
+                            "relative path + 8-byte big-endian content length + content, "
+                            "files sorted by POSIX relative path"
+                        ),
+                        "total_skills": 1,
+                        "total_files": total_files,
+                        "total_bytes": total_bytes,
+                        "tree_sha256": local_hash if remote_hash is None else remote_hash,
+                    }
+                ).encode()
+                calls: list[tuple[str, dict[str, str]]] = []
+
+                def opener(request: object, *, timeout: float):
+                    self.assertGreater(timeout, 0)
+                    self.assertLessEqual(timeout, 5)
+                    url = str(getattr(request, "full_url", request))
+                    headers = {
+                        str(key).lower(): str(value)
+                        for key, value in getattr(request, "header_items")()
+                    }
+                    calls.append((url, headers))
+                    if url == ref_url:
+                        return _FakeHttpResponse(
+                            json.dumps(
+                                {
+                                    "ref": "refs/heads/main",
+                                    "object": {"type": "commit", "sha": remote_sha},
+                                }
+                            ).encode(),
+                            ref_url,
+                        )
+                    if url == raw_url:
+                        raise TimeoutError("primary raw route unavailable")
+                    self.assertEqual(url, contents_url)
+                    return _FakeHttpResponse(manifest_payload, contents_url)
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_GIT_FINDER",
+                        side_effect=AssertionError("REST ref success must not use git"),
+                    ) as git_finder,
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual([url for url, _ in calls], [ref_url, raw_url, contents_url])
+                self.assertEqual(report["freshness"]["status"], expected_status)
+                self.assertEqual(report["freshness"]["remote_main_sha"], remote_sha)
+                contents_headers = calls[-1][1]
+                self.assertEqual(
+                    contents_headers.get("accept"),
+                    "application/vnd.github.raw+json",
+                )
+                self.assertEqual(
+                    contents_headers.get("x-github-api-version"),
+                    "2026-03-10",
+                )
+                self.assertEqual(
+                    contents_headers.get("user-agent"),
+                    "ksrf-runtime-validator/1",
+                )
+                self.assertEqual(
+                    set(contents_headers),
+                    {"accept", "user-agent", "x-github-api-version"},
+                )
+                self.assertNotIn("authorization", contents_headers)
+                self.assertNotIn("cookie", contents_headers)
+                self.assertNotIn("accept-encoding", contents_headers)
+                self.assertNotIn("x-github-api-version", calls[0][1])
+                self.assertNotIn("x-github-api-version", calls[1][1])
+                git_finder.assert_not_called()
+
+    def test_raw_retryable_http_statuses_use_contents_fallback(self) -> None:
+        remote_sha = "3" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        for http_status in (408, 429, 500, 503):
+            with self.subTest(http_status=http_status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+                manifest_payload = json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "digest_format": (
+                            "sha256 over 4-byte big-endian relative path length + "
+                            "relative path + 8-byte big-endian content length + content, "
+                            "files sorted by POSIX relative path"
+                        ),
+                        "total_skills": 1,
+                        "total_files": total_files,
+                        "total_bytes": total_bytes,
+                        "tree_sha256": local_hash,
+                    }
+                ).encode()
+                calls: list[str] = []
+
+                def opener(request: object, *, timeout: float):
+                    del timeout
+                    url = str(getattr(request, "full_url", request))
+                    calls.append(url)
+                    if url == ref_url:
+                        return _FakeHttpResponse(
+                            json.dumps(
+                                {
+                                    "ref": "refs/heads/main",
+                                    "object": {"type": "commit", "sha": remote_sha},
+                                }
+                            ).encode(),
+                            ref_url,
+                        )
+                    if url == raw_url:
+                        raise VALIDATOR.HTTPError(
+                            raw_url,
+                            http_status,
+                            "private upstream detail",
+                            None,
+                            None,
+                        )
+                    self.assertEqual(url, contents_url)
+                    return _FakeHttpResponse(manifest_payload, contents_url)
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual(calls, [ref_url, raw_url, contents_url])
+                self.assertEqual(report["freshness"]["status"], "current")
+                self.assertNotIn(
+                    "private upstream detail",
+                    json.dumps(report["freshness"], sort_keys=True),
+                )
+
+    def test_rest_git_raw_contents_chain_keeps_one_captured_sha(self) -> None:
+        remote_sha = "4" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+            manifest_payload = json.dumps(
+                {
+                    "schema_version": "1.2",
+                    "digest_format": (
+                        "sha256 over 4-byte big-endian relative path length + "
+                        "relative path + 8-byte big-endian content length + content, "
+                        "files sorted by POSIX relative path"
+                    ),
+                    "total_skills": 1,
+                    "total_files": total_files,
+                    "total_bytes": total_bytes,
+                    "tree_sha256": local_hash,
+                }
+            ).encode()
+            opened: list[str] = []
+
+            def opener(request: object, *, timeout: float):
+                del timeout
+                url = str(getattr(request, "full_url", request))
+                opened.append(url)
+                if url == ref_url:
+                    raise TimeoutError("REST unavailable")
+                if url == raw_url:
+                    raise TimeoutError("raw unavailable")
+                self.assertEqual(url, contents_url)
+                return _FakeHttpResponse(manifest_payload, contents_url)
+
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=opener,
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_FINDER",
+                    return_value="/usr/bin/git",
+                ) as git_finder,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_GIT_RUNNER",
+                    return_value=(
+                        0,
+                        f"{remote_sha}\trefs/heads/main\n".encode("ascii"),
+                    ),
+                ) as git_runner,
+            ):
+                report = VALIDATOR.validate_skillset(
+                    root,
+                    package_names=("ksrf-test",),
+                    profile="runtime",
+                    check_updates=True,
+                )
+
+            self.assertEqual(opened, [ref_url, raw_url, contents_url])
+            self.assertEqual(report["freshness"]["status"], "current")
+            self.assertEqual(report["freshness"]["remote_main_sha"], remote_sha)
+            git_finder.assert_called_once_with("git", path=os.defpath)
+            git_runner.assert_called_once()
+
+    def test_rest_http_error_keeps_existing_git_fallback_semantics(self) -> None:
+        remote_sha = "5" * 40
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_OPENER",
+                side_effect=VALIDATOR.HTTPError(
+                    VALIDATOR._FRESHNESS_REF_URL,
+                    403,
+                    "private REST detail",
+                    None,
+                    None,
+                ),
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_FINDER",
+                return_value="/usr/bin/git",
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                return_value=(
+                    0,
+                    f"{remote_sha}\trefs/heads/main\n".encode("ascii"),
+                ),
+            ) as git_runner,
+        ):
+            resolved = VALIDATOR._resolve_remote_main_sha()
+
+        self.assertEqual(resolved, remote_sha)
+        git_runner.assert_called_once()
+
+    def test_require_current_exit_codes_are_unchanged_through_contents_fallback(
+        self,
+    ) -> None:
+        remote_sha = "7" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        for expected_status, expected_exit, remote_hash in (
+            ("current", 0, None),
+            ("different", 10, "8" * 64),
+            ("unknown", 20, None),
+        ):
+            with self.subTest(expected_status=expected_status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+                manifest_payload = json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "digest_format": (
+                            "sha256 over 4-byte big-endian relative path length + "
+                            "relative path + 8-byte big-endian content length + content, "
+                            "files sorted by POSIX relative path"
+                        ),
+                        "total_skills": 1,
+                        "total_files": total_files,
+                        "total_bytes": total_bytes,
+                        "tree_sha256": local_hash if remote_hash is None else remote_hash,
+                    }
+                ).encode()
+                calls: list[str] = []
+
+                def opener(request: object, *, timeout: float):
+                    del timeout
+                    url = str(getattr(request, "full_url", request))
+                    calls.append(url)
+                    if url == ref_url:
+                        return _FakeHttpResponse(
+                            json.dumps(
+                                {
+                                    "ref": "refs/heads/main",
+                                    "object": {"type": "commit", "sha": remote_sha},
+                                }
+                            ).encode(),
+                            ref_url,
+                        )
+                    if url == raw_url:
+                        raise TimeoutError("raw route detail")
+                    self.assertEqual(url, contents_url)
+                    if expected_status == "unknown":
+                        raise TimeoutError("contents route detail")
+                    return _FakeHttpResponse(manifest_payload, contents_url)
+
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                ):
+                    exit_code = VALIDATOR.main(
+                        [
+                            "--skills-root",
+                            str(root),
+                            "--profile",
+                            "runtime",
+                            "--strict",
+                            "--check-updates",
+                            "--require-current",
+                            "--json",
+                        ],
+                        stdout=stdout,
+                        stderr=stderr,
+                    )
+
+                report = json.loads(stdout.getvalue())
+                self.assertEqual(exit_code, expected_exit)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertEqual(calls, [ref_url, raw_url, contents_url])
+                self.assertEqual(report["freshness"]["status"], expected_status)
+                self.assertNotIn("route", report["freshness"])
+                self.assertNotIn("route detail", stdout.getvalue())
+
+    def test_nonnetwork_raw_manifest_failures_never_call_contents_api(self) -> None:
+        remote_sha = "1" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        cases = (
+            ("malformed", _FakeHttpResponse(b"{bad-json", raw_url), "invalid_response"),
+            (
+                "http-404",
+                VALIDATOR.HTTPError(raw_url, 404, "private detail", None, None),
+                "invalid_response",
+            ),
+            (
+                "response-status-404",
+                _FakeHttpResponse(b"{}", raw_url, status=404),
+                "invalid_response",
+            ),
+            (
+                "missing-status",
+                _FakeHttpResponse(b"{}", raw_url, status=None),
+                "invalid_response",
+            ),
+            (
+                "oversized",
+                _FakeHttpResponse(b"x" * 300_000, raw_url),
+                "response_too_large",
+            ),
+            (
+                "wrong-final-url",
+                _FakeHttpResponse(b"{}", "https://example.invalid/manifest.json"),
+                "invalid_response",
+            ),
+            (
+                "schema-invalid",
+                _FakeHttpResponse(b'{"schema_version":"wrong"}', raw_url),
+                "invalid_response",
+            ),
+        )
+        for label, raw_response, expected_reason in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                calls: list[str] = []
+
+                def opener(request: object, *, timeout: float):
+                    del timeout
+                    url = str(getattr(request, "full_url", request))
+                    calls.append(url)
+                    if url == ref_url:
+                        return _FakeHttpResponse(
+                            json.dumps(
+                                {
+                                    "ref": "refs/heads/main",
+                                    "object": {"type": "commit", "sha": remote_sha},
+                                }
+                            ).encode(),
+                            ref_url,
+                        )
+                    self.assertEqual(url, raw_url)
+                    if isinstance(raw_response, BaseException):
+                        raise raw_response
+                    return raw_response
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual(calls, [ref_url, raw_url])
+                self.assertEqual(report["freshness"]["status"], "unknown")
+                self.assertEqual(report["freshness"]["reason_code"], expected_reason)
+
+    def test_contents_manifest_failures_are_bounded_without_third_route(self) -> None:
+        remote_sha = "2" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        raw_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        cases = (
+            ("network", TimeoutError("contents secret"), "network_error"),
+            (
+                "http-429",
+                VALIDATOR.HTTPError(contents_url, 429, "secret rate detail", None, None),
+                "network_error",
+            ),
+            (
+                "http-404",
+                VALIDATOR.HTTPError(contents_url, 404, "secret missing detail", None, None),
+                "invalid_response",
+            ),
+            (
+                "oversized",
+                _FakeHttpResponse(b"x" * 300_000, contents_url),
+                "response_too_large",
+            ),
+            (
+                "malformed",
+                _FakeHttpResponse(b"{metadata-or-garbage", contents_url),
+                "invalid_response",
+            ),
+            (
+                "invalid-utf8",
+                _FakeHttpResponse(b"\xff", contents_url),
+                "invalid_response",
+            ),
+            (
+                "duplicate-key",
+                _FakeHttpResponse(b'{"schema_version":"1.2","schema_version":"1.2"}', contents_url),
+                "invalid_response",
+            ),
+            (
+                "nonfinite-json",
+                _FakeHttpResponse(b'{"schema_version":NaN}', contents_url),
+                "invalid_response",
+            ),
+            (
+                "metadata-json",
+                _FakeHttpResponse(
+                    b'{"type":"file","download_url":"https://attacker.invalid/x"}',
+                    contents_url,
+                ),
+                "invalid_response",
+            ),
+            (
+                "wrong-final-url",
+                _FakeHttpResponse(b"{}", contents_url + "&extra=1"),
+                "invalid_response",
+            ),
+            (
+                "wrong-ref",
+                _FakeHttpResponse(b"{}", contents_url.replace(remote_sha, "6" * 40)),
+                "invalid_response",
+            ),
+            (
+                "userinfo",
+                _FakeHttpResponse(
+                    b"{}",
+                    contents_url.replace("https://", "https://user:password@"),
+                ),
+                "invalid_response",
+            ),
+            (
+                "wrong-host",
+                _FakeHttpResponse(b"{}", contents_url.replace("api.github.com", "example.invalid")),
+                "invalid_response",
+            ),
+            (
+                "wrong-port",
+                _FakeHttpResponse(b"{}", contents_url.replace("api.github.com", "api.github.com:444")),
+                "invalid_response",
+            ),
+            (
+                "fragment",
+                _FakeHttpResponse(b"{}", contents_url + "#fragment"),
+                "invalid_response",
+            ),
+            (
+                "missing-status",
+                _FakeHttpResponse(b"{}", contents_url, status=None),
+                "invalid_response",
+            ),
+            (
+                "response-status-404",
+                _FakeHttpResponse(b"{}", contents_url, status=404),
+                "invalid_response",
+            ),
+        )
+        for label, contents_outcome, expected_reason in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = _make_valid_skill(root)
+                _remove_evals(skill)
+                calls: list[str] = []
+
+                def opener(request: object, *, timeout: float):
+                    del timeout
+                    url = str(getattr(request, "full_url", request))
+                    calls.append(url)
+                    if url == ref_url:
+                        return _FakeHttpResponse(
+                            json.dumps(
+                                {
+                                    "ref": "refs/heads/main",
+                                    "object": {"type": "commit", "sha": remote_sha},
+                                }
+                            ).encode(),
+                            ref_url,
+                        )
+                    if url == raw_url:
+                        raise TimeoutError("raw secret")
+                    self.assertEqual(url, contents_url)
+                    if isinstance(contents_outcome, BaseException):
+                        raise contents_outcome
+                    return contents_outcome
+
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "CANONICAL_KSRF_PACKAGES",
+                        ("ksrf-test",),
+                    ),
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=opener,
+                    ),
+                ):
+                    report = VALIDATOR.validate_skillset(
+                        root,
+                        package_names=("ksrf-test",),
+                        profile="runtime",
+                        check_updates=True,
+                    )
+
+                self.assertEqual(calls, [ref_url, raw_url, contents_url])
+                self.assertEqual(report["freshness"]["status"], "unknown")
+                self.assertEqual(report["freshness"]["reason_code"], expected_reason)
+                rendered = json.dumps(report["freshness"], sort_keys=True)
+                self.assertNotIn("secret", rendered)
+                self.assertNotIn("attacker.invalid", rendered)
+
+    def test_manifest_fetch_rejects_non_sha_ref_before_network(self) -> None:
+        invalid_refs = (
+            None,
+            "main",
+            "A" * 40,
+            "a" * 39,
+            "a" * 41,
+            "a" * 39 + "/",
+            "a" * 39 + "?",
+            "a" * 39 + "%",
+            "a" * 39 + "#",
+        )
+        for invalid_ref in invalid_refs:
+            with self.subTest(invalid_ref=invalid_ref), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_OPENER",
+                side_effect=AssertionError("invalid commit must not use network"),
+            ) as opener:
+                with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                    VALIDATOR._fetch_remote_runtime_identity(invalid_ref)
+
+            opener.assert_not_called()
+            self.assertEqual(caught.exception.reason_code, "invalid_response")
+
+    def test_default_freshness_opener_disables_environment_proxy_credentials(
+        self,
+    ) -> None:
+        request = VALIDATOR.Request("https://api.github.com/fixed")
+        response = object()
+        captured_handlers: list[object] = []
+        test_case = self
+
+        class _FakeOpener:
+            def open(self, opened_request: object, *, timeout: float) -> object:
+                test_case.assertEqual(opened_request, request)
+                test_case.assertEqual(timeout, 5.0)
+                return response
+
+        def build_without_network(*handlers: object) -> _FakeOpener:
+            captured_handlers.extend(handlers)
+            return _FakeOpener()
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "HTTPS_PROXY": "http://proxy-user:proxy-password@127.0.0.1:9",
+                    "https_proxy": "http://other-user:other-password@127.0.0.1:10",
+                },
+                clear=False,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "build_opener",
+                side_effect=build_without_network,
+            ),
+        ):
+            result = VALIDATOR._default_freshness_opener(request, timeout=5.0)
+
+        self.assertIs(result, response)
+        proxy_handlers = [
+            handler
+            for handler in captured_handlers
+            if handler.__class__.__name__ == "ProxyHandler"
+        ]
+        self.assertEqual(len(proxy_handlers), 1)
+        self.assertEqual(getattr(proxy_handlers[0], "proxies", None), {})
+        self.assertFalse(request.has_header("Proxy-Authorization"))
+
     def test_git_ref_fallback_rejects_missing_nonzero_and_noncanonical_output(
         self,
     ) -> None:
@@ -989,7 +1744,11 @@ description: Используй этот навык для всего.
             ),
             (
                 "manifest-network",
-                [valid_ref, TimeoutError("raw endpoint unavailable")],
+                [
+                    valid_ref,
+                    TimeoutError("raw endpoint unavailable"),
+                    TimeoutError("contents endpoint unavailable"),
+                ],
                 "network_error",
             ),
         )
@@ -1154,6 +1913,10 @@ description: Используй этот навык для всего.
             "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
             f"{remote_sha}/skills-manifest.json"
         )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             skill = _make_valid_skill(root)
@@ -1169,7 +1932,7 @@ description: Используй этот навык для всего.
                     ).encode(),
                     ref_url,
                 ),
-                manifest_url: _FakeHttpResponse(
+                contents_url: _FakeHttpResponse(
                     json.dumps(
                         {
                             "schema_version": "1.2",
@@ -1184,7 +1947,7 @@ description: Используй этот навык для всего.
                             "tree_sha256": local_hash,
                         }
                     ).encode(),
-                    manifest_url,
+                    contents_url,
                 ),
             }
 
@@ -1192,6 +1955,8 @@ description: Используй этот навык для всего.
                 del timeout
                 url = str(getattr(request, "full_url", request))
                 if url == manifest_url:
+                    raise TimeoutError("primary raw route unavailable")
+                if url == contents_url:
                     _write(
                         skill / "references" / "guide.md",
                         "# Изменено во время сети\n",
@@ -1912,6 +2677,10 @@ description: Используй этот навык для всего.
             "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
             f"{remote_sha}/skills-manifest.json"
         )
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             container = Path(tmp)
             root = container / "skills"
@@ -1928,7 +2697,7 @@ description: Используй этот навык для всего.
                     ).encode(),
                     ref_url,
                 ),
-                manifest_url: _FakeHttpResponse(
+                contents_url: _FakeHttpResponse(
                     json.dumps(
                         {
                             "schema_version": "1.2",
@@ -1943,7 +2712,7 @@ description: Используй этот навык для всего.
                             "tree_sha256": local_hash,
                         }
                     ).encode(),
-                    manifest_url,
+                    contents_url,
                 ),
             }
             original_root = container / "original-skills"
@@ -1952,6 +2721,8 @@ description: Используй этот навык для всего.
                 del timeout
                 url = str(getattr(request, "full_url", request))
                 if url == manifest_url:
+                    raise TimeoutError("primary raw route unavailable")
+                if url == contents_url:
                     root.rename(original_root)
                     root.symlink_to(original_root, target_is_directory=True)
                 return responses[url]

@@ -234,20 +234,28 @@ identity with the manifest at the immutable SHA resolved from canonical
 update-check, and current-required modes. Ref resolution SHALL use REST first
 and SHALL attempt the validator's fixed, non-interactive, bounded Git fallback
 exactly once after a REST ref `network_error` when fixed-system Git is available;
-other REST evidence failures and all immutable
-manifest failures SHALL remain fail-closed without that fallback. After existing
-validation failures take precedence, the process SHALL return `0` for `current`,
-`10` for `different`, and `20` for `unknown`. Public human output SHALL be
-rendered from the structured report in concise Russian, preserve counts, content
-identity, remote version evidence, and bounded readable findings, and SHALL NOT
-expose normal users to internal coverage labels or enum tokens such as `runtime`,
-`evals`, `not_checked`, `validated`, `public-source`, `public-repository`, or
-`source/release QA`. The machine report and direct maintainer renderer SHALL
-remain unchanged. Human output SHALL preserve that equality is not installation
-provenance, legal-source freshness, publication authority, or filing readiness.
-Public wrapper errors SHALL use fixed actionable Russian wording and SHALL NOT
-expose `repo-side`, `preflight`, `postflight`, trusted-policy implementation
-terms, Python exception classes, raw Git diagnostics, or raw exception text.
+other REST ref evidence failures and all immutable manifest failures SHALL NOT
+trigger that Git fallback. Immutable manifest retrieval SHALL use the fixed raw
+URL first and SHALL attempt
+`https://api.github.com/repos/aegorfk/ksrf-skillset/contents/skills-manifest.json?ref=<same-lowercase-40-hex-sha>`
+exactly once only after a raw-route `network_error`, using
+`Accept: application/vnd.github.raw+json`, `X-GitHub-Api-Version: 2026-03-10`,
+`User-Agent: ksrf-runtime-validator/1`, no credential or compression header, and
+the same already-resolved SHA;
+other raw evidence failures SHALL remain fail-closed without that content
+fallback. After existing validation failures take precedence, the process SHALL
+return `0` for `current`, `10` for `different`, and `20` for `unknown`. Public
+human output SHALL be rendered from the structured report in concise Russian,
+preserve counts, content identity, remote version evidence, and bounded readable
+findings, and SHALL NOT expose normal users to internal coverage labels or enum
+tokens such as `runtime`, `evals`, `not_checked`, `validated`, `public-source`,
+`public-repository`, or `source/release QA`. The machine report and direct
+maintainer renderer SHALL remain unchanged. Human output SHALL preserve that
+equality is not installation provenance, legal-source freshness, publication
+authority, or filing readiness. Public wrapper errors SHALL use fixed actionable
+Russian wording and SHALL NOT expose `repo-side`, `preflight`, `postflight`,
+trusted-policy implementation terms, Python exception classes, raw transport
+diagnostics, or raw exception text.
 
 #### Scenario: Human current verification
 
@@ -269,9 +277,14 @@ terms, Python exception classes, raw Git diagnostics, or raw exception text.
 - **WHEN** explicit current verification receives bounded `network_error` from the REST ref lookup and the fixed Git fallback returns one valid exact-ref SHA
 - **THEN** verification compares against the immutable manifest at that SHA with unchanged public output and exit meanings
 
+#### Scenario: Raw manifest network failure uses official fallback
+
+- **WHEN** explicit current verification has one valid remote SHA, the immutable raw-host request fails with bounded `network_error`, and the fixed Contents API raw-media request returns a valid manifest at that SHA
+- **THEN** verification completes with unchanged current-or-different output and exit meanings
+
 #### Scenario: Incomplete freshness evidence
 
-- **WHEN** runtime validation passes but neither permitted ref-resolution route can establish a valid remote SHA, or immutable manifest evidence cannot be established
+- **WHEN** runtime validation passes but neither permitted ref-resolution route can establish a valid remote SHA, or the applicable permitted immutable-manifest route or routes cannot establish valid identity evidence
 - **THEN** the report remains `freshness.status=unknown`, current-required mode returns `20`, and human output says comparison could not be completed without emitting a positive conclusion
 
 #### Scenario: Existing validation failure takes precedence
@@ -292,7 +305,7 @@ terms, Python exception classes, raw Git diagnostics, or raw exception text.
 #### Scenario: Explicit network and subprocess boundary
 
 - **WHEN** neither `--verify-current` nor the internal `--check-updates` flag is selected
-- **THEN** installation, offline verification, and status initiate neither the freshness network lookup nor its Git subprocess fallback
+- **THEN** installation, offline verification, and status initiate neither freshness network route nor the Git subprocess fallback
 
 #### Scenario: Unsafe or incomplete target
 
@@ -302,7 +315,7 @@ terms, Python exception classes, raw Git diagnostics, or raw exception text.
 #### Scenario: Trusted verification cannot complete
 
 - **WHEN** the repository-side policy raises unexpectedly or returns malformed current-release evidence
-- **THEN** the public wrapper returns `2`, prints no positive result, and asks the user in plain Russian to update the repository and retry without exposing implementation names, Git diagnostics, or exception text
+- **THEN** the public wrapper returns `2`, prints no positive result, and asks the user in plain Russian to update the repository and retry without exposing implementation names, transport diagnostics, or exception text
 
 #### Scenario: Target changes during the network window
 
