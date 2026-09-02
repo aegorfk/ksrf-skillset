@@ -74,6 +74,180 @@ _QUERY_PLAN_LANE = {
 }
 
 
+_RUSSIAN_METAVARS = {
+    "adjudications": "ФАЙЛ_РЕШЕНИЙ_ПО_РАСХОЖДЕНИЯМ",
+    "adverse_file": "ФАЙЛ_НЕБЛАГОПРИЯТНЫХ_МАТЕРИАЛОВ",
+    "answers": "ФАЙЛ_ОТВЕТОВ",
+    "applicant": "ФАЙЛ_ДЕЛА_ЗАЯВИТЕЛЯ",
+    "applicant_position": "ФАЙЛ_ПОЗИЦИИ_ЗАЯВИТЕЛЯ",
+    "applicant_relations": "ФАЙЛ_СВЯЗЕЙ_С_ДЕЛОМ_ЗАЯВИТЕЛЯ",
+    "as_of": "ДАТА_И_ВРЕМЯ_ISO",
+    "audit_decisions": "ФАЙЛ_РЕШЕНИЙ_АУДИТА",
+    "audit_plan": "ФАЙЛ_ПЛАНА_АУДИТА",
+    "baseline_corpus_digest": "ИСХОДНЫЙ_ХЕШ_КОРПУСА",
+    "candidate": "ФАЙЛ_ДЕЛА_КАНДИДАТА",
+    "candidates": "ФАЙЛ_КАНДИДАТОВ",
+    "candidate_id": "ИДЕНТИФИКАТОР_КАНДИДАТА",
+    "cards": "ФАЙЛ_КАРТОЧЕК",
+    "chain_id": "ИДЕНТИФИКАТОР_ЦЕПОЧКИ",
+    "checked_through": "ДАТА_И_ВРЕМЯ_ISO",
+    "claim_id": "ИДЕНТИФИКАТОР_ТРЕБОВАНИЯ",
+    "coding_reliability": "ФАЙЛ_НАДЁЖНОСТИ_КОДИРОВАНИЯ",
+    "comparison": "ФАЙЛ_СОПОСТАВЛЕНИЯ",
+    "comparisons": "ФАЙЛ_СОПОСТАВЛЕНИЙ",
+    "confirmed_at": "ДАТА_И_ВРЕМЯ_ISO",
+    "confirmed_target_authority_id": "ПОДТВЕРЖДЁННЫЙ_ИДЕНТИФИКАТОР_ИСТОЧНИКА",
+    "content_type": "ТИП_СОДЕРЖИМОГО",
+    "court_id": "ИДЕНТИФИКАТОР_СУДА",
+    "created_at": "ДАТА_И_ВРЕМЯ_ISO",
+    "current_corpus_digest": "ТЕКУЩИЙ_ХЕШ_КОРПУСА",
+    "dpi": "РАЗРЕШЕНИЕ",
+    "enumerator_id": "ИДЕНТИФИКАТОР_ПЕРЕЧИСЛИТЕЛЯ",
+    "exclusion_sample_size": "РАЗМЕР_ВЫБОРКИ_ИСКЛЮЧЕНИЙ",
+    "executed_query_ids": "ФАЙЛ_ИДЕНТИФИКАТОРОВ_ЗАПРОСОВ",
+    "expected_target": "ОЖИДАЕМЫЙ_ПОЛУЧАТЕЛЬ",
+    "fetched_at": "ДАТА_И_ВРЕМЯ_ISO",
+    "filing_cutoff": "ДАТА_И_ВРЕМЯ_ISO",
+    "fingerprint_sha256": "ХЕШ_ОТПЕЧАТКА_ДЕЛА",
+    "higher_authority_treatments": "ФАЙЛ_СВЯЗЕЙ_С_ВЫСШИМИ_ИНСТАНЦИЯМИ",
+    "html": "ФАЙЛ_ОТЧЁТА",
+    "input": "ВХОДНОЙ_ФАЙЛ",
+    "inputs": "ВХОДНЫЕ_ФАЙЛЫ",
+    "language": "ЯЗЫК",
+    "ledger": "ФАЙЛ_РЕЕСТРА",
+    "limit": "ПРЕДЕЛ",
+    "limitation": "ОГРАНИЧЕНИЕ",
+    "limitations": "ФАЙЛ_ОГРАНИЧЕНИЙ",
+    "locator": "УКАЗАТЕЛЬ_МЕСТА",
+    "manifest": "ФАЙЛ_МАНИФЕСТА",
+    "manifests": "ФАЙЛ_МАНИФЕСТОВ",
+    "maximum_claim_effects": "ФАЙЛ_ПРЕДЕЛЬНЫХ_ПОСЛЕДСТВИЙ_ВЫВОДА",
+    "maximum_permitted_claim": "ПРЕДЕЛЬНО_ДОПУСТИМЫЙ_ВЫВОД",
+    "max_age_seconds": "МАКСИМАЛЬНЫЙ_ВОЗРАСТ_В_СЕКУНДАХ",
+    "max_attempts": "МАКСИМУМ_ПОПЫТОК",
+    "max_source_tasks": "МАКСИМУМ_ЗАДАЧ_ИСТОЧНИКА",
+    "max_tasks": "МАКСИМУМ_ЗАДАЧ",
+    "model": "ФАЙЛ_МОДЕЛИ",
+    "notes": "ПРИМЕЧАНИЯ",
+    "observations": "ФАЙЛ_НАБЛЮДЕНИЙ",
+    "output": "ВЫХОДНОЙ_ФАЙЛ",
+    "parser_manifest": "ФАЙЛ_МАНИФЕСТА_ПАРСЕРА",
+    "payload": "ФАЙЛ_ДАННЫХ",
+    "period_id": "ИДЕНТИФИКАТОР_ПЕРИОДА",
+    "plan": "ФАЙЛ_ПЛАНА",
+    "plan_sha256": "ХЕШ_ПЛАНА",
+    "position_card": "ФАЙЛ_КАРТОЧКИ_ПОЗИЦИИ",
+    "position_cards": "ФАЙЛ_КАРТОЧЕК_ПОЗИЦИЙ",
+    "position_card_id": "ИДЕНТИФИКАТОР_КАРТОЧКИ",
+    "primary_decisions": "ФАЙЛ_ОСНОВНЫХ_РЕШЕНИЙ",
+    "quality_binding": "ФАЙЛ_ПРИВЯЗКИ_КАЧЕСТВА",
+    "query": "ЗАПРОС",
+    "query_id": "ИДЕНТИФИКАТОР_ЗАПРОСА",
+    "quotas": "ФАЙЛ_КВОТ",
+    "quote": "ЦИТАТА",
+    "raw": "ИСХОДНЫЙ_ФАЙЛ",
+    "reason": "ОСНОВАНИЕ",
+    "refresh_plan": "ФАЙЛ_ПЛАНА_ОБНОВЛЕНИЯ",
+    "request": "ФАЙЛ_ЗАПРОСА",
+    "requested_from": "ДАТА_ГГГГ-ММ-ДД",
+    "requested_to": "ДАТА_ГГГГ-ММ-ДД",
+    "required_chain_id": "ОБЯЗАТЕЛЬНАЯ_ЦЕПОЧКА",
+    "resolutions": "ФАЙЛ_РЕШЕНИЙ",
+    "reviewed_at": "ДАТА_И_ВРЕМЯ_ISO",
+    "reviewer": "ПРОВЕРЯЮЩИЙ",
+    "role": "РОЛЬ",
+    "root": "КОРНЕВАЯ_ПАПКА",
+    "route_coverage": "ФАЙЛ_ОХВАТА_МАРШРУТОВ",
+    "run_id": "ИДЕНТИФИКАТОР_ЗАПУСКА",
+    "sample_size": "РАЗМЕР_ВЫБОРКИ",
+    "screening_candidates": "ФАЙЛ_КАНДИДАТОВ_ОТБОРА",
+    "seed_id": "ИДЕНТИФИКАТОР_ИСТОЧНИКА",
+    "snapshot": "ИДЕНТИФИКАТОР_СНИМКА",
+    "snapshot_id": "ИДЕНТИФИКАТОР_СНИМКА",
+    "source_chain_id": "ИДЕНТИФИКАТОР_ИСХОДНОЙ_ЦЕПОЧКИ",
+    "source_court_id": "ИДЕНТИФИКАТОР_ИСХОДНОГО_СУДА",
+    "source_reconciliation": "ФАЙЛ_СВЕРКИ_ИСТОЧНИКОВ",
+    "source_role": "РОЛЬ_ИСТОЧНИКА",
+    "source_workspace": "РАБОЧАЯ_ПАПКА_ИСТОЧНИКА",
+    "subject_evidence_sha256": "ХЕШ_ПРЕДМЕТНЫХ_ДОКАЗАТЕЛЬСТВ",
+    "supersedes_treatment_id": "ИДЕНТИФИКАТОР_ЗАМЕНЯЕМОЙ_СВЯЗИ",
+    "target_authority_id": "ИДЕНТИФИКАТОР_ЦЕЛЕВОГО_АКТА",
+    "target_identity": "ФАЙЛ_ДАННЫХ_ЦЕЛИ",
+    "target_kind": "ВИД_ЦЕЛИ",
+    "target_skill": "ЦЕЛЕВОЙ_НАВЫК",
+    "temporal_analysis": "ФАЙЛ_ВРЕМЕННОГО_АНАЛИЗА",
+    "text": "ТЕКСТОВЫЙ_ФАЙЛ",
+    "thesis": "ТЕЗИС",
+    "thesis_file": "ФАЙЛ_ТЕЗИСА",
+    "trajectories": "ФАЙЛ_ТРАЕКТОРИЙ",
+    "treatments": "ФАЙЛ_СВЯЗЕЙ",
+    "treatment_id": "ИДЕНТИФИКАТОР_СВЯЗИ",
+    "unresolved_segments": "ФАЙЛ_НЕРАЗРЕШЁННЫХ_СЕГМЕНТОВ",
+    "url": "АДРЕС",
+    "verification": "ФАЙЛ_ПРОВЕРКИ",
+    "workspace": "РАБОЧАЯ_ПАПКА",
+}
+
+
+class RussianHelpArgumentParser(argparse.ArgumentParser):
+    """Render Russian help without changing parse-time diagnostics or contracts."""
+
+    def format_help(self) -> str:
+        positional_heading = (
+            "команды:"
+            if any(
+                isinstance(action, argparse._SubParsersAction)
+                for action in self._actions
+            )
+            else "позиционные аргументы:"
+        )
+        original_metavars: list[tuple[argparse.Action, Any]] = []
+        for action in self._actions:
+            if (
+                action.help == argparse.SUPPRESS
+                or action.metavar is not None
+                or action.nargs == 0
+                or action.choices is not None
+            ):
+                continue
+            original_metavars.append((action, action.metavar))
+            action.metavar = _RUSSIAN_METAVARS.get(action.dest, "ЗНАЧЕНИЕ")
+
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in original_metavars:
+                action.metavar = metavar
+
+        return (
+            rendered.replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", positional_heading)
+            .replace("optional arguments:", "необязательные аргументы:")
+            .replace("options:", "параметры:")
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
+def _populate_subparser_descriptions(parser: argparse.ArgumentParser) -> None:
+    """Use each command's short help as its own explanatory help heading."""
+
+    for action in parser._actions:
+        if not isinstance(action, argparse._SubParsersAction):
+            continue
+        help_by_name = {
+            choice.dest: choice.help
+            for choice in action._choices_actions
+            if isinstance(choice.help, str) and choice.help.strip()
+        }
+        for name, child in action.choices.items():
+            if child.description is None and name in help_by_name:
+                child.description = help_by_name[name]
+            _populate_subparser_descriptions(child)
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -2956,7 +3130,7 @@ def cmd_source_promote_enumerator(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = RussianHelpArgumentParser(
         prog="judicial_meaning.py",
         description="Локальное исследование кассационной практики до выбора тезиса жалобы в КС РФ.",
     )
@@ -2965,28 +3139,51 @@ def build_parser() -> argparse.ArgumentParser:
     intake = sub.add_parser("intake", help="Инвентаризировать акты заявителя")
     intake.add_argument("--workspace", required=True)
     intake.add_argument("--inputs", nargs="+", required=True)
-    intake.add_argument("--role", default="applicant_judicial_act")
+    intake.add_argument(
+        "--role",
+        default="applicant_judicial_act",
+        help=(
+            "Роль входного документа; по умолчанию applicant_judicial_act "
+            "(судебный акт по делу заявителя)."
+        ),
+    )
     intake.set_defaults(func=cmd_intake)
 
     ocr = sub.add_parser("ocr", help="Явно распознать скан PDF локальными OCR-инструментами")
     ocr.add_argument("--input", required=True)
     ocr.add_argument("--output", required=True)
-    ocr.add_argument("--language", default="rus")
-    ocr.add_argument("--dpi", type=int, default=300)
+    ocr.add_argument(
+        "--language",
+        default="rus",
+        help="Код языка Tesseract; по умолчанию rus (русский).",
+    )
+    ocr.add_argument(
+        "--dpi",
+        type=int,
+        default=300,
+        help="Разрешение изображения; по умолчанию 300 точек на дюйм.",
+    )
     ocr.set_defaults(func=cmd_ocr)
 
     plan = sub.add_parser("plan", help="Создать или заморозить нейтральный план")
     plan_sub = plan.add_subparsers(dest="plan_command", required=True)
     template = plan_sub.add_parser("template", help="Создать заполняемый шаблон")
     template.add_argument("--workspace", required=True)
-    template.add_argument("--force", action="store_true")
+    template.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Перезаписать существующий черновик research-plan.json; ранее "
+            "внесённые в него данные будут заменены."
+        ),
+    )
     template.set_defaults(func=cmd_plan_template)
     freeze = plan_sub.add_parser("freeze", help="Проверить и неизменяемо зафиксировать план")
     freeze.add_argument("--workspace", required=True)
     freeze.add_argument("--plan", required=True)
     freeze.set_defaults(func=cmd_plan_freeze)
 
-    query = sub.add_parser("query", help="Подтвердить предложенный или добавить supplemental-запрос")
+    query = sub.add_parser("query", help="Подтвердить предложенный или добавить дополнительный запрос")
     query_sub = query.add_subparsers(dest="query_command", required=True)
     query_accept = query_sub.add_parser(
         "accept", help="Подтвердить предложения до заморозки плана"
@@ -2994,32 +3191,67 @@ def build_parser() -> argparse.ArgumentParser:
     query_accept.add_argument("--workspace", required=True)
     query_accept.add_argument("--query-id", action="append", required=True)
     query_accept.add_argument("--reviewer", required=True)
-    query_accept.add_argument("--confirmed-at", required=True)
+    query_accept.add_argument(
+        "--confirmed-at",
+        required=True,
+        help="Дата и время подтверждения в формате ISO 8601.",
+    )
     query_accept.set_defaults(func=cmd_query_accept)
     query_supplement = query_sub.add_parser(
-        "supplement", help="Добавить раскрытый запрос после заморозки без изменения знаменателя"
+        "supplement",
+        help=(
+            "Добавить дополнительный запрос после заморозки плана, не меняя "
+            "состав исходной выборки"
+        ),
     )
     query_supplement.add_argument("--workspace", required=True)
     query_supplement.add_argument(
-        "--lane", choices=tuple(sorted(_QUERY_PLAN_LANE)), required=True
+        "--lane",
+        choices=tuple(sorted(_QUERY_PLAN_LANE)),
+        required=True,
+        help=(
+            "Вид дополнительного поиска: exact_norm — точная норма; "
+            "court_language — формулировка суда; legal_mechanism — правовой "
+            "механизм; controlled_synonym — согласованный синоним; "
+            "opposite_reading — противоположное толкование; narrower_reading — "
+            "более узкое толкование; alternative_ground — иное основание; "
+            "later_legislation — последующее законодательство; "
+            "higher_authority — более высокий источник; case_feature — признак дела."
+        ),
     )
     query_supplement.add_argument("--query", required=True)
     query_supplement.add_argument("--reason", required=True)
     query_supplement.add_argument("--reviewer", required=True)
-    query_supplement.add_argument("--confirmed-at", required=True)
+    query_supplement.add_argument(
+        "--confirmed-at",
+        required=True,
+        help="Дата и время подтверждения в формате ISO 8601.",
+    )
     query_supplement.set_defaults(func=cmd_query_supplement)
 
     collect = sub.add_parser("collect", help="Собрать официально наблюдаемый корпус")
     collect.add_argument("--workspace", required=True)
     collect.add_argument("--resume", action="store_true")
     collect.add_argument("--max-tasks", type=int)
-    collect.add_argument("--max-attempts", type=int, default=3)
+    collect.add_argument(
+        "--max-attempts",
+        type=int,
+        default=3,
+        help="Максимум попыток для одной задачи; по умолчанию 3.",
+    )
     collect.add_argument("--max-source-tasks", type=int)
-    collect.add_argument("--retry-now", action="store_true", help="Повторить уже наступившие и явно разрешённые пользователем retry-задачи сейчас")
+    collect.add_argument(
+        "--retry-now",
+        action="store_true",
+        help=(
+            "Повторить сейчас задачи, срок новой попытки для которых уже наступил "
+            "и повтор явно разрешён пользователем"
+        ),
+    )
     collect.add_argument("--fixture-dir", help=argparse.SUPPRESS)
     collect.set_defaults(func=cmd_collect)
 
-    screen = sub.add_parser("screen", help="Отобрать кандидатов по дорожкам frozen plan")
+    screen = sub.add_parser("screen", help="Отобрать кандидатов по дорожкам замороженного плана")
     screen.add_argument("--workspace", required=True)
     screen.set_defaults(func=cmd_screen)
 
@@ -3028,20 +3260,43 @@ def build_parser() -> argparse.ArgumentParser:
     code.add_argument("--input")
     code.set_defaults(func=cmd_code)
 
-    analyze = sub.add_parser("analyze", help="Посчитать независимые цепочки и bounded status")
+    analyze = sub.add_parser(
+        "analyze",
+        help="Посчитать независимые цепочки и определить статус в пределах проверенного корпуса",
+    )
     analyze.add_argument("--workspace", required=True)
     analyze.set_defaults(func=cmd_analyze)
 
-    review = sub.add_parser("review", help="Записать adverse/coverage/human review")
+    review = sub.add_parser(
+        "review",
+        help=(
+            "Записать проверку неблагоприятных материалов, полноты охвата и "
+            "явно введённое решение проверяющего юриста; команда не принимает "
+            "это решение автоматически"
+        ),
+    )
     review.add_argument("--workspace", required=True)
     review.add_argument(
         "--decision",
         choices=("evidence_reviewed", "approved", "rejected", "revise"),
         required=True,
+        help=(
+            "Решение юриста: evidence_reviewed — доказательства просмотрены без "
+            "одобрения тезиса; approved — тезис одобрен; rejected — тезис "
+            "отклонён; revise — вернуть тезис на доработку."
+        ),
     )
     review.add_argument("--reviewer", required=True)
-    review.add_argument("--adverse-complete", action="store_true")
-    review.add_argument("--coverage-complete", action="store_true")
+    review.add_argument(
+        "--adverse-complete",
+        action="store_true",
+        help="Подтвердить ручную проверку всех неблагоприятных материалов.",
+    )
+    review.add_argument(
+        "--coverage-complete",
+        action="store_true",
+        help="Подтвердить ручную проверку полноты охвата корпуса.",
+    )
     review.add_argument("--notes", default="")
     review.add_argument("--adverse-file")
     review.add_argument("--thesis-file")
@@ -3053,24 +3308,36 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--thesis")
     validate.set_defaults(func=cmd_validate)
 
-    export = sub.add_parser("export", help="Сформировать детерминированные JSON/JSONL отчёты")
+    export = sub.add_parser(
+        "export",
+        help=(
+            "Сформировать воспроизводимые отчёты JSON/JSONL: одинаковые входные "
+            "данные дают одинаковый результат"
+        ),
+    )
     export.add_argument("--workspace", required=True)
     export.add_argument("--run-id")
     export.set_defaults(func=cmd_export)
 
-    case = sub.add_parser("case", help="Подготовить fingerprint дела заявителя")
+    case = sub.add_parser("case", help="Подготовить отпечаток дела заявителя")
     case_sub = case.add_subparsers(dest="case_command", required=True)
     case_prepare = case_sub.add_parser(
-        "prepare", help="Создать или обновить fingerprint и запросы"
+        "prepare", help="Создать или обновить отпечаток дела и запросы"
     )
     case_prepare.add_argument("--workspace", required=True)
     case_prepare.add_argument(
         "--answers",
-        help="JSON с issue, norm_refs и features; без него разрешён только интерактивный TTY",
+        help=(
+            "JSON с полями issue, norm_refs и features; без него разрешён только "
+            "интерактивный режим терминала"
+        ),
     )
     case_prepare.set_defaults(func=cmd_case_prepare)
     case_dynamics = case_sub.add_parser(
-        "dynamics", help="Описать проверенную динамику по годам и замороженным стратам"
+        "dynamics",
+        help=(
+            "Описать проверенную динамику по годам и заранее заданным группам дел"
+        ),
     )
     case_dynamics.add_argument("--workspace", required=True)
     case_dynamics.set_defaults(func=cmd_case_dynamics)
@@ -3078,7 +3345,11 @@ def build_parser() -> argparse.ArgumentParser:
     position = sub.add_parser("position", help="Проверить карточку позиции суда")
     position_sub = position.add_subparsers(dest="position_command", required=True)
     position_check = position_sub.add_parser(
-        "check", help="Проверить атрибуцию, цитату и исходозначимость"
+        "check",
+        help=(
+            "Проверить, кто сформулировал позицию, точность цитаты и влияние "
+            "позиции на исход дела"
+        ),
     )
     position_check.add_argument("--input", required=True)
     position_check.add_argument("--workspace")
@@ -3089,21 +3360,28 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--candidate", required=True)
     compare.add_argument("--workspace")
     compare.add_argument("--reviewer")
-    compare.add_argument("--reviewed-at")
+    compare.add_argument(
+        "--reviewed-at",
+        help="Дата и время ручной проверки в формате ISO 8601.",
+    )
     compare.add_argument("--position-card-id")
     compare.set_defaults(func=cmd_compare)
 
     relation = sub.add_parser("relation", help="Связать позицию кассации с делом заявителя")
     relation_sub = relation.add_subparsers(dest="relation_command", required=True)
     relation_classify = relation_sub.add_parser(
-        "classify", help="Классифицировать проверенную позицию на текущем fingerprint"
+        "classify", help="Классифицировать проверенную позицию по текущему отпечатку дела"
     )
     relation_classify.add_argument("--position-card", required=True)
     relation_classify.add_argument("--comparison", required=True)
     relation_classify.add_argument("--applicant-position", required=True)
     relation_classify.add_argument("--workspace", required=True)
     relation_classify.add_argument("--reviewer", required=True)
-    relation_classify.add_argument("--reviewed-at", required=True)
+    relation_classify.add_argument(
+        "--reviewed-at",
+        required=True,
+        help="Дата и время ручной проверки в формате ISO 8601.",
+    )
     relation_classify.set_defaults(func=cmd_relation_classify)
 
     queue = sub.add_parser("queue", help="Собрать объяснимую очередь проверки")
@@ -3113,21 +3391,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     queue_build.add_argument("--candidates", required=True)
     queue_build.add_argument("--resolutions")
-    queue_build.add_argument("--quotas", help="JSON-квоты по court_id, stratum_id и lane")
+    queue_build.add_argument("--quotas", help="Квоты JSON по полям court_id, stratum_id и lane")
     queue_build.add_argument("--workspace")
     queue_build.set_defaults(func=cmd_queue_build)
 
     adverse = sub.add_parser("adverse", help="Проверить неблагоприятные дорожки")
     adverse_sub = adverse.add_subparsers(dest="adverse_command", required=True)
     adverse_build = adverse_sub.add_parser(
-        "build", help="Собрать четыре раскрытых adverse bucket"
+        "build", help="Собрать четыре раскрытые группы неблагоприятных материалов"
     )
     adverse_build.add_argument("--cards", required=True)
     adverse_build.add_argument(
-        "--completed-buckets", nargs="+", choices=ADVERSE_BUCKETS, required=True
+        "--completed-buckets",
+        nargs="+",
+        choices=ADVERSE_BUCKETS,
+        required=True,
+        help=(
+            "Полностью проверенные группы: opposite_reading — противоположное "
+            "толкование; narrower_reading — более узкое толкование; "
+            "alternative_ground — иное основание; later_authority — более поздний акт."
+        ),
     )
     adverse_build.add_argument(
-        "--searched-buckets", nargs="+", choices=ADVERSE_BUCKETS, required=True
+        "--searched-buckets",
+        nargs="+",
+        choices=ADVERSE_BUCKETS,
+        required=True,
+        help=(
+            "Группы, по которым выполнен поиск: opposite_reading — противоположное "
+            "толкование; narrower_reading — более узкое толкование; "
+            "alternative_ground — иное основание; later_authority — более поздний акт."
+        ),
     )
     adverse_build.add_argument("--workspace")
     adverse_build.add_argument("--executed-query-ids", required=True)
@@ -3145,13 +3439,16 @@ def build_parser() -> argparse.ArgumentParser:
     bridge_check.add_argument("--maximum-permitted-claim")
     bridge_check.set_defaults(func=cmd_bridge_check)
 
-    status = sub.add_parser("status", help="Показать один fail-closed статус исследования")
+    status = sub.add_parser(
+        "status",
+        help="Показать единый статус исследования с блокировкой при неопределённости",
+    )
     status.add_argument("--workspace", required=True)
     status.set_defaults(func=cmd_status)
 
     report = sub.add_parser("report", help="Сформировать автономный HTML-отчёт")
     report.add_argument("--workspace", required=True)
-    report.add_argument("--model", help="Готовая JSON-модель; иначе собирается из workspace")
+    report.add_argument("--model", help="Готовая модель JSON; иначе формируется из рабочей папки")
     report.add_argument("--html")
     report.add_argument("--manifest")
     report.set_defaults(func=cmd_report)
@@ -3172,7 +3469,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     quality_uncertainty = quality_sub.add_parser(
         "uncertainty-profile",
-        help="Сформировать ненумерованный профиль неопределённости практики",
+        help=(
+            "Описать источники неопределённости практики без сводной числовой оценки"
+        ),
     )
     quality_uncertainty.add_argument("--fingerprint-sha256", required=True)
     quality_uncertainty.add_argument("--position-cards", required=True)
@@ -3188,7 +3487,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     quality_audit_plan = quality_sub.add_parser(
         "coding-audit-plan",
-        help="Заморозить детерминированную выборку независимого кодирования",
+        help=(
+            "Сохранить неизменяемую воспроизводимую выборку для независимой "
+            "проверки кодирования"
+        ),
     )
     quality_audit_plan.add_argument("--screening-candidates", required=True)
     quality_audit_plan.add_argument("--primary-decisions", required=True)
@@ -3218,17 +3520,39 @@ def build_parser() -> argparse.ArgumentParser:
     quality_refresh.add_argument("--subject-evidence-sha256", required=True)
     quality_refresh.add_argument("--refresh-plan", required=True)
     quality_refresh.add_argument("--treatments", required=True)
-    quality_refresh.add_argument("--checked-through", required=True)
-    quality_refresh.add_argument("--filing-cutoff", required=True)
+    quality_refresh.add_argument(
+        "--checked-through",
+        required=True,
+        help="Дата и время, по которые проверен корпус, в формате ISO 8601.",
+    )
+    quality_refresh.add_argument(
+        "--filing-cutoff",
+        required=True,
+        help="Предельные дата и время подачи в формате ISO 8601.",
+    )
     quality_refresh.add_argument("--reviewer", required=True)
-    quality_refresh.add_argument("--reviewed-at", required=True)
+    quality_refresh.add_argument(
+        "--reviewed-at",
+        required=True,
+        help="Дата и время ручной проверки в формате ISO 8601.",
+    )
     quality_refresh.add_argument("--claim-id", action="append", default=[])
     quality_refresh.add_argument("--output")
     quality_refresh.set_defaults(func=cmd_quality_prefiling_refresh)
 
-    handoff = sub.add_parser("handoff", help="Передать типизированный проверяемый результат")
+    handoff = sub.add_parser(
+        "handoff",
+        help=(
+            "Подготовить и проверить пакет результатов для передачи другому навыку"
+        ),
+    )
     handoff_sub = handoff.add_subparsers(dest="handoff_command", required=True)
-    handoff_create = handoff_sub.add_parser("create", help="Создать content-bound handoff")
+    handoff_create = handoff_sub.add_parser(
+        "create",
+        help=(
+            "Создать пакет передачи, связанный с точными версиями исходных файлов"
+        ),
+    )
     handoff_create.add_argument("--workspace", required=True)
     handoff_create.add_argument("--target-skill", required=True)
     handoff_create.add_argument(
@@ -3240,14 +3564,27 @@ def build_parser() -> argparse.ArgumentParser:
             "selected_authorities",
         ),
         required=True,
+        help=(
+            "Вид данных: unproven_research_questions — непроверенные вопросы; "
+            "approved_bounded_findings — одобренные выводы в доказанных пределах; "
+            "authority_cards — карточки источников версии 2. "
+            "selected_authorities — устаревший тип версии 1 только для аудита; "
+            "create его отклоняет, используйте authority_cards."
+        ),
     )
     handoff_create.add_argument(
         "--payload",
-        help="JSON request payload; для проверенных результатов запрещён",
+        help=(
+            "Путь к JSON-файлу с непроверенными вопросами; для проверенных "
+            "результатов этот параметр запрещён."
+        ),
     )
     handoff_create.add_argument(
         "--request",
-        help="Проверенный v2 request envelope для artifact-derived результата",
+        help=(
+            "Путь к JSON-файлу запроса версии 2 для результата, сформированного "
+            "из проверенных файлов."
+        ),
     )
     handoff_create.add_argument("--claim-id", action="append", default=[])
     handoff_create.add_argument("--candidate-id", action="append", default=[])
@@ -3256,73 +3593,98 @@ def build_parser() -> argparse.ArgumentParser:
         "--quality-binding",
         action="append",
         default=[],
-        help="JSON-артефакт practice-quality для content-bound привязки",
+        help=(
+            "Путь к JSON-файлу проверки качества практики; параметр можно повторить."
+        ),
     )
     handoff_create.add_argument("--limitations")
     handoff_create.add_argument("--limitation", action="append", default=[])
     handoff_create.add_argument("--run-id")
-    handoff_create.add_argument("--created-at")
+    handoff_create.add_argument(
+        "--created-at",
+        help=(
+            "Дата и время создания в формате ISO 8601; по умолчанию текущее "
+            "время UTC."
+        ),
+    )
     handoff_create.add_argument("--output")
     handoff_create.set_defaults(func=cmd_handoff_create)
-    handoff_check = handoff_sub.add_parser("check", help="Проверить handoff и его хеши")
+    handoff_check = handoff_sub.add_parser("check", help="Проверить пакет передачи и его хеши")
     handoff_check.add_argument("--input", required=True)
     handoff_check.add_argument(
         "--source-workspace",
         "--workspace",
         dest="source_workspace",
-        help="Доверенный workspace источника; --workspace сохранён как совместимый alias",
+        help="Доверенная рабочая папка источника; --workspace сохранён как совместимое имя",
     )
     handoff_check.add_argument("--expected-target", required=True)
     handoff_check.set_defaults(func=cmd_handoff_check)
-    handoff_import = handoff_sub.add_parser("import", help="Идемпотентно добавить handoff в inbox")
+    handoff_import = handoff_sub.add_parser(
+        "import", help="Без повторов добавить пакет передачи во входящий реестр"
+    )
     handoff_import.add_argument("--input", required=True)
     handoff_import.add_argument("--ledger", required=True)
     handoff_import.add_argument(
         "--source-workspace",
         "--workspace",
         dest="source_workspace",
-        help="Доверенный workspace источника; --workspace сохранён как совместимый alias",
+        help="Доверенная рабочая папка источника; --workspace сохранён как совместимое имя",
     )
     handoff_import.add_argument("--expected-target", required=True)
     handoff_import.set_defaults(func=cmd_handoff_import)
 
     cache = sub.add_parser("cache", help="Управлять локальным публичным корпусом")
     cache_sub = cache.add_subparsers(dest="cache_command", required=True)
-    cache_init = cache_sub.add_parser("init", help="Создать SQLite-кэш и object store")
+    cache_init = cache_sub.add_parser("init", help="Создать кэш SQLite и хранилище объектов")
     cache_init.add_argument("--root", required=True)
     cache_init.set_defaults(func=cmd_cache_init)
-    cache_seed = cache_sub.add_parser("register-seed", help="Добавить публичный URL seed")
+    cache_seed = cache_sub.add_parser("register-seed", help="Добавить исходный публичный URL")
     cache_seed.add_argument("--root", required=True)
     cache_seed.add_argument("--url", required=True)
-    cache_seed.add_argument("--role", default="official_user_seed")
+    cache_seed.add_argument(
+        "--role",
+        default="official_user_seed",
+        help=(
+            "Роль источника; по умолчанию official_user_seed "
+            "(официальный адрес, указанный пользователем)."
+        ),
+    )
     cache_seed.set_defaults(func=cmd_cache_register_seed)
     cache_ingest = cache_sub.add_parser(
-        "ingest", help="Добавить проверенный публичный snapshot и его текст"
+        "ingest", help="Добавить проверенный снимок публичного источника и его текст"
     )
     cache_ingest.add_argument("--root", required=True)
     cache_ingest.add_argument("--seed-id", required=True)
     cache_ingest.add_argument("--raw", required=True)
     cache_ingest.add_argument("--content-type")
-    cache_ingest.add_argument("--fetched-at", required=True)
-    cache_ingest.add_argument("--parser-manifest", required=True)
+    cache_ingest.add_argument(
+        "--fetched-at",
+        required=True,
+        help="Дата и время получения снимка в формате ISO 8601.",
+    )
+    cache_ingest.add_argument(
+        "--parser-manifest",
+        required=True,
+        help="Путь к JSON-файлу с описанием использованного парсера.",
+    )
     cache_ingest.add_argument("--text")
     cache_ingest.set_defaults(func=cmd_cache_ingest)
     cache_pin = cache_sub.add_parser(
-        "pin-run", help="Неизменяемо закрепить snapshots за публичным запуском"
+        "pin-run", help="Неизменяемо закрепить снимки за публичным запуском"
     )
     cache_pin.add_argument("--root", required=True)
     cache_pin.add_argument("--run-id", required=True)
     cache_pin.add_argument("--snapshot", action="append", required=True)
     cache_pin.set_defaults(func=cmd_cache_pin_run)
     cache_export = cache_sub.add_parser(
-        "export-run", help="Экспортировать переносимый public-only пакет"
+        "export-run", help="Экспортировать переносимый пакет только с публичными данными"
     )
     cache_export.add_argument("--root", required=True)
     cache_export.add_argument("--run-id", required=True)
     cache_export.add_argument("--output", required=True)
     cache_export.set_defaults(func=cmd_cache_export_run)
     cache_import = cache_sub.add_parser(
-        "import-run", help="Проверить и импортировать переносимый public-only пакет"
+        "import-run", help="Проверить и импортировать переносимый пакет только с публичными данными"
     )
     cache_import.add_argument("--root", required=True)
     cache_import.add_argument("--input", required=True)
@@ -3330,11 +3692,22 @@ def build_parser() -> argparse.ArgumentParser:
     cache_search = cache_sub.add_parser("search", help="Искать только в локально индексированном тексте")
     cache_search.add_argument("--root", required=True)
     cache_search.add_argument("--query", required=True)
-    cache_search.add_argument("--limit", type=int, default=100)
+    cache_search.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Максимум результатов; по умолчанию 100.",
+    )
     cache_search.set_defaults(func=cmd_cache_search)
-    cache_refresh = cache_sub.add_parser("refresh-plan", help="Составить план обновления публичных seed")
+    cache_refresh = cache_sub.add_parser(
+        "refresh-plan", help="Составить план обновления исходных публичных адресов"
+    )
     cache_refresh.add_argument("--root", required=True)
-    cache_refresh.add_argument("--as-of", required=True)
+    cache_refresh.add_argument(
+        "--as-of",
+        required=True,
+        help="Дата и время состояния корпуса в формате ISO 8601.",
+    )
     cache_refresh.add_argument("--max-age-seconds", type=int, required=True)
     cache_refresh.set_defaults(func=cmd_cache_refresh_plan)
 
@@ -3359,6 +3732,18 @@ def build_parser() -> argparse.ArgumentParser:
             "human_verification_pending",
         ),
         required=True,
+        help=(
+            "Этап цепочки: enumerated — дело найдено в перечне; card — получена "
+            "карточка; document_link — найдена ссылка на документ; "
+            "payload_validated — ответ источника проверен; full_text_extracted — "
+            "извлечён полный текст; indexed — текст добавлен в поиск; screened — "
+            "пройден первичный отбор; coded — текст размечен; "
+            "approved_independent_chain — независимая цепочка одобрена; blocked — "
+            "работа заблокирована; retryable_error — временная ошибка, можно "
+            "повторить; official_page_no_text — на официальной странице нет текста; "
+            "unextractable — текст нельзя извлечь; ocr_pending — ожидается OCR; "
+            "human_verification_pending — нужна ручная проверка."
+        ),
     )
     cache_funnel_record.add_argument("--snapshot-id")
     cache_funnel_record.add_argument("--reason")
@@ -3395,6 +3780,12 @@ def build_parser() -> argparse.ArgumentParser:
             "supersedes", "unclear", "does_not_reach",
         ),
         required=True,
+        help=(
+            "Отношение нового акта к позиции: applies — применяет; follows — "
+            "следует ей; distinguishes — отличает обстоятельства; limits — "
+            "ограничивает; rejects — отклоняет; supersedes — заменяет; unclear — "
+            "отношение неясно; does_not_reach — вопрос не рассмотрен."
+        ),
     )
     cache_treatment_discover.add_argument("--snapshot-id", required=True)
     cache_treatment_discover.add_argument("--supersedes-treatment-id")
@@ -3405,15 +3796,38 @@ def build_parser() -> argparse.ArgumentParser:
     cache_treatment_review.add_argument("--root", required=True)
     cache_treatment_review.add_argument("--treatment-id", required=True)
     cache_treatment_review.add_argument(
-        "--decision", choices=("verified", "rejected"), required=True
+        "--decision",
+        choices=("verified", "rejected"),
+        required=True,
+        help=(
+            "Решение проверяющего: verified — связь подтверждена; rejected — "
+            "связь отклонена."
+        ),
     )
     cache_treatment_review.add_argument("--reviewer", required=True)
     cache_treatment_review.add_argument("--quote")
     cache_treatment_review.add_argument("--locator")
-    cache_treatment_review.add_argument("--speaker", choices=("court", "party", "unknown"))
+    cache_treatment_review.add_argument(
+        "--speaker",
+        choices=("court", "party", "unknown"),
+        help=(
+            "Автор цитаты: court — суд, party — участник дела, unknown — автор "
+            "не установлен."
+        ),
+    )
     cache_treatment_review.add_argument("--confirmed-target-authority-id")
-    cache_treatment_review.add_argument("--target-identity-confirmed", action="store_true")
-    cache_treatment_review.add_argument("--reviewed-at")
+    cache_treatment_review.add_argument(
+        "--target-identity-confirmed",
+        action="store_true",
+        help="Подтвердить, что проверяющий вручную сверил целевой судебный акт.",
+    )
+    cache_treatment_review.add_argument(
+        "--reviewed-at",
+        help=(
+            "Дата и время ручной проверки в формате ISO 8601; по умолчанию "
+            "текущее время UTC."
+        ),
+    )
     cache_treatment_review.set_defaults(func=cmd_cache_treatment_review)
     cache_treatment_list = cache_treatment_sub.add_parser("list", help="Показать связи")
     cache_treatment_list.add_argument("--root", required=True)
@@ -3434,26 +3848,45 @@ def build_parser() -> argparse.ArgumentParser:
     source_reconcile.add_argument("--manifests", required=True)
     source_reconcile.add_argument("--observations", required=True)
     source_reconcile.add_argument("--route-coverage", required=True)
-    source_reconcile.add_argument("--requested-from", required=True)
-    source_reconcile.add_argument("--requested-to", required=True)
+    source_reconcile.add_argument(
+        "--requested-from",
+        required=True,
+        help="Начальная дата периода в формате ГГГГ-ММ-ДД.",
+    )
+    source_reconcile.add_argument(
+        "--requested-to",
+        required=True,
+        help="Конечная дата периода в формате ГГГГ-ММ-ДД.",
+    )
     source_reconcile.add_argument("--workspace")
     source_reconcile.add_argument("--output")
     source_reconcile.set_defaults(func=cmd_source_reconcile)
     source_verify = source_sub.add_parser(
-        "verify-manifest", help="Fail-closed проверить contract перечислителя"
+        "verify-manifest",
+        help=(
+            "Проверить правила получения перечня дел с блокировкой при "
+            "неопределённости"
+        ),
     )
     source_verify.add_argument("--input", required=True)
     source_verify.add_argument("--output")
     source_verify.set_defaults(func=cmd_source_verify_manifest)
     source_promote = source_sub.add_parser(
-        "promote-enumerator", help="Повысить маршрут только после всех verification gates"
+        "promote-enumerator", help="Повысить маршрут только после прохождения всех этапов проверки"
     )
     source_promote.add_argument("--manifest", required=True)
     source_promote.add_argument("--verification", required=True)
     source_promote.add_argument("--reviewer", required=True)
-    source_promote.add_argument("--reviewed-at")
+    source_promote.add_argument(
+        "--reviewed-at",
+        help=(
+            "Дата и время ручной проверки в формате ISO 8601; по умолчанию "
+            "текущее время UTC."
+        ),
+    )
     source_promote.add_argument("--output")
     source_promote.set_defaults(func=cmd_source_promote_enumerator)
+    _populate_subparser_descriptions(parser)
     return parser
 
 

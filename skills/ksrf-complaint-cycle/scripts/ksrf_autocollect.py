@@ -1546,20 +1546,98 @@ def iter_files(paths: list[Path], exclude_patterns: list[str] | None = None) -> 
     return sorted(files)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Собрать первичный CaseFile из документов дела для скиллов КС РФ.")
-    parser.add_argument("paths", nargs="+", help="Файлы или папки с материалами дела")
-    parser.add_argument("--out", help="Куда записать JSON. По умолчанию вывод в stdout.")
-    parser.add_argument("--no-ocr", action="store_true", help="Не запускать OCR fallback для PDF с малым извлеченным текстом.")
-    parser.add_argument("--ocr-pages", type=int, default=8, help="Сколько первых страниц PDF пробовать через OCR fallback.")
-    parser.add_argument("--tessdata-dir", help="Папка с языковыми пакетами Tesseract, если русский язык не установлен системно.")
+class _RussianArgumentParser(argparse.ArgumentParser):
+    """Показывать справку argparse по-русски, не меняя выполнение команды."""
+
+    _HELP_METAVARS = {
+        "paths": "ПУТЬ",
+        "out": "ФАЙЛ",
+        "ocr_pages": "ЧИСЛО",
+        "tessdata_dir": "ПАПКА",
+        "exclude": "ШАБЛОН",
+    }
+
+    def format_help(self) -> str:
+        localized = [
+            (action, action.metavar)
+            for action in self._actions
+            if action.dest in self._HELP_METAVARS
+        ]
+        for action, _metavar in localized:
+            action.metavar = self._HELP_METAVARS[action.dest]
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in localized:
+                action.metavar = metavar
+        return (
+            rendered
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", "позиционные аргументы:", 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = _RussianArgumentParser(
+        description=(
+            "Собрать первичную карточку дела из сохранённых документов для "
+            "подготовки жалобы в КС РФ."
+        )
+    )
+    parser.add_argument(
+        "paths",
+        nargs="+",
+        help="Один или несколько файлов либо папок с материалами дела.",
+    )
+    parser.add_argument(
+        "--out",
+        help=(
+            "Файл для результата в формате JSON; если не указан, результат "
+            "выводится на экран."
+        ),
+    )
+    parser.add_argument(
+        "--no-ocr",
+        action="store_true",
+        help=(
+            "Не использовать резервное распознавание текста (OCR) для "
+            "PDF-файлов, из которых извлечено мало текста."
+        ),
+    )
+    parser.add_argument(
+        "--ocr-pages",
+        type=int,
+        default=8,
+        help="Сколько первых страниц каждого PDF-файла распознавать; по умолчанию 8.",
+    )
+    parser.add_argument(
+        "--tessdata-dir",
+        help=(
+            "Папка с языковыми данными Tesseract; если не указана, используются "
+            "системные данные."
+        ),
+    )
     parser.add_argument(
         "--exclude",
         action="append",
         default=[],
         metavar="GLOB",
-        help="Не входить в совпавший файл/каталог; можно повторять (например, --exclude 'private-*').",
+        help=(
+            "Не обрабатывать файл или папку, имя которых совпадает с шаблоном; "
+            "параметр можно повторить (например, --exclude 'private-*')."
+        ),
     )
+    return parser
+
+
+def main() -> int:
+    parser = _build_parser()
     args = parser.parse_args()
 
     input_paths = [Path(p).expanduser().resolve() for p in args.paths]

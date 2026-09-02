@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -131,9 +132,42 @@ def validate(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
+class _RussianArgumentParser(argparse.ArgumentParser):
+    """Показывать стандартные элементы справки argparse по-русски."""
+
+    def format_help(self) -> str:
+        return (
+            super()
+            .format_help()
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", "позиционные аргументы:", 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
+def _build_help_parser() -> argparse.ArgumentParser:
+    parser = _RussianArgumentParser(
+        prog="validate_argument_research.py",
+        description=(
+            "Проверить файл исследования аргументов для жалобы в КС РФ."
+        ),
+    )
+    parser.add_argument(
+        "path",
+        metavar="ПУТЬ",
+        help="Путь к проверяемому JSON-файлу исследования аргументов.",
+    )
+    return parser
+
+
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] in {"-h", "--help"}:
-        print("usage: validate_argument_research.py PATH")
+        _build_help_parser().print_help()
         return 0
     if len(sys.argv) != 2:
         print("usage: validate_argument_research.py PATH", file=sys.stderr)

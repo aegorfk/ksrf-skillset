@@ -34,12 +34,17 @@ ROUTE_COMMANDS = {
 ROUTE_TITLES = {
     "sources": "Проверка официальных источников и редакций норм",
     "admissibility": "Проверка допустимости и выбор маршрута обращения",
-    "application": "Доказательство прямого или имплицитного применения нормы",
+    "application": (
+        "Доказательство прямого или неявного (имплицитного) применения нормы"
+    ),
     "issues": "Формирование вариантов конституционно-правовой проблемы",
     "failures": "Исследование неудачных обращений и неблагоприятной практики",
-    "evaluate": "Outcome-blind оценка качества",
-    "render": "Сборка и визуальная проверка DOCX/PDF",
-    "release": "Проверка комплекта перед передачей человеку",
+    "evaluate": "Оценка качества без учёта известного исхода дела",
+    "render": "Сборка и визуальная проверка документов DOCX и PDF",
+    "release": (
+        "Проверка комплекта перед передачей проверяющему юристу; команда не "
+        "одобряет и не подаёт жалобу"
+    ),
 }
 
 ROUTE_ACTIONS = {
@@ -53,68 +58,243 @@ ROUTE_ACTIONS = {
     "release": "check",
 }
 
+ROUTE_ACTION_HELP = {
+    "sources": "verify — проверить официальные источники и редакции норм",
+    "application": "analyze — проанализировать применение нормы в деле",
+    "issues": "generate — сформировать варианты конституционно-правовой проблемы",
+    "failures": "research — исследовать неудачные обращения и неблагоприятную практику",
+    "evaluate": "run — выполнить оценку качества материалов",
+    "render": "build — собрать документы для визуальной проверки",
+    "release": "check — проверить комплект перед ручной юридической проверкой",
+}
+
 
 class CLIUsageError(ValueError):
     pass
 
 
 class _RussianArgumentParser(argparse.ArgumentParser):
+    """Показывать справку argparse по-русски, не меняя выполнение команд."""
+
+    _HELP_METAVARS = {
+        "command": "КОМАНДА",
+        "matter_command": "КОМАНДА",
+        "matter_id": "ИДЕНТИФИКАТОР",
+        "workspace": "ПАПКА",
+        "input": "ФАЙЛ_ИЛИ_URL",
+        "manifest": "ПУТЬ",
+        "document_role": "РОЛЬ",
+        "action": "ДЕЙСТВИЕ",
+        "payload": "ФАЙЛ",
+    }
+
+    def format_help(self) -> str:
+        localized = [
+            (action, action.metavar)
+            for action in self._actions
+            if action.dest in self._HELP_METAVARS
+        ]
+        for action, _metavar in localized:
+            action.metavar = self._HELP_METAVARS[action.dest]
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in localized:
+                action.metavar = metavar
+        return (
+            rendered
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", "позиционные аргументы:", 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
     def error(self, message: str) -> NoReturn:
         raise CLIUsageError(f"Некорректные параметры команды: {message}")
 
 
 def _add_json_flag(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--json", action="store_true", help="Вывести версионированный JSON.")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Вывести результат в техническом формате JSON.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = _RussianArgumentParser(
         prog="ksrf",
-        description="Локальная подготовка доказательственно проверяемой жалобы в Конституционный Суд РФ.",
+        description=(
+            "Локальная подготовка жалобы в Конституционный Суд РФ с проверкой "
+            "каждого вывода по источникам."
+        ),
     )
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(
+        dest="command",
+        required=True,
+        title="команды",
+    )
 
-    start = commands.add_parser("start", help="Показать безопасный старт или создать рабочую папку.")
-    start.add_argument("--profile", choices=("basic", "research", "expert"), default="basic")
-    start.add_argument("--matter-id", "--id", dest="matter_id")
-    start.add_argument("--workspace", "--destination", dest="workspace", type=Path)
-    start.add_argument("--input", action="append", default=[], help="Локальный файл или URL для регистрации.")
+    start_description = (
+        "Показать, с чего начать, или создать локальную рабочую папку дела."
+    )
+    start = commands.add_parser(
+        "start",
+        help=start_description,
+        description=start_description,
+    )
+    start.add_argument(
+        "--profile",
+        choices=("basic", "research", "expert"),
+        default="basic",
+        help=(
+            "Режим работы: basic — базовый (по умолчанию), research — "
+            "исследовательский, expert — экспертный."
+        ),
+    )
+    start.add_argument(
+        "--matter-id",
+        "--id",
+        dest="matter_id",
+        help="Идентификатор дела; для создания папки укажите вместе с --workspace.",
+    )
+    start.add_argument(
+        "--workspace",
+        "--destination",
+        dest="workspace",
+        type=Path,
+        help="Путь к локальной рабочей папке дела; укажите вместе с --matter-id.",
+    )
+    start.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        help="Файл или URL для регистрации; параметр можно повторить.",
+    )
     _add_json_flag(start)
 
-    doctor_parser = commands.add_parser("doctor", help="Проверить возможности без установки программ.")
-    doctor_parser.add_argument(
-        "--profile", choices=("basic", "research", "expert"), default="basic"
+    doctor_description = "Проверить возможности без установки программ."
+    doctor_parser = commands.add_parser(
+        "doctor",
+        help=doctor_description,
+        description=doctor_description,
     )
-    doctor_parser.add_argument("--manifest", type=Path, help="Путь к манифесту возможностей.")
+    doctor_parser.add_argument(
+        "--profile",
+        choices=("basic", "research", "expert"),
+        default="basic",
+        help=(
+            "Режим проверки: basic — базовый (по умолчанию), research — "
+            "исследовательский, expert — экспертный."
+        ),
+    )
+    doctor_parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Путь к файлу с описанием доступных возможностей.",
+    )
     doctor_parser.add_argument(
         "--allow-network",
         action="store_true",
-        help="Явно разрешить только объявленные ограниченные сетевые проверки без отправки документов.",
+        help="Разрешить только ограниченные сетевые проверки без отправки документов.",
     )
     _add_json_flag(doctor_parser)
 
-    matter = commands.add_parser("matter", help="Управлять локальной рабочей папкой дела.")
-    matter_commands = matter.add_subparsers(dest="matter_command", required=True)
-    matter_init = matter_commands.add_parser("init", help="Создать версионированную рабочую папку.")
-    matter_init.add_argument("--matter-id", "--id", dest="matter_id", required=True)
-    matter_init.add_argument(
-        "--workspace", "--destination", dest="workspace", type=Path, required=True
+    matter_description = "Управлять локальной рабочей папкой дела."
+    matter = commands.add_parser(
+        "matter",
+        help=matter_description,
+        description=matter_description,
+    )
+    matter_commands = matter.add_subparsers(
+        dest="matter_command",
+        required=True,
+        title="команды",
+    )
+    matter_init_description = "Создать рабочую папку дела с журналом версий."
+    matter_init = matter_commands.add_parser(
+        "init",
+        help=matter_init_description,
+        description=matter_init_description,
     )
     matter_init.add_argument(
-        "--profile", choices=("basic", "research", "expert"), default="basic"
+        "--matter-id",
+        "--id",
+        dest="matter_id",
+        required=True,
+        help="Идентификатор дела.",
     )
-    matter_init.add_argument("--input", action="append", default=[])
+    matter_init.add_argument(
+        "--workspace",
+        "--destination",
+        dest="workspace",
+        type=Path,
+        required=True,
+        help="Путь к локальной рабочей папке дела.",
+    )
+    matter_init.add_argument(
+        "--profile",
+        choices=("basic", "research", "expert"),
+        default="basic",
+        help=(
+            "Режим работы: basic — базовый (по умолчанию), research — "
+            "исследовательский, expert — экспертный."
+        ),
+    )
+    matter_init.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        help="Файл или URL для регистрации; параметр можно повторить.",
+    )
     _add_json_flag(matter_init)
-    matter_view = matter_commands.add_parser("status", help="Показать пробелы и следующие действия.")
+    matter_status_description = (
+        "Показать, каких материалов не хватает и что делать дальше."
+    )
+    matter_view = matter_commands.add_parser(
+        "status",
+        help=matter_status_description,
+        description=matter_status_description,
+    )
     matter_view.add_argument(
-        "--workspace", "--destination", dest="workspace", type=Path, required=True
+        "--workspace",
+        "--destination",
+        dest="workspace",
+        type=Path,
+        required=True,
+        help="Путь к локальной рабочей папке дела.",
     )
     _add_json_flag(matter_view)
 
-    intake = commands.add_parser("intake", help="Неизменяемо зарегистрировать входные материалы.")
-    intake.add_argument("--workspace", type=Path, required=True)
-    intake.add_argument("--input", action="append", required=True)
-    intake.add_argument("--document-role", default="case_material")
+    intake_description = (
+        "Зарегистрировать входные материалы в неизменяемом журнале дела."
+    )
+    intake = commands.add_parser(
+        "intake",
+        help=intake_description,
+        description=intake_description,
+    )
+    intake.add_argument(
+        "--workspace",
+        type=Path,
+        required=True,
+        help="Путь к локальной рабочей папке дела.",
+    )
+    intake.add_argument(
+        "--input",
+        action="append",
+        required=True,
+        help="Файл или URL для регистрации; параметр можно повторить.",
+    )
+    intake.add_argument(
+        "--document-role",
+        default="case_material",
+        help="Роль документа; по умолчанию case_material (материал дела).",
+    )
     _add_json_flag(intake)
 
     aliases = {
@@ -140,23 +320,38 @@ def build_parser() -> argparse.ArgumentParser:
                 nargs="?",
                 choices=("validate", "derive", "status"),
                 default=ROUTE_ACTIONS[route],
-                help="Действие: validate, derive или status (по умолчанию derive).",
+                help=(
+                    "Действие: validate — проверить, derive — определить маршрут "
+                    "обращения (по умолчанию), status — показать состояние."
+                ),
             )
         else:
-            route_parser.add_argument("action", nargs="?", default=ROUTE_ACTIONS[route])
-        route_parser.add_argument("--workspace", type=Path, required=True)
+            route_parser.add_argument(
+                "action",
+                nargs="?",
+                default=ROUTE_ACTIONS[route],
+                help=(
+                    f"Действие: {ROUTE_ACTION_HELP[route]} (по умолчанию)."
+                ),
+            )
+        route_parser.add_argument(
+            "--workspace",
+            type=Path,
+            required=True,
+            help="Путь к локальной рабочей папке дела.",
+        )
         route_parser.add_argument(
             "--payload",
             type=Path,
-            help="Путь к версионированному локальному JSON-входу этапа.",
+            help="Путь к JSON-файлу с входными данными текущего этапа.",
         )
         if route == "sources":
             route_parser.add_argument(
                 "--allow-network",
                 action="store_true",
                 help=(
-                    "Явно разрешить только ограниченное получение публичного официального адреса; "
-                    "CAPTCHA остаётся ручным действием."
+                    "Разрешить ограниченное получение документа с официального сайта; "
+                    "проверку «я не робот» пользователь проходит вручную."
                 ),
             )
         else:

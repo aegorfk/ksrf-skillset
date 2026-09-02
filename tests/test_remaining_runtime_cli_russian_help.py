@@ -1,0 +1,726 @@
+from __future__ import annotations
+
+import functools
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+
+
+REPO = Path(__file__).resolve().parents[1]
+PYTHON = sys.executable
+
+PARSER_SCRIPTS = {
+    "judicial": (
+        REPO
+        / "skills"
+        / "ksrf-cassation-judicial-meaning"
+        / "scripts"
+        / "judicial_meaning.py"
+    ),
+    "ksrf": REPO / "skills" / "ksrf-complaint-cycle" / "scripts" / "ksrf.py",
+    "practice": (
+        REPO
+        / "skills"
+        / "ksrf-complaint-cycle"
+        / "scripts"
+        / "ksrf_practice_analysis.py"
+    ),
+}
+
+STANDALONE_SCRIPTS = {
+    "doctor": (
+        REPO
+        / "skills"
+        / "ksrf-complaint-cycle"
+        / "scripts"
+        / "ksrf_setup_doctor.py"
+    ),
+    "autocollect": (
+        REPO
+        / "skills"
+        / "ksrf-complaint-cycle"
+        / "scripts"
+        / "ksrf_autocollect.py"
+    ),
+    "argument": (
+        REPO
+        / "skills"
+        / "ksrf-explore-arguments"
+        / "scripts"
+        / "validate_argument_research.py"
+    ),
+}
+
+STANDALONE_REQUIRED = {
+    "doctor": (
+        "Проверить возможности",
+        "--profile {basic,research,expert}",
+        "--manifest ПУТЬ",
+        "--allow-network",
+        "--json",
+    ),
+    "autocollect": (
+        "ПУТЬ",
+        "--out ФАЙЛ",
+        "--no-ocr",
+        "--ocr-pages ЧИСЛО",
+        "--tessdata-dir ПАПКА",
+        "--exclude ШАБЛОН",
+    ),
+    "argument": ("ПУТЬ", "Проверить файл исследования аргументов"),
+}
+
+STANDALONE_FORBIDDEN = {
+    "doctor": ("MANIFEST",),
+    "autocollect": (" OUT", "OCR_PAGES", "TESSDATA_DIR", "GLOB", "paths"),
+    "argument": (" PATH",),
+}
+
+INSTALLED_PACKAGES = {
+    "judicial": "ksrf-cassation-judicial-meaning",
+    "ksrf": "ksrf-complaint-cycle",
+    "practice": "ksrf-complaint-cycle",
+    "doctor": "ksrf-complaint-cycle",
+    "autocollect": "ksrf-complaint-cycle",
+    "argument": "ksrf-explore-arguments",
+}
+
+EXPECTED_PROGRAM_LABELS = {
+    "judicial": "judicial_meaning.py",
+    "ksrf": "ksrf",
+    "practice": "ksrf_practice_analysis.py",
+    "doctor": "ksrf doctor",
+    "autocollect": "ksrf_autocollect.py",
+    "argument": "validate_argument_research.py",
+}
+
+EXPECTED_ROUTE_COUNTS = {
+    "judicial": 63,
+    "ksrf": 21,
+    "practice": 18,
+    "autocollect": 1,
+}
+
+EXPECTED_CONTRACT_SHA256 = {
+    "judicial": "eadc8ebfe3412d5f65857f9cbb6f37b6ae45f96fac6c6d968618876e1e342020",
+    "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
+    "practice": "4a3637d2d26d9d972ba7cdd27d67c9f92be3955b5a3cdd9ba363ab15790cd2e7",
+    "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
+}
+
+INVENTORY_KINDS = (*PARSER_SCRIPTS, "autocollect")
+
+FORBIDDEN_SCAFFOLDING = (
+    "usage:",
+    "positional arguments:",
+    "optional arguments:",
+    "options:",
+    "show this help message and exit",
+)
+
+FORBIDDEN_PROSE = (
+    "supplemental",
+    "дорожкам frozen plan",
+    "bounded status",
+    "adverse/coverage/human review",
+    "fingerprint дела",
+    "текущем fingerprint",
+    "fail-closed статус",
+    "content-bound handoff",
+    "Проверить handoff",
+    "handoff в inbox",
+    "SQLite-кэш и object store",
+    "публичный URL seed",
+    "публичный snapshot",
+    "закрепить snapshots",
+    "public-only пакет",
+    "публичных seed",
+    "Fail-closed проверить contract",
+    "verification gates",
+    "retry-задачи",
+    "Per-claim gate",
+    "matter workspace",
+    "practice-dependent claims",
+    "corpus request",
+    "кассационным workbench",
+    "проверенный result",
+    "prefiling refresh",
+    "OCR fallback",
+    "вывод в stdout",
+    "Outcome-blind",
+    "JSON request payload",
+    "request envelope",
+    "artifact-derived",
+    "practice-quality",
+    "совместимый alias",
+    "из workspace",
+    "Доверенный workspace",
+    "без изменения знаменателя",
+    "замороженным стратам",
+    "исходозначимость",
+    "ненумерованный профиль",
+    "Идемпотентно",
+    "правила перечислителя",
+    "связи артефактов анализа",
+    "Передать типизированный",
+    "детерминированную выборку",
+)
+
+REQUIRED_ROUTE_HELP = {
+    ("judicial", ("intake",)): (
+        "applicant_judicial_act (судебный акт по делу заявителя)",
+    ),
+    ("judicial", ("ocr",)): (
+        "Код языка Tesseract; по умолчанию rus (русский)",
+        "по умолчанию 300 точек на дюйм",
+    ),
+    ("judicial", ("plan", "template")): (
+        "Перезаписать существующий черновик research-plan.json",
+    ),
+    ("judicial", ("query", "accept")): ("формате ISO 8601",),
+    ("judicial", ("query", "supplement")): (
+        "exact_norm — точная норма",
+        "case_feature — признак дела",
+        "формате ISO 8601",
+    ),
+    ("judicial", ("collect",)): ("по умолчанию 3",),
+    ("judicial", ("review",)): (
+        "evidence_reviewed — доказательства просмотрены без одобрения тезиса",
+        "approved — тезис одобрен",
+        "ручную проверку всех неблагоприятных материалов",
+        "ручную проверку полноты охвата корпуса",
+        "команда не принимает это решение автоматически",
+    ),
+    ("judicial", ("compare",)): (
+        "--applicant ФАЙЛ_ДЕЛА_ЗАЯВИТЕЛЯ",
+        "--candidate ФАЙЛ_ДЕЛА_КАНДИДАТА",
+        "формате ISO 8601",
+    ),
+    ("judicial", ("relation", "classify")): (
+        "--position-card ФАЙЛ_КАРТОЧКИ_ПОЗИЦИИ",
+        "--comparison ФАЙЛ_СОПОСТАВЛЕНИЯ",
+        "--applicant-position ФАЙЛ_ПОЗИЦИИ_ЗАЯВИТЕЛЯ",
+        "формате ISO 8601",
+    ),
+    ("judicial", ("adverse", "build")): (
+        "opposite_reading — противоположное толкование",
+        "later_authority — более поздний акт",
+    ),
+    ("judicial", ("quality", "prefiling-refresh")): (
+        "по которые проверен корпус, в формате ISO 8601",
+        "Предельные дата и время подачи в формате ISO 8601",
+    ),
+    ("judicial", ("handoff", "create")): (
+        "selected_authorities — устаревший тип версии 1 только для аудита",
+        "create его отклоняет, используйте authority_cards",
+        "Путь к JSON-файлу с непроверенными вопросами",
+        "Путь к JSON-файлу запроса версии 2",
+        "по умолчанию текущее время UTC",
+    ),
+    ("judicial", ("cache", "register-seed")): (
+        "по умолчанию official_user_seed",
+    ),
+    ("judicial", ("cache", "search")): ("по умолчанию 100",),
+    ("judicial", ("cache", "ingest")): (
+        "--parser-manifest ФАЙЛ_МАНИФЕСТА_ПАРСЕРА",
+        "Путь к JSON-файлу с описанием использованного парсера",
+        "формате ISO 8601",
+    ),
+    ("judicial", ("cache", "refresh-plan")): ("формате ISO 8601",),
+    ("judicial", ("cache", "funnel", "record")): (
+        "enumerated — дело найдено в перечне",
+        "human_verification_pending — нужна ручная проверка",
+    ),
+    ("judicial", ("cache", "treatment", "discover")): (
+        "applies — применяет",
+        "does_not_reach — вопрос не рассмотрен",
+    ),
+    ("judicial", ("cache", "treatment", "review")): (
+        "verified — связь подтверждена",
+        "rejected — связь отклонена",
+        "court — суд",
+        "вручную сверил целевой судебный акт",
+        "по умолчанию текущее время UTC",
+    ),
+    ("judicial", ("source", "reconcile")): (
+        "Начальная дата периода в формате ГГГГ-ММ-ДД",
+        "Конечная дата периода в формате ГГГГ-ММ-ДД",
+    ),
+    ("judicial", ("source", "promote-enumerator")): (
+        "по умолчанию текущее время UTC",
+    ),
+    ("practice", ("claim", "review")): (
+        "required — анализ практики нужен",
+        "not-required или not_required — анализ не нужен",
+    ),
+    ("practice", ("wording", "review")): (
+        "within-limit или within_limit",
+        "too-strong или too_strong",
+        "--wording-source ФАЙЛ_ИСТОЧНИКА",
+    ),
+    ("practice", ("refresh", "record")): (
+        "Дата проверки в формате ГГГГ-ММ-ДД",
+        "по умолчанию берётся --as-of",
+    ),
+    ("ksrf", ("sources",)): ("verify — проверить официальные источники",),
+    ("ksrf", ("application",)): ("analyze — проанализировать применение нормы",),
+    ("ksrf", ("issues",)): ("generate — сформировать варианты",),
+    ("ksrf", ("failures",)): ("research — исследовать неудачные обращения",),
+    ("ksrf", ("evaluate",)): ("run — выполнить оценку качества",),
+    ("ksrf", ("render",)): ("build — собрать документы",),
+    ("ksrf", ("release",)): (
+        "check — проверить комплект перед ручной юридической проверкой",
+        "команда не одобряет и не подаёт жалобу",
+    ),
+}
+
+_INVENTORY_CODE = r"""
+import argparse
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+repo = Path(sys.argv[1])
+kind = sys.argv[2]
+if kind == "judicial":
+    sys.path.insert(0, str(repo / "skills" / "ksrf-cassation-judicial-meaning" / "lib"))
+    from judicial_meaning.cli import build_parser
+    parser = build_parser()
+elif kind == "ksrf":
+    sys.path.insert(0, str(repo / "skills" / "ksrf-complaint-cycle" / "lib"))
+    from ksrf.filing.cli import build_parser
+    parser = build_parser()
+elif kind == "practice":
+    path = repo / "skills" / "ksrf-complaint-cycle" / "scripts" / "ksrf_practice_analysis.py"
+    spec = importlib.util.spec_from_file_location("practice_cli_help_inventory", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    parser = module._build_parser()
+elif kind == "autocollect":
+    path = repo / "skills" / "ksrf-complaint-cycle" / "scripts" / "ksrf_autocollect.py"
+    spec = importlib.util.spec_from_file_location("autocollect_cli_help_inventory", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    parser = module._build_parser()
+else:
+    raise RuntimeError(kind)
+
+records = []
+
+def freeze(value):
+    if callable(value):
+        return {
+            "callable": (
+                getattr(value, "__module__", ""),
+                getattr(value, "__qualname__", getattr(value, "__name__", "")),
+            )
+        }
+    if isinstance(value, Path):
+        return {"path": str(value)}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, (list, tuple)):
+        return [freeze(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): freeze(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    return {"type": type(value).__name__, "repr": repr(value)}
+
+def choice_values(action):
+    choices = action.choices
+    if choices is None:
+        return None
+    if isinstance(choices, dict):
+        return list(choices)
+    return [freeze(item) for item in choices]
+
+def action_contract(action):
+    return {
+        "class": type(action).__name__,
+        "dest": action.dest,
+        "options": list(action.option_strings),
+        "nargs": action.nargs,
+        "required": action.required,
+        "choices": choice_values(action),
+        "default": freeze(action.default),
+        "const": freeze(action.const),
+        "type": freeze(action.type),
+        "metavar": freeze(action.metavar),
+        "suppressed": action.help is argparse.SUPPRESS,
+    }
+
+def state(rows):
+    return [
+        {
+            "route": list(route),
+            "prog": current.prog,
+            "defaults": freeze(current._defaults),
+            "format_usage": current.format_usage(),
+            "actions": [action_contract(action) for action in current._actions],
+        }
+        for route, current in rows
+    ]
+
+def walk(current, route):
+    rows.append((list(route), current))
+    for action in current._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for name, child in action.choices.items():
+                walk(child, [*route, name])
+
+rows = []
+walk(parser, [])
+before = state(rows)
+for _route, current in rows:
+    current.format_help()
+after = state(rows)
+
+contract_json = json.dumps(
+    before,
+    ensure_ascii=False,
+    sort_keys=True,
+    separators=(",", ":"),
+)
+for route, current in rows:
+    value_actions = []
+    choice_actions = []
+    for action in current._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            choice_actions.append(
+                {
+                    "option": None,
+                    "choices": choice_values(action),
+                }
+            )
+            continue
+        if action.choices is not None and action.help is not argparse.SUPPRESS:
+            choice_actions.append(
+                {
+                    "option": action.option_strings[0] if action.option_strings else None,
+                    "choices": choice_values(action),
+                }
+            )
+        if (
+            action.nargs == 0
+            or action.choices is not None
+            or action.help is argparse.SUPPRESS
+        ):
+            continue
+        metavar = action.metavar
+        if metavar is None:
+            metavar = action.dest.upper() if action.option_strings else action.dest
+        if isinstance(metavar, tuple):
+            metavar = metavar[0]
+        value_actions.append(
+            {
+                "option": action.option_strings[0] if action.option_strings else None,
+                "old_metavar": str(metavar),
+            }
+        )
+    records.append(
+        {
+            "route": route,
+            "value_actions": value_actions,
+            "choice_actions": choice_actions,
+            "description": current.description,
+            "has_subparsers": any(
+                isinstance(action, argparse._SubParsersAction)
+                for action in current._actions
+            ),
+        }
+    )
+
+hidden_fixture = None
+if kind == "judicial":
+    fixture_args = parser.parse_args(
+        ["collect", "--workspace", "/tmp/workspace", "--fixture-dir", "/tmp/fixtures"]
+    )
+    hidden_fixture = {
+        "fixture_dir": fixture_args.fixture_dir,
+        "handler": freeze(fixture_args.func),
+    }
+
+print(json.dumps({
+    "records": records,
+    "state_restored": before == after,
+    "contract_sha256": hashlib.sha256(contract_json.encode("utf-8")).hexdigest(),
+    "hidden_fixture": hidden_fixture,
+}, ensure_ascii=False, sort_keys=True))
+"""
+
+
+@functools.lru_cache(maxsize=None)
+def _inventory(kind: str) -> dict[str, object]:
+    completed = subprocess.run(
+        [PYTHON, "-c", _INVENTORY_CODE, str(REPO), kind],
+        cwd=REPO,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise AssertionError(completed.stderr)
+    return json.loads(completed.stdout)
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.split())
+
+
+class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
+    def test_recursive_inventory_and_machine_contract_are_stable(self) -> None:
+        for kind in INVENTORY_KINDS:
+            with self.subTest(kind=kind):
+                inventory = _inventory(kind)
+                records = inventory["records"]
+                self.assertEqual(len(records), EXPECTED_ROUTE_COUNTS[kind])
+                self.assertEqual(
+                    inventory["contract_sha256"],
+                    EXPECTED_CONTRACT_SHA256[kind],
+                )
+                self.assertTrue(inventory["state_restored"])
+        self.assertEqual(
+            _inventory("judicial")["hidden_fixture"],
+            {
+                "fixture_dir": "/tmp/fixtures",
+                "handler": {
+                    "callable": ["judicial_meaning.cli", "cmd_collect"],
+                },
+            },
+        )
+
+    def test_every_installed_help_route_uses_russian_presentation(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            installed = root / "installed skills"
+            install = subprocess.run(
+                [str(REPO / "install.sh"), "--target", str(installed)],
+                cwd=root,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+
+            all_outputs: list[str] = []
+            for kind, source in PARSER_SCRIPTS.items():
+                script = installed / INSTALLED_PACKAGES[kind] / "scripts" / source.name
+                records = _inventory(kind)["records"]
+                for record in records:
+                    route = tuple(record["route"])
+                    with self.subTest(kind=kind, route=route):
+                        completed = subprocess.run(
+                            [PYTHON, str(script), *route, "--help"],
+                            cwd=root,
+                            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                            text=True,
+                            capture_output=True,
+                            check=False,
+                        )
+                        self.assertEqual(completed.returncode, 0, completed.stderr)
+                        self.assertEqual(completed.stderr, "")
+                        normalized = _normalized(completed.stdout)
+                        self.assertIn("Использование:", normalized)
+                        self.assertIn(
+                            f"Использование: {EXPECTED_PROGRAM_LABELS[kind]}",
+                            normalized,
+                        )
+                        self.assertIn("параметры:", normalized)
+                        self.assertIn("показать эту справку и выйти", normalized)
+                        description = record["description"]
+                        self.assertIsInstance(description, str)
+                        self.assertTrue(description.strip())
+                        self.assertIn(_normalized(description), normalized)
+                        if record["has_subparsers"]:
+                            self.assertIn("команды:", normalized)
+                            self.assertNotIn("позиционные аргументы:", normalized)
+                        for forbidden in FORBIDDEN_SCAFFOLDING:
+                            self.assertNotIn(forbidden, normalized)
+                        for action in record["value_actions"]:
+                            option = action["option"]
+                            old_metavar = action["old_metavar"]
+                            if option is None:
+                                self.assertIsNone(
+                                    re.search(
+                                        rf"(?<![\w-]){re.escape(old_metavar)}(?![\w-])",
+                                        normalized,
+                                    ),
+                                    normalized,
+                                )
+                            else:
+                                self.assertNotIn(
+                                    f"{option} {old_metavar}",
+                                    normalized,
+                                )
+                                self.assertRegex(
+                                    normalized,
+                                    rf"{re.escape(option)}\s+[А-ЯЁ][А-ЯЁ0-9_-]*",
+                                )
+                        for action in record["choice_actions"]:
+                            for choice in action["choices"]:
+                                self.assertRegex(
+                                    normalized,
+                                    rf"(?<![\w-]){re.escape(str(choice))}(?![\w-])",
+                                )
+                        for required in REQUIRED_ROUTE_HELP.get((kind, route), ()):
+                            self.assertIn(required, normalized)
+                        all_outputs.append(completed.stdout)
+
+            for kind, source in STANDALONE_SCRIPTS.items():
+                script = installed / INSTALLED_PACKAGES[kind] / "scripts" / source.name
+                help_flags = ("--help", "-h") if kind == "argument" else ("--help",)
+                for help_flag in help_flags:
+                    with self.subTest(kind=kind, help_flag=help_flag):
+                        completed = subprocess.run(
+                            [PYTHON, str(script), help_flag],
+                            cwd=root,
+                            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                            text=True,
+                            capture_output=True,
+                            check=False,
+                        )
+                        self.assertEqual(completed.returncode, 0, completed.stderr)
+                        self.assertEqual(completed.stderr, "")
+                        normalized = _normalized(completed.stdout)
+                        self.assertIn("Использование:", normalized)
+                        self.assertIn(
+                            f"Использование: {EXPECTED_PROGRAM_LABELS[kind]}",
+                            normalized,
+                        )
+                        self.assertIn("показать", normalized)
+                        for required in STANDALONE_REQUIRED[kind]:
+                            self.assertIn(required, normalized)
+                        for forbidden in FORBIDDEN_SCAFFOLDING:
+                            self.assertNotIn(forbidden, normalized)
+                        for forbidden in STANDALONE_FORBIDDEN[kind]:
+                            self.assertNotIn(forbidden, normalized)
+                        all_outputs.append(completed.stdout)
+
+        public_help = _normalized("\n".join(all_outputs))
+        self.assertNotIn("--fixture-dir", public_help)
+        for forbidden in FORBIDDEN_PROSE:
+            self.assertNotIn(forbidden, public_help)
+
+    def test_supported_legacy_python_help_is_russian(self) -> None:
+        legacy_python = Path("/usr/bin/python3")
+        if not legacy_python.is_file():
+            self.skipTest("Системный Python не установлен")
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            installed = root / "installed skills"
+            install = subprocess.run(
+                [str(REPO / "install.sh"), "--target", str(installed)],
+                cwd=root,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+
+            invocations: list[tuple[Path, tuple[str, ...]]] = []
+            for kind in ("ksrf", "practice"):
+                source = PARSER_SCRIPTS[kind]
+                script = installed / INSTALLED_PACKAGES[kind] / "scripts" / source.name
+                invocations.extend(
+                    (script, (*tuple(record["route"]), "--help"))
+                    for record in _inventory(kind)["records"]
+                )
+            invocations.extend(
+                (
+                    installed / INSTALLED_PACKAGES[kind] / "scripts" / source.name,
+                    ("--help",),
+                )
+                for kind, source in STANDALONE_SCRIPTS.items()
+            )
+            invocations.append(
+                (
+                    installed
+                    / INSTALLED_PACKAGES["argument"]
+                    / "scripts"
+                    / STANDALONE_SCRIPTS["argument"].name,
+                    ("-h",),
+                )
+            )
+            self.assertEqual(len(invocations), 43)
+
+            for script, arguments in invocations:
+                with self.subTest(script=script.name, arguments=arguments):
+                    completed = subprocess.run(
+                        [str(legacy_python), str(script), *arguments],
+                        cwd=root,
+                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertEqual(completed.stderr, "")
+                    self.assertIn("Использование:", completed.stdout)
+                    self.assertNotIn("optional arguments:", completed.stdout)
+                    self.assertNotIn(
+                        "show this help message and exit",
+                        completed.stdout,
+                    )
+
+    def test_non_help_diagnostic_projection_is_exact(self) -> None:
+        cases = (
+            (PARSER_SCRIPTS["judicial"], ()),
+            (PARSER_SCRIPTS["judicial"], ("plan",)),
+            (PARSER_SCRIPTS["ksrf"], ()),
+            (PARSER_SCRIPTS["practice"], ()),
+            (STANDALONE_SCRIPTS["autocollect"], ()),
+            (STANDALONE_SCRIPTS["argument"], ()),
+            (STANDALONE_SCRIPTS["doctor"], ("--profile", "invalid")),
+        )
+        projection = []
+        for script, arguments in cases:
+            completed = subprocess.run(
+                [PYTHON, str(script), *arguments],
+                cwd=REPO,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            projection.append(
+                {
+                    "script": script.name,
+                    "arguments": list(arguments),
+                    "returncode": completed.returncode,
+                    "stdout": completed.stdout,
+                    "stderr": completed.stderr,
+                }
+            )
+        digest = hashlib.sha256(
+            json.dumps(
+                projection,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(
+            digest,
+            "8874b462abc212ab31c10a9de06745bc81fc25eb68576eb81f2dfd1a8f64b84d",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

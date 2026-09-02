@@ -3400,82 +3400,288 @@ def _print_json(value: Any, *, stream: Any = None) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True), file=stream or sys.stdout)
 
 
+class _RussianArgumentParser(argparse.ArgumentParser):
+    """Показывать русскую справку, не меняя usage и ошибки выполнения."""
+
+    _HELP_METAVARS = {
+        "command": "КОМАНДА",
+        "claim_command": "КОМАНДА",
+        "request_command": "КОМАНДА",
+        "run_command": "КОМАНДА",
+        "result_command": "КОМАНДА",
+        "wording_command": "КОМАНДА",
+        "refresh_command": "КОМАНДА",
+        "workspace": "ПАПКА",
+        "case_id": "ИДЕНТИФИКАТОР",
+        "case_file": "ФАЙЛ",
+        "argument_research": "ФАЙЛ",
+        "input": "ФАЙЛ",
+        "claim_id": "ИДЕНТИФИКАТОР",
+        "reviewer": "ПРОВЕРЯЮЩИЙ",
+        "reason": "ОБОСНОВАНИЕ",
+        "output": "ФАЙЛ",
+        "request_id": "ИДЕНТИФИКАТОР",
+        "cassation_workspace": "ПАПКА",
+        "skills_root": "ПАПКА",
+        "trusted_source_workspace": "ПАПКА",
+        "handoff_id": "ИДЕНТИФИКАТОР",
+        "finding_id": "ИДЕНТИФИКАТОР",
+        "wording_text": "ТЕКСТ",
+        "wording_source": "ФАЙЛ_ИСТОЧНИКА",
+        "as_of": "ДАТА_ГГГГ-ММ-ДД",
+        "official_check_ref": "ССЫЛКА",
+        "corpus_cutoff": "ДАТА",
+        "stage": "ЭТАП",
+    }
+
+    def format_help(self) -> str:
+        positional_heading = (
+            "команды:"
+            if any(
+                isinstance(action, argparse._SubParsersAction)
+                for action in self._actions
+            )
+            else "позиционные аргументы:"
+        )
+        localized = [
+            (action, action.metavar)
+            for action in self._actions
+            if action.dest in self._HELP_METAVARS
+        ]
+        for action, _metavar in localized:
+            action.metavar = self._HELP_METAVARS[action.dest]
+        try:
+            rendered = super().format_help()
+        finally:
+            for action, metavar in localized:
+                action.metavar = metavar
+        return (
+            rendered
+            .replace("usage:", "Использование:", 1)
+            .replace("positional arguments:", positional_heading, 1)
+            .replace("optional arguments:", "параметры:", 1)
+            .replace("options:", "параметры:", 1)
+            .replace(
+                "show this help message and exit",
+                "показать эту справку и выйти",
+            )
+        )
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Per-claim gate анализа правоприменительной практики для цикла жалобы в КС РФ."
+    parser = _RussianArgumentParser(
+        description=(
+            "Проверить необходимость анализа правоприменительной практики "
+            "по каждому утверждению жалобы в КС РФ."
+        )
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init", help="Привязать matter workspace к CaseFile")
+    init_description = (
+        "Связать рабочую папку дела с исходным файлом дела формата CaseFile."
+    )
+    init = sub.add_parser(
+        "init",
+        help=init_description,
+        description=init_description,
+    )
     init.add_argument("--workspace", required=True)
     init.add_argument("--case-id", required=True)
     init.add_argument("--case-file", required=True)
     init.add_argument("--argument-research")
 
-    scan = sub.add_parser("scan", help="Найти practice-dependent claims")
+    scan_description = "Найти утверждения, требующие проверки судебной практикой."
+    scan = sub.add_parser(
+        "scan",
+        help=scan_description,
+        description=scan_description,
+    )
     scan.add_argument("--workspace", required=True)
     scan.add_argument("--input", required=True)
 
-    claim = sub.add_parser("claim", help="Ручная проверка триггера")
+    claim_description = "Проверить вручную, требуется ли анализ судебной практики."
+    claim = sub.add_parser(
+        "claim",
+        help=claim_description,
+        description=claim_description,
+    )
     claim_sub = claim.add_subparsers(dest="claim_command", required=True)
-    claim_review = claim_sub.add_parser("review")
+    claim_review_description = (
+        "Записать ручное решение о необходимости анализа судебной практики."
+    )
+    claim_review = claim_sub.add_parser(
+        "review",
+        help=claim_review_description,
+        description=claim_review_description,
+    )
     claim_review.add_argument("--workspace", required=True)
     claim_review.add_argument("--claim-id", required=True)
-    claim_review.add_argument("--decision", choices=("required", "not-required", "not_required"), required=True)
+    claim_review.add_argument(
+        "--decision",
+        choices=("required", "not-required", "not_required"),
+        required=True,
+        help=(
+            "Решение проверяющего: required — анализ практики нужен; "
+            "not-required или not_required — анализ не нужен."
+        ),
+    )
     claim_review.add_argument("--reviewer", required=True)
     claim_review.add_argument("--reason", required=True)
 
-    request = sub.add_parser("request", help="Нейтральный corpus request")
+    request_description = "Подготовить нейтральный запрос для исследования практики."
+    request = sub.add_parser(
+        "request",
+        help=request_description,
+        description=request_description,
+    )
     request_sub = request.add_subparsers(dest="request_command", required=True)
-    request_create = request_sub.add_parser("create")
+    request_create_description = (
+        "Создать нейтральный запрос для выбранных утверждений."
+    )
+    request_create = request_sub.add_parser(
+        "create",
+        help=request_create_description,
+        description=request_create_description,
+    )
     request_create.add_argument("--workspace", required=True)
     request_create.add_argument("--claim-id", action="append")
     request_create.add_argument("--output")
 
-    run = sub.add_parser("run", help="Связать request с кассационным workbench")
+    run_description = (
+        "Связать запрос с рабочей папкой исследования кассационной практики."
+    )
+    run = sub.add_parser(
+        "run",
+        help=run_description,
+        description=run_description,
+    )
     run_sub = run.add_subparsers(dest="run_command", required=True)
-    run_attach = run_sub.add_parser("attach")
+    run_attach_description = (
+        "Связать запрос с результатами исследования кассационной практики."
+    )
+    run_attach = run_sub.add_parser(
+        "attach",
+        help=run_attach_description,
+        description=run_attach_description,
+    )
     run_attach.add_argument("--workspace", required=True)
     run_attach.add_argument("--request-id", required=True)
     run_attach.add_argument("--cassation-workspace", required=True)
     run_attach.add_argument("--skills-root")
 
-    result = sub.add_parser("result", help="Импортировать проверенный result")
+    result_description = "Импортировать проверенный результат исследования."
+    result = sub.add_parser(
+        "result",
+        help=result_description,
+        description=result_description,
+    )
     result_sub = result.add_subparsers(dest="result_command", required=True)
-    result_import = result_sub.add_parser("import")
+    result_import_description = (
+        "Импортировать проверенный результат и проверить его привязки."
+    )
+    result_import = result_sub.add_parser(
+        "import",
+        help=result_import_description,
+        description=result_import_description,
+    )
     result_import.add_argument("--workspace", required=True)
     result_import.add_argument("--input", required=True)
     result_import.add_argument("--request-id", required=True)
     result_import.add_argument("--trusted-source-workspace")
     result_import.add_argument("--skills-root")
 
-    wording = sub.add_parser("wording", help="Проверить силу финальной формулировки")
+    wording_description = "Проверить обоснованность итоговой формулировки."
+    wording = sub.add_parser(
+        "wording",
+        help=wording_description,
+        description=wording_description,
+    )
     wording_sub = wording.add_subparsers(dest="wording_command", required=True)
-    wording_review = wording_sub.add_parser("review")
+    wording_review_description = (
+        "Проверить, не выходит ли итоговая формулировка за пределы доказанного."
+    )
+    wording_review = wording_sub.add_parser(
+        "review",
+        help=wording_review_description,
+        description=wording_review_description,
+    )
     wording_review.add_argument("--workspace", required=True)
     wording_review.add_argument("--claim-id", required=True)
     wording_review.add_argument("--handoff-id", required=True)
-    wording_review.add_argument("--decision", choices=("within-limit", "within_limit", "too-strong", "too_strong", "unclear"), required=True)
+    wording_review.add_argument(
+        "--decision",
+        choices=(
+            "within-limit",
+            "within_limit",
+            "too-strong",
+            "too_strong",
+            "unclear",
+        ),
+        required=True,
+        help=(
+            "Решение проверяющего: within-limit или within_limit — формулировка "
+            "в пределах доказанного; too-strong или too_strong — вывод слишком "
+            "сильный; unclear — вывод неясен."
+        ),
+    )
     wording_review.add_argument("--reviewer", required=True)
     wording_review.add_argument("--reason", required=True)
     wording_review.add_argument("--finding-id", action="append", required=True)
     wording_review.add_argument("--wording-text", required=True)
     wording_review.add_argument("--wording-source", required=True)
 
-    refresh = sub.add_parser("refresh", help="Зафиксировать prefiling refresh")
+    refresh_description = (
+        "Зафиксировать проверку актуальности практики перед подачей жалобы."
+    )
+    refresh = sub.add_parser(
+        "refresh",
+        help=refresh_description,
+        description=refresh_description,
+    )
     refresh_sub = refresh.add_subparsers(dest="refresh_command", required=True)
-    refresh_record = refresh_sub.add_parser("record")
+    refresh_record_description = (
+        "Записать проверку актуальности официальной практики перед подачей."
+    )
+    refresh_record = refresh_sub.add_parser(
+        "record",
+        help=refresh_record_description,
+        description=refresh_record_description,
+    )
     refresh_record.add_argument("--workspace", required=True)
-    refresh_record.add_argument("--as-of", required=True)
+    refresh_record.add_argument(
+        "--as-of",
+        required=True,
+        help="Дата проверки в формате ГГГГ-ММ-ДД.",
+    )
     refresh_record.add_argument("--reviewer", required=True)
     refresh_record.add_argument("--official-check-ref", required=True)
-    refresh_record.add_argument("--corpus-cutoff")
+    refresh_record.add_argument(
+        "--corpus-cutoff",
+        help="Дата, по которую проверен корпус; по умолчанию берётся --as-of.",
+    )
 
-    for name in ("status", "validate"):
-        command = sub.add_parser(name)
+    terminal_descriptions = {
+        "status": "Показать текущее состояние анализа по каждому утверждению.",
+        "validate": "Проверить полноту и согласованность рабочей папки анализа.",
+    }
+    for name, description in terminal_descriptions.items():
+        command = sub.add_parser(name, help=description, description=description)
         command.add_argument("--workspace", required=True)
-        command.add_argument("--stage", choices=STAGES, default="drafting")
-    lint = sub.add_parser("lint")
+        command.add_argument(
+            "--stage",
+            choices=STAGES,
+            default="drafting",
+            help=(
+                "Этап проверки: options, drafting, qa или filing "
+                "(по умолчанию: drafting)."
+            ),
+        )
+    lint_description = "Проверить структуру и взаимные ссылки файлов анализа."
+    lint = sub.add_parser(
+        "lint",
+        help=lint_description,
+        description=lint_description,
+    )
     lint.add_argument("--workspace", required=True)
     return parser
 
