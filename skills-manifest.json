@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T12:04:42Z",
+  "generated_at": "2026-09-02T12:15:00Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "032b10a7e8eedda2131ffc2e2273c5790701c764",
+  "remote_base_commit": "271c96c664fd465404a2979f1c3f3c80144789cd",
   "exclusions": [
     ".DS_Store",
     ".git/",
