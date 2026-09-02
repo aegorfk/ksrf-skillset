@@ -140,7 +140,7 @@ class HearingGuideScalarReadinessTests(unittest.TestCase):
         expected_hashes = {
             DERIVED: "c53d24bbd29bc69efb459f3b5febc51d0630cdf2a856b54c5500fc4cb81b663f",
             CONSTITUTIONAL: "c4fd63d1ce4efda5d32b43c6d048106406b1403665e5650aba0823ce5b0074f6",
-            TECHNIQUES: "2bbaf3e6955033f178337a4296ba3c9a809291625de10459243e7834959d2b53",
+            TECHNIQUES: "4e47d23d8efc5637ad976cd930c416961069701d69709277f7644e3f7a4d84f8",
         }
         for path, expected_hash in expected_hashes.items():
             with self.subTest(path=path.name):

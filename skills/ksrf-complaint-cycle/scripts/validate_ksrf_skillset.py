@@ -13,6 +13,7 @@ import importlib.util
 import json
 import re
 import sys
+import unicodedata
 from collections import Counter
 from ipaddress import ip_address
 from pathlib import Path
@@ -193,6 +194,29 @@ TEXT_SUFFIXES = {
     ".js",
     ".sh",
 }
+BINARY_RUNTIME_SUFFIXES = {
+    ".docx",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".m4a",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".otf",
+    ".pdf",
+    ".png",
+    ".pptx",
+    ".ttf",
+    ".wav",
+    ".webm",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".xlsx",
+    ".zip",
+}
 BUILTIN_TOOL_NAMES = {
     "Bash",
     "Edit",
@@ -233,14 +257,27 @@ TRIGGER_CUE = re.compile(
 )
 
 # Concatenation keeps the validator from flagging its own rule definition.
-ABSOLUTE_RUNTIME_PATTERNS = (
+REPOSITORY_SOURCE_PREFIX = "Т" + "З/"
+PROJECT_ROOT_PLACEHOLDER = "<project" + "-root>"
+HTTP_URL_PATTERN = re.compile(
+    r"(?<![\w+.\-:])https?://[^\s`\"'<>()]+",
+    re.IGNORECASE,
+)
+RUNTIME_USER_HOME_PATTERNS = (
     re.compile(
-        "/" + r"Users/[A-Za-z0-9._-]+/(?:Documents|Desktop|Downloads|Library|\.codex)/[^\s`\"']+"
+        "/" + "U" + r"sers/[^/\s`\"']+(?:/[^\s`\"']+)?",
+        re.IGNORECASE,
     ),
     re.compile(
-        "/" + r"home/[A-Za-z0-9._-]+/(?:Documents|Desktop|Downloads|\.config|\.local)/[^\s`\"']+"
+        "/" + "h" + r"ome/[^/\s`\"']+(?:/[^\s`\"']+)?",
+        re.IGNORECASE,
     ),
-    re.compile(r"[A-Za-z]:\\Users\\[^\\\s]+\\[^\s`\"']+"),
+    re.compile(
+        "/"
+        + "r"
+        + r"oot(?=/|$|[\s`\"'<>()\]};,.!?])(?:/[^\s`\"']+)?",
+        re.IGNORECASE,
+    ),
 )
 PRIVATE_KEY_MARKER = re.compile(
     "BEGIN " + r"(?:RSA |OPENSSH |EC )?PRIVATE KEY"
@@ -346,6 +383,10 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"duplicate key: {key}")
         payload[key] = value
     return payload
+
+
+def _reject_nonfinite_json_constant(token: str) -> Any:
+    raise ValueError(f"non-finite JSON constant: {token}")
 
 
 def _read_json(path: Path) -> Any:
@@ -1190,7 +1231,7 @@ def _validate_authority_corpus_contract(
 
     raw_retired_queue = '"next_extraction_wave"' in raw_payload
     raw_local_hint = '"local_source_hint"' in raw_payload
-    raw_local_coordinate = "ТЗ/" in raw_payload
+    raw_local_coordinate = REPOSITORY_SOURCE_PREFIX in raw_payload
     if raw_retired_queue or raw_local_hint or raw_local_coordinate:
         findings.append(
             _finding(
@@ -1241,7 +1282,10 @@ def _validate_authority_corpus_contract(
         elif isinstance(item, list):
             pending.extend(item)
     has_retired_queue = retired_queue_count > 0
-    has_local_coordinate = "ТЗ/" in json.dumps(payload, ensure_ascii=False)
+    has_local_coordinate = REPOSITORY_SOURCE_PREFIX in json.dumps(
+        payload,
+        ensure_ascii=False,
+    )
     if has_retired_queue or local_hint_count or has_local_coordinate:
         findings.append(
             _finding(
@@ -1652,7 +1696,7 @@ def _is_secret_path(path: Path) -> bool:
     )
 
 
-def _runtime_artifact(path: Path) -> bool:
+def is_runtime_artifact(path: Path) -> bool:
     return (
         any(part in RUNTIME_PARTS for part in path.parts)
         or path.name in RUNTIME_NAMES
@@ -1665,6 +1709,164 @@ def is_source_only_artifact(path: Path) -> bool:
         any(part in DEVELOPMENT_ONLY_PARTS for part in path.parts)
         or path.as_posix() in SOURCE_ONLY_SKILLSET_PATHS
     )
+
+
+def parse_runtime_json_strict(text: str) -> Any:
+    """Decode runtime JSON while rejecting duplicate object keys."""
+
+    return json.loads(
+        text,
+        object_pairs_hook=_reject_duplicate_json_keys,
+        parse_constant=_reject_nonfinite_json_constant,
+    )
+
+
+def _strip_valid_http_urls(text: str) -> str:
+    """Remove only absolute HTTP(S) URLs with a non-empty network host."""
+
+    def replace(match: re.Match[str]) -> str:
+        candidate = match.group(0)
+        try:
+            parsed = urlsplit(candidate)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError:
+            return candidate
+        if (
+            parsed.scheme.casefold() not in {"http", "https"}
+            or not hostname
+            or port == 0
+        ):
+            return candidate
+        try:
+            ip_address(hostname)
+            valid_host = True
+        except ValueError:
+            try:
+                ascii_host = hostname.rstrip(".").encode("idna").decode("ascii")
+            except UnicodeError:
+                valid_host = False
+            else:
+                valid_host = bool(ascii_host) and all(
+                    DNS_LABEL.fullmatch(label) is not None
+                    for label in ascii_host.split(".")
+                )
+        if valid_host:
+            return ""
+        return candidate
+
+    return HTTP_URL_PATTERN.sub(replace, text)
+
+
+def runtime_local_coordinate_markers(
+    path: Path,
+    text: str,
+) -> tuple[str, ...]:
+    """Return location-dependence classes without exposing matched coordinates."""
+
+    searchable = [text]
+    if path.suffix.casefold() == ".json":
+        try:
+            decoded = parse_runtime_json_strict(text)
+            searchable = [json.dumps(decoded, ensure_ascii=False)]
+        except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
+            pass
+
+    markers: set[str] = set()
+    for candidate in searchable:
+        normalized = unicodedata.normalize("NFKC", candidate)
+        normalized = normalized.replace("\\/", "/")
+        normalized = re.sub(r"\\+", "/", normalized)
+        normalized = _strip_valid_http_urls(normalized)
+        normalized = re.sub(r"/+", "/", normalized)
+        coordinate_key = normalized.casefold()
+        if REPOSITORY_SOURCE_PREFIX.casefold() in coordinate_key:
+            markers.add("repository-source-tree")
+        if PROJECT_ROOT_PLACEHOLDER.casefold() in coordinate_key:
+            markers.add("project-root-placeholder")
+        if any(pattern.search(normalized) for pattern in RUNTIME_USER_HOME_PATTERNS):
+            markers.add("user-home-absolute-path")
+    return tuple(sorted(markers))
+
+
+def _validate_runtime_self_containment(
+    findings: list[dict[str, Any]],
+    package_dir: Path,
+    skills_root: Path,
+) -> None:
+    """Reject location-dependent content from every runtime-eligible text file."""
+
+    for path in sorted(package_dir.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        logical_path = Path(package_dir.name) / path.relative_to(package_dir)
+        if (
+            is_runtime_artifact(logical_path)
+            or is_source_only_artifact(logical_path)
+        ):
+            continue
+        relative_path = _relative(path, skills_root)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeError as exc:
+            if path.suffix.casefold() in BINARY_RUNTIME_SUFFIXES:
+                continue
+            code = (
+                "RUNTIME_TEXT_UNREADABLE"
+                if path.suffix.casefold() in TEXT_SUFFIXES
+                else "RUNTIME_FORMAT_UNCHECKED"
+            )
+            findings.append(
+                _finding(
+                    "error",
+                    code,
+                    f"Не удалось проверить автономность runtime-файла: {exc}",
+                    package=package_dir.name,
+                    path=relative_path,
+                )
+            )
+            continue
+        except OSError as exc:
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_TEXT_UNREADABLE",
+                    f"Не удалось проверить автономность runtime-файла: {exc}",
+                    package=package_dir.name,
+                    path=relative_path,
+                )
+            )
+            continue
+
+        if path.suffix.casefold() == ".json":
+            try:
+                parse_runtime_json_strict(text)
+            except (json.JSONDecodeError, RecursionError, TypeError, ValueError) as exc:
+                findings.append(
+                    _finding(
+                        "error",
+                        "RUNTIME_REFERENCE_JSON_INVALID",
+                        f"Runtime JSON не прошёл строгий разбор: {exc}",
+                        package=package_dir.name,
+                        path=relative_path,
+                    )
+                )
+
+        markers = runtime_local_coordinate_markers(path, text)
+        if markers:
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_LOCAL_COORDINATE",
+                    (
+                        "Runtime-файл содержит координату локального дерева, "
+                        "недоступную после пользовательской установки."
+                    ),
+                    package=package_dir.name,
+                    path=relative_path,
+                    evidence={"marker_classes": list(markers)},
+                )
+            )
 
 
 def _development_artifact(path: Path) -> bool:
@@ -1692,18 +1894,17 @@ def _content_security_findings(
     except (OSError, UnicodeError):
         return []
     findings: list[dict[str, Any]] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if any(pattern.search(line) for pattern in ABSOLUTE_RUNTIME_PATTERNS):
-            findings.append(
-                _finding(
-                    "error",
-                    "ABSOLUTE_RUNTIME_PATH",
-                    "Публикуемый текст содержит абсолютный локальный runtime path.",
-                    package=package,
-                    path=relative_path,
-                    line=line_number,
-                )
+    if "user-home-absolute-path" in runtime_local_coordinate_markers(path, text):
+        findings.append(
+            _finding(
+                "error",
+                "ABSOLUTE_RUNTIME_PATH",
+                "Публикуемый текст содержит абсолютный локальный runtime path.",
+                package=package,
+                path=relative_path,
             )
+        )
+    for line_number, line in enumerate(text.splitlines(), start=1):
         secret_detected = bool(PRIVATE_KEY_MARKER.search(line) or TOKEN_LITERAL.search(line))
         assignment = SECRET_ASSIGNMENT.search(line)
         if assignment:
@@ -1783,7 +1984,7 @@ def _build_publish_manifest(
                             )
                         )
                 continue
-            if _runtime_artifact(relative_object):
+            if is_runtime_artifact(relative_object):
                 if path.is_file():
                     excluded_runtime.append(relative_path)
                 continue
@@ -2116,6 +2317,7 @@ def validate_skillset(
             _validate_trigger_evals(findings, package_dir, root)
         else:
             _validate_runtime_profile_cleanliness(findings, package_dir, root)
+        _validate_runtime_self_containment(findings, package_dir, root)
         _validate_markdown_links(findings, package_dir, root)
         _validate_reference_tocs(findings, package_dir, root)
         _validate_application_evidence_contract(findings, package_dir, root)
@@ -2164,6 +2366,7 @@ def validate_skillset(
         "validation_profile": profile,
         "validation_coverage": {
             "evals": "validated" if profile == "source" else "not_checked",
+            "runtime_self_containment": "validated",
             "public_source_safety": public_source_safety,
             "public_repository_safety": public_repository_safety,
         },
@@ -2197,6 +2400,8 @@ def _render_text(report: Mapping[str, Any]) -> str:
         (
             f"Профиль: {profile}; evals: "
             f"{report['validation_coverage']['evals']}; "
+            "runtime self-containment: "
+            f"{report['validation_coverage']['runtime_self_containment']}; "
             "public-source safety: "
             f"{report['validation_coverage']['public_source_safety']}; "
             "public-repository safety: "

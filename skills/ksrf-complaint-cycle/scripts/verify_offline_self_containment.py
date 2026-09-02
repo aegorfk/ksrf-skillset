@@ -8,7 +8,14 @@ import re
 import sys
 from pathlib import Path
 
-from validate_ksrf_skillset import is_source_only_artifact
+from validate_ksrf_skillset import (
+    BINARY_RUNTIME_SUFFIXES,
+    TEXT_SUFFIXES,
+    is_runtime_artifact,
+    is_source_only_artifact,
+    parse_runtime_json_strict,
+    runtime_local_coordinate_markers,
+)
 
 
 SKILLS_ROOT = Path(__file__).resolve().parents[2]
@@ -27,8 +34,8 @@ UID_SCENARIOS = (
     / "uid-first-scenario-contract.json"
 )
 FORBIDDEN_RUNTIME_MARKERS = (
-    "/Users/",
-    "ТЗ/Каналы/",
+    "/" + "Users/",
+    "Т" + "З/Каналы/",
     "t.me/s/",
     'Path.home() / "Documents" / "ks_parser_lower_court_marker"',
 )
@@ -169,6 +176,51 @@ def validate_uid_scenarios(errors: list[str]) -> None:
         errors.append("multiple viable theories must present 2-4 options for human selection")
 
 
+def validate_runtime_payload_coordinates(
+    errors: list[str],
+    skill_dirs: list[Path],
+) -> None:
+    """Mirror the portable validator's location-independence gate offline."""
+
+    for skill_dir in skill_dirs:
+        for path in sorted(skill_dir.rglob("*")):
+            if path.is_symlink() or not path.is_file():
+                continue
+            logical_path = Path(skill_dir.name) / path.relative_to(skill_dir)
+            if (
+                is_runtime_artifact(logical_path)
+                or is_source_only_artifact(logical_path)
+            ):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeError as exc:
+                if path.suffix.casefold() in BINARY_RUNTIME_SUFFIXES:
+                    continue
+                errors.append(
+                    f"unreadable runtime text: {logical_path.as_posix()}: {exc}"
+                )
+                continue
+            except OSError as exc:
+                errors.append(
+                    f"unreadable runtime text: {logical_path.as_posix()}: {exc}"
+                )
+                continue
+            if path.suffix.casefold() == ".json":
+                try:
+                    parse_runtime_json_strict(text)
+                except (RecursionError, TypeError, ValueError) as exc:
+                    errors.append(
+                        f"invalid runtime JSON: {logical_path.as_posix()}: {exc}"
+                    )
+            markers = runtime_local_coordinate_markers(path, text)
+            if markers:
+                errors.append(
+                    "runtime local coordinate "
+                    f"({', '.join(markers)}): {logical_path.as_posix()}"
+                )
+
+
 def main() -> int:
     errors: list[str] = []
     if not CORE.is_file():
@@ -251,6 +303,8 @@ def main() -> int:
                 except (OSError, ValueError):
                     errors.append(f"external symlink: {path}")
 
+    validate_runtime_payload_coordinates(errors, skill_dirs)
+
     for skill_dir in skill_dirs:
         for markdown in sorted(skill_dir.rglob("*.md")):
             logical_path = Path(skill_dir.name) / markdown.relative_to(skill_dir)
@@ -263,7 +317,6 @@ def main() -> int:
                     "://" in target
                     or "*" in target
                     or target.startswith("<")
-                    or target.startswith("ТЗ/")
                 ):
                     continue
                 resolved = (markdown.parent / target).resolve()
