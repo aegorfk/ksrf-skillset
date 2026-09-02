@@ -12,6 +12,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import stat
 import sys
@@ -2761,6 +2762,51 @@ def _status_observe_evidence(
             _STATUS_MOUNT_BOUNDARY.reset(boundary_token)
 
 
+def _status_runtime_freshness_action(target: Path) -> str:
+    validator = (
+        Path(__file__).resolve().parents[1]
+        / "skills"
+        / "ksrf-complaint-cycle"
+        / "scripts"
+        / "validate_ksrf_skillset.py"
+    )
+    command_values = (sys.executable or "python3", str(validator), str(target))
+    if any(
+        0xD800 <= ord(character) <= 0xDFFF
+        for value in command_values
+        for character in value
+    ):
+        return (
+            "Путь содержит непечатаемые байты, поэтому безопасную shell-команду "
+            "проверки сформировать нельзя. Повторите проверку для установки по "
+            "обычному UTF-8-пути или обновите набор из опубликованного main."
+        )
+    if not validator.is_file() or validator.is_symlink():
+        return (
+            "Runtime-валидатор с проверкой обновлений недоступен в этой копии "
+            "репозитория. Обновите репозиторий до опубликованного main, затем "
+            "повторите проверку или обычную установку."
+        )
+    command = shlex.join(
+        [
+            sys.executable or "python3",
+            str(validator),
+            "--skills-root",
+            str(target),
+            "--profile",
+            "runtime",
+            "--strict",
+            "--check-updates",
+        ]
+    )
+    return (
+        f"Команда проверки: {command}\n"
+        "Если содержимое отличается, обновите набор обычной установкой из "
+        "опубликованного main. Неизвестный результат означает пробел проверки, "
+        "а не подтверждённое отсутствие обновления."
+    )
+
+
 def _status_report(
     status_name: str,
     target: Path,
@@ -2778,8 +2824,9 @@ def _status_report(
         }
     messages = {
         "clean": (
-            "Служебных данных незавершённой установки нет; все 15 каталогов "
-            "навыков КС РФ находятся на месте. Содержимое и версия здесь не проверяются."
+            "Структурная проверка: служебных данных незавершённой установки нет; "
+            "все 15 каталогов навыков КС РФ находятся на месте. Содержимое и "
+            "актуальность установленного набора здесь не проверяются."
         ),
         "not_installed": "Набор навыков КС РФ в указанной папке не установлен.",
         "incomplete": "Установка неполная: отсутствует часть каталогов навыков КС РФ.",
@@ -2793,10 +2840,6 @@ def _status_report(
         ),
     }
     actions = {
-        "clean": (
-            "Проверьте содержимое runtime-валидатором; актуальность версии "
-            "подтверждается обычной установкой из чистого опубликованного main."
-        ),
         "not_installed": "Запустите обычную установку из опубликованного набора.",
         "incomplete": "Запустите обычную установку, чтобы восстановить полный набор.",
         "recovery_required": (
@@ -2808,6 +2851,11 @@ def _status_report(
             "и проверьте путь или журнал перед новой установкой."
         ),
     }
+    recommended_action = (
+        _status_runtime_freshness_action(target)
+        if status_name == "clean"
+        else actions[status_name]
+    )
     reason_code = reason_code or status_name
     reason_messages = {
         "target_appeared": "Папка появилась во время наблюдения; результат нужно повторить.",
@@ -2830,7 +2878,7 @@ def _status_report(
         "managed_skills": managed_skills,
         "transaction": transaction,
         "message": message,
-        "recommended_action": actions[status_name],
+        "recommended_action": recommended_action,
         "observation": {
             "consistency": "unlocked_read_only",
             "explicit_mutations_performed": False,
