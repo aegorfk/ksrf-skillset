@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
 import os
 from pathlib import Path
 import shutil
@@ -768,6 +769,57 @@ class TransactionalSkillsetInstallRegressionTests(unittest.TestCase):
             self._assert_unmanaged_unchanged(target, unmanaged)
             self.assertTrue(corrupt_transaction.is_dir())
             self.assertEqual(corrupt_journal.read_bytes(), b'{"schema_version":')
+
+    def test_type_confused_journal_raises_installation_error_without_mutation(self) -> None:
+        mutations = (
+            ("phase", lambda journal: journal.__setitem__("phase", [])),
+            (
+                "progress",
+                lambda journal: journal["skills"][0].__setitem__("progress", []),
+            ),
+            (
+                "cleanup",
+                lambda journal: journal["cleanup"].__setitem__(
+                    installer._STAGING_NAME,
+                    [],
+                ),
+            ),
+        )
+        for label, mutate in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                source_a = _make_source(root, "A")
+                source_b = _make_source(root, "B")
+                target = root / "target"
+                copy_skillset(source_a, target)
+                original_replace = installer._replace_path
+                actual_target = target.resolve(strict=True)
+
+                def stop_during_placement(source: Path, destination: Path) -> None:
+                    if destination == actual_target / SKILL_NAMES[1]:
+                        raise SystemExit(94)
+                    original_replace(source, destination)
+
+                with patch.object(
+                    installer,
+                    "_replace_path",
+                    side_effect=stop_during_placement,
+                ):
+                    with self.assertRaisesRegex(SystemExit, "94"):
+                        copy_skillset(source_b, target)
+                transaction_roots = sorted(target.glob(f"{TRANSACTION_PREFIX}*"))
+                self.assertEqual(len(transaction_roots), 1)
+                transaction_root = transaction_roots[0]
+                journal_path = transaction_root / JOURNAL_FILE_NAME
+                journal = json.loads(journal_path.read_text(encoding="utf-8"))
+                mutate(journal)
+                journal_path.write_text(json.dumps(journal), encoding="utf-8")
+                before = _path_snapshot(target)
+
+                with self.assertRaises(InstallationError):
+                    installer._load_journal(transaction_root, target)
+
+                self.assertEqual(_path_snapshot(target), before)
 
     def test_success_is_exact_preserves_unmanaged_and_leaves_no_transaction(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

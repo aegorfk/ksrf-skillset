@@ -4,41 +4,59 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 canonical_target="${CODEX_HOME:-$HOME/.codex}/skills"
 target="$canonical_target"
+status_mode=false
+json_mode=false
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--target PATH]
+Использование: ./install.sh [--target ПУТЬ] [--status [--json]]
 
-Install all bundled KSRF skills. By default the target is
-CODEX_HOME/skills when CODEX_HOME is set, otherwise HOME/.codex/skills. Use
---target for a clean-room or custom installation without changing either
-environment variable.
+Установить все 15 навыков КС РФ из этого выпуска. По умолчанию используется
+CODEX_HOME/skills, а если CODEX_HOME не задан — HOME/.codex/skills. Параметр
+--target задаёт отдельную папку без изменения переменных окружения. Параметр
+--status без записи проверяет состояние: он не запускает восстановление,
+очистку или блокировку, но файловая система может обновить atime при чтении.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
-      [[ $# -ge 2 ]] || { echo "--target requires PATH" >&2; exit 2; }
+      [[ $# -ge 2 && "$2" != -* ]] || {
+        echo "Параметр --target требует путь, а не другой параметр" >&2
+        exit 2
+      }
       target="$2"
       shift 2
+      ;;
+    --status)
+      status_mode=true
+      shift
+      ;;
+    --json)
+      json_mode=true
+      shift
       ;;
     -h|--help)
       usage
       exit 0
       ;;
     *)
-      echo "Unknown argument: $1" >&2
+      echo "Неизвестный параметр: $1" >&2
       usage >&2
       exit 2
       ;;
   esac
 done
 
-[[ -n "$target" ]] || { echo "Install target must not be empty" >&2; exit 2; }
+[[ -n "$target" ]] || { echo "Путь установки не может быть пустым" >&2; exit 2; }
+if [[ "$json_mode" == true && "$status_mode" != true ]]; then
+  echo "Параметр --json можно использовать только вместе с --status" >&2
+  exit 2
+fi
 
 command -v python3 >/dev/null 2>&1 || {
-  echo "python3 is required for publication-safe installation" >&2
+  echo "Для проверяемой установки требуется python3" >&2
   exit 1
 }
 
@@ -55,10 +73,18 @@ print(Path(sys.argv[1]).expanduser().resolve(strict=False))
 PY
 )"
 
+if [[ "$status_mode" == true ]]; then
+  status_args=(--status --target "$target")
+  if [[ "$json_mode" == true ]]; then
+    status_args+=(--json)
+  fi
+  exec python3 "$repo_dir/tools/install_skillset.py" "${status_args[@]}"
+fi
+
 if [[ "$resolved_target" == "$resolved_canonical_target" ]]; then
   python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir"
 else
-  echo "Custom-target clean-room install: canonical global skills will not be changed"
+  echo "Установка в отдельную папку: глобальные навыки изменены не будут"
 fi
 
 python3 "$repo_dir/tools/install_skillset.py" --repo "$repo_dir" --target "$target"
