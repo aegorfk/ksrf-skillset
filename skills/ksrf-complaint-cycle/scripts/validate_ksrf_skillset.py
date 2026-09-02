@@ -207,6 +207,11 @@ _FRESHNESS_REF_MAX_BYTES = 64 * 1024
 _FRESHNESS_MANIFEST_MAX_BYTES = 256 * 1024
 _FRESHNESS_GIT_MAX_BYTES = 256
 _FRESHNESS_TIMEOUT_SECONDS = 5.0
+_FRESHNESS_HTTP_DEADLINE_SECONDS = 10.0
+_FRESHNESS_HTTP_HELPER_FLAG = "--_freshness-http-helper"
+_FRESHNESS_HTTP_HELPER_NETWORK_EXIT = 20
+_FRESHNESS_HTTP_HELPER_INVALID_EXIT = 21
+_FRESHNESS_HTTP_HELPER_OVERSIZE_EXIT = 22
 _FRESHNESS_REASON_LABELS = {
     "local_identity_unavailable": "локальный отпечаток недоступен",
     "network_error": "сеть или удалённый сервис недоступны",
@@ -2325,21 +2330,58 @@ def _runtime_content_identity(
     }
 
 
-def _read_freshness_json(
-    url: str,
+def _freshness_request_spec(
+    route: str,
+    commit_sha: str | None,
+) -> tuple[str, str, int, str, str | None, bool]:
+    if route == "ref" and commit_sha is None:
+        return (
+            _FRESHNESS_REF_URL,
+            "api.github.com",
+            _FRESHNESS_REF_MAX_BYTES,
+            _FRESHNESS_JSON_ACCEPT,
+            None,
+            False,
+        )
+    if (
+        route not in {"raw", "contents"}
+        or not isinstance(commit_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None
+    ):
+        raise _FreshnessLookupError("invalid_response")
+    if route == "raw":
+        return (
+            f"{_FRESHNESS_RAW_PREFIX}{commit_sha}/skills-manifest.json",
+            "raw.githubusercontent.com",
+            _FRESHNESS_MANIFEST_MAX_BYTES,
+            _FRESHNESS_JSON_ACCEPT,
+            None,
+            True,
+        )
+    return (
+        f"{_FRESHNESS_CONTENTS_MANIFEST_PREFIX}{commit_sha}",
+        "api.github.com",
+        _FRESHNESS_MANIFEST_MAX_BYTES,
+        _FRESHNESS_CONTENTS_ACCEPT,
+        _FRESHNESS_GITHUB_API_VERSION,
+        True,
+    )
+
+
+def _read_freshness_payload_direct(
+    route: str,
+    commit_sha: str | None,
     *,
-    expected_host: str,
-    max_bytes: int,
-    accept: str = _FRESHNESS_JSON_ACCEPT,
-    api_version: str | None = None,
-    strict_manifest_http: bool = False,
-) -> Any:
-    if accept not in {_FRESHNESS_JSON_ACCEPT, _FRESHNESS_CONTENTS_ACCEPT}:
-        raise _FreshnessLookupError("invalid_response")
-    if api_version not in {None, _FRESHNESS_GITHUB_API_VERSION}:
-        raise _FreshnessLookupError("invalid_response")
-    if not isinstance(strict_manifest_http, bool):
-        raise _FreshnessLookupError("invalid_response")
+    opener: Any,
+) -> bytes:
+    (
+        url,
+        expected_host,
+        max_bytes,
+        accept,
+        api_version,
+        strict_manifest_http,
+    ) = _freshness_request_spec(route, commit_sha)
     headers = {
         "Accept": accept,
         "User-Agent": "ksrf-runtime-validator/1",
@@ -2351,7 +2393,7 @@ def _read_freshness_json(
         headers=headers,
     )
     try:
-        with _FRESHNESS_OPENER(
+        with opener(
             request,
             timeout=_FRESHNESS_TIMEOUT_SECONDS,
         ) as response:
@@ -2400,6 +2442,32 @@ def _read_freshness_json(
         raise _FreshnessLookupError("invalid_response")
     if len(payload) > max_bytes:
         raise _FreshnessLookupError("response_too_large")
+    return payload
+
+
+def _direct_freshness_http_transport(
+    route: str,
+    commit_sha: str | None,
+) -> bytes:
+    """Exercise the child-side transport through the explicit test seam."""
+
+    return _read_freshness_payload_direct(
+        route,
+        commit_sha,
+        opener=_FRESHNESS_OPENER,
+    )
+
+
+def _read_freshness_json(
+    route: str,
+    commit_sha: str | None = None,
+) -> Any:
+    _, _, max_bytes, _, _, _ = _freshness_request_spec(route, commit_sha)
+    payload = _FRESHNESS_HTTP_TRANSPORT(route, commit_sha)
+    if not isinstance(payload, bytes):
+        raise _FreshnessLookupError("invalid_response")
+    if len(payload) > max_bytes:
+        raise _FreshnessLookupError("response_too_large")
     try:
         return json.loads(
             payload.decode("utf-8"),
@@ -2432,6 +2500,63 @@ def _kill_freshness_process_group(process: subprocess.Popen[bytes]) -> None:
         pass
 
 
+def _finish_freshness_process_group(
+    process: subprocess.Popen[bytes],
+    deadline: float,
+) -> int:
+    """Observe the leader without reaping, kill its group, then reap safely."""
+
+    if os.name != "posix":  # pragma: no cover - installer contract is POSIX-only
+        remaining = deadline - _FRESHNESS_MONOTONIC()
+        if remaining <= 0:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error")
+        try:
+            return process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error") from exc
+
+    if not all(
+        hasattr(os, name)
+        for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")
+    ):
+        _kill_freshness_process_group(process)
+        raise _FreshnessLookupError("network_error")
+
+    options = os.WEXITED | os.WNOHANG | os.WNOWAIT
+    while True:
+        remaining = deadline - _FRESHNESS_MONOTONIC()
+        if remaining <= 0:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error")
+        try:
+            observed = os.waitid(os.P_PID, process.pid, options)
+        except ChildProcessError as exc:
+            # Another reaper would make the numeric PGID unsafe to signal.
+            raise _FreshnessLookupError("network_error") from exc
+        except OSError as exc:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error") from exc
+        if observed is None or observed.si_pid == 0:
+            _FRESHNESS_SLEEP(min(0.01, remaining))
+            continue
+        if observed.si_pid != process.pid:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error")
+        if deadline - _FRESHNESS_MONOTONIC() <= 0:
+            _kill_freshness_process_group(process)
+            raise _FreshnessLookupError("network_error")
+
+        # WNOWAIT keeps the leader's PID/PGID reserved. Terminating the group
+        # here cannot target a later, unrelated process group with a reused id.
+        _kill_freshness_process_group(process)
+        return_code = process.returncode
+        if not isinstance(return_code, int) or isinstance(return_code, bool):
+            raise _FreshnessLookupError("network_error")
+        return return_code
+
+
 def _run_bounded_freshness_process(
     argv: Sequence[str],
     *,
@@ -2442,9 +2567,10 @@ def _run_bounded_freshness_process(
 ) -> tuple[int, bytes]:
     """Run one non-interactive helper with bounded time and stdout."""
 
+    deadline = _FRESHNESS_MONOTONIC() + timeout
     process: subprocess.Popen[bytes] | None = None
     selector: selectors.BaseSelector | None = None
-    completed = False
+    cleanup_owned_by_runner = True
     try:
         process = subprocess.Popen(
             tuple(argv),
@@ -2461,41 +2587,40 @@ def _run_bounded_freshness_process(
             raise _FreshnessLookupError("network_error")
 
         output = bytearray()
-        deadline = time.monotonic() + timeout
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
         while True:
-            remaining = deadline - time.monotonic()
+            remaining = deadline - _FRESHNESS_MONOTONIC()
             if remaining <= 0:
                 raise _FreshnessLookupError("network_error")
             events = selector.select(remaining)
             if not events:
                 raise _FreshnessLookupError("network_error")
+            if deadline - _FRESHNESS_MONOTONIC() <= 0:
+                raise _FreshnessLookupError("network_error")
             chunk = os.read(
                 process.stdout.fileno(),
                 min(4096, max_stdout + 1 - len(output)),
             )
+            if deadline - _FRESHNESS_MONOTONIC() <= 0:
+                raise _FreshnessLookupError("network_error")
             if not chunk:
                 break
             output.extend(chunk)
             if len(output) > max_stdout:
                 raise _FreshnessLookupError("response_too_large")
 
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
+        cleanup_owned_by_runner = False
+        return_code = _finish_freshness_process_group(process, deadline)
+        if deadline - _FRESHNESS_MONOTONIC() <= 0:
             raise _FreshnessLookupError("network_error")
-        try:
-            return_code = process.wait(timeout=remaining)
-        except subprocess.TimeoutExpired as exc:
-            raise _FreshnessLookupError("network_error") from exc
-        completed = True
         return return_code, bytes(output)
     except _FreshnessLookupError:
         raise
     except (OSError, ValueError) as exc:
         raise _FreshnessLookupError("network_error") from exc
     finally:
-        if process is not None and not completed:
+        if process is not None and cleanup_owned_by_runner:
             _kill_freshness_process_group(process)
         if selector is not None:
             try:
@@ -2509,7 +2634,138 @@ def _run_bounded_freshness_process(
                 pass
 
 
+_FRESHNESS_MONOTONIC = time.monotonic
+_FRESHNESS_SLEEP = time.sleep
 _FRESHNESS_GIT_RUNNER = _run_bounded_freshness_process
+_FRESHNESS_HTTP_PROCESS_RUNNER = _run_bounded_freshness_process
+
+
+def _freshness_http_environment() -> dict[str, str]:
+    """Return the complete environment allowlist for an HTTP helper."""
+
+    return {
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+
+
+def _run_freshness_http_helper(
+    route: str,
+    commit_sha: str | None,
+) -> bytes:
+    """Run one fixed-route HTTPS request behind a hard process deadline."""
+
+    _, _, max_bytes, _, _, _ = _freshness_request_spec(route, commit_sha)
+    python_executable = sys.executable
+    validator_path = Path(__file__)
+    if not validator_path.is_absolute():
+        validator_path = Path.cwd() / validator_path
+    try:
+        validator_meta = validator_path.lstat()
+        validator_path = validator_path.resolve(strict=True)
+        resolved_meta = validator_path.stat()
+    except OSError as exc:
+        raise _FreshnessLookupError("network_error") from exc
+    if (
+        not isinstance(python_executable, str)
+        or not os.path.isabs(python_executable)
+        or not stat.S_ISREG(validator_meta.st_mode)
+        or stat.S_ISLNK(validator_meta.st_mode)
+        or not stat.S_ISREG(resolved_meta.st_mode)
+        or (validator_meta.st_dev, validator_meta.st_ino)
+        != (resolved_meta.st_dev, resolved_meta.st_ino)
+    ):
+        raise _FreshnessLookupError("network_error")
+
+    coordinate = "-" if route == "ref" else str(commit_sha)
+    argv = (
+        python_executable,
+        "-I",
+        "-S",
+        "-B",
+        str(validator_path),
+        _FRESHNESS_HTTP_HELPER_FLAG,
+        route,
+        coordinate,
+    )
+    try:
+        return_code, payload = _FRESHNESS_HTTP_PROCESS_RUNNER(
+            argv,
+            env=_freshness_http_environment(),
+            cwd=Path(python_executable).anchor or os.sep,
+            timeout=_FRESHNESS_HTTP_DEADLINE_SECONDS,
+            max_stdout=max_bytes,
+        )
+    except _FreshnessLookupError:
+        raise
+    except (OSError, subprocess.SubprocessError, TimeoutError, TypeError, ValueError) as exc:
+        raise _FreshnessLookupError("network_error") from exc
+
+    if not isinstance(return_code, int) or isinstance(return_code, bool):
+        raise _FreshnessLookupError("network_error")
+    if not isinstance(payload, bytes):
+        raise _FreshnessLookupError("network_error")
+    if len(payload) > max_bytes:
+        raise _FreshnessLookupError("response_too_large")
+    helper_reasons = {
+        _FRESHNESS_HTTP_HELPER_NETWORK_EXIT: "network_error",
+        _FRESHNESS_HTTP_HELPER_INVALID_EXIT: "invalid_response",
+        _FRESHNESS_HTTP_HELPER_OVERSIZE_EXIT: "response_too_large",
+    }
+    if return_code != 0:
+        raise _FreshnessLookupError(
+            helper_reasons.get(return_code, "network_error")
+        )
+    return payload
+
+
+def _freshness_http_helper_main(
+    args: Sequence[str],
+    *,
+    stdout: Any = None,
+) -> int:
+    """Execute the closed child protocol without printing diagnostics."""
+
+    if len(args) != 2:
+        return _FRESHNESS_HTTP_HELPER_INVALID_EXIT
+    route, coordinate = args
+    commit_sha: str | None
+    if route == "ref" and coordinate == "-":
+        commit_sha = None
+    elif route in {"raw", "contents"}:
+        commit_sha = coordinate
+    else:
+        return _FRESHNESS_HTTP_HELPER_INVALID_EXIT
+    try:
+        payload = _read_freshness_payload_direct(
+            route,
+            commit_sha,
+            opener=_default_freshness_opener,
+        )
+        output = sys.stdout.buffer if stdout is None else stdout
+        written = output.write(payload)
+        if written is not None and written != len(payload):
+            return _FRESHNESS_HTTP_HELPER_NETWORK_EXIT
+        output.flush()
+    except _FreshnessLookupError as exc:
+        return {
+            "network_error": _FRESHNESS_HTTP_HELPER_NETWORK_EXIT,
+            "invalid_response": _FRESHNESS_HTTP_HELPER_INVALID_EXIT,
+            "response_too_large": _FRESHNESS_HTTP_HELPER_OVERSIZE_EXIT,
+        }.get(exc.reason_code, _FRESHNESS_HTTP_HELPER_NETWORK_EXIT)
+    except Exception:
+        return _FRESHNESS_HTTP_HELPER_NETWORK_EXIT
+    return 0
+
+
+def _subprocess_freshness_http_transport(
+    route: str,
+    commit_sha: str | None,
+) -> bytes:
+    return _run_freshness_http_helper(route, commit_sha)
+
+
+_FRESHNESS_HTTP_TRANSPORT = _subprocess_freshness_http_transport
 
 
 def _freshness_git_environment() -> dict[str, str]:
@@ -2587,11 +2843,7 @@ def _resolve_remote_main_sha_via_git() -> str:
 
 
 def _resolve_remote_main_sha_via_rest() -> str:
-    payload = _read_freshness_json(
-        _FRESHNESS_REF_URL,
-        expected_host="api.github.com",
-        max_bytes=_FRESHNESS_REF_MAX_BYTES,
-    )
+    payload = _read_freshness_json("ref")
     if not isinstance(payload, Mapping):
         raise _FreshnessLookupError("invalid_response")
     reference = payload.get("ref")
@@ -2626,27 +2878,13 @@ def _fetch_remote_runtime_manifest(commit_sha: str) -> Any:
         or re.fullmatch(r"[0-9a-f]{40}", commit_sha) is None
     ):
         raise _FreshnessLookupError("invalid_response")
-    manifest_url = f"{_FRESHNESS_RAW_PREFIX}{commit_sha}/skills-manifest.json"
     try:
-        return _read_freshness_json(
-            manifest_url,
-            expected_host="raw.githubusercontent.com",
-            max_bytes=_FRESHNESS_MANIFEST_MAX_BYTES,
-            strict_manifest_http=True,
-        )
+        return _read_freshness_json("raw", commit_sha)
     except _FreshnessLookupError as exc:
         if exc.reason_code != "network_error":
             raise
 
-    contents_url = f"{_FRESHNESS_CONTENTS_MANIFEST_PREFIX}{commit_sha}"
-    return _read_freshness_json(
-        contents_url,
-        expected_host="api.github.com",
-        max_bytes=_FRESHNESS_MANIFEST_MAX_BYTES,
-        accept=_FRESHNESS_CONTENTS_ACCEPT,
-        api_version=_FRESHNESS_GITHUB_API_VERSION,
-        strict_manifest_http=True,
-    )
+    return _read_freshness_json("contents", commit_sha)
 
 
 def _fetch_remote_runtime_identity(commit_sha: str) -> dict[str, Any]:
@@ -3799,5 +4037,11 @@ def main(
         return 2
 
 
+def _entrypoint() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == _FRESHNESS_HTTP_HELPER_FLAG:
+        return _freshness_http_helper_main(tuple(sys.argv[2:]))
+    return main()
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_entrypoint())

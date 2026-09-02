@@ -330,6 +330,21 @@ def _minimal_authority_corpus() -> dict[str, Any]:
 
 
 class KSRFSkillsetValidatorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Existing request-security tests exercise the child-side direct seam.
+        # Dedicated helper tests below verify that production uses a subprocess.
+        self.assertIs(
+            VALIDATOR._FRESHNESS_HTTP_TRANSPORT,
+            VALIDATOR._subprocess_freshness_http_transport,
+        )
+        transport = mock.patch.object(
+            VALIDATOR,
+            "_FRESHNESS_HTTP_TRANSPORT",
+            side_effect=VALIDATOR._direct_freshness_http_transport,
+        )
+        transport.start()
+        self.addCleanup(transport.stop)
+
     def test_canonical_package_allowlist_has_exactly_fifteen_skills(self) -> None:
         self.assertEqual(len(VALIDATOR.CANONICAL_KSRF_PACKAGES), 15)
         self.assertNotIn(
@@ -628,6 +643,10 @@ description: Используй этот навык для всего.
                 create=True,
             ) as opener, mock.patch.object(
                 VALIDATOR,
+                "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                side_effect=AssertionError("default runtime validation must not spawn HTTP"),
+            ) as http_runner, mock.patch.object(
+                VALIDATOR,
                 "_FRESHNESS_GIT_RUNNER",
                 side_effect=AssertionError("default runtime validation must not run git"),
                 create=True,
@@ -639,6 +658,7 @@ description: Используй этот навык для всего.
                 )
 
             opener.assert_not_called()
+            http_runner.assert_not_called()
             git_runner.assert_not_called()
             self.assertEqual(report["schema_version"], "1.1.0")
             self.assertEqual(
@@ -1658,6 +1678,561 @@ description: Используй этот навык для всего.
         self.assertEqual(getattr(proxy_handlers[0], "proxies", None), {})
         self.assertFalse(request.has_header("Proxy-Authorization"))
 
+    def test_http_helper_runner_uses_exact_isolated_process_contract(self) -> None:
+        payload = b'{"ref":"refs/heads/main"}'
+        calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+        def runner(
+            argv: tuple[str, ...],
+            **kwargs: object,
+        ) -> tuple[int, bytes]:
+            calls.append((argv, kwargs))
+            return 0, payload
+
+        with mock.patch.object(
+            VALIDATOR,
+            "_FRESHNESS_HTTP_PROCESS_RUNNER",
+            side_effect=runner,
+            create=True,
+        ):
+            result = VALIDATOR._run_freshness_http_helper("ref", None)
+
+        self.assertEqual(result, payload)
+        self.assertEqual(len(calls), 1)
+        argv, kwargs = calls[0]
+        self.assertEqual(
+            argv,
+            (
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                str(SCRIPT),
+                "--_freshness-http-helper",
+                "ref",
+                "-",
+            ),
+        )
+        self.assertEqual(kwargs["cwd"], Path(sys.executable).anchor or os.sep)
+        self.assertEqual(kwargs["timeout"], 10.0)
+        self.assertEqual(kwargs["max_stdout"], 64 * 1024)
+        self.assertEqual(kwargs["env"], {"LC_ALL": "C", "LANG": "C"})
+        serialized = repr((argv, kwargs))
+        for forbidden in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "AUTHORIZATION",
+            "COOKIE",
+            "PYTHONPATH",
+            "SSL_CERT_FILE",
+        ):
+            self.assertNotIn(forbidden, serialized.upper())
+
+    def test_http_helper_runner_maps_closed_exit_protocol(self) -> None:
+        cases = (
+            (20, b"network secret", "network_error"),
+            (21, b"invalid secret", "invalid_response"),
+            (22, b"oversize secret", "response_too_large"),
+            (7, b"crash secret", "network_error"),
+            (-9, b"signal secret", "network_error"),
+        )
+        for return_code, payload, expected_reason in cases:
+            with self.subTest(return_code=return_code), mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                return_value=(return_code, payload),
+                create=True,
+            ):
+                with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                    VALIDATOR._run_freshness_http_helper("ref", None)
+
+            self.assertEqual(caught.exception.reason_code, expected_reason)
+            self.assertNotIn("secret", str(caught.exception))
+
+    def test_http_helper_main_accepts_only_fixed_route_coordinates(self) -> None:
+        invalid_args = (
+            (),
+            ("unknown", "-"),
+            ("ref", "main"),
+            ("raw", "main"),
+            ("contents", "A" * 40),
+            ("raw", "a" * 40, "extra"),
+        )
+        for args in invalid_args:
+            output = io.BytesIO()
+            with self.subTest(args=args), mock.patch.object(
+                VALIDATOR,
+                "_default_freshness_opener",
+                side_effect=AssertionError("invalid helper input must not use network"),
+            ) as opener:
+                exit_code = VALIDATOR._freshness_http_helper_main(
+                    args,
+                    stdout=output,
+                )
+
+            self.assertEqual(exit_code, 21)
+            self.assertEqual(output.getvalue(), b"")
+            opener.assert_not_called()
+
+    def test_isolated_helper_entrypoint_rejects_invalid_coordinate_offline(
+        self,
+    ) -> None:
+        completed = subprocess.run(
+            (
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                str(SCRIPT),
+                "--_freshness-http-helper",
+                "raw",
+                "main",
+            ),
+            shell=False,
+            cwd=Path(sys.executable).anchor or os.sep,
+            env={"LC_ALL": "C", "LANG": "C"},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=2.0,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 21)
+        self.assertEqual(completed.stdout, b"")
+        self.assertEqual(completed.stderr, b"")
+
+    def test_http_helper_main_preserves_fixed_request_and_raw_bytes(self) -> None:
+        remote_sha = "9" * 40
+        contents_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/contents/"
+            f"skills-manifest.json?ref={remote_sha}"
+        )
+        payload = b'{"schema_version":"1.2"}'
+        output = io.BytesIO()
+        requests: list[object] = []
+
+        def opener(request: object, *, timeout: float):
+            self.assertEqual(timeout, 5.0)
+            requests.append(request)
+            return _FakeHttpResponse(payload, contents_url)
+
+        with mock.patch.object(
+            VALIDATOR,
+            "_default_freshness_opener",
+            side_effect=opener,
+        ):
+            exit_code = VALIDATOR._freshness_http_helper_main(
+                ("contents", remote_sha),
+                stdout=output,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(output.getvalue(), payload)
+        self.assertEqual(len(requests), 1)
+        request = requests[0]
+        self.assertEqual(str(getattr(request, "full_url", request)), contents_url)
+        headers = {
+            str(key).lower(): str(value)
+            for key, value in getattr(request, "header_items")()
+        }
+        self.assertEqual(
+            headers,
+            {
+                "accept": "application/vnd.github.raw+json",
+                "user-agent": "ksrf-runtime-validator/1",
+                "x-github-api-version": "2026-03-10",
+            },
+        )
+
+    def test_http_helper_main_maps_bounded_reasons_to_private_exits(self) -> None:
+        cases = (
+            ("network_error", 20),
+            ("invalid_response", 21),
+            ("response_too_large", 22),
+        )
+        for reason, expected_exit in cases:
+            output = io.BytesIO()
+            with self.subTest(reason=reason), mock.patch.object(
+                VALIDATOR,
+                "_read_freshness_payload_direct",
+                side_effect=VALIDATOR._FreshnessLookupError(reason),
+            ):
+                exit_code = VALIDATOR._freshness_http_helper_main(
+                    ("ref", "-"),
+                    stdout=output,
+                )
+
+            self.assertEqual(exit_code, expected_exit)
+            self.assertEqual(output.getvalue(), b"")
+
+    def test_http_helper_deadlines_preserve_one_fallback_chain(self) -> None:
+        remote_sha = "a" * 40
+        manifest_payload = json.dumps(
+            {
+                "schema_version": "1.2",
+                "digest_format": VALIDATOR.RUNTIME_CONTENT_DIGEST_FORMAT,
+                "total_skills": len(VALIDATOR.CANONICAL_KSRF_PACKAGES),
+                "total_files": 238,
+                "total_bytes": 1234,
+                "tree_sha256": "b" * 64,
+            }
+        ).encode()
+        http_routes: list[tuple[str, str]] = []
+
+        def http_runner(
+            argv: tuple[str, ...],
+            **kwargs: object,
+        ) -> tuple[int, bytes]:
+            del kwargs
+            route, coordinate = argv[-2:]
+            http_routes.append((route, coordinate))
+            if route in {"ref", "raw"}:
+                raise VALIDATOR._FreshnessLookupError("network_error")
+            self.assertEqual(route, "contents")
+            self.assertEqual(coordinate, remote_sha)
+            return 0, manifest_payload
+
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                side_effect=http_runner,
+                create=True,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_HTTP_TRANSPORT",
+                side_effect=VALIDATOR._run_freshness_http_helper,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_FINDER",
+                return_value="/usr/bin/git",
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                return_value=(
+                    0,
+                    f"{remote_sha}\trefs/heads/main\n".encode("ascii"),
+                ),
+            ) as git_runner,
+        ):
+            resolved = VALIDATOR._resolve_remote_main_sha()
+            identity = VALIDATOR._fetch_remote_runtime_identity(resolved)
+
+        self.assertEqual(resolved, remote_sha)
+        self.assertEqual(identity["tree_sha256"], "b" * 64)
+        self.assertEqual(
+            http_routes,
+            [("ref", "-"), ("raw", remote_sha), ("contents", remote_sha)],
+        )
+        git_runner.assert_called_once()
+
+    def test_contents_helper_deadline_is_terminal(self) -> None:
+        remote_sha = "c" * 40
+        routes: list[tuple[str, str]] = []
+
+        def http_runner(
+            argv: tuple[str, ...],
+            **kwargs: object,
+        ) -> tuple[int, bytes]:
+            del kwargs
+            route, coordinate = argv[-2:]
+            routes.append((route, coordinate))
+            if route == "raw":
+                raise VALIDATOR._FreshnessLookupError("network_error")
+            self.assertEqual(route, "contents")
+            raise VALIDATOR._FreshnessLookupError("network_error")
+
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                side_effect=http_runner,
+                create=True,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_HTTP_TRANSPORT",
+                side_effect=VALIDATOR._run_freshness_http_helper,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_GIT_RUNNER",
+                side_effect=AssertionError("manifest failure must not retry ref"),
+            ) as git_runner,
+        ):
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                VALIDATOR._fetch_remote_runtime_identity(remote_sha)
+
+        self.assertEqual(caught.exception.reason_code, "network_error")
+        self.assertEqual(routes, [("raw", remote_sha), ("contents", remote_sha)])
+        git_runner.assert_not_called()
+
+    def test_bounded_process_deadline_beats_continuous_trickle(self) -> None:
+        trickle = (
+            "import os,time; "
+            "[(os.write(1, b'x'), time.sleep(.02)) for _ in range(500)]"
+        )
+        started = time.monotonic()
+        with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+            VALIDATOR._run_bounded_freshness_process(
+                (sys.executable, "-c", trickle),
+                env=dict(os.environ),
+                cwd=Path(sys.executable).anchor or os.sep,
+                timeout=0.12,
+                max_stdout=256,
+            )
+
+        self.assertEqual(caught.exception.reason_code, "network_error")
+        self.assertLess(time.monotonic() - started, 2.0)
+
+    def test_bounded_process_deadline_starts_before_spawn(self) -> None:
+        order: list[str] = []
+        process = mock.Mock()
+        process.stdout = mock.Mock()
+        selector = mock.Mock()
+        clock_values = iter((100.0, 110.0))
+
+        def clock() -> float:
+            order.append("clock")
+            return next(clock_values)
+
+        def popen(*args: object, **kwargs: object) -> object:
+            del args, kwargs
+            order.append("popen")
+            return process
+
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                side_effect=clock,
+            ),
+            mock.patch.object(
+                VALIDATOR.subprocess,
+                "Popen",
+                side_effect=popen,
+            ),
+            mock.patch.object(
+                VALIDATOR.selectors,
+                "DefaultSelector",
+                return_value=selector,
+            ),
+            mock.patch.object(
+                VALIDATOR,
+                "_kill_freshness_process_group",
+            ) as cleanup,
+        ):
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                VALIDATOR._run_bounded_freshness_process(
+                    ("/absolute/helper",),
+                    env={},
+                    cwd=os.sep,
+                    timeout=10.0,
+                    max_stdout=64,
+                )
+
+        self.assertEqual(caught.exception.reason_code, "network_error")
+        self.assertEqual(order, ["clock", "popen", "clock"])
+        selector.select.assert_not_called()
+        cleanup.assert_called_once_with(process)
+        selector.close.assert_called_once()
+        process.stdout.close.assert_called_once()
+
+    def test_bounded_process_exact_deadline_rejects_wake_and_exit_zero(
+        self,
+    ) -> None:
+        process = mock.Mock()
+        process.stdout = mock.Mock()
+        process.stdout.fileno.return_value = 7
+        selector = mock.Mock()
+        selector.select.return_value = [(object(), object())]
+
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                side_effect=(100.0, 100.0, 110.0),
+            ),
+            mock.patch.object(
+                VALIDATOR.subprocess,
+                "Popen",
+                return_value=process,
+            ),
+            mock.patch.object(
+                VALIDATOR.selectors,
+                "DefaultSelector",
+                return_value=selector,
+            ),
+            mock.patch.object(VALIDATOR.os, "read") as read,
+            mock.patch.object(VALIDATOR, "_kill_freshness_process_group"),
+        ):
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as wake:
+                VALIDATOR._run_bounded_freshness_process(
+                    ("/absolute/helper",),
+                    env={},
+                    cwd=os.sep,
+                    timeout=10.0,
+                    max_stdout=64,
+                )
+        self.assertEqual(wake.exception.reason_code, "network_error")
+        read.assert_not_called()
+
+        process.reset_mock()
+        process.stdout = mock.Mock()
+        process.stdout.fileno.return_value = 7
+        process.wait.return_value = 0
+        selector = mock.Mock()
+        selector.select.return_value = [(object(), object())]
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                side_effect=(100.0, 100.0, 100.0, 100.0, 110.0),
+            ),
+            mock.patch.object(
+                VALIDATOR.subprocess,
+                "Popen",
+                return_value=process,
+            ),
+            mock.patch.object(
+                VALIDATOR.selectors,
+                "DefaultSelector",
+                return_value=selector,
+            ),
+            mock.patch.object(VALIDATOR.os, "read", return_value=b""),
+            mock.patch.object(
+                VALIDATOR,
+                "_finish_freshness_process_group",
+                return_value=0,
+            ),
+        ):
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as exit_zero:
+                VALIDATOR._run_bounded_freshness_process(
+                    ("/absolute/helper",),
+                    env={},
+                    cwd=os.sep,
+                    timeout=10.0,
+                    max_stdout=64,
+                )
+        self.assertEqual(exit_zero.exception.reason_code, "network_error")
+
+    def test_bounded_process_just_before_deadline_accepts_exit_zero(self) -> None:
+        process = mock.Mock()
+        process.stdout = mock.Mock()
+        process.stdout.fileno.return_value = 7
+        process.wait.return_value = 0
+        selector = mock.Mock()
+        selector.select.return_value = [(object(), object())]
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                side_effect=(100.0, 100.0, 100.0, 100.0, 109.999),
+            ),
+            mock.patch.object(
+                VALIDATOR.subprocess,
+                "Popen",
+                return_value=process,
+            ),
+            mock.patch.object(
+                VALIDATOR.selectors,
+                "DefaultSelector",
+                return_value=selector,
+            ),
+            mock.patch.object(VALIDATOR.os, "read", return_value=b""),
+            mock.patch.object(
+                VALIDATOR,
+                "_finish_freshness_process_group",
+                return_value=0,
+            ) as finish,
+        ):
+            result = VALIDATOR._run_bounded_freshness_process(
+                ("/absolute/helper",),
+                env={},
+                cwd=os.sep,
+                timeout=10.0,
+                max_stdout=64,
+            )
+
+        self.assertEqual(result, (0, b""))
+        finish.assert_called_once_with(process, 110.0)
+
+    def test_process_group_is_killed_before_leader_reap(self) -> None:
+        order: list[str] = []
+        process = mock.Mock()
+        process.pid = 4242
+        process.returncode = None
+
+        def waitid(*args: object) -> object:
+            self.assertEqual(
+                args,
+                (
+                    VALIDATOR.os.P_PID,
+                    4242,
+                    VALIDATOR.os.WEXITED
+                    | VALIDATOR.os.WNOHANG
+                    | VALIDATOR.os.WNOWAIT,
+                ),
+            )
+            order.append("waitid-wnowait")
+            return mock.Mock(si_pid=4242)
+
+        def killpg(pid: int, used_signal: int) -> None:
+            self.assertEqual((pid, used_signal), (4242, VALIDATOR.signal.SIGKILL))
+            order.append("killpg")
+
+        def wait(*, timeout: float) -> int:
+            self.assertEqual(timeout, 1.0)
+            order.append("wait-reap")
+            process.returncode = 0
+            return 0
+
+        process.wait.side_effect = wait
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                side_effect=(100.0, 100.0),
+            ),
+            mock.patch.object(VALIDATOR.os, "waitid", side_effect=waitid),
+            mock.patch.object(VALIDATOR.os, "killpg", side_effect=killpg),
+        ):
+            return_code = VALIDATOR._finish_freshness_process_group(
+                process,
+                110.0,
+            )
+
+        self.assertEqual(return_code, 0)
+        self.assertEqual(order, ["waitid-wnowait", "killpg", "wait-reap"])
+
+    def test_external_reap_never_signals_a_stale_process_group(self) -> None:
+        process = mock.Mock()
+        process.pid = 4242
+        with (
+            mock.patch.object(
+                VALIDATOR,
+                "_FRESHNESS_MONOTONIC",
+                return_value=100.0,
+            ),
+            mock.patch.object(
+                VALIDATOR.os,
+                "waitid",
+                side_effect=ChildProcessError("already reaped"),
+            ),
+            mock.patch.object(VALIDATOR.os, "killpg") as killpg,
+        ):
+            with self.assertRaises(VALIDATOR._FreshnessLookupError) as caught:
+                VALIDATOR._finish_freshness_process_group(process, 110.0)
+
+        self.assertEqual(caught.exception.reason_code, "network_error")
+        killpg.assert_not_called()
+
     def test_git_ref_fallback_rejects_missing_nonzero_and_noncanonical_output(
         self,
     ) -> None:
@@ -1832,6 +2407,36 @@ description: Используй этот навык для всего.
             self.assertLess(time.monotonic() - started, 2.0)
             time.sleep(0.45)
             self.assertFalse(marker.exists())
+
+    def test_bounded_process_cleans_group_after_leader_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "surviving-descendant.txt"
+            child = (
+                "import pathlib,sys,time; time.sleep(.35); "
+                "pathlib.Path(sys.argv[1]).write_text('unexpected', encoding='utf-8')"
+            )
+            leader = (
+                "import os,subprocess,sys; "
+                "child=subprocess.Popen("
+                "[sys.executable, '-c', sys.argv[2], sys.argv[1]], "
+                "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, "
+                "stderr=subprocess.DEVNULL); "
+                "os.write(1, (str(child.pid) + '\\n').encode('ascii'))"
+            )
+            return_code, payload = VALIDATOR._run_bounded_freshness_process(
+                (sys.executable, "-c", leader, str(marker), child),
+                env=dict(os.environ),
+                cwd=tmp,
+                timeout=1.0,
+                max_stdout=64,
+            )
+
+            self.assertEqual(return_code, 0)
+            descendant_pid = int(payload.strip())
+            time.sleep(0.45)
+            self.assertFalse(marker.exists())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(descendant_pid, 0)
 
     def test_hardened_git_environment_disables_repository_local_url_rewrite(
         self,
@@ -2347,6 +2952,11 @@ description: Используй этот навык для всего.
                     ) as opener,
                     mock.patch.object(
                         VALIDATOR,
+                        "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                        side_effect=AssertionError("invalid scope must not spawn HTTP"),
+                    ) as http_runner,
+                    mock.patch.object(
+                        VALIDATOR,
                         "_FRESHNESS_GIT_FINDER",
                         side_effect=AssertionError("invalid scope must not search for git"),
                     ) as git_finder,
@@ -2360,6 +2970,7 @@ description: Используй этот навык для всего.
                 self.assertEqual(exit_code, 2)
                 validate.assert_not_called()
                 opener.assert_not_called()
+                http_runner.assert_not_called()
                 git_finder.assert_not_called()
                 self.assertIn("--require-current", stderr.getvalue())
 
@@ -2379,6 +2990,11 @@ description: Используй этот навык для всего.
                     "_FRESHNESS_OPENER",
                     side_effect=AssertionError("invalid output mode must stay offline"),
                 ) as opener,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                    side_effect=AssertionError("invalid output mode must not spawn HTTP"),
+                ) as http_runner,
                 mock.patch.object(
                     VALIDATOR,
                     "_FRESHNESS_GIT_FINDER",
@@ -2401,6 +3017,7 @@ description: Используй этот навык для всего.
             self.assertEqual(exit_code, 2)
             validate.assert_not_called()
             opener.assert_not_called()
+            http_runner.assert_not_called()
             git_finder.assert_not_called()
             self.assertFalse(report_path.exists())
             self.assertIn("--report-out", stderr.getvalue())
@@ -2970,6 +3587,11 @@ description: Используй этот навык для всего.
                     ) as opener,
                     mock.patch.object(
                         VALIDATOR,
+                        "_FRESHNESS_HTTP_PROCESS_RUNNER",
+                        side_effect=AssertionError("invalid CLI must not spawn HTTP"),
+                    ) as http_runner,
+                    mock.patch.object(
+                        VALIDATOR,
                         "_FRESHNESS_GIT_FINDER",
                         side_effect=AssertionError("invalid CLI must not search for git"),
                     ) as git_finder,
@@ -2982,6 +3604,7 @@ description: Используй этот навык для всего.
 
                 self.assertEqual(exit_code, 2)
                 opener.assert_not_called()
+                http_runner.assert_not_called()
                 git_finder.assert_not_called()
                 self.assertIn("--check-updates", stderr.getvalue())
 

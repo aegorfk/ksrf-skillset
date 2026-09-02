@@ -231,31 +231,39 @@ non-installing route that first applies the existing offline status preflight,
 then validates the complete runtime target and compares its exact runtime
 identity with the manifest at the immutable SHA resolved from canonical
 `main`. It SHALL use the repository-side validator with runtime, strict,
-update-check, and current-required modes. Ref resolution SHALL use REST first
-and SHALL attempt the validator's fixed, non-interactive, bounded Git fallback
-exactly once after a REST ref `network_error` when fixed-system Git is available;
-other REST ref evidence failures and all immutable manifest failures SHALL NOT
-trigger that Git fallback. Immutable manifest retrieval SHALL use the fixed raw
-URL first and SHALL attempt
+update-check, and current-required modes. Every freshness HTTP attempt SHALL run
+through the validator's fixed-route isolated helper under a parent-enforced
+10-second monotonic execution deadline covering helper startup, DNS, TCP/TLS,
+headers, and complete bounded response delivery. Response progress SHALL NOT
+extend that deadline. The helper SHALL use isolated Python startup, a minimal
+environment without inherited proxy or credential variables, no shell or stdin,
+suppressed diagnostics, a route-specific output cap, process-group termination,
+and bounded cleanup on timeout or protocol failure. Deadline expiry SHALL remain
+the existing `network_error` and SHALL add no report, route, or timing field.
+Ref resolution SHALL use REST first and SHALL attempt the validator's fixed,
+non-interactive, bounded Git fallback exactly once after a REST ref
+`network_error` when fixed-system Git is available; other REST ref evidence
+failures and all immutable manifest failures SHALL NOT trigger that Git fallback.
+Immutable manifest retrieval SHALL use the fixed raw URL first and SHALL attempt
 `https://api.github.com/repos/aegorfk/ksrf-skillset/contents/skills-manifest.json?ref=<same-lowercase-40-hex-sha>`
 exactly once only after a raw-route `network_error`, using
 `Accept: application/vnd.github.raw+json`, `X-GitHub-Api-Version: 2026-03-10`,
 `User-Agent: ksrf-runtime-validator/1`, no credential or compression header, and
-the same already-resolved SHA;
-other raw evidence failures SHALL remain fail-closed without that content
-fallback. After existing validation failures take precedence, the process SHALL
-return `0` for `current`, `10` for `different`, and `20` for `unknown`. Public
-human output SHALL be rendered from the structured report in concise Russian,
-preserve counts, content identity, remote version evidence, and bounded readable
-findings, and SHALL NOT expose normal users to internal coverage labels or enum
-tokens such as `runtime`, `evals`, `not_checked`, `validated`, `public-source`,
-`public-repository`, or `source/release QA`. The machine report and direct
-maintainer renderer SHALL remain unchanged. Human output SHALL preserve that
-equality is not installation provenance, legal-source freshness, publication
-authority, or filing readiness. Public wrapper errors SHALL use fixed actionable
-Russian wording and SHALL NOT expose `repo-side`, `preflight`, `postflight`,
-trusted-policy implementation terms, Python exception classes, raw transport
-diagnostics, or raw exception text.
+the same already-resolved SHA; other raw evidence failures SHALL remain
+fail-closed without that content fallback. After existing validation failures
+take precedence, the process SHALL return `0` for `current`, `10` for
+`different`, and `20` for `unknown`. Public human output SHALL be rendered from
+the structured report in concise Russian, preserve counts, content identity,
+remote version evidence, and bounded readable findings, and SHALL NOT expose
+normal users to internal coverage labels or enum tokens such as `runtime`,
+`evals`, `not_checked`, `validated`, `public-source`, `public-repository`, or
+`source/release QA`. The machine report and direct maintainer renderer SHALL
+remain unchanged. Human output SHALL preserve that equality is not installation
+provenance, legal-source freshness, publication authority, or filing readiness.
+Public wrapper errors SHALL use fixed actionable Russian wording and SHALL NOT
+expose `repo-side`, `preflight`, `postflight`, trusted-policy implementation
+terms, Python exception classes, raw transport diagnostics, or raw exception
+text.
 
 #### Scenario: Human current verification
 
@@ -272,10 +280,20 @@ diagnostics, or raw exception text.
 - **WHEN** runtime validation passes and any manifest identity field differs, including file count or byte count when the tree hash is equal
 - **THEN** the report remains `freshness.status=different`, current-required mode returns `10` without calling the installer, and human output says the installed content differs without calling it corrupt or obsolete
 
+#### Scenario: Trickling REST response remains bounded
+
+- **WHEN** the REST ref helper receives continuous partial progress but exceeds its aggregate deadline
+- **THEN** it is terminated as `network_error`, the public route can use only the existing one-shot Git fallback, and no partial response or helper diagnostic appears
+
 #### Scenario: REST ref network failure uses fixed fallback
 
 - **WHEN** explicit current verification receives bounded `network_error` from the REST ref lookup and the fixed Git fallback returns one valid exact-ref SHA
 - **THEN** verification compares against the immutable manifest at that SHA with unchanged public output and exit meanings
+
+#### Scenario: Trickling raw and Contents responses preserve fallback limits
+
+- **WHEN** the raw helper exceeds its aggregate deadline and the same-SHA Contents helper either succeeds or also exceeds its own deadline
+- **THEN** raw timeout invokes Contents exactly once, Contents timeout is terminal, no ref is repeated, and public current/different/unknown output plus exit meanings remain unchanged
 
 #### Scenario: Raw manifest network failure uses official fallback
 
@@ -305,7 +323,7 @@ diagnostics, or raw exception text.
 #### Scenario: Explicit network and subprocess boundary
 
 - **WHEN** neither `--verify-current` nor the internal `--check-updates` flag is selected
-- **THEN** installation, offline verification, and status initiate neither freshness network route nor the Git subprocess fallback
+- **THEN** installation, offline verification, and status initiate neither freshness HTTP helper nor the Git subprocess fallback
 
 #### Scenario: Unsafe or incomplete target
 
