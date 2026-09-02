@@ -395,36 +395,24 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             command_line = action.splitlines()[0]
             self.assertTrue(command_line.startswith("Команда проверки: "))
             command = shlex.split(command_line.removeprefix("Команда проверки: "))
-            validator = (
-                REPO
-                / "skills"
-                / "ksrf-complaint-cycle"
-                / "scripts"
-                / "validate_ksrf_skillset.py"
-            )
-            self.assertTrue(validator.is_file())
+            installer_entrypoint = REPO / "install.sh"
+            self.assertTrue(installer_entrypoint.is_file())
             self.assertEqual(
                 command,
                 [
-                    sys.executable,
-                    str(validator),
-                    "--skills-root",
-                    str(target),
-                    "--profile",
-                    "runtime",
-                    "--strict",
-                    "--check-updates",
+                    str(installer_entrypoint),
+                    "--verify-current",
+                    "--target",
+                    str(installer._absolute_without_resolving(target)),
                 ],
             )
-            self.assertIn("--profile runtime", action)
-            self.assertIn("--strict", action)
-            self.assertIn("--check-updates", action)
+            self.assertIn("--verify-current", action)
             self.assertNotIn("подтверждается обычной установкой", action)
             self.assertIn("Что делать:", human)
-            self.assertIn("--check-updates", human)
+            self.assertIn("--verify-current", human)
             self.assertEqual(_snapshot(target), before)
 
-    def test_clean_guidance_has_honest_fallback_without_repo_validator(self) -> None:
+    def test_clean_guidance_has_honest_fallback_without_repo_entrypoint(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             detached_tool = Path(raw) / "tools" / "install_skillset.py"
             with patch.object(installer, "__file__", str(detached_tool)):
@@ -432,9 +420,61 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     Path(raw) / "skills"
                 )
 
-            self.assertIn("недоступен", action)
+            self.assertIn("недоступна", action)
             self.assertIn("Обновите репозиторий", action)
             self.assertNotIn("Команда проверки:", action)
+
+    def test_clean_guidance_does_not_emit_non_executable_entrypoint(self) -> None:
+        with patch.object(installer.os, "access", return_value=False):
+            action = installer._status_runtime_freshness_action(
+                Path("/tmp/ksrf-runtime-target")
+            )
+
+        self.assertIn("недоступна", action)
+        self.assertIn("Обновите репозиторий", action)
+        self.assertNotIn("Команда проверки:", action)
+
+    def test_clean_guidance_rejects_control_characters_without_line_spoofing(
+        self,
+    ) -> None:
+        for marker in ("\nЛОЖНЫЙ УСПЕХ", "\rподмена", "\x1b[31mкрасный", "\tсдвиг"):
+            with self.subTest(marker=repr(marker)):
+                action = installer._status_runtime_freshness_action(
+                    Path("/tmp/ksrf-runtime" + marker)
+                )
+
+                self.assertIn("сформировать нельзя", action)
+                self.assertNotIn("Команда проверки:", action)
+                self.assertNotIn(marker, action)
+
+    def test_status_and_verify_preflight_escape_control_characters_end_to_end(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "missing\nЛОЖНЫЙ УСПЕХ"
+            for mode, expected_exit, stream_name in (
+                ("--status", 10, "stdout"),
+                ("--verify-current", 1, "stderr"),
+            ):
+                with self.subTest(mode=mode):
+                    completed = subprocess.run(
+                        [
+                            str(REPO / "install.sh"),
+                            mode,
+                            "--target",
+                            str(target),
+                        ],
+                        cwd=REPO,
+                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+
+                    output = getattr(completed, stream_name)
+                    self.assertEqual(completed.returncode, expected_exit)
+                    self.assertIn(r"\x0aЛОЖНЫЙ УСПЕХ", output)
+                    self.assertNotIn("\nЛОЖНЫЙ УСПЕХ", output)
 
     @unittest.skipUnless(os.name == "posix", "surrogateescaped paths require POSIX")
     def test_clean_guidance_does_not_emit_dead_command_for_non_utf8_target(self) -> None:
@@ -1703,6 +1743,198 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(completed.stderr, "")
             self.assertEqual(_snapshot(Path(raw)), before)
 
+    def test_shell_verify_current_delegates_target_and_exit_codes_without_install(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            checkout = root / "release checkout"
+            checkout.mkdir()
+            shutil.copy2(REPO / "install.sh", checkout / "install.sh")
+            validator = (
+                checkout
+                / "skills"
+                / "ksrf-complaint-cycle"
+                / "scripts"
+                / "validate_ksrf_skillset.py"
+            )
+            validator.parent.mkdir(parents=True)
+            validator.write_text(
+                "import json, os, sys\n"
+                "print(json.dumps(sys.argv[1:]))\n"
+                "raise SystemExit(int(os.environ['KSRF_FAKE_EXIT']))\n",
+                encoding="utf-8",
+            )
+            tools = checkout / "tools"
+            tools.mkdir()
+            (tools / "install_skillset.py").write_text(
+                "raise SystemExit(0)\n",
+                encoding="utf-8",
+            )
+            target = root / "target skills"
+            before = _snapshot(root)
+
+            for expected_exit in (0, 10, 20, 1, 2):
+                with self.subTest(expected_exit=expected_exit):
+                    completed = subprocess.run(
+                        [
+                            str(checkout / "install.sh"),
+                            "--verify-current",
+                            "--target",
+                            str(target),
+                        ],
+                        cwd=checkout,
+                        env={
+                            **os.environ,
+                            "HOME": str(root / "home"),
+                            "KSRF_FAKE_EXIT": str(expected_exit),
+                            "PYTHONDONTWRITEBYTECODE": "1",
+                        },
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+
+                    self.assertEqual(
+                        completed.returncode,
+                        expected_exit,
+                        completed.stderr,
+                    )
+                    self.assertEqual(completed.stderr, "")
+                    self.assertEqual(
+                        json.loads(completed.stdout),
+                        [
+                            "--skills-root",
+                            str(target),
+                            "--profile",
+                            "runtime",
+                            "--strict",
+                            "--check-updates",
+                            "--require-current",
+                        ],
+                    )
+            self.assertEqual(_snapshot(root), before)
+
+    def test_shell_verify_current_fails_honestly_without_python_or_validator(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            checkout = root / "checkout"
+            checkout.mkdir()
+            shutil.copy2(REPO / "install.sh", checkout / "install.sh")
+            no_python = subprocess.run(
+                ["/bin/bash", str(checkout / "install.sh"), "--verify-current"],
+                cwd=checkout,
+                env={**os.environ, "PATH": str(root / "empty-bin")},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(no_python.returncode, 1)
+            self.assertEqual(no_python.stdout, "")
+            self.assertIn("python3", no_python.stderr)
+
+            tools = checkout / "tools"
+            tools.mkdir()
+            (tools / "install_skillset.py").write_text(
+                "raise SystemExit(0)\n",
+                encoding="utf-8",
+            )
+            no_validator = subprocess.run(
+                [str(checkout / "install.sh"), "--verify-current"],
+                cwd=checkout,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(no_validator.returncode, 1)
+            self.assertEqual(no_validator.stdout, "")
+            self.assertIn("валидатор", no_validator.stderr.lower())
+
+    @unittest.skipUnless(os.name == "posix", "symlink preflight requires POSIX")
+    def test_shell_verify_current_preflight_blocks_unsafe_targets_before_validator(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            checkout = root / "checkout"
+            checkout.mkdir()
+            shutil.copy2(REPO / "install.sh", checkout / "install.sh")
+            tools = checkout / "tools"
+            tools.mkdir()
+            for name in ("install_skillset.py", "skillset_file_contract.py"):
+                shutil.copy2(TOOLS / name, tools / name)
+            validator = (
+                checkout
+                / "skills"
+                / "ksrf-complaint-cycle"
+                / "scripts"
+                / "validate_ksrf_skillset.py"
+            )
+            validator.parent.mkdir(parents=True)
+            validator.write_text(
+                "print('validator-ran')\nraise SystemExit(0)\n",
+                encoding="utf-8",
+            )
+            actual = root / "actual"
+            actual.mkdir()
+            symlink = root / "linked-skills"
+            symlink.symlink_to(actual, target_is_directory=True)
+            fake_home = root / "home"
+            fake_home.mkdir()
+
+            for target in (symlink, Path("/"), fake_home):
+                with self.subTest(target=target):
+                    completed = subprocess.run(
+                        [
+                            str(checkout / "install.sh"),
+                            "--verify-current",
+                            "--target",
+                            str(target),
+                        ],
+                        cwd=checkout,
+                        env={
+                            **os.environ,
+                            "HOME": str(fake_home),
+                            "PYTHONDONTWRITEBYTECODE": "1",
+                        },
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+
+                    self.assertEqual(completed.returncode, 1)
+                    self.assertEqual(completed.stdout, "")
+                    self.assertRegex(completed.stderr, r"[А-Яа-яЁё]")
+                    self.assertNotIn("validator-ran", completed.stderr)
+
+    def test_shell_verify_current_and_status_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "missing"
+            before = _snapshot(Path(raw))
+            for arguments in (
+                ["--status", "--verify-current", "--target", str(target)],
+                ["--verify-current", "--status", "--target", str(target)],
+                ["--verify-current", "--json", "--target", str(target)],
+                ["--json", "--target", str(target)],
+            ):
+                with self.subTest(arguments=arguments):
+                    completed = subprocess.run(
+                        [str(REPO / "install.sh"), *arguments],
+                        cwd=REPO,
+                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+
+                    self.assertEqual(completed.returncode, 2)
+                    self.assertEqual(completed.stdout, "")
+                    self.assertRegex(completed.stderr, r"[А-Яа-яЁё]")
+                    self.assertEqual(_snapshot(Path(raw)), before)
+
     def test_shell_rejects_option_tokens_as_target_values_before_any_install(self) -> None:
         cases = (
             (["--target", "--status"], "--status"),
@@ -1744,6 +1976,8 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
         self.assertEqual(completed.stderr, "")
         self.assertIn("Использование:", completed.stdout)
         self.assertIn("без записи", completed.stdout)
+        self.assertIn("--verify-current", completed.stdout)
+        self.assertIn("сеть", completed.stdout.lower())
         self.assertNotIn("Usage:", completed.stdout)
         direct_help = installer._parser().format_help()
         self.assertIn("Использование:", direct_help)

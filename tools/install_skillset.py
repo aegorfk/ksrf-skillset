@@ -95,7 +95,7 @@ _STATUS_MOUNT_BOUNDARY: ContextVar[tuple[str, int | None] | None] = ContextVar(
 
 
 def _status_public_text(value: str) -> str:
-    """Render unpaired filesystem surrogates as printable ASCII escapes."""
+    """Render filesystem control/surrogate characters as printable escapes."""
 
     rendered: list[str] = []
     for character in value:
@@ -104,6 +104,13 @@ def _status_public_text(value: str) -> str:
             rendered.append(f"\\x{codepoint - 0xDC00:02x}")
         elif 0xD800 <= codepoint <= 0xDFFF:
             rendered.append(f"\\u{codepoint:04x}")
+        elif not character.isprintable():
+            if codepoint <= 0xFF:
+                rendered.append(f"\\x{codepoint:02x}")
+            elif codepoint <= 0xFFFF:
+                rendered.append(f"\\u{codepoint:04x}")
+            else:
+                rendered.append(f"\\U{codepoint:08x}")
         else:
             rendered.append(character)
     return "".join(rendered)
@@ -2763,16 +2770,10 @@ def _status_observe_evidence(
 
 
 def _status_runtime_freshness_action(target: Path) -> str:
-    validator = (
-        Path(__file__).resolve().parents[1]
-        / "skills"
-        / "ksrf-complaint-cycle"
-        / "scripts"
-        / "validate_ksrf_skillset.py"
-    )
-    command_values = (sys.executable or "python3", str(validator), str(target))
+    installer_entrypoint = Path(__file__).resolve().parents[1] / "install.sh"
+    command_values = (str(installer_entrypoint), str(target))
     if any(
-        0xD800 <= ord(character) <= 0xDFFF
+        not character.isprintable()
         for value in command_values
         for character in value
     ):
@@ -2781,29 +2782,29 @@ def _status_runtime_freshness_action(target: Path) -> str:
             "проверки сформировать нельзя. Повторите проверку для установки по "
             "обычному UTF-8-пути или обновите набор из опубликованного main."
         )
-    if not validator.is_file() or validator.is_symlink():
+    if (
+        not installer_entrypoint.is_file()
+        or installer_entrypoint.is_symlink()
+        or not os.access(installer_entrypoint, os.X_OK)
+    ):
         return (
-            "Runtime-валидатор с проверкой обновлений недоступен в этой копии "
+            "Команда проверки актуальности недоступна в этой копии "
             "репозитория. Обновите репозиторий до опубликованного main, затем "
             "повторите проверку или обычную установку."
         )
     command = shlex.join(
         [
-            sys.executable or "python3",
-            str(validator),
-            "--skills-root",
+            str(installer_entrypoint),
+            "--verify-current",
+            "--target",
             str(target),
-            "--profile",
-            "runtime",
-            "--strict",
-            "--check-updates",
         ]
     )
     return (
         f"Команда проверки: {command}\n"
-        "Если содержимое отличается, обновите набор обычной установкой из "
-        "опубликованного main. Неизвестный результат означает пробел проверки, "
-        "а не подтверждённое отсутствие обновления."
+        "Код 10 означает известное отличие содержимого, код 20 — пробел сети "
+        "или проверки; ни один из них не подтверждает актуальность. Обновление "
+        "выполняется отдельно обычной установкой из опубликованного main."
     )
 
 
