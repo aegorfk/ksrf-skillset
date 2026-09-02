@@ -13,5 +13,5 @@
 
 - [x] 3.1 Run targeted tests, full root and skill test suites, strict source/runtime validation, offline self-containment, shell syntax, diff checks, and strict OpenSpec validation.
 - [x] 3.2 Obtain an independent review of output separation, failure propagation, and unchanged maintainer contracts.
-- [ ] 3.3 Commit and push the feature branch, merge and publish exact `main`, install globally, and verify live user output.
-- [ ] 3.4 Archive the OpenSpec change, bind the final manifest to the archive commit, publish, and confirm the remote SHA.
+- [x] 3.3 Commit and push the feature branch, merge and publish exact `main`, install globally, and verify live user output.
+- [x] 3.4 Archive the OpenSpec change, bind the final manifest to the archive commit, publish, and confirm the remote SHA.

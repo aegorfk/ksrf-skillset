@@ -170,21 +170,30 @@ Status SHALL treat its result as an unlocked bounded observation and SHALL not c
 - **THEN** status is `unsafe` and no clean or recovery-safe conclusion is reported
 
 ### Requirement: Status mode is source-independent and install-compatible
-Status SHALL require only `--target`; normal installation SHALL continue to require exactly one of `--repo` or `--source-skills-root` and preserve its existing success and failure behavior.
+
+Status SHALL require only `--target`; normal installation SHALL continue to
+require exactly one of `--repo` or `--source-skills-root` and preserve its
+existing installation and failure behavior. Its successful public presentation
+SHALL follow the concise-output requirement in the installation-transaction
+capability.
 
 #### Scenario: Direct status invocation
+
 - **WHEN** `tools/install_skillset.py --status --target PATH --json` is invoked without a source option
 - **THEN** status runs and returns its classified process code
 
 #### Scenario: Public shell entry point
+
 - **WHEN** `install.sh --status [--target PATH] [--json]` is invoked
 - **THEN** it runs status without publication verification, installation, or export output
 
 #### Scenario: Invalid option combination
+
 - **WHEN** `--json` is used without `--status`, or status is combined with source or development-preservation options
 - **THEN** the CLI rejects the request as usage error before reading or changing the target
 
 #### Scenario: Shell target value is another option
+
 - **WHEN** `install.sh --target` is followed by `--status`, `--json`, or another option token instead of a path
 - **THEN** the shell exits with usage code 2 before publication verification, target creation, or installation
 
@@ -362,7 +371,12 @@ format, and use the same fixed Russian local/internal error guidance as
 - **WHEN** `--verify` is combined with `--status`, `--verify-current`, or `--json`
 - **THEN** the wrapper exits with usage code `2` before any status, validation, network, or installation operation
 
-#### Scenario: Existing modes remain compatible
+#### Scenario: Existing read-only modes remain compatible
 
-- **WHEN** callers use normal installation, `--status [--json]`, or `--verify-current` without `--verify`
+- **WHEN** callers use `--status [--json]` or `--verify-current` without `--verify`
 - **THEN** their arguments, behavior, output boundaries, and exit-code contracts remain unchanged
+
+#### Scenario: Normal installation changes only successful output
+
+- **WHEN** callers use normal installation without a verification mode
+- **THEN** its arguments, installation behavior, failure diagnostics, and exit-code contracts remain unchanged, while only the successful canonical-target stdout omits the nested publication-verifier evidence as specified by the installation-transaction capability
