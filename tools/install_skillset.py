@@ -85,6 +85,12 @@ _STATUS_SCAN_MAX_DEPTH = 64
 _STATUS_SCAN_MAX_FILE_BYTES = 32 * 1024 * 1024
 _STATUS_SCAN_MAX_TOTAL_BYTES = 128 * 1024 * 1024
 _STATUS_JOURNAL_MAX_BYTES = 1024 * 1024
+_STATUS_FDINFO_MAX_BYTES = 16 * 1024
+_STATUS_FD_PATH_MAX_BYTES = 1024
+_STATUS_MOUNT_BOUNDARY: ContextVar[tuple[str, int | None] | None] = ContextVar(
+    "ksrf_status_mount_boundary",
+    default=None,
+)
 
 
 def _status_public_text(value: str) -> str:
@@ -1603,6 +1609,86 @@ def _status_bounded_names(
     return sorted(names)
 
 
+def _status_linux_mountinfo_available() -> bool:
+    return Path("/proc/self/mountinfo").is_file()
+
+
+def _status_linux_fd_mount_id(descriptor: int) -> int | None:
+    """Read one kernel-owned Linux mount ID without following a path payload."""
+
+    fdinfo = f"/proc/self/fdinfo/{descriptor}"
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        info_descriptor = os.open(fdinfo, flags)
+    except OSError:
+        return None
+    try:
+        chunks: list[bytes] = []
+        remaining = _STATUS_FDINFO_MAX_BYTES + 1
+        while remaining:
+            chunk = os.read(info_descriptor, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+    except OSError:
+        return None
+    finally:
+        os.close(info_descriptor)
+    if len(raw) > _STATUS_FDINFO_MAX_BYTES:
+        return None
+    try:
+        lines = raw.decode("ascii", errors="strict").splitlines()
+    except UnicodeDecodeError:
+        return None
+    values = [
+        line.removeprefix("mnt_id:").strip()
+        for line in lines
+        if line.startswith("mnt_id:")
+    ]
+    if (
+        len(values) != 1
+        or not values[0].isdigit()
+        or len(values[0]) > 20
+    ):
+        return None
+    try:
+        return int(values[0])
+    except ValueError:
+        return None
+
+
+def _status_capture_mount_boundary(
+    target_descriptor: int,
+) -> tuple[str, int | None]:
+    if not _status_linux_mountinfo_available():
+        return ("path_ismount_only", None)
+    mount_id = _status_linux_fd_mount_id(target_descriptor)
+    if mount_id is None:
+        return ("live_mountinfo_fallback", None)
+    return ("linux_mnt_id", mount_id)
+
+
+def _status_mount_boundary_fingerprint() -> str:
+    boundary = _STATUS_MOUNT_BOUNDARY.get()
+    if boundary is None:
+        return "standalone"
+    return sha256(repr(boundary).encode("ascii")).hexdigest()
+
+
+def _status_bind_mount_fingerprint(fingerprint: str) -> str:
+    combined = sha256()
+    combined.update(_status_mount_boundary_fingerprint().encode("ascii"))
+    combined.update(fingerprint.encode("ascii"))
+    return combined.hexdigest()
+
+
 def _status_fd_is_mount(descriptor: int) -> bool:
     candidates: list[str] = []
     proc_path = f"/proc/self/fd/{descriptor}"
@@ -1615,7 +1701,31 @@ def _status_fd_is_mount(descriptor: int) -> bool:
         candidates.append(str(Path(dev_path).resolve(strict=True)))
     except OSError:
         pass
-    linux_mounts = _linux_mount_points()
+    get_path = getattr(fcntl, "F_GETPATH", None)
+    if get_path is not None:
+        try:
+            raw_path = fcntl.fcntl(
+                descriptor,
+                get_path,
+                b"\0" * _STATUS_FD_PATH_MAX_BYTES,
+            )
+            encoded_path = raw_path.split(b"\0", 1)[0]
+            if encoded_path:
+                candidates.append(os.fsdecode(encoded_path))
+        except OSError:
+            pass
+    boundary = _STATUS_MOUNT_BOUNDARY.get()
+    if boundary is None:
+        linux_mounts = _linux_mount_points()
+    elif boundary[0] == "linux_mnt_id":
+        current_mount_id = _status_linux_fd_mount_id(descriptor)
+        if current_mount_id is None or current_mount_id != boundary[1]:
+            return True
+        linux_mounts = set()
+    elif boundary[0] == "live_mountinfo_fallback":
+        linux_mounts = _linux_mount_points()
+    else:
+        linux_mounts = set()
     return any(os.path.ismount(path) or path in linux_mounts for path in candidates)
 
 
@@ -2511,6 +2621,15 @@ def _status_observe_evidence_once(
         target_metadata=target_metadata,
         budget=budget,
     )
+    live, live_fingerprint = _status_scan_live_skills(
+        target_descriptor,
+        target_device=target_metadata.st_dev,
+        budget=budget,
+    )
+    combined = sha256()
+    combined.update(evidence_fingerprint.encode())
+    combined.update(live_fingerprint.encode())
+    fingerprint = combined.hexdigest()
     if journal is None:
         return (
             {
@@ -2520,38 +2639,33 @@ def _status_observe_evidence_once(
                     _status_public_text(str(Path(target_path) / root_name))
                 ],
             },
-            evidence_fingerprint,
+            fingerprint,
         )
 
-    live, live_fingerprint = _status_scan_live_skills(
-        target_descriptor,
-        target_device=target_metadata.st_dev,
-        budget=budget,
-    )
     entries = journal["skills"]
     assert isinstance(entries, list)
-    if phase == "building":
-        if containers[_BACKUP_NAME] or containers[_QUARANTINE_NAME]:
-            raise InstallationError("building transaction is not safe to discard")
-        for entry in entries:
-            if live[str(entry["name"])] != entry["old_digest"]:
-                raise InstallationError(
-                    f"old generation verification failed for {entry['name']}"
-                )
-    elif phase in {"prepared", "rolling_back"}:
-        _status_validate_uncommitted_snapshot(
-            entries,
-            live,
-            containers[_STAGING_NAME],
-            containers[_BACKUP_NAME],
-            containers[_QUARANTINE_NAME],
-            rolling_back=phase == "rolling_back",
-        )
-    else:
-        _status_validate_terminal_snapshot(journal, live, containers, presence)
-    combined = sha256()
-    combined.update(evidence_fingerprint.encode())
-    combined.update(live_fingerprint.encode())
+    try:
+        if phase == "building":
+            if containers[_BACKUP_NAME] or containers[_QUARANTINE_NAME]:
+                raise InstallationError("building transaction is not safe to discard")
+            for entry in entries:
+                if live[str(entry["name"])] != entry["old_digest"]:
+                    raise InstallationError(
+                        f"old generation verification failed for {entry['name']}"
+                    )
+        elif phase in {"prepared", "rolling_back"}:
+            _status_validate_uncommitted_snapshot(
+                entries,
+                live,
+                containers[_STAGING_NAME],
+                containers[_BACKUP_NAME],
+                containers[_QUARANTINE_NAME],
+                rolling_back=phase == "rolling_back",
+            )
+        else:
+            _status_validate_terminal_snapshot(journal, live, containers, presence)
+    except InstallationError as exc:
+        raise _InvalidEvidence(fingerprint) from exc
     return (
         {
             "kind": kind,
@@ -2560,7 +2674,7 @@ def _status_observe_evidence_once(
                 _status_public_text(str(Path(target_path) / root_name))
             ],
         },
-        combined.hexdigest(),
+        fingerprint,
     )
 
 
@@ -2609,21 +2723,42 @@ def _status_observe_evidence(
     target_path: str,
     target_metadata: os.stat_result,
 ) -> tuple[dict[str, object], str]:
-    raw_fingerprint = _status_raw_observation_fingerprint(
-        target_descriptor,
-        root_name,
-        target_metadata=target_metadata,
-    )
-    try:
-        return _status_observe_evidence_once(
-            target_descriptor,
-            root_name,
-            kind=kind,
-            target_path=target_path,
-            target_metadata=target_metadata,
+    boundary_token = None
+    if _STATUS_MOUNT_BOUNDARY.get() is None:
+        boundary_token = _STATUS_MOUNT_BOUNDARY.set(
+            _status_capture_mount_boundary(target_descriptor)
         )
-    except InstallationError as exc:
-        raise _InvalidEvidence(raw_fingerprint) from exc
+    try:
+        try:
+            report, fingerprint = _status_observe_evidence_once(
+                target_descriptor,
+                root_name,
+                kind=kind,
+                target_path=target_path,
+                target_metadata=target_metadata,
+            )
+        except _InvalidEvidence as exc:
+            raise _InvalidEvidence(
+                _status_bind_mount_fingerprint(exc.fingerprint)
+            ) from exc
+        except InstallationError as exc:
+            try:
+                raw_fingerprint = _status_raw_observation_fingerprint(
+                    target_descriptor,
+                    root_name,
+                    target_metadata=target_metadata,
+                )
+            except _InvalidEvidence as raw_invalid:
+                raise _InvalidEvidence(
+                    _status_bind_mount_fingerprint(raw_invalid.fingerprint)
+                ) from raw_invalid
+            raise _InvalidEvidence(
+                _status_bind_mount_fingerprint(raw_fingerprint)
+            ) from exc
+        return report, _status_bind_mount_fingerprint(fingerprint)
+    finally:
+        if boundary_token is not None:
+            _STATUS_MOUNT_BOUNDARY.reset(boundary_token)
 
 
 def _status_report(
@@ -2762,10 +2897,20 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
         managed: dict[str, object] | None = None
         evidence_name: str | None = None
         evidence_kind: str | None = None
+        mount_tokens: list[object] = []
+        first_mount_fingerprint: str | None = None
+        second_mount_fingerprint: str | None = None
+
+        def activate_mount_sample() -> str:
+            boundary = _status_capture_mount_boundary(target_descriptor)
+            mount_tokens.append(_STATUS_MOUNT_BOUNDARY.set(boundary))
+            return _status_mount_boundary_fingerprint()
+
         try:
             anchored_metadata = os.fstat(target_descriptor)
             if not _status_same_object(initial_metadata, anchored_metadata):
                 raise _ObservationChanged("целевая папка изменилась при открытии")
+            first_mount_fingerprint = activate_mount_sample()
             try:
                 first_top, managed = _status_top_level_snapshot(
                     target_descriptor,
@@ -2803,6 +2948,7 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                     transaction["evidence_paths"] = [
                         _status_public_text(str(target / evidence_name))
                     ]
+                    second_mount_fingerprint = activate_mount_sample()
                     try:
                         _, repeated_fingerprint = _status_observe_evidence(
                             target_descriptor,
@@ -2820,6 +2966,8 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                             "служебные данные изменились во время наблюдения"
                         )
 
+                if second_mount_fingerprint is None:
+                    second_mount_fingerprint = activate_mount_sample()
                 second_top, repeated_managed = _status_top_level_snapshot(
                     target_descriptor,
                     target_device=anchored_metadata.st_dev,
@@ -2837,7 +2985,11 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                         transaction=transaction,
                         reason_code="target_replaced",
                     )
-                if first_top != second_top or managed != repeated_managed:
+                if (
+                    first_mount_fingerprint != second_mount_fingerprint
+                    or first_top != second_top
+                    or managed != repeated_managed
+                ):
                     return _status_report(
                         "recovery_required",
                         target,
@@ -2868,6 +3020,8 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                     managed_skills=managed,
                 )
             except (_ObservationChanged, InstallationError, OSError) as exc:
+                if second_mount_fingerprint is None:
+                    second_mount_fingerprint = activate_mount_sample()
                 if not _status_target_matches(
                     target,
                     target_descriptor,
@@ -2879,6 +3033,14 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                         target_exists=True,
                         managed_skills=managed,
                         reason_code="target_replaced",
+                    )
+                if first_mount_fingerprint != second_mount_fingerprint:
+                    return _status_report(
+                        "recovery_required",
+                        target,
+                        target_exists=True,
+                        managed_skills=managed,
+                        reason_code="observation_changed",
                     )
                 if isinstance(exc, _ObservationChanged):
                     return _status_report(
@@ -2952,6 +3114,8 @@ def inspect_installation_status(target: Path) -> dict[str, object]:
                     reason_code="unsafe_evidence",
                 )
         finally:
+            for token in reversed(mount_tokens):
+                _STATUS_MOUNT_BOUNDARY.reset(token)
             os.close(target_descriptor)
     except (InstallationError, OSError) as exc:
         try:

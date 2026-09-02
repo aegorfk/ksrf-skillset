@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T10:32:51Z",
+  "generated_at": "2026-09-02T11:14:15Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "090075a4244c2a8dc63cc91b8f71b5a85b63a5a5",
+  "remote_base_commit": "27c3c0b50d03ca014e1891c037228e798fe3ba36",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -124,8 +124,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 319339,
-  "release_tree_sha256": "2fc4520468a7a9dd77930de016f9fdbb13b0012f21ad243a82618354aa39c3b1",
+  "total_release_bytes": 325214,
+  "release_tree_sha256": "a17316f014a934a58285383e2a5d74c06211185e1e223881804286129b6913ea",
   "release_files": [
     {
       "path": "install.sh",
@@ -139,8 +139,8 @@
     },
     {
       "path": "tools/install_skillset.py",
-      "bytes": 132999,
-      "sha256": "3404cdfb058f6cea5f367fd0beca0355303edc0e1632aa02c41def708f71db21"
+      "bytes": 138874,
+      "sha256": "82efc88f362c9c8d9535fa38ec7ea20046f2ecef683aa10c31dec79d47c0c4fd"
     },
     {
       "path": "tools/skillset_file_contract.py",

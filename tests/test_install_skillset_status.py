@@ -74,6 +74,168 @@ def _status(target: Path) -> dict[str, object]:
     return installer.inspect_installation_status(target)
 
 
+def _tracked_payload_inventory(
+    target: Path,
+    transaction: Path,
+) -> dict[tuple[int, int], int]:
+    inventory: dict[tuple[int, int], int] = {}
+    roots = [transaction]
+    roots.extend(
+        target / skill_name
+        for skill_name in SKILL_NAMES
+        if (target / skill_name).is_dir()
+    )
+    for root in roots:
+        for path in [root, *root.rglob("*")]:
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode):
+                continue
+            key = (metadata.st_dev, metadata.st_ino)
+            if key in inventory:
+                raise AssertionError(f"duplicate tracked payload inode: {path}")
+            if metadata.st_size <= 0 or metadata.st_size >= 1024 * 1024:
+                raise AssertionError(f"fixture payload size is outside the test bound: {path}")
+            inventory[key] = metadata.st_size
+    return inventory
+
+
+def _measure_tracked_semantic_reads(
+    target: Path,
+    transaction: Path,
+    operation,
+):
+    inventory = _tracked_payload_inventory(target, transaction)
+    original_read = installer.os.read
+    original_observe = installer._status_observe_evidence_once
+    active_sample: int | None = None
+    sample_count = 0
+    bytes_by_sample: dict[tuple[int, tuple[int, int]], int] = {}
+    positive_calls_by_sample: dict[tuple[int, tuple[int, int]], int] = {}
+
+    def counted_read(descriptor: int, size: int) -> bytes:
+        metadata = os.fstat(descriptor)
+        content = original_read(descriptor, size)
+        key = (metadata.st_dev, metadata.st_ino)
+        if key in inventory and active_sample is None and content:
+            raise AssertionError("tracked payload read outside a semantic sample")
+        if active_sample is not None and key in inventory:
+            sample_key = (active_sample, key)
+            bytes_by_sample[sample_key] = (
+                bytes_by_sample.get(sample_key, 0) + len(content)
+            )
+            if content:
+                positive_calls_by_sample[sample_key] = (
+                    positive_calls_by_sample.get(sample_key, 0) + 1
+                )
+        return content
+
+    def observed_once(*args, **kwargs):
+        nonlocal active_sample, sample_count
+        if active_sample is not None:
+            raise AssertionError("semantic samples must not be nested")
+        sample_count += 1
+        active_sample = sample_count
+        try:
+            return original_observe(*args, **kwargs)
+        finally:
+            active_sample = None
+
+    with (
+        patch.object(installer.os, "read", side_effect=counted_read),
+        patch.object(
+            installer,
+            "_status_observe_evidence_once",
+            side_effect=observed_once,
+        ),
+    ):
+        result = operation()
+    return (
+        result,
+        inventory,
+        sample_count,
+        bytes_by_sample,
+        positive_calls_by_sample,
+    )
+
+
+def _measure_early_invalid_reads(
+    target: Path,
+    transaction: Path,
+    operation,
+):
+    inventory = _tracked_payload_inventory(target, transaction)
+    original_read = installer.os.read
+    original_semantic = installer._status_observe_evidence_once
+    original_raw = installer._status_raw_observation_fingerprint
+    active_phase: tuple[str, int] | None = None
+    semantic_count = 0
+    raw_count = 0
+    bytes_by_phase: dict[tuple[str, int, tuple[int, int]], int] = {}
+    positive_calls_by_phase: dict[tuple[str, int, tuple[int, int]], int] = {}
+
+    def counted_read(descriptor: int, size: int) -> bytes:
+        metadata = os.fstat(descriptor)
+        content = original_read(descriptor, size)
+        key = (metadata.st_dev, metadata.st_ino)
+        if key in inventory and active_phase is None and content:
+            raise AssertionError("tracked payload read outside a measured phase")
+        if active_phase is not None and key in inventory:
+            phase_key = (*active_phase, key)
+            bytes_by_phase[phase_key] = (
+                bytes_by_phase.get(phase_key, 0) + len(content)
+            )
+            if content:
+                positive_calls_by_phase[phase_key] = (
+                    positive_calls_by_phase.get(phase_key, 0) + 1
+                )
+        return content
+
+    def semantic_once(*args, **kwargs):
+        nonlocal active_phase, semantic_count
+        if active_phase is not None:
+            raise AssertionError("status payload phases must not be nested")
+        semantic_count += 1
+        active_phase = ("semantic", semantic_count)
+        try:
+            return original_semantic(*args, **kwargs)
+        finally:
+            active_phase = None
+
+    def raw_once(*args, **kwargs):
+        nonlocal active_phase, raw_count
+        if active_phase is not None:
+            raise AssertionError("status payload phases must not be nested")
+        raw_count += 1
+        active_phase = ("raw", raw_count)
+        try:
+            return original_raw(*args, **kwargs)
+        finally:
+            active_phase = None
+
+    with (
+        patch.object(installer.os, "read", side_effect=counted_read),
+        patch.object(
+            installer,
+            "_status_observe_evidence_once",
+            side_effect=semantic_once,
+        ),
+        patch.object(
+            installer,
+            "_status_raw_observation_fingerprint",
+            side_effect=raw_once,
+        ),
+    ):
+        result = operation()
+    return (
+        result,
+        inventory,
+        semantic_count,
+        raw_count,
+        bytes_by_phase,
+        positive_calls_by_phase,
+    )
+
+
 def _leave_interrupted_transaction(root: Path, target: Path) -> Path:
     source_a = _make_source(root, "A")
     source_b = _make_source(root, "B")
@@ -156,7 +318,17 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             installer.copy_skillset(source, target)
             before = _snapshot(target)
 
-            clean = _status(target)
+            with (
+                patch.object(installer, "_status_linux_fd_mount_id", return_value=1),
+                patch.object(
+                    installer.os,
+                    "read",
+                    side_effect=AssertionError(
+                        "clean status must not read managed payload bytes"
+                    ),
+                ),
+            ):
+                clean = _status(target)
 
             self.assertEqual(clean["status"], "clean")
             self.assertEqual(clean["exit_code"], 0)
@@ -171,7 +343,17 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             missing.rmdir()
             partial_before = _snapshot(target)
 
-            incomplete = _status(target)
+            with (
+                patch.object(installer, "_status_linux_fd_mount_id", return_value=1),
+                patch.object(
+                    installer.os,
+                    "read",
+                    side_effect=AssertionError(
+                        "incomplete status must not read managed payload bytes"
+                    ),
+                ),
+            ):
+                incomplete = _status(target)
 
             self.assertEqual(incomplete["status"], "incomplete")
             self.assertEqual(incomplete["exit_code"], 20)
@@ -439,14 +621,28 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     changed = True
                 return result
 
-            with patch.object(
-                installer,
-                "_status_read_regular_at",
-                side_effect=change_after_first_journal_read,
+            with (
+                patch.object(
+                    installer,
+                    "_status_read_regular_at",
+                    side_effect=change_after_first_journal_read,
+                ),
+                patch.object(
+                    installer,
+                    "_status_observe_evidence_once",
+                    wraps=installer._status_observe_evidence_once,
+                ) as semantic_scan,
+                patch.object(
+                    installer,
+                    "_status_raw_observation_fingerprint",
+                    wraps=installer._status_raw_observation_fingerprint,
+                ) as raw_scan,
             ):
                 changing = _status(target)
 
             self.assertEqual(changing["status"], "recovery_required")
+            self.assertEqual(semantic_scan.call_count, 2)
+            self.assertEqual(raw_scan.call_count, 0)
 
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -491,15 +687,29 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                     repaired = True
                 return result
 
-            with patch.object(
-                installer,
-                "_status_read_regular_at",
-                side_effect=repair_after_invalid_read,
+            with (
+                patch.object(
+                    installer,
+                    "_status_read_regular_at",
+                    side_effect=repair_after_invalid_read,
+                ),
+                patch.object(
+                    installer,
+                    "_status_observe_evidence_once",
+                    wraps=installer._status_observe_evidence_once,
+                ) as semantic_scan,
+                patch.object(
+                    installer,
+                    "_status_raw_observation_fingerprint",
+                    wraps=installer._status_raw_observation_fingerprint,
+                ) as raw_scan,
             ):
                 report = _status(target)
 
             self.assertEqual(report["status"], "recovery_required")
             self.assertEqual(report["reason_code"], "observation_changed")
+            self.assertEqual(semantic_scan.call_count, 2)
+            self.assertEqual(raw_scan.call_count, 1)
 
     def test_type_confused_or_deep_journal_is_bounded_unsafe(self) -> None:
         mutations = (
@@ -666,6 +876,480 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(report["status"], "recovery_required")
             self.assertEqual(report["exit_code"], 20)
             self.assertEqual(report["reason_code"], "observation_changed")
+
+    def test_valid_recovery_reads_one_complete_payload_per_comparison_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "target"
+            transaction = _leave_interrupted_transaction(root, target)
+
+            with patch.object(
+                installer,
+                "_status_linux_fd_mount_id",
+                return_value=1,
+            ):
+                with patch.object(
+                    installer,
+                    "_status_raw_observation_fingerprint",
+                    wraps=installer._status_raw_observation_fingerprint,
+                ) as raw_scan, patch.object(
+                    installer,
+                    "_status_capture_mount_boundary",
+                    wraps=installer._status_capture_mount_boundary,
+                ) as mount_samples:
+                    (
+                        report,
+                        inventory,
+                        sample_count,
+                        bytes_by_sample,
+                        positive_calls_by_sample,
+                    ) = _measure_tracked_semantic_reads(
+                        target,
+                        transaction,
+                        lambda: _status(target),
+                    )
+
+            self.assertEqual(report["status"], "recovery_required")
+            self.assertEqual(raw_scan.call_count, 0)
+            self.assertEqual(mount_samples.call_count, 2)
+            self.assertEqual(sample_count, 2)
+            for sample in (1, 2):
+                for key, size in inventory.items():
+                    self.assertEqual(bytes_by_sample.get((sample, key), 0), size)
+                    self.assertEqual(
+                        positive_calls_by_sample.get((sample, key), 0),
+                        1,
+                    )
+
+    def test_late_invalid_reuses_each_complete_semantic_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "target"
+            transaction = _leave_interrupted_transaction(root, target)
+            victim = target / SKILL_NAMES[2] / "SKILL.md"
+            victim.write_text(
+                victim.read_text(encoding="utf-8") + "late-invalid\n",
+                encoding="utf-8",
+            )
+
+            with patch.object(
+                installer,
+                "_status_linux_fd_mount_id",
+                return_value=1,
+            ):
+                with patch.object(
+                    installer,
+                    "_status_raw_observation_fingerprint",
+                    wraps=installer._status_raw_observation_fingerprint,
+                ) as raw_scan, patch.object(
+                    installer,
+                    "_status_capture_mount_boundary",
+                    wraps=installer._status_capture_mount_boundary,
+                ) as mount_samples:
+                    (
+                        report,
+                        inventory,
+                        sample_count,
+                        bytes_by_sample,
+                        positive_calls_by_sample,
+                    ) = _measure_tracked_semantic_reads(
+                        target,
+                        transaction,
+                        lambda: _status(target),
+                    )
+
+            self.assertEqual(report["status"], "unsafe")
+            self.assertEqual(raw_scan.call_count, 0)
+            self.assertEqual(mount_samples.call_count, 2)
+            self.assertEqual(sample_count, 2)
+            for sample in (1, 2):
+                for key, size in inventory.items():
+                    self.assertEqual(bytes_by_sample.get((sample, key), 0), size)
+                    self.assertEqual(
+                        positive_calls_by_sample.get((sample, key), 0),
+                        1,
+                    )
+
+    def test_early_invalid_keeps_one_raw_completion_per_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "target"
+            transaction = _leave_interrupted_transaction(root, target)
+            (transaction / installer.INSTALL_TRANSACTION_JOURNAL_NAME).write_bytes(b"{")
+
+            journal = transaction / installer.INSTALL_TRANSACTION_JOURNAL_NAME
+            journal_metadata = journal.lstat()
+            journal_key = (journal_metadata.st_dev, journal_metadata.st_ino)
+            with patch.object(
+                installer,
+                "_status_capture_mount_boundary",
+                wraps=installer._status_capture_mount_boundary,
+            ) as mount_samples:
+                (
+                    report,
+                    inventory,
+                    semantic_count,
+                    raw_count,
+                    bytes_by_phase,
+                    positive_calls_by_phase,
+                ) = _measure_early_invalid_reads(
+                    target,
+                    transaction,
+                    lambda: _status(target),
+                )
+
+            self.assertEqual(report["status"], "unsafe")
+            self.assertEqual(raw_count, 2)
+            self.assertEqual(semantic_count, 2)
+            self.assertEqual(mount_samples.call_count, 2)
+            for sample in (1, 2):
+                for key, size in inventory.items():
+                    semantic_bytes = bytes_by_phase.get(
+                        ("semantic", sample, key),
+                        0,
+                    )
+                    semantic_calls = positive_calls_by_phase.get(
+                        ("semantic", sample, key),
+                        0,
+                    )
+                    if key == journal_key:
+                        self.assertEqual(semantic_bytes, size)
+                        self.assertEqual(semantic_calls, 1)
+                    else:
+                        self.assertEqual(semantic_bytes, 0)
+                        self.assertEqual(semantic_calls, 0)
+                    self.assertEqual(
+                        bytes_by_phase.get(("raw", sample, key), 0),
+                        size,
+                    )
+                    self.assertEqual(
+                        positive_calls_by_phase.get(("raw", sample, key), 0),
+                        1,
+                    )
+
+    def test_mount_checks_use_fd_mount_id_without_global_mount_table(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "target"
+            _leave_interrupted_transaction(root, target)
+
+            with (
+                patch.object(
+                    installer,
+                    "_status_linux_fd_mount_id",
+                    return_value=17,
+                    create=True,
+                ),
+                patch.object(
+                    installer,
+                    "_status_linux_mountinfo_available",
+                    return_value=True,
+                    create=True,
+                ),
+                patch.object(
+                    installer,
+                    "_linux_mount_points",
+                    wraps=installer._linux_mount_points,
+                ) as mount_points,
+            ):
+                report = _status(target)
+
+            self.assertEqual(report["status"], "recovery_required")
+            self.assertEqual(mount_points.call_count, 0)
+
+    def test_fd_mount_id_rejects_same_device_bind_mount(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "target"
+            child = target / "child"
+            child.mkdir(parents=True)
+            target_descriptor = os.open(target, installer._status_directory_flags())
+            child_descriptor = os.open(child, installer._status_directory_flags())
+            try:
+                with patch.object(
+                    installer,
+                    "_status_linux_fd_mount_id",
+                    side_effect=lambda descriptor: (
+                        31 if descriptor == target_descriptor else 32
+                    ),
+                    create=True,
+                ), patch.object(
+                    installer,
+                    "_status_linux_mountinfo_available",
+                    return_value=True,
+                    create=True,
+                ):
+                    boundary = installer._status_capture_mount_boundary(
+                        target_descriptor
+                    )
+                    token = installer._STATUS_MOUNT_BOUNDARY.set(boundary)
+                    try:
+                        with (
+                            patch.object(installer.os.path, "ismount", return_value=False),
+                            patch.object(
+                                installer,
+                                "_linux_mount_points",
+                                side_effect=AssertionError(
+                                    "fd mount IDs must not parse the global mount table"
+                                ),
+                            ),
+                        ):
+                            self.assertTrue(
+                                installer._status_fd_is_mount(child_descriptor)
+                            )
+                    finally:
+                        installer._STATUS_MOUNT_BOUNDARY.reset(token)
+            finally:
+                os.close(child_descriptor)
+                os.close(target_descriptor)
+
+    def test_mount_boundary_samples_are_independent_classification_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = _make_source(root, "A")
+            target = root / "target"
+            installer.copy_skillset(source, target)
+            target_metadata = target.stat()
+            target_sample = 0
+
+            def changing_mount_id(descriptor: int) -> int:
+                nonlocal target_sample
+                metadata = os.fstat(descriptor)
+                if (
+                    metadata.st_dev == target_metadata.st_dev
+                    and metadata.st_ino == target_metadata.st_ino
+                ):
+                    target_sample += 1
+                return 40 + target_sample
+
+            with (
+                patch.object(
+                    installer,
+                    "_status_linux_fd_mount_id",
+                    side_effect=changing_mount_id,
+                    create=True,
+                ),
+                patch.object(
+                    installer,
+                    "_status_linux_mountinfo_available",
+                    return_value=True,
+                    create=True,
+                ),
+            ):
+                report = _status(target)
+
+            self.assertEqual(report["status"], "recovery_required")
+            self.assertEqual(report["reason_code"], "observation_changed")
+
+    def test_mount_boundary_change_is_not_masked_by_unsafe_first_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = _make_source(root, "A")
+            target = root / "target"
+            installer.copy_skillset(source, target)
+            (target / installer.INSTALL_LOCK_FILE_NAME).chmod(0o666)
+            target_metadata = target.stat()
+            target_sample = 0
+
+            def changing_mount_id(descriptor: int) -> int:
+                nonlocal target_sample
+                metadata = os.fstat(descriptor)
+                if (
+                    metadata.st_dev == target_metadata.st_dev
+                    and metadata.st_ino == target_metadata.st_ino
+                ):
+                    target_sample += 1
+                return 40 + target_sample
+
+            with (
+                patch.object(
+                    installer,
+                    "_status_linux_fd_mount_id",
+                    side_effect=changing_mount_id,
+                ),
+                patch.object(
+                    installer,
+                    "_status_linux_mountinfo_available",
+                    return_value=True,
+                ),
+            ):
+                sentinel = ("path_ismount_only", None)
+                token = installer._STATUS_MOUNT_BOUNDARY.set(sentinel)
+                try:
+                    report = _status(target)
+                    self.assertEqual(installer._STATUS_MOUNT_BOUNDARY.get(), sentinel)
+                finally:
+                    installer._STATUS_MOUNT_BOUNDARY.reset(token)
+
+            self.assertEqual(report["status"], "recovery_required")
+            self.assertEqual(report["reason_code"], "observation_changed")
+
+    def test_journal_free_evidence_fingerprint_includes_live_skills(self) -> None:
+        for label, prefix, with_temporary in (
+            ("pre-journal", installer.INSTALL_TRANSACTION_PREFIX, True),
+            ("empty-gc", installer.INSTALL_GC_PREFIX, False),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                source = _make_source(root, "A")
+                target = root / "target"
+                installer.copy_skillset(source, target)
+                evidence = target / f"{prefix}{'f' * 32}"
+                evidence.mkdir(mode=0o700)
+                if with_temporary:
+                    temporary = evidence / installer._JOURNAL_TEMP_NAME
+                    temporary.write_bytes(b"partial journal")
+                    temporary.chmod(0o600)
+                victim = target / SKILL_NAMES[0] / "SKILL.md"
+                original_observe = installer._status_observe_evidence_once
+                observations = 0
+
+                def mutate_after_first_sample(*args, **kwargs):
+                    nonlocal observations
+                    result = original_observe(*args, **kwargs)
+                    observations += 1
+                    if observations == 1:
+                        content = victim.read_text(encoding="utf-8")
+                        victim.write_text(
+                            content.replace("generation=A", "generation=B"),
+                            encoding="utf-8",
+                        )
+                    return result
+
+                with patch.object(
+                    installer,
+                    "_status_observe_evidence_once",
+                    side_effect=mutate_after_first_sample,
+                ):
+                    report = _status(target)
+
+                self.assertEqual(observations, 2)
+                self.assertEqual(report["status"], "recovery_required")
+                self.assertEqual(report["reason_code"], "observation_changed")
+
+    def test_mount_boundary_fallback_is_live_only_when_linux_requires_it(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "target"
+            child = target / "child"
+            child.mkdir(parents=True)
+            target_descriptor = os.open(target, installer._status_directory_flags())
+            child_descriptor = os.open(child, installer._status_directory_flags())
+            try:
+                with (
+                    patch.object(
+                        installer,
+                        "_status_linux_mountinfo_available",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        installer,
+                        "_status_linux_fd_mount_id",
+                        return_value=None,
+                    ),
+                ):
+                    boundary = installer._status_capture_mount_boundary(
+                        target_descriptor
+                    )
+                self.assertEqual(boundary, ("live_mountinfo_fallback", None))
+                token = installer._STATUS_MOUNT_BOUNDARY.set(boundary)
+                try:
+                    with (
+                        patch.object(installer.os.path, "ismount", return_value=False),
+                        patch.object(
+                            installer,
+                            "_linux_mount_points",
+                            return_value={str(child.resolve(strict=True))},
+                        ) as mount_points,
+                    ):
+                        self.assertTrue(installer._status_fd_is_mount(child_descriptor))
+                    mount_points.assert_called_once_with()
+                finally:
+                    installer._STATUS_MOUNT_BOUNDARY.reset(token)
+
+                token = installer._STATUS_MOUNT_BOUNDARY.set(("linux_mnt_id", 73))
+                try:
+                    with (
+                        patch.object(
+                            installer,
+                            "_status_linux_fd_mount_id",
+                            return_value=None,
+                        ),
+                        patch.object(
+                            installer,
+                            "_linux_mount_points",
+                            side_effect=AssertionError(
+                                "child fdinfo failure must fail closed"
+                            ),
+                        ),
+                    ):
+                        self.assertTrue(
+                            installer._status_fd_is_mount(child_descriptor)
+                        )
+                finally:
+                    installer._STATUS_MOUNT_BOUNDARY.reset(token)
+
+                with patch.object(
+                    installer,
+                    "_status_linux_mountinfo_available",
+                    return_value=False,
+                ):
+                    boundary = installer._status_capture_mount_boundary(
+                        target_descriptor
+                    )
+                self.assertEqual(boundary, ("path_ismount_only", None))
+                token = installer._STATUS_MOUNT_BOUNDARY.set(boundary)
+                try:
+                    with (
+                        patch.object(installer.os.path, "ismount", return_value=False),
+                        patch.object(
+                            installer,
+                            "_linux_mount_points",
+                            side_effect=AssertionError(
+                                "non-Linux mount checks must not load Linux mountinfo"
+                            ),
+                        ),
+                    ):
+                        self.assertFalse(installer._status_fd_is_mount(child_descriptor))
+                finally:
+                    installer._STATUS_MOUNT_BOUNDARY.reset(token)
+            finally:
+                os.close(child_descriptor)
+                os.close(target_descriptor)
+
+    def test_linux_fd_mount_id_parser_is_bounded_and_strict(self) -> None:
+        cases = (
+            (b"pos:\t0\nmnt_id:\t73\n", 73),
+            (b"mnt_id:\t73\nmnt_id:\t74\n", None),
+            (b"mnt_id:\tnot-a-number\n", None),
+            (b"mnt_id:\t" + b"9" * 5000 + b"\n", None),
+            (b"x" * (installer._STATUS_FDINFO_MAX_BYTES + 1), None),
+        )
+        for payload, expected in cases:
+            with self.subTest(expected=expected):
+                read_results = [payload]
+                if len(payload) <= installer._STATUS_FDINFO_MAX_BYTES:
+                    read_results.append(b"")
+                with (
+                    patch.object(installer.os, "open", return_value=91),
+                    patch.object(installer.os, "read", side_effect=read_results) as read,
+                    patch.object(installer.os, "close") as close,
+                ):
+                    actual = installer._status_linux_fd_mount_id(7)
+
+                self.assertEqual(actual, expected)
+                self.assertEqual(
+                    read.call_args_list[0].args,
+                    (
+                        91,
+                        installer._STATUS_FDINFO_MAX_BYTES + 1,
+                    ),
+                )
+                self.assertLessEqual(read.call_count, 2)
+                self.assertGreaterEqual(read.call_count, 1)
+                close.assert_called_once_with(91)
+                self.assertLessEqual(
+                    sum(len(result) for result in read_results),
+                    installer._STATUS_FDINFO_MAX_BYTES + 1,
+                )
 
     def test_status_semantic_identity_uses_global_relative_path_order(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
