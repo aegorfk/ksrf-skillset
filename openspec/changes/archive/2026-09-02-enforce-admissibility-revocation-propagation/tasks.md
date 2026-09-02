@@ -21,6 +21,6 @@
 ## 4. Publication
 
 - [x] 4.1 Regenerate and verify the exact manifest if tracked test-file inventory changes require it.
-- [ ] 4.2 Commit the isolated change, merge through the approved publication workflow, push `main`, and confirm the exact remote SHA.
-- [ ] 4.3 Install the exact published runtime globally and re-run strict runtime/offline validation.
-- [ ] 4.4 Archive this OpenSpec change only after implementation and publication evidence are complete.
+- [x] 4.2 Commit the isolated change, merge through the approved publication workflow, push `main`, and confirm the exact remote SHA.
+- [x] 4.3 Install the exact published runtime globally and re-run strict runtime/offline validation.
+- [x] 4.4 Archive this OpenSpec change only after implementation and publication evidence are complete.

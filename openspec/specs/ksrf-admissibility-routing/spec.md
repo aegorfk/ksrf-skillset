@@ -63,7 +63,7 @@ The installed runtime MUST derive exactly one documented route by explicit prece
 
 ### Requirement: Runtime route preserves human legal and filing control
 
-The installed CLI MUST expose `ksrf admissibility validate|derive|status` in Russian, MUST perform no network or model call, and MUST persist through the existing content-addressed matter workflow ledger. Every derived `KSRFRouteRecommendation` MUST set `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` and `filing_performed=false`.
+The installed CLI MUST expose `ksrf admissibility validate|derive|status` in Russian, MUST perform no network or model call, and MUST persist through the existing content-addressed matter workflow ledger. Every derived `KSRFRouteRecommendation` MUST set `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` and `filing_performed=false`. Status MUST reload the previously persisted matrix, re-resolve official source identity and selected issue viability through their current native trusted-approval histories, and MUST NOT treat a cached recommendation or historical approval as current authority. Revocation of a required source-identity approval or selected issue approval after `GO_TO_KSRF` MUST produce a new blocked `ABSTAIN_PENDING_RECORD` status while preserving the exact bytes of every prior result object and workflow event.
 
 #### Scenario: Recommendation is derived locally
 
@@ -73,7 +73,17 @@ The installed CLI MUST expose `ksrf admissibility validate|derive|status` in Rus
 #### Scenario: Status is requested
 
 - **WHEN** a user runs `ksrf admissibility status` after a validation or derivation
-- **THEN** the command reloads the latest persisted matrix, re-resolves current official authority, re-derives the recommendation and appends a new status event without modifying the prior record
+- **THEN** the command reloads the latest persisted matrix, re-resolves current official authority, revalidates current issue approvals, re-derives the recommendation and appends a new status event without modifying the prior record
+
+#### Scenario: Current source-identity approval is revoked after GO
+
+- **WHEN** a prior recommendation was `GO_TO_KSRF` through real current official source evidence and the exact trusted approval supporting one required source identity is later revoked in the local approval ledger
+- **THEN** the next status check reports `ABSTAIN_PENDING_RECORD`, identifies the affected official evidence and revoked current authority, exits blocked, preserves the prior result object and GO event byte-for-byte, and appends exactly one new status event
+
+#### Scenario: Current issue-selection approval is revoked after GO
+
+- **WHEN** a prior recommendation was `GO_TO_KSRF` through a persisted viable issue candidate and the exact trusted human-selection approval supporting that option is later revoked in the local approval ledger
+- **THEN** the next status check reports `ABSTAIN_PENDING_RECORD`, identifies the affected option and current issue-binding blocker, exits blocked, preserves the prior result object and GO event byte-for-byte, and appends exactly one new status event
 
 #### Scenario: Current authority is revoked after GO
 
