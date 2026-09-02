@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
+import socket
 import stat
 import subprocess
 import sys
@@ -359,6 +361,91 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(incomplete["exit_code"], 20)
             self.assertEqual(incomplete["managed_skills"]["missing"], [missing_name])
             self.assertEqual(_snapshot(target), partial_before)
+
+    def test_clean_status_points_to_separate_runtime_freshness_check(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = _make_source(root, "A")
+            target = root / "target"
+            installer.copy_skillset(source, target)
+            before = _snapshot(target)
+
+            with (
+                patch.object(
+                    socket,
+                    "create_connection",
+                    side_effect=AssertionError("status must stay offline"),
+                ),
+                patch.object(
+                    installer,
+                    "copy_skillset",
+                    side_effect=AssertionError("status must not install"),
+                ),
+            ):
+                report = _status(target)
+                human = installer.render_installation_status(report)
+
+            self.assertEqual(report["schema_version"], "1.0")
+            self.assertEqual(report["status"], "clean")
+            self.assertEqual(report["exit_code"], 0)
+            self.assertIn("структур", str(report["message"]).lower())
+            self.assertIn("содержим", str(report["message"]).lower())
+            self.assertIn("актуальност", str(report["message"]).lower())
+            action = str(report["recommended_action"])
+            command_line = action.splitlines()[0]
+            self.assertTrue(command_line.startswith("Команда проверки: "))
+            command = shlex.split(command_line.removeprefix("Команда проверки: "))
+            validator = (
+                REPO
+                / "skills"
+                / "ksrf-complaint-cycle"
+                / "scripts"
+                / "validate_ksrf_skillset.py"
+            )
+            self.assertTrue(validator.is_file())
+            self.assertEqual(
+                command,
+                [
+                    sys.executable,
+                    str(validator),
+                    "--skills-root",
+                    str(target),
+                    "--profile",
+                    "runtime",
+                    "--strict",
+                    "--check-updates",
+                ],
+            )
+            self.assertIn("--profile runtime", action)
+            self.assertIn("--strict", action)
+            self.assertIn("--check-updates", action)
+            self.assertNotIn("подтверждается обычной установкой", action)
+            self.assertIn("Что делать:", human)
+            self.assertIn("--check-updates", human)
+            self.assertEqual(_snapshot(target), before)
+
+    def test_clean_guidance_has_honest_fallback_without_repo_validator(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            detached_tool = Path(raw) / "tools" / "install_skillset.py"
+            with patch.object(installer, "__file__", str(detached_tool)):
+                action = installer._status_runtime_freshness_action(
+                    Path(raw) / "skills"
+                )
+
+            self.assertIn("недоступен", action)
+            self.assertIn("Обновите репозиторий", action)
+            self.assertNotIn("Команда проверки:", action)
+
+    @unittest.skipUnless(os.name == "posix", "surrogateescaped paths require POSIX")
+    def test_clean_guidance_does_not_emit_dead_command_for_non_utf8_target(self) -> None:
+        target = Path(os.fsdecode(b"/tmp/ksrf-status-\xff"))
+
+        action = installer._status_runtime_freshness_action(target)
+
+        self.assertIn("непечатаемые байты", action)
+        self.assertIn("сформировать нельзя", action)
+        self.assertIn("UTF-8-пути", action)
+        self.assertNotIn("Команда проверки:", action)
 
     def test_status_never_creates_or_locks_persistent_lock_file(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
