@@ -37,7 +37,7 @@ Pattern match становится опорой только после ручн
    - доказательственный носитель;
    - remedy;
    - лучший контраргумент.
-3. Используй `references/pattern-matrix.md`, `references/constitutional-graph.md`, hearing materials, `references/external-ks-complaint-webinar-methods.md` и retrieval architecture как карты кандидатов. Не обязан выбирать ни одного семейства. Вебинарный материал используй только как профессиональный checklist и red-team слой, а не как официальный источник позиции КС РФ.
+3. Используй `references/pattern-matrix.md`, `references/constitutional-graph.md`, hearing materials, `references/external-ks-complaint-webinar-methods.md` и ручной маршрут поиска позиций как карты кандидатов. Не обязан выбирать ни одного семейства. Вебинарный материал используй только как профессиональный checklist и red-team слой, а не как официальный источник позиции КС РФ.
 4. Для каждого кандидата открой `references/decision-index.md` и официальный акт. Проверь:
    - что позиция принадлежит КС РФ, а не стороне;
    - норму, редакцию и временной контекст;
@@ -65,7 +65,7 @@ Pattern match становится опорой только после ручн
 - `references/external-ks-complaint-webinar-methods.md` — профессиональная методика из вебинара о жалобе в КС РФ: нормативный барьер, четыре дефекта, неединичность практики, ранняя фиксация нормы, ходатайство о запросе суда, ответ на возврат Секретариата и red-team системных последствий; не официальный источник права.
 - `references/evidence-maps.md`, `references/source-proof-impact-patterns.md`, `references/counterargument-playbook.md` — проверка материала и adverse case.
 - `references/language-formulas.md` и `references/argument-package-builder.md` — drafting options после выбора портфеля.
-- `references/constitutional-graph.md`, `references/constitutional_graph.json`, `references/position-retrieval-architecture.md` — candidate generation и обход связей.
+- `references/constitutional-graph.md` и `references/constitutional_graph.json` — навигация по связям нормы, вреда, права, теста и remedy; `references/position-retrieval-architecture.md` — ручной поиск, сопоставление, официальная проверка и adverse-pass без зависимости от проектной инфраструктуры.
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — обязательный автономный baseline по маршруту, допустимости, drafting, filing и исполнению.
 - `../ksrf-practice-authority-builder/SKILL.md` — превращение CasusLegal findings в проверяемый authority ledger и блоки аргумента.
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — проверяемая архитектура стратегического решения, доказательственных слоёв, сравнительных групп, amicus и последствий; журнал источников пользователю не требуется.
@@ -86,7 +86,7 @@ Pattern match становится опорой только после ручн
 
 ## Инструменты
 
-Для анализа одного дела используй bundled references и автономное ядро. Read-only Qdrant/Neo4j и штатные scripts являются необязательным maintenance/retrieval слоем: если они доступны, перед retrieval строй query profile и сверяй качество на golden/hard-negative наборах; если отсутствуют, отметь только предел поиска аналогий. Не запускай глобальное обогащение корпуса, если пользователю нужен анализ одного дела.
+Для анализа одного дела используй встроенные справочники и автономное ядро. Дополнительный поиск используй только при фактической доступности инструмента и после проверки его настоящего интерфейса; отсутствие инструмента ограничивает покрытие, а не разрешает выдумать результат. Любой внешний кандидат остаётся поисковой зацепкой до открытия официального акта, точного locator и adverse-pass. Не запускай глобальное обогащение корпуса, если пользователю нужен анализ одного дела.
 
 `scripts/build_constitutionalist_authority_corpus.py` воспроизводит широкий реестр из библиографии Блохина, официальных указателей СКО/«Международного правосудия», локального discovery-корпуса Zakon.ru и проверенных методических карточек. Его результат не повышает статус источника автоматически.
 
@@ -94,14 +94,14 @@ Pattern match становится опорой только после ручн
 
 Для каждого кандидата:
 
-- `Candidate pattern/technique`;
-- `Official decisions and locators`;
-- `Что совпадает`;
-- `Что различается`;
-- `Relation to hypothesis`;
-- `Transfer limit`;
-- `Counterexample/refusal risk`;
+- `Паттерн или приём-кандидат`;
+- `Официальный источник и locator`;
+- `verification_status` и `relation` по контракту `ResearchFinding`;
+- `Что совпадает` и `Что различается`;
+- `Предел переноса`;
+- `Неблагоприятный результат или риск отказа`;
+- `Происхождение и охват поиска`, включая запросы, дату и пробелы;
 - `Нужная проверка`;
-- `Возможный language/remedy option`.
+- `Возможный вариант формулировки или способа защиты`.
 
 Отдельно перечисли `no close analogy found`, если это честный результат. Не превращай его в отрицательное юридическое заключение.
