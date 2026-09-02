@@ -20,5 +20,5 @@
 
 - [x] 4.1 Pass focused/full QA, strict validators, OpenSpec, AST/shell/public guards, and clean-room checks.
 - [x] 4.2 Obtain independent review with no unresolved P1/P2.
-- [ ] 4.3 Commit/push the feature branch, merge/publish exact `main`, install globally, and verify live SHA.
-- [ ] 4.4 Archive the OpenSpec change and publish the final manifest-bound release commit.
+- [x] 4.3 Commit/push the feature branch, merge/publish exact `main`, install globally, and verify live SHA.
+- [x] 4.4 Archive the OpenSpec change and publish the final manifest-bound release commit.
