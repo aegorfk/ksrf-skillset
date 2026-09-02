@@ -69,17 +69,32 @@ Status SHALL emit schema `1.0` with `clean`/0, `not_installed`/10, `incomplete`/
 
 ### Requirement: Status output serves people and automation
 
-Status SHALL provide concise Russian human output by default and deterministic JSON with bounded public fields when `--json` is selected. A clean result SHALL distinguish structural installation state from runtime content identity and online freshness. Without opening the network or executing validation, its recommended action SHALL emit a shell-quoted absolute `<repo>/install.sh --verify-current --target <exact target>` command from the current repository; it SHALL NOT depend on an older target-side validator or imply that reinstalling is the only way to observe freshness. If the repository entry point is absent, non-executable, symlinked, or any command value contains non-printable/control/surrogateescaped characters, status SHALL emit an honest fallback rather than a dead or visually spoofable command. Non-clean states SHALL retain their existing action without inspecting the entry point. The guidance SHALL preserve that byte equality is not installation provenance, legal-source freshness, or filing readiness.
+Status SHALL provide concise Russian human output by default and deterministic
+JSON with bounded public fields when `--json` is selected. A clean result SHALL
+distinguish structural installation state from runtime content identity and
+online freshness. Without opening the network or executing validation, its
+recommended action SHALL emit two ordered shell-quoted absolute commands from
+the current repository for the exact target: first
+`<repo>/install.sh --verify --target <exact target>` for local offline
+integrity, then `<repo>/install.sh --verify-current --target <exact target>` for
+optional online freshness. It SHALL NOT depend on older target-side policy or
+imply that reinstalling is the only way to inspect the installation. If the
+repository entry point is absent, non-executable, symlinked, or any command
+value contains non-printable/control/surrogateescaped characters, status SHALL
+emit an honest fallback rather than a dead, partial, or visually spoofable
+command. Non-clean states SHALL retain their existing action without inspecting
+the entry point. The guidance SHALL preserve that byte equality is not
+installation provenance, legal-source freshness, or filing readiness.
 
 #### Scenario: Human clean result
 
 - **WHEN** a user requests status without `--json`
-- **THEN** the output explains the observed structural state, canonical skill count, executable short current-verification command for the exact target, and read-only unlocked boundary in plain Russian
+- **THEN** the output explains the observed structural state, canonical skill count, ordered executable offline and optional online commands for the exact target, and read-only unlocked boundary in plain Russian
 
 #### Scenario: JSON clean result
 
 - **WHEN** automation requests clean status with `--json`
-- **THEN** the stable report shape and exit code remain unchanged while `message` says content and freshness were not checked and `recommended_action` names an existing repo-side installer, `--verify-current`, and the exact `--target`
+- **THEN** the stable report shape and exit code remain unchanged while `message` says content and freshness were not checked and `recommended_action` names one existing repo-side installer, `--verify`, `--verify-current`, and the exact `--target` in that order
 
 #### Scenario: Repo-side entry point is absent
 
@@ -94,7 +109,7 @@ Status SHALL provide concise Russian human output by default and deterministic J
 #### Scenario: Target path contains surrogateescaped bytes
 
 - **WHEN** a clean POSIX target contains filesystem bytes that cannot be represented as ordinary Unicode command arguments
-- **THEN** recommended action says a safe command cannot be formed and emits no misleading command for a different path
+- **THEN** recommended action says safe commands cannot be formed and emits no misleading command for a different path
 
 #### Scenario: Target path contains display control characters
 
@@ -103,7 +118,7 @@ Status SHALL provide concise Russian human output by default and deterministic J
 
 #### Scenario: Status remains offline
 
-- **WHEN** clean status renders the short current-verification recommendation
+- **WHEN** clean status renders the ordered verification recommendation
 - **THEN** status itself invokes no network opener, validator, installer, subprocess, write, recovery, or lock operation
 
 #### Scenario: JSON result

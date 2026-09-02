@@ -17,5 +17,5 @@
 - [x] 3.2 Regenerate the exact release manifest.
 - [x] 3.3 Pass focused/full tests, strict validators, shell syntax, OpenSpec, and diff checks.
 - [x] 3.4 Obtain independent review with no unresolved P1/P2.
-- [ ] 3.5 Commit/push, merge/publish exact `main`, install globally, and verify live human/JSON output.
+- [x] 3.5 Commit/push, merge/publish exact `main`, install globally, and verify live human/JSON output.
 - [ ] 3.6 Archive the OpenSpec change and publish the final manifest-bound commit.
