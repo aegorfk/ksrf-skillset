@@ -131,7 +131,17 @@ if [[ "$status_mode" == true ]]; then
 fi
 
 if [[ "$resolved_target" == "$resolved_canonical_target" ]]; then
-  python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir" >/dev/null
+  if { python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir"; } \
+    >/dev/null 2>&1; then
+    :
+  else
+    publication_status=$?
+    printf '%s\n' \
+      "Установка остановлена: не удалось подтвердить, что локальная копия репозитория соответствует текущему опубликованному выпуску." \
+      "Навыки не изменены. Обновите локальную копию репозитория и повторите установку; техническая диагностика описана в README." \
+      >&2 || :
+    exit "$publication_status"
+  fi
 else
   echo "Установка в отдельную папку: глобальные навыки изменены не будут"
 fi

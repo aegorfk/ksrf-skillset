@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T17:41:29Z",
+  "generated_at": "2026-09-02T17:55:37Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "6080344a36981a54c0a318139c755d4ca69ecd82",
+  "remote_base_commit": "47e58b3145b4b33a75b191ad41bd07e8bf88bbb1",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -124,13 +124,13 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 372074,
-  "release_tree_sha256": "cde8cbf2a357462f179e951674b6dcf3f36474110bfdc7b4c90d93efc0bffe6c",
+  "total_release_bytes": 372687,
+  "release_tree_sha256": "6054d004c9171aa42e8fda5e167fe6a0a1128e0e85954083ba7cf829b78b596c",
   "release_files": [
     {
       "path": "install.sh",
-      "bytes": 5183,
-      "sha256": "cae03de17ed42f852c078ea1bbd2904061d765ce61a677e9ac73fed550c73379"
+      "bytes": 5796,
+      "sha256": "07efecabc6583d5a091271068f6dbd70376514cc11620f2189801ecff4af86ab"
     },
     {
       "path": "tools/generate_skills_manifest.py",

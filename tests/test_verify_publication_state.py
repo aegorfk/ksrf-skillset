@@ -1,4 +1,4 @@
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
@@ -23,6 +23,29 @@ BASE_SHA = "c" * 40
 
 
 class PublicationGuardTests(unittest.TestCase):
+    def test_direct_refusal_keeps_detailed_maintainer_stderr(self) -> None:
+        for extra_args in ([], ["--json"]):
+            with self.subTest(extra_args=extra_args):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with patch.object(
+                    guard,
+                    "verify_publication_state",
+                    side_effect=guard.PublicationStateError(
+                        "stale checkout local=secret-path remote=secret-sha"
+                    ),
+                ):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        exit_code = guard.main(["--repo", ".", *extra_args])
+
+                self.assertEqual(exit_code, 1)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual(
+                    stderr.getvalue(),
+                    "Publication guard refused: stale checkout local=secret-path "
+                    "remote=secret-sha\n",
+                )
+
     def test_direct_human_and_json_output_keep_maintainer_evidence(self) -> None:
         result = {
             "repository": "aegorfk/ksrf-skillset",

@@ -173,9 +173,9 @@ Status SHALL treat its result as an unlocked bounded observation and SHALL not c
 
 Status SHALL require only `--target`; normal installation SHALL continue to
 require exactly one of `--repo` or `--source-skills-root` and preserve its
-existing installation and failure behavior. Its successful public presentation
-SHALL follow the concise-output requirement in the installation-transaction
-capability.
+existing installation operations and exit behavior. Its successful and
+publication-refusal public presentation SHALL follow the bounded-output
+requirement in the installation-transaction capability.
 
 #### Scenario: Direct status invocation
 
@@ -376,7 +376,7 @@ format, and use the same fixed Russian local/internal error guidance as
 - **WHEN** callers use `--status [--json]` or `--verify-current` without `--verify`
 - **THEN** their arguments, behavior, output boundaries, and exit-code contracts remain unchanged
 
-#### Scenario: Normal installation changes only successful output
+#### Scenario: Normal installation changes only public presentation
 
 - **WHEN** callers use normal installation without a verification mode
-- **THEN** its arguments, installation behavior, failure diagnostics, and exit-code contracts remain unchanged, while only the successful canonical-target stdout omits the nested publication-verifier evidence as specified by the installation-transaction capability
+- **THEN** its arguments, installation operations, and exit-code contracts remain unchanged, while canonical-target success omits nested publication evidence and canonical-target publication refusal replaces both nested streams with the fixed Russian message specified by the installation-transaction capability
