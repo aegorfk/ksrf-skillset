@@ -143,8 +143,8 @@ class ExactSkillsetInstallTests(unittest.TestCase):
 
             self.assertFalse(stale_builder.exists())
             expected = {
-                "constitutionalist-authority-corpus.json": "285b854f9d53a0a1ce3fa38c59f9d9ddeed8bd199979a40be6fa95b4570b7015",
-                "constitutionalist-authority-corpus.md": "58405ad08d408147b72ee952b5e6422963e62da19c31c8b13a5c8d91a2375e98",
+                "constitutionalist-authority-corpus.json": "f0484b308a647c87d851c0e073d30ad24c8c6ace45c63283ef19ccc1fde955e3",
+                "constitutionalist-authority-corpus.md": "176ac91b604fb031a975dbcfc286adf265862bab4e2e9352789ae5a7ea47f748",
             }
             reference_root = target / "ksrf-argument-patterns" / "references"
             for name, digest in expected.items():

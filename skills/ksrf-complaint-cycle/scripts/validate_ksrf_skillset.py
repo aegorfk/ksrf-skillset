@@ -13,6 +13,8 @@ import importlib.util
 import json
 import re
 import sys
+from collections import Counter
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence, TextIO
 from urllib.parse import unquote, urlsplit
@@ -46,6 +48,101 @@ MAX_SKILL_LINES = 500
 LONG_REFERENCE_LINES = 100
 EARLY_TOC_LAST_LINE = 60
 MIN_BEHAVIORAL_EVALS = 3
+AUTHORITY_CORPUS_STATUSES = frozenset(
+    {
+        "method_integrated",
+        "full_text_available",
+        "triangulated_academic",
+        "academic_indexed",
+        "bibliographic_lead",
+        "discovery_only",
+    }
+)
+AUTHORITY_CORPUS_WARNING = (
+    "Присутствие в реестре не превращает доктрину в право. "
+    "Discovery-only записи нельзя цитировать как авторитет без проверки автора и работы."
+)
+AUTHORITY_CORPUS_STATUS_LABELS = {
+    "method_integrated": "метод извлечён и встроен",
+    "full_text_available": "полный текст доступен; метод ожидает извлечения",
+    "triangulated_academic": "автор подтверждён несколькими академическими слоями",
+    "academic_indexed": "автор найден в официальном академическом указателе",
+    "bibliographic_lead": "библиографический след у Блохина",
+    "discovery_only": "разведочный кандидат; авторитетность не подтверждена",
+}
+AUTHORITY_CORPUS_ROUTE_LABELS = {
+    "admissibility_and_route": (
+        "допустимость, доступ к КС РФ и граница сверхинстанционности"
+    ),
+    "interpretation_and_positions": (
+        "толкование, правовые позиции, прецедент и перенос правила"
+    ),
+    "proportionality_equality_dignity": (
+        "соразмерность, равенство, достоинство и интенсивность контроля"
+    ),
+    "evidence_empirics_consequences": (
+        "доказывание, законодательные факты, эмпирика и последствия"
+    ),
+    "remedy_execution_review": (
+        "средство защиты, исполнение, пересмотр и действие решения"
+    ),
+    "institutional_design_and_legitimacy": (
+        "институциональный дизайн, компетенция и легитимность контроля"
+    ),
+    "comparative_and_international": (
+        "сравнительное право и международные стандарты прав человека"
+    ),
+    "certainty_communication_writing": (
+        "правовая определённость, аргументация, коммуникация и письмо"
+    ),
+    "identity_sovereignty_systems": (
+        "конституционная идентичность, суверенитет и взаимодействие систем"
+    ),
+    "social_economic_and_property_rights": (
+        "социальные, трудовые, налоговые и имущественные права"
+    ),
+    "democracy_federalism_public_power": (
+        "демократия, федерализм и организация публичной власти"
+    ),
+    "bioethics_privacy_technology": (
+        "биоэтика, частная жизнь, данные и технологии"
+    ),
+}
+AUTHORITY_CORPUS_ACADEMIC_SOURCES = frozenset(
+    {"blokhin_bibliography", "sko_index", "mp_index"}
+)
+AUTHORITY_CORPUS_NON_AUTHORITATIVE_SOURCES = frozenset(
+    {"zakon_discovery", "curated_method", "local_full_text"}
+)
+AUTHORITY_CORPUS_DECLARED_SOURCES = frozenset(
+    {
+        "blokhin_bibliography",
+        "sko_index",
+        "mp_index",
+        "zakon_discovery",
+        "curated_method",
+    }
+)
+AUTHORITY_CORPUS_INTERNAL_SOURCES = frozenset({"local_full_text"})
+AUTHORITY_CORPUS_SEMANTIC_SHA256 = (
+    "39c1110705ede4c9dd20f4e0fe62af145b71ec6685d5c62e2e4e8b19fd74d2e2"
+)
+NON_PUBLIC_DNS_SUFFIXES = (
+    ".alt",
+    ".arpa",
+    ".corp",
+    ".home",
+    ".internal",
+    ".invalid",
+    ".lan",
+    ".local",
+    ".localdomain",
+    ".onion",
+    ".private",
+    ".test",
+    ".example",
+)
+DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
 DEVELOPMENT_ONLY_PARTS = {"evals", "tests"}
@@ -242,8 +339,20 @@ def _frontmatter(text: str) -> tuple[Mapping[str, Any], str]:
     return payload, "\n".join(lines[closing + 1 :])
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"duplicate key: {key}")
+        payload[key] = value
+    return payload
+
+
 def _read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_keys,
+    )
 
 
 def _declared_tool_values(payload: Any, *, parent_key: str = "") -> Iterable[str]:
@@ -568,7 +677,7 @@ def _validate_behavioral_evals(
         return
     try:
         payload = _read_json(path)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         findings.append(
             _finding(
                 "error",
@@ -648,7 +757,7 @@ def _validate_trigger_evals(
         return
     try:
         payload = _read_json(path)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         findings.append(
             _finding(
                 "error",
@@ -1033,6 +1142,500 @@ def _validate_argument_graph_contract(
                         + [f"edge:{index}" for index in tool_endpoint_indexes[:2]]
                     ),
                 },
+            )
+        )
+
+
+def _validate_authority_corpus_contract(
+    findings: list[dict[str, Any]],
+    package_dir: Path,
+    skills_root: Path,
+    *,
+    expected_semantic_sha256: str = AUTHORITY_CORPUS_SEMANTIC_SHA256,
+) -> None:
+    """Validate the shipped authority corpus without exposing maintainer metadata."""
+
+    if package_dir.name != "ksrf-argument-patterns":
+        return
+    corpus_path = (
+        package_dir
+        / "references"
+        / "constitutionalist-authority-corpus.json"
+    )
+    if not corpus_path.exists():
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+                "Обязательный пользовательский корпус авторитетов отсутствует.",
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
+            )
+        )
+        return
+
+    try:
+        raw_payload = corpus_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+                f"Не удалось проверить пользовательский корпус авторитетов: {exc}",
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
+            )
+        )
+        return
+
+    raw_retired_queue = '"next_extraction_wave"' in raw_payload
+    raw_local_hint = '"local_source_hint"' in raw_payload
+    raw_local_coordinate = "ТЗ/" in raw_payload
+    if raw_retired_queue or raw_local_hint or raw_local_coordinate:
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+                (
+                    "Пользовательский корпус содержит служебную очередь или "
+                    "локальные координаты, недоступные после установки."
+                ),
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
+                evidence={
+                    "retired_queue_count": int(raw_retired_queue),
+                    "local_source_hint_count": int(raw_local_hint),
+                    "local_coordinate_present": raw_local_coordinate,
+                },
+            )
+        )
+        return
+
+    try:
+        payload = json.loads(
+            raw_payload,
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+                f"Не удалось проверить пользовательский корпус авторитетов: {exc}",
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
+            )
+        )
+        return
+
+    sources = payload.get("sources") if isinstance(payload, dict) else None
+    retired_queue_count = 0
+    local_hint_count = 0
+    pending: list[Any] = [payload]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            retired_queue_count += "next_extraction_wave" in item
+            local_hint_count += "local_source_hint" in item
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    has_retired_queue = retired_queue_count > 0
+    has_local_coordinate = "ТЗ/" in json.dumps(payload, ensure_ascii=False)
+    if has_retired_queue or local_hint_count or has_local_coordinate:
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_MAINTAINER_METADATA_PRESENT",
+                (
+                    "Пользовательский корпус содержит служебную очередь или "
+                    "локальные координаты, недоступные после установки."
+                ),
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
+                evidence={
+                    "retired_queue_count": retired_queue_count,
+                    "local_source_hint_count": local_hint_count,
+                    "local_coordinate_present": has_local_coordinate,
+                },
+            )
+        )
+        return
+
+    try:
+        if not isinstance(payload, dict):
+            raise ValueError("root must be an object")
+        if payload.get("schema_version") != "2.0":
+            raise ValueError("schema_version must be 2.0")
+        for field in ("as_of", "purpose", "warning"):
+            value = payload.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field} must be a non-empty string")
+        if payload.get("warning") != AUTHORITY_CORPUS_WARNING:
+            raise ValueError("warning must preserve the canonical non-promotion boundary")
+        status_legend = payload.get("status_legend")
+        if status_legend != AUTHORITY_CORPUS_STATUS_LABELS:
+            raise ValueError("status_legend must preserve the canonical status boundaries")
+        route_legend = payload.get("route_legend")
+        if route_legend != AUTHORITY_CORPUS_ROUTE_LABELS:
+            raise ValueError("route_legend must preserve the canonical route boundaries")
+
+        def public_http_url(value: Any) -> bool:
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or value != value.strip()
+                or re.search(r"[\x00-\x20\x7f]", value) is not None
+            ):
+                return False
+            try:
+                parsed = urlsplit(value)
+                hostname = parsed.hostname
+                port = parsed.port
+            except ValueError:
+                return False
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not hostname
+                or "%" in parsed.netloc
+                or "\\" in parsed.netloc
+                or parsed.username is not None
+                or parsed.password is not None
+                or port == 0
+            ):
+                return False
+            normalized_host = hostname.rstrip(".").casefold()
+            if normalized_host == "localhost" or normalized_host.endswith(
+                ".localhost"
+            ):
+                return False
+            try:
+                address = ip_address(normalized_host)
+            except ValueError:
+                if parsed.netloc.startswith("["):
+                    return False
+                try:
+                    ascii_host = normalized_host.encode("idna").decode("ascii")
+                except UnicodeError:
+                    return False
+                labels = ascii_host.split(".")
+                if (
+                    len(ascii_host) > 253
+                    or len(labels) < 2
+                    or ascii_host == "localhost"
+                    or ascii_host.endswith(".localhost")
+                    or any(
+                        not label
+                        or len(label) > 63
+                        or DNS_LABEL.fullmatch(label) is None
+                        for label in labels
+                    )
+                    or ascii_host.endswith(NON_PUBLIC_DNS_SUFFIXES)
+                    or re.fullmatch(
+                        r"(?:0x[0-9a-f]+|\d+)(?:\.(?:0x[0-9a-f]+|\d+))*",
+                        ascii_host,
+                    )
+                ):
+                    return False
+                return True
+            return address.is_global
+
+        def runtime_skill_reference_exists(value: str) -> bool:
+            references = [item.strip() for item in value.split(";")]
+            if not references or any(not item for item in references):
+                return False
+            for reference in references:
+                if reference in CANONICAL_KSRF_PACKAGES:
+                    if not (skills_root / reference / "SKILL.md").is_file():
+                        return False
+                    continue
+                relative = Path(reference)
+                if (
+                    relative.is_absolute()
+                    or ".." in relative.parts
+                    or relative.suffix.casefold() != ".md"
+                ):
+                    return False
+                candidates = (
+                    package_dir / "references" / relative,
+                    *(
+                        skills_root / package / "references" / relative
+                        for package in CANONICAL_KSRF_PACKAGES
+                    ),
+                )
+                if not any(candidate.is_file() for candidate in candidates):
+                    return False
+            return True
+
+        if not isinstance(sources, list) or not sources:
+            raise ValueError("sources must be a non-empty list")
+        allowed_source_keys = {"kind", "label", "coverage", "url"}
+        source_kinds: list[str] = []
+        for index, source in enumerate(sources):
+            if not isinstance(source, dict):
+                raise ValueError(f"source[{index}] must be an object")
+            if set(source) - allowed_source_keys:
+                raise ValueError(f"source[{index}] has unsupported fields")
+            for field in ("kind", "label", "coverage"):
+                value = source.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(
+                        f"source[{index}].{field} must be a non-empty string"
+                    )
+            source_kinds.append(source["kind"])
+            url = source.get("url")
+            if url is not None and not public_http_url(url):
+                raise ValueError(f"source[{index}].url must be a public HTTP(S) URL")
+        if set(source_kinds) != AUTHORITY_CORPUS_DECLARED_SOURCES:
+            raise ValueError("sources must preserve the canonical source-kind set")
+        if len(source_kinds) != len(set(source_kinds)):
+            raise ValueError("source kinds must be unique")
+        declared_source_kinds = set(source_kinds)
+
+        authorities = payload.get("authorities")
+        if not isinstance(authorities, list) or not authorities:
+            raise ValueError("authorities must be a non-empty list")
+        authority_ids: list[str] = []
+        identity_keys: list[str] = []
+        canonical_names: list[str] = []
+        works_total = 0
+        status_counts: Counter[str] = Counter()
+        source_people_counts: Counter[str] = Counter()
+        route_counts: Counter[str] = Counter()
+        needs_review_total = 0
+        for index, authority in enumerate(authorities):
+            if not isinstance(authority, dict):
+                raise ValueError(f"authority[{index}] must be an object")
+            for field in ("id", "identity_key", "canonical_name", "status"):
+                value = authority.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(
+                        f"authority[{index}].{field} must be a non-empty string"
+                    )
+            authority_ids.append(authority["id"])
+            identity_keys.append(authority["identity_key"])
+            canonical_names.append(authority["canonical_name"])
+            status: str = authority["status"]
+            if status not in AUTHORITY_CORPUS_STATUSES:
+                raise ValueError(f"authority[{index}].status is unsupported")
+            if authority.get("status_label") != AUTHORITY_CORPUS_STATUS_LABELS[status]:
+                raise ValueError(
+                    f"authority[{index}].status_label contradicts status_legend"
+                )
+            method_cards = authority.get("method_cards")
+            if not isinstance(method_cards, list):
+                raise ValueError(f"authority[{index}].method_cards must be a list")
+            for card_index, card in enumerate(method_cards):
+                if not isinstance(card, dict):
+                    raise ValueError(
+                        f"authority[{index}].method_cards[{card_index}] must be an object"
+                    )
+                for field in ("method", "usable_for", "guardrail", "skill_reference"):
+                    value = card.get(field)
+                    if not isinstance(value, str) or not value.strip():
+                        raise ValueError(
+                            f"authority[{index}].method_cards[{card_index}].{field} "
+                            "must be a non-empty string"
+                        )
+                if not runtime_skill_reference_exists(card["skill_reference"]):
+                    raise ValueError(
+                        f"authority[{index}].method_cards[{card_index}]."
+                        "skill_reference must resolve in the installed skillset"
+                    )
+            full_text_sources = authority.get("full_text_sources")
+            if not isinstance(full_text_sources, list) or any(
+                not isinstance(source, str) or not source.strip()
+                for source in full_text_sources
+            ):
+                raise ValueError(
+                    f"authority[{index}].full_text_sources must contain strings"
+                )
+            for field in (
+                "method_integrated",
+                "needs_identity_or_method_review",
+            ):
+                if not isinstance(authority.get(field), bool):
+                    raise ValueError(f"authority[{index}].{field} must be boolean")
+            routes = authority.get("routes")
+            if not isinstance(routes, list) or any(
+                not isinstance(route, str)
+                or not route.strip()
+                or route not in AUTHORITY_CORPUS_ROUTE_LABELS
+                for route in routes
+            ):
+                raise ValueError(
+                    f"authority[{index}].routes must use declared route strings"
+                )
+            if len(routes) != len(set(routes)):
+                raise ValueError(f"authority[{index}].routes must be unique")
+            source_counts = authority.get("source_counts")
+            if not isinstance(source_counts, dict) or not source_counts:
+                raise ValueError(
+                    f"authority[{index}].source_counts must be a non-empty object"
+                )
+            if any(
+                not isinstance(source, str)
+                or not source.strip()
+                or not isinstance(count, int)
+                or isinstance(count, bool)
+                or count < 1
+                for source, count in source_counts.items()
+            ):
+                raise ValueError(
+                    f"authority[{index}].source_counts entries are invalid"
+                )
+            allowed_source_counts = (
+                AUTHORITY_CORPUS_DECLARED_SOURCES
+                | AUTHORITY_CORPUS_INTERNAL_SOURCES
+            )
+            if not set(source_counts).issubset(allowed_source_counts):
+                raise ValueError(
+                    f"authority[{index}].source_counts contains an unknown source"
+                )
+
+            works = authority.get("works")
+            if not isinstance(works, list):
+                raise ValueError(f"authority[{index}].works must be a list")
+            curated_work_titles: set[str] = set()
+            for work_index, work in enumerate(works):
+                if not isinstance(work, dict):
+                    raise ValueError(
+                        f"authority[{index}].works[{work_index}] must be an object"
+                    )
+                for field in ("source", "title"):
+                    value = work.get(field)
+                    if not isinstance(value, str) or not value.strip():
+                        raise ValueError(
+                            f"authority[{index}].works[{work_index}].{field} "
+                            "must be a non-empty string"
+                        )
+                if work["source"] not in source_counts:
+                    raise ValueError(
+                        f"authority[{index}].works[{work_index}].source "
+                        "must be represented in source_counts"
+                    )
+                if work["source"] not in declared_source_kinds:
+                    raise ValueError(
+                        f"authority[{index}].works[{work_index}].source "
+                        "must be declared in top-level sources"
+                    )
+                if work["source"] == "curated_method":
+                    curated_work_titles.add(work["title"])
+                work_url = work.get("url")
+                if work_url is not None and not public_http_url(work_url):
+                    raise ValueError(
+                        f"authority[{index}].works[{work_index}].url "
+                        "must be a public HTTP(S) URL"
+                    )
+
+            if len(full_text_sources) != len(set(full_text_sources)):
+                raise ValueError(
+                    f"authority[{index}].full_text_sources must be unique"
+                )
+            if not set(full_text_sources).issubset(curated_work_titles):
+                raise ValueError(
+                    f"authority[{index}].full_text_sources must resolve to "
+                    "curated_method works"
+                )
+            local_full_text_count = source_counts.get("local_full_text", 0)
+            if local_full_text_count != len(full_text_sources):
+                raise ValueError(
+                    f"authority[{index}].local_full_text count must match "
+                    "full_text_sources"
+                )
+            has_curated_method = "curated_method" in source_counts
+            if bool(method_cards or full_text_sources) != has_curated_method:
+                raise ValueError(
+                    f"authority[{index}].curated_method must match "
+                    "method cards or full-text provenance"
+                )
+            if method_cards and not full_text_sources:
+                raise ValueError(
+                    f"authority[{index}].method_cards require full-text provenance"
+                )
+
+            academic_sources = (
+                set(source_counts) & AUTHORITY_CORPUS_ACADEMIC_SOURCES
+            )
+            if method_cards:
+                expected_status = "method_integrated"
+            elif full_text_sources:
+                expected_status = "full_text_available"
+            elif len(academic_sources) >= 2:
+                expected_status = "triangulated_academic"
+            elif academic_sources & {"sko_index", "mp_index"}:
+                expected_status = "academic_indexed"
+            elif "blokhin_bibliography" in academic_sources:
+                expected_status = "bibliographic_lead"
+            else:
+                expected_status = "discovery_only"
+            if status != expected_status:
+                raise ValueError(
+                    f"authority[{index}].status contradicts source and method evidence"
+                )
+            if authority["method_integrated"] != bool(method_cards):
+                raise ValueError(
+                    f"authority[{index}].method_integrated contradicts method_cards"
+                )
+            authoritative_sources = set(source_counts) - (
+                AUTHORITY_CORPUS_NON_AUTHORITATIVE_SOURCES
+            )
+            expected_needs_review = (
+                expected_status in {"academic_indexed", "discovery_only"}
+                and len(authoritative_sources) < 2
+            )
+            if (
+                authority["needs_identity_or_method_review"]
+                != expected_needs_review
+            ):
+                raise ValueError(
+                    f"authority[{index}].needs_identity_or_method_review "
+                    "contradicts source evidence"
+                )
+            works_total += len(works)
+            status_counts[expected_status] += 1
+            source_people_counts.update(source_counts.keys())
+            route_counts.update(routes)
+            needs_review_total += expected_needs_review
+        if len(authority_ids) != len(set(authority_ids)):
+            raise ValueError("authority ids must be unique")
+        if len(identity_keys) != len(set(identity_keys)):
+            raise ValueError("authority identity_key values must be unique")
+        if len(canonical_names) != len(set(canonical_names)):
+            raise ValueError("authority canonical_name values must be unique")
+
+        summary = payload.get("summary")
+        if not isinstance(summary, dict):
+            raise ValueError("summary must be an object")
+        expected_summary = {
+            "authorities_total": len(authorities),
+            "status_counts": dict(status_counts),
+            "source_people_counts": dict(source_people_counts),
+            "route_counts": dict(route_counts),
+            "works_total": works_total,
+            "needs_review_total": needs_review_total,
+        }
+        if summary != expected_summary:
+            raise ValueError("summary must match all derived corpus counters")
+        canonical_payload = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        semantic_sha256 = hashlib.sha256(canonical_payload).hexdigest()
+        if semantic_sha256 != expected_semantic_sha256:
+            raise ValueError(
+                "semantic projection does not match the published corpus contract"
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        findings.append(
+            _finding(
+                "error",
+                "AUTHORITY_CORPUS_CONTRACT_INVALID",
+                f"Нарушен контракт пользовательского корпуса авторитетов: {exc}",
+                package=package_dir.name,
+                path=_relative(corpus_path, skills_root),
             )
         )
 
@@ -1517,6 +2120,7 @@ def validate_skillset(
         _validate_reference_tocs(findings, package_dir, root)
         _validate_application_evidence_contract(findings, package_dir, root)
         _validate_argument_graph_contract(findings, package_dir, root)
+        _validate_authority_corpus_contract(findings, package_dir, root)
         _validate_markdown_mcp_references(findings, package_dir, root)
     public_source_safety = "not_checked"
     public_repository_safety = "not_checked"

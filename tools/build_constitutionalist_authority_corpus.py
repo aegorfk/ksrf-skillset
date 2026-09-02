@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
 
 STATUS_ORDER = {
     "method_integrated": 0,
@@ -636,42 +636,6 @@ MANUAL_ACADEMIC_LEADS = [
     }
 ]
 
-NEXT_EXTRACTION_WAVE = [
-    ("бондарь|н", "конституционное правосудие, достоинство, социальное государство и средства защиты"),
-    ("морщакова|т", "доступ к конституционному правосудию и интеграция международных стандартов"),
-    ("князев|с", "процесс, письменное производство, прецедент и пределы контроля"),
-    ("витрук|н", "общая теория конституционного правосудия и процесса"),
-    ("брежнев|о", "методология, компетенция и модели судебного конституционного контроля"),
-    ("арановский|к", "прецедент, письменное правосудие и институциональные пределы"),
-    ("варламова|н", "теория прав человека, толкование и пределы ограничений"),
-    ("лапаева|в", "достоинство, формальное равенство и критерии правового закона"),
-    ("джагарян|а", "ценностная аргументация, конституционная корректировка и remedy"),
-    ("троицкая|а", "пропорциональность и сравнительная техника конституционной аргументации"),
-    ("кряжков|в", "правовые позиции, их действие и институциональная практика КС РФ"),
-    ("хабриева|т", "взаимодействие правовых систем и конституционная методология"),
-    ("митюков|м", "история, процедура и институциональная эволюция конституционного контроля"),
-    ("гриценко|е", "доступ к правосудию, сравнительный контроль и публичная власть"),
-    ("кокотов|а", "правовые позиции и российская теория конституционного правосудия"),
-    ("постников|а", "конституционный контроль, демократия и публично-правовые институты"),
-    ("тарибо|е", "эволюция нормоконтроля, решения и последствия конституционного контроля"),
-    ("вайпан|г", "права человека, международные стандарты и практическая аргументация"),
-    ("алекси|р", "структура принципов, пропорциональность и рациональность балансирования"),
-    ("люббевольф|г", "пропорциональность в практике ФКС Германии и институциональные предохранители"),
-    ("меллер|к", "модель прав в эпоху пропорциональности и критика балансирования"),
-    ("кумм|м", "достоинство, пропорциональность и деонтический плюрализм"),
-    ("дворкин|р", "права как принципы, целостность и пределы усмотрения"),
-    ("schauer|f", "прецедент, аналогия и дисциплина юридического рассуждения"),
-    ("санстейн|к", "судебный минимализм, последствия и институциональная осторожность"),
-    ("джексон|в", "сравнительное конституционное рассуждение и перенос иностранных источников"),
-    ("шайо|а", "конституционализм, права и институциональные риски"),
-    ("гарлицкий|л", "взаимодействие конституционных судов и европейских стандартов"),
-    ("scalia|a", "текстуализм и каноны толкования как контрметод"),
-    ("habermas|j", "демократическая легитимность, дискурс и конституционное государство"),
-    ("кельзен|г", "модель конституционного суда и нормативная иерархия"),
-    ("barak|a", "судья в демократии, purposive interpretation и пропорциональность"),
-]
-
-
 @dataclass
 class Occurrence:
     raw_name: str
@@ -1186,23 +1150,6 @@ def serialize(authorities: dict[str, Authority], as_of: str) -> dict:
         for source in row["source_counts"]:
             source_people[source] += 1
 
-    row_by_key = {row["identity_key"]: row for row in rows}
-    next_wave = []
-    for identity, target in NEXT_EXTRACTION_WAVE:
-        row = row_by_key.get(identity)
-        if not row or row["method_integrated"]:
-            continue
-        next_wave.append(
-            {
-                "authority_id": row["id"],
-                "canonical_name": row["canonical_name"],
-                "current_status": row["status"],
-                "target_methods": target,
-                "source_counts": row["source_counts"],
-                "works_available": len(row["works"]),
-            }
-        )
-
     return {
         "schema_version": SCHEMA_VERSION,
         "as_of": as_of,
@@ -1215,7 +1162,6 @@ def serialize(authorities: dict[str, Authority], as_of: str) -> dict:
                 "kind": "blokhin_bibliography",
                 "label": SOURCE_LABELS["blokhin_bibliography"],
                 "coverage": "диссертации и научные работы, библиографические позиции 386–777",
-                "local_source_hint": "ТЗ/Наука/Конституционное правосудие/Blokhin.-DissertatsiyaITOG.pdf",
             },
             {
                 "kind": "sko_index",
@@ -1227,13 +1173,11 @@ def serialize(authorities: dict[str, Authority], as_of: str) -> dict:
                 "kind": "mp_index",
                 "label": SOURCE_LABELS["mp_index"],
                 "coverage": "№ 1(1) 2011 — № 1(57) 2026",
-                "local_source_hint": "ТЗ/Наука/mp-journal.ru/0405206_Perechen_statej_MP_2011_2026_1.pdf",
             },
             {
                 "kind": "zakon_discovery",
                 "label": SOURCE_LABELS["zakon_discovery"],
                 "coverage": "локальные материалы по конституционному праву; блоги и дискуссии",
-                "local_source_hint": "ТЗ/Наука/Конституционное правосудие/zakon_ru_constitutional_law/complaint_relevant_articles.json",
             },
             {
                 "kind": "curated_method",
@@ -1249,7 +1193,6 @@ def serialize(authorities: dict[str, Authority], as_of: str) -> dict:
             "works_total": sum(len(row["works"]) for row in rows),
             "needs_review_total": sum(bool(row["needs_identity_or_method_review"]) for row in rows),
         },
-        "next_extraction_wave": next_wave,
         "authorities": rows,
     }
 
@@ -1262,6 +1205,22 @@ def render_markdown(payload: dict) -> str:
         f"Срез на `{payload['as_of']}`. Реестр охватывает **{summary['authorities_total']}** нормализованных записей и **{summary['works_total']}** привязок к работам.",
         "",
         "Это карта поиска и извлечения методологии, а не рейтинг учёных и не самостоятельный источник права. Конституция РФ, официальный акт КС РФ, применённая норма и материалы дела всегда имеют приоритет. Запись уровня `discovery_only` нельзя называть авторитетом без проверки личности, публикации и тезиса.",
+        "",
+        "## Содержание",
+        "",
+        "- [Проверенные методические карточки](#проверенные-методические-карточки)",
+        "- [Как пользоваться](#как-пользоваться)",
+        "- [Уровни готовности](#уровни-готовности)",
+        "- [Уже внедрённые методологи](#уже-внедрённые-методологи)",
+        "- [Маршруты исследования](#маршруты-исследования)",
+        "- [Правила доверия](#правила-доверия)",
+        "- [Полный алфавитный реестр](#полный-алфавитный-реестр)",
+        "",
+        "## Проверенные методические карточки",
+        "",
+        f"Статусы этого реестра — срез сборщика на `{payload['as_of']}` и не отражают все последующие проверки.",
+        "",
+        "В [реестре проверенных карточек](constitutional-methodology-verified-cards.md) находятся 19 карточек до этапа внедрения; шесть возможных изменений поведения остаются только кандидатами до автоматической оценки и явного одобрения человеком. В [сравнительном и red-team корпусе](constitutional-methodology-reference-only-corpus.md) находятся 84 карточки с проверенными источниками и правовыми границами — для генерации вариантов, контрпримеров, вопросов проверки и пределов переноса. Ни одна из двух коллекций не разрешает перевод в обязательные правила; правовая проверка зафиксирована на `law_as_of=2026-08-14`, поэтому актуальные официальные источники нужно перепроверять.",
         "",
         "## Как пользоваться",
         "",
@@ -1287,10 +1246,6 @@ def render_markdown(payload: dict) -> str:
         guardrails = "; ".join(card["guardrail"] for card in row["method_cards"])
         role = "; ".join(row["roles"])
         lines.append(f"| {row['canonical_name']} | {role} | {methods} | {guardrails} |")
-
-    lines.extend(["", "## Следующая широкая волна извлечения", "", "Эти авторы уже присутствуют в академических слоях корпуса, но их методы ещё не считаются встроенными. Очередь задаёт предмет извлечения, а не автоматический приоритет цитирования.", "", "| Автор | Текущий статус | Что извлекать | Работ в корпусе |", "| --- | --- | --- | ---: |"])
-    for item in payload["next_extraction_wave"]:
-        lines.append(f"| {item['canonical_name']} | `{item['current_status']}` | {item['target_methods']} | {item['works_available']} |")
 
     lines.extend(["", "## Маршруты исследования", "", "| Маршрут | Что искать | Авторов с совпадением |", "| --- | --- | ---: |"])
     for route, (_, description) in ROUTE_RULES.items():
@@ -1332,6 +1287,9 @@ def render_markdown(payload: dict) -> str:
 
 def validate(payload: dict) -> None:
     assert payload["schema_version"] == SCHEMA_VERSION
+    assert "next_extraction_wave" not in payload
+    assert all("local_source_hint" not in source for source in payload["sources"])
+    assert "ТЗ/" not in json.dumps(payload, ensure_ascii=False)
     names = [row["canonical_name"] for row in payload["authorities"]]
     assert len(names) == len(set(names)), "canonical names must be unique"
     assert all(row["status"] in STATUS_ORDER for row in payload["authorities"])

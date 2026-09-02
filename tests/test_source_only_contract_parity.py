@@ -314,9 +314,9 @@ class SourceOnlyContractParityTests(unittest.TestCase):
         skill_text = skill.read_text(encoding="utf-8")
 
         expected_digests = {
-            root_builder: "b1c393460420cc1c3382720d60188dbe4e52f9c72a78d87457f833682f67c33f",
-            json_corpus: "285b854f9d53a0a1ce3fa38c59f9d9ddeed8bd199979a40be6fa95b4570b7015",
-            markdown_corpus: "58405ad08d408147b72ee952b5e6422963e62da19c31c8b13a5c8d91a2375e98",
+            root_builder: "aef53ee039439a74c937a32189bdfaa3d31edc5fb98f822f2bc41994614f999f",
+            json_corpus: "f0484b308a647c87d851c0e073d30ad24c8c6ace45c63283ef19ccc1fde955e3",
+            markdown_corpus: "176ac91b604fb031a975dbcfc286adf265862bab4e2e9352789ae5a7ea47f748",
         }
         for path, expected in expected_digests.items():
             with self.subTest(path=path.relative_to(REPO).as_posix()):
