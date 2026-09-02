@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-02T12:39:58Z",
+  "generated_at": "2026-09-02T13:23:14Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "35a5ef19d784f232e55f1f69faacf8f8ea7c05f1",
+  "remote_base_commit": "60227c1766b44fd7c57877d7c510fcd6f2b40946",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 238,
-  "total_bytes": 8148105,
-  "tree_sha256": "6d82a92651e9249696b20f59c22b5c80dbca99e14d134c905bd958781cd67937",
+  "total_bytes": 8156905,
+  "tree_sha256": "3540ab950fd22de22c2ac6ae0b002b1be588f7a3cef34442fedf07d07ce4c787",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 94,
-      "bytes": 2157399,
-      "tree_sha256": "9f5fbaed68666f7bbf5e10cd01eeea957ab69c74a9c5df010ba10b93f731e828"
+      "bytes": 2166199,
+      "tree_sha256": "b4fd959048a607c0b6e6e0938e65efbb0f107ff4120ebfd1b92bed110b6eeb89"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -124,13 +124,13 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 327216,
-  "release_tree_sha256": "b5962c3b6a5cd4dfbffce3d28c1d2552d428f881d23d9c6b7c915addfc1b6185",
+  "total_release_bytes": 328989,
+  "release_tree_sha256": "9bc4c5fc06f53d7ebbc5b10efe488987d97fe8829a71680468cb678df383d6ed",
   "release_files": [
     {
       "path": "install.sh",
-      "bytes": 2979,
-      "sha256": "0a754ac6bbf49ca8f32a0a5eb02de1a613cec78a18139fd7baf7eee09ad93248"
+      "bytes": 4555,
+      "sha256": "6cc9eabc56ae0617e0344eda4cf66ddbe3dc20cae7414d3135904cafd2403adf"
     },
     {
       "path": "tools/generate_skills_manifest.py",
@@ -139,8 +139,8 @@
     },
     {
       "path": "tools/install_skillset.py",
-      "bytes": 140876,
-      "sha256": "20590ee1e0bb65fc5ea8b9a88b077d6f93319dfb490421a8738250a64854032e"
+      "bytes": 141073,
+      "sha256": "df53a23f2d9c86b469070a390fbd1bad55363fc1c02f580f57177e23de50a5ad"
     },
     {
       "path": "tools/skillset_file_contract.py",

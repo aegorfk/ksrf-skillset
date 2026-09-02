@@ -752,6 +752,102 @@ description: Используй этот навык для всего.
                     )
                 )
 
+    def test_require_current_rechecks_local_identity_after_network_before_current(
+        self,
+    ) -> None:
+        remote_sha = "b" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+            responses = {
+                ref_url: _FakeHttpResponse(
+                    json.dumps(
+                        {
+                            "ref": "refs/heads/main",
+                            "object": {"type": "commit", "sha": remote_sha},
+                        }
+                    ).encode(),
+                    ref_url,
+                ),
+                manifest_url: _FakeHttpResponse(
+                    json.dumps(
+                        {
+                            "schema_version": "1.2",
+                            "digest_format": (
+                                "sha256 over 4-byte big-endian relative path length + "
+                                "relative path + 8-byte big-endian content length + content, "
+                                "files sorted by POSIX relative path"
+                            ),
+                            "total_skills": 1,
+                            "total_files": total_files,
+                            "total_bytes": total_bytes,
+                            "tree_sha256": local_hash,
+                        }
+                    ).encode(),
+                    manifest_url,
+                ),
+            }
+
+            def opener(request: object, *, timeout: float):
+                del timeout
+                url = str(getattr(request, "full_url", request))
+                if url == manifest_url:
+                    _write(
+                        skill / "references" / "guide.md",
+                        "# Изменено во время сети\n",
+                    )
+                return responses[url]
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=opener,
+                ),
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--skills-root",
+                        str(root),
+                        "--profile",
+                        "runtime",
+                        "--strict",
+                        "--check-updates",
+                        "--require-current",
+                        "--json",
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(report["status"], "fail")
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertEqual(
+                report["freshness"]["reason_code"],
+                "local_identity_unavailable",
+            )
+            self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+
     def test_runtime_freshness_network_gap_is_unknown_and_does_not_change_exit(
         self,
     ) -> None:
@@ -799,6 +895,294 @@ description: Используй этот навык для всего.
             self.assertEqual(payload["freshness"]["reason_code"], "network_error")
             self.assertNotIn("secret upstream detail", stdout.getvalue())
             self.assertNotIn("TimeoutError", stdout.getvalue())
+
+    def test_require_current_maps_freshness_to_stable_exit_codes(self) -> None:
+        for freshness_status, expected_exit in (
+            ("current", 0),
+            ("different", 10),
+            ("unknown", 20),
+        ):
+            with self.subTest(freshness_status=freshness_status):
+                report = {
+                    "schema_version": "1.1.0",
+                    "status": "pass",
+                    "summary": {"errors": 0, "warnings": 0},
+                    "freshness": {
+                        "status": freshness_status,
+                        "reason_code": "test_fixture",
+                    },
+                }
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with mock.patch.object(
+                    VALIDATOR,
+                    "validate_skillset",
+                    return_value=report,
+                ):
+                    exit_code = VALIDATOR.main(
+                        [
+                            "--skills-root",
+                            "/tmp/ksrf-runtime-target",
+                            "--profile",
+                            "runtime",
+                            "--check-updates",
+                            "--require-current",
+                            "--strict",
+                            "--json",
+                        ],
+                        stdout=stdout,
+                        stderr=stderr,
+                    )
+
+                self.assertEqual(exit_code, expected_exit)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertEqual(json.loads(stdout.getvalue()), report)
+
+    def test_require_current_human_heading_never_false_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            base_report = VALIDATOR.validate_skillset(
+                root,
+                package_names=("ksrf-test",),
+                profile="runtime",
+            )
+            cases = (
+                (
+                    "current",
+                    0,
+                    "ЛОКАЛЬНЫЙ ОТПЕЧАТОК СОВПАДАЕТ С МАНИФЕСТОМ MAIN",
+                ),
+                ("different", 10, "СОДЕРЖИМОЕ ОТЛИЧАЕТСЯ"),
+                ("unknown", 20, "АКТУАЛЬНОСТЬ НЕ УСТАНОВЛЕНА"),
+            )
+            for freshness_status, expected_exit, expected_heading in cases:
+                with self.subTest(freshness_status=freshness_status):
+                    report = dict(base_report)
+                    report["freshness"] = {
+                        **base_report["freshness"],
+                        "status": freshness_status,
+                    }
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with (
+                        mock.patch.object(
+                            VALIDATOR,
+                            "CANONICAL_KSRF_PACKAGES",
+                            ("ksrf-test",),
+                        ),
+                        mock.patch.object(
+                            VALIDATOR,
+                            "validate_skillset",
+                            return_value=report,
+                        ),
+                    ):
+                        exit_code = VALIDATOR.main(
+                            [
+                                "--skills-root",
+                                str(root),
+                                "--profile",
+                                "runtime",
+                                "--strict",
+                                "--check-updates",
+                                "--require-current",
+                            ],
+                            stdout=stdout,
+                            stderr=stderr,
+                        )
+
+                    first_line = stdout.getvalue().splitlines()[0]
+                    self.assertEqual(exit_code, expected_exit)
+                    self.assertIn(expected_heading, first_line)
+                    if freshness_status != "current":
+                        self.assertNotIn("ПРОЙДЕНО", first_line)
+                    self.assertEqual(stderr.getvalue(), "")
+
+    def test_require_current_strict_warning_heading_matches_failure_exit(self) -> None:
+        report = {
+            "status": "pass",
+            "summary": {"errors": 0, "warnings": 1},
+            "validation_profile": "runtime",
+            "validation_coverage": {
+                "evals": "not_checked",
+                "runtime_self_containment": "validated",
+                "public_source_safety": "not_checked",
+                "public_repository_safety": "not_checked",
+            },
+            "source_release_eligible": False,
+            "validated_package_count": 15,
+            "expected_package_count": 15,
+            "runtime_content": {
+                "tree_sha256": "a" * 64,
+                "total_files": 1,
+                "total_bytes": 1,
+            },
+            "freshness": {
+                "status": "current",
+                "reason_code": "content_matches",
+                "remote_main_sha": "b" * 40,
+            },
+            "findings": [],
+        }
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.object(
+            VALIDATOR,
+            "validate_skillset",
+            return_value=report,
+        ):
+            exit_code = VALIDATOR.main(
+                [
+                    "--profile",
+                    "runtime",
+                    "--strict",
+                    "--check-updates",
+                    "--require-current",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, 1)
+        first_line = stdout.getvalue().splitlines()[0]
+        self.assertIn("НЕ ПРОЙДЕНО", first_line)
+        self.assertNotIn("АКТУАЛЕН", first_line)
+        self.assertEqual(stderr.getvalue(), "")
+
+        legacy_stdout = io.StringIO()
+        with mock.patch.object(
+            VALIDATOR,
+            "validate_skillset",
+            return_value=report,
+        ):
+            legacy_exit = VALIDATOR.main(
+                [
+                    "--profile",
+                    "runtime",
+                    "--strict",
+                    "--check-updates",
+                ],
+                stdout=legacy_stdout,
+                stderr=io.StringIO(),
+            )
+
+        self.assertEqual(legacy_exit, 1)
+        self.assertIn("ПРОЙДЕНО", legacy_stdout.getvalue().splitlines()[0])
+
+    def test_require_current_is_additive_and_validation_failure_wins(self) -> None:
+        cases = (
+            ("default-different", "pass", 0, "different", False, 0),
+            ("required-different", "pass", 0, "different", True, 10),
+            ("required-unknown", "pass", 0, "unknown", True, 20),
+            ("required-error", "fail", 1, "unknown", True, 1),
+            ("required-strict-warning", "pass", 1, "current", True, 1),
+        )
+        for label, status, warnings, freshness, required, expected_exit in cases:
+            with self.subTest(label=label):
+                report = {
+                    "status": status,
+                    "summary": {"errors": int(status == "fail"), "warnings": warnings},
+                    "freshness": {"status": freshness},
+                }
+                arguments = [
+                    "--profile",
+                    "runtime",
+                    "--check-updates",
+                    "--strict",
+                    "--json",
+                ]
+                if required:
+                    arguments.append("--require-current")
+                with mock.patch.object(
+                    VALIDATOR,
+                    "validate_skillset",
+                    return_value=report,
+                ):
+                    exit_code = VALIDATOR.main(
+                        arguments,
+                        stdout=io.StringIO(),
+                        stderr=io.StringIO(),
+                    )
+
+                self.assertEqual(exit_code, expected_exit)
+
+    def test_require_current_rejects_incomplete_scope_before_network(self) -> None:
+        cases = (
+            ["--require-current"],
+            ["--profile", "runtime", "--require-current"],
+            ["--profile", "source", "--check-updates", "--require-current"],
+            [
+                "--profile",
+                "runtime",
+                "--package",
+                "ksrf-test",
+                "--check-updates",
+                "--require-current",
+            ],
+        )
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(
+                        VALIDATOR,
+                        "validate_skillset",
+                        side_effect=AssertionError("invalid scope must not validate"),
+                    ) as validate,
+                    mock.patch.object(
+                        VALIDATOR,
+                        "_FRESHNESS_OPENER",
+                        side_effect=AssertionError("invalid scope must stay offline"),
+                    ) as opener,
+                ):
+                    exit_code = VALIDATOR.main(
+                        arguments,
+                        stdout=stdout,
+                        stderr=stderr,
+                    )
+
+                self.assertEqual(exit_code, 2)
+                validate.assert_not_called()
+                opener.assert_not_called()
+                self.assertIn("--require-current", stderr.getvalue())
+
+    def test_require_current_rejects_report_file_before_write_or_network(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = Path(tmp) / "report.json"
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "validate_skillset",
+                    side_effect=AssertionError("invalid output mode must not validate"),
+                ) as validate,
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=AssertionError("invalid output mode must stay offline"),
+                ) as opener,
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--profile",
+                        "runtime",
+                        "--check-updates",
+                        "--require-current",
+                        "--report-out",
+                        str(report_path),
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            self.assertEqual(exit_code, 2)
+            validate.assert_not_called()
+            opener.assert_not_called()
+            self.assertFalse(report_path.exists())
+            self.assertIn("--report-out", stderr.getvalue())
 
     def test_runtime_freshness_redirect_parse_error_is_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1052,6 +1436,99 @@ description: Используй этот навык для всего.
             opener.assert_not_called()
             self.assertEqual(report["status"], "fail")
             self.assertIn("RUNTIME_IDENTITY_CHANGED", _codes(report))
+
+    @unittest.skipUnless(hasattr(Path, "symlink_to"), "symlink support required")
+    def test_require_current_rejects_runtime_root_replacement_during_network(
+        self,
+    ) -> None:
+        remote_sha = "c" * 40
+        ref_url = (
+            "https://api.github.com/repos/aegorfk/ksrf-skillset/"
+            "git/ref/heads/main"
+        )
+        manifest_url = (
+            "https://raw.githubusercontent.com/aegorfk/ksrf-skillset/"
+            f"{remote_sha}/skills-manifest.json"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            container = Path(tmp)
+            root = container / "skills"
+            skill = _make_valid_skill(root)
+            _remove_evals(skill)
+            local_hash, total_files, total_bytes = _runtime_tree_digest(root)
+            responses = {
+                ref_url: _FakeHttpResponse(
+                    json.dumps(
+                        {
+                            "ref": "refs/heads/main",
+                            "object": {"type": "commit", "sha": remote_sha},
+                        }
+                    ).encode(),
+                    ref_url,
+                ),
+                manifest_url: _FakeHttpResponse(
+                    json.dumps(
+                        {
+                            "schema_version": "1.2",
+                            "digest_format": (
+                                "sha256 over 4-byte big-endian relative path length + "
+                                "relative path + 8-byte big-endian content length + content, "
+                                "files sorted by POSIX relative path"
+                            ),
+                            "total_skills": 1,
+                            "total_files": total_files,
+                            "total_bytes": total_bytes,
+                            "tree_sha256": local_hash,
+                        }
+                    ).encode(),
+                    manifest_url,
+                ),
+            }
+            original_root = container / "original-skills"
+
+            def opener(request: object, *, timeout: float):
+                del timeout
+                url = str(getattr(request, "full_url", request))
+                if url == manifest_url:
+                    root.rename(original_root)
+                    root.symlink_to(original_root, target_is_directory=True)
+                return responses[url]
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(
+                    VALIDATOR,
+                    "CANONICAL_KSRF_PACKAGES",
+                    ("ksrf-test",),
+                ),
+                mock.patch.object(
+                    VALIDATOR,
+                    "_FRESHNESS_OPENER",
+                    side_effect=opener,
+                ),
+            ):
+                exit_code = VALIDATOR.main(
+                    [
+                        "--skills-root",
+                        str(root),
+                        "--profile",
+                        "runtime",
+                        "--strict",
+                        "--check-updates",
+                        "--require-current",
+                        "--json",
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(report["status"], "fail")
+            self.assertEqual(report["freshness"]["status"], "unknown")
+            self.assertIn("RUNTIME_ROOT_CHANGED", _codes(report))
             self.assertIsNone(report["runtime_content"]["tree_sha256"])
             self.assertEqual(report["freshness"]["status"], "unknown")
             self.assertEqual(

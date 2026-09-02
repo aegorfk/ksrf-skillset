@@ -2862,12 +2862,90 @@ def _validate_source_public_safety(
     return "validated", repository_safety
 
 
+def _required_runtime_root_anchor(root: Path) -> tuple[int, int, int, str]:
+    metadata = root.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise OSError("runtime root is a symlink or not a directory")
+    resolved = root.resolve(strict=True)
+    filesystem_root = Path(resolved.anchor)
+    if resolved == filesystem_root or resolved == Path.home().resolve():
+        raise OSError("runtime root is too broad")
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        stat.S_IFMT(metadata.st_mode),
+        str(resolved),
+    )
+
+
+def _required_runtime_root_matches(
+    root: Path,
+    anchor: tuple[int, int, int, str],
+) -> bool:
+    try:
+        metadata = root.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            return False
+        observed = (
+            metadata.st_dev,
+            metadata.st_ino,
+            stat.S_IFMT(metadata.st_mode),
+            str(root.resolve(strict=True)),
+        )
+    except (OSError, ValueError):
+        return False
+    return observed == anchor
+
+
+def _required_runtime_root_failure_report(
+    packages: Sequence[str],
+) -> dict[str, Any]:
+    finding = _finding(
+        "error",
+        "RUNTIME_ROOT_UNSAFE",
+        "Корень runtime-проверки небезопасен, слишком широк или недоступен.",
+        path="runtime",
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "validation_profile": "runtime",
+        "validation_coverage": {
+            "evals": "not_checked",
+            "runtime_self_containment": "not_checked",
+            "public_source_safety": "not_checked",
+            "public_repository_safety": "not_checked",
+        },
+        "source_release_eligible": False,
+        "status": "fail",
+        "expected_package_count": len(packages),
+        "validated_package_count": 0,
+        "validated_packages": [],
+        "summary": {"errors": 1, "warnings": 0},
+        "findings": [finding],
+        "runtime_content": {
+            "algorithm": RUNTIME_CONTENT_ALGORITHM,
+            "tree_sha256": None,
+            "total_files": 0,
+            "total_bytes": 0,
+        },
+        "freshness": {
+            "status": "unknown",
+            "reason_code": "local_identity_unavailable",
+            "remote_main_sha": None,
+            "local_tree_sha256": None,
+            "remote_tree_sha256": None,
+        },
+        "publish_manifest": None,
+    }
+
+
 def validate_skillset(
     skills_root: str | Path,
     *,
     package_names: Sequence[str] = CANONICAL_KSRF_PACKAGES,
     profile: str = "source",
     check_updates: bool = False,
+    require_current: bool = False,
 ) -> dict[str, Any]:
     """Validate packages and return a JSON-serializable evidence report."""
 
@@ -2877,12 +2955,20 @@ def validate_skillset(
         )
     root = Path(skills_root).expanduser().absolute()
     packages = tuple(package_names)
+    if require_current and not check_updates:
+        raise ValueError("require_current requires check_updates")
     if check_updates and (
         profile != "runtime" or not _is_complete_canonical_scope(packages)
     ):
         raise ValueError(
             "check_updates requires the runtime profile and complete canonical package scope"
         )
+    required_root_anchor: tuple[int, int, int, str] | None = None
+    if require_current:
+        try:
+            required_root_anchor = _required_runtime_root_anchor(root)
+        except (OSError, ValueError):
+            return _required_runtime_root_failure_report(packages)
     findings: list[dict[str, Any]] = []
     if yaml is None:
         findings.append(
@@ -2953,10 +3039,74 @@ def validate_skillset(
         manifest["files"],
         validation_profile=profile,
     )
+    if (
+        required_root_anchor is not None
+        and not _required_runtime_root_matches(root, required_root_anchor)
+    ):
+        findings.append(
+            _finding(
+                "error",
+                "RUNTIME_ROOT_CHANGED",
+                "Корень runtime-проверки был заменён до сетевого сравнения.",
+                path="runtime",
+            )
+        )
+        runtime_content = {**runtime_content, "tree_sha256": None}
     freshness = _runtime_freshness(
         runtime_content,
         check_updates=check_updates,
     )
+    if require_current and freshness["status"] == "current":
+        post_network_findings: list[dict[str, Any]] = []
+        post_network_content = _runtime_content_identity(
+            post_network_findings,
+            root,
+            packages,
+            manifest["files"],
+            validation_profile=profile,
+        )
+        if post_network_findings or post_network_content != runtime_content:
+            findings.extend(post_network_findings)
+            if not post_network_findings:
+                findings.append(
+                    _finding(
+                        "error",
+                        "RUNTIME_IDENTITY_CHANGED",
+                        "Runtime-дерево изменилось во время сетевой проверки актуальности.",
+                        path="runtime",
+                    )
+                )
+            runtime_content = {
+                **runtime_content,
+                "tree_sha256": None,
+            }
+            freshness.update(
+                status="unknown",
+                reason_code="local_identity_unavailable",
+                local_tree_sha256=None,
+            )
+    if (
+        required_root_anchor is not None
+        and not _required_runtime_root_matches(root, required_root_anchor)
+    ):
+        if not any(
+            item.get("code") == "RUNTIME_ROOT_CHANGED"
+            for item in findings
+        ):
+            findings.append(
+                _finding(
+                    "error",
+                    "RUNTIME_ROOT_CHANGED",
+                    "Корень runtime-проверки был заменён во время проверки актуальности.",
+                    path="runtime",
+                )
+            )
+        runtime_content = {**runtime_content, "tree_sha256": None}
+        freshness.update(
+            status="unknown",
+            reason_code="local_identity_unavailable",
+            local_tree_sha256=None,
+        )
     severity_order = {"error": 0, "warning": 1}
     findings.sort(
         key=lambda item: (
@@ -3010,14 +3160,35 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     temporary.replace(path)
 
 
-def _render_text(report: Mapping[str, Any]) -> str:
+def _render_text(
+    report: Mapping[str, Any],
+    *,
+    require_current: bool = False,
+    strict: bool = False,
+) -> str:
     summary = report["summary"]
-    status = "ПРОЙДЕНО" if report["status"] == "pass" else "НЕ ПРОЙДЕНО"
+    validation_failed = report["status"] != "pass" or (
+        strict and bool(summary["warnings"])
+    )
+    status = "НЕ ПРОЙДЕНО" if validation_failed else "ПРОЙДЕНО"
     profile = str(report["validation_profile"])
     runtime_content = report["runtime_content"]
     local_tree_sha256 = runtime_content["tree_sha256"]
+    heading = f"Проверка KSRF skillset: {status}"
+    if require_current and not validation_failed:
+        current_headings = {
+            "current": "ЛОКАЛЬНЫЙ ОТПЕЧАТОК СОВПАДАЕТ С МАНИФЕСТОМ MAIN",
+            "different": "СОДЕРЖИМОЕ ОТЛИЧАЕТСЯ",
+            "unknown": "АКТУАЛЬНОСТЬ НЕ УСТАНОВЛЕНА",
+        }
+        freshness_status = report["freshness"].get("status")
+        current_heading = current_headings.get(
+            freshness_status,
+            "РЕЗУЛЬТАТ АКТУАЛЬНОСТИ НЕ ПОЛУЧЕН",
+        )
+        heading = f"Проверка установленного набора: {current_heading}"
     lines = [
-        f"Проверка KSRF skillset: {status}",
+        heading,
         (
             f"Профиль: {profile}; evals: "
             f"{report['validation_coverage']['evals']}; "
@@ -3052,15 +3223,16 @@ def _render_text(report: Mapping[str, Any]) -> str:
         freshness_status = freshness["status"]
         if freshness_status == "current":
             lines.append(
-                "Актуальность установленного набора: содержимое побайтно "
-                "совпадает с текущим main "
-                f"({freshness['remote_main_sha']}); это не доказывает происхождение установки."
+                "Актуальность установленного набора: локальный runtime-отпечаток "
+                "совпадает с манифестом commit "
+                f"{freshness['remote_main_sha']}; это не доказывает происхождение установки."
             )
         elif freshness_status == "different":
             lines.append(
-                "Актуальность установленного набора: содержимое отличается от текущего main "
-                f"({freshness['remote_main_sha']}); набор может быть старым, "
-                "настроенным или локально изменённым."
+                "Актуальность установленного набора: локальный runtime-отпечаток "
+                "отличается от манифеста commit "
+                f"{freshness['remote_main_sha']}; набор может быть старым, настроенным, "
+                "более новым/неопубликованным или локально изменённым."
             )
         elif freshness_status == "unknown":
             reason = _FRESHNESS_REASON_LABELS.get(
@@ -3139,6 +3311,14 @@ def main(
             "canonical main; сеть используется только по этому явному флагу."
         ),
     )
+    parser.add_argument(
+        "--require-current",
+        action="store_true",
+        help=(
+            "Вместе с полной runtime-проверкой вернуть 10, если содержимое "
+            "отличается от текущего main, и 20, если актуальность не установлена."
+        ),
+    )
     args = parser.parse_args(argv)
     output = sys.stdout if stdout is None else stdout
     errors = sys.stderr if stderr is None else stderr
@@ -3148,9 +3328,24 @@ def main(
             "используйте полный JSON-отчёт или source-профиль.\n"
         )
         return 2
+    if args.require_current and args.report_out:
+        errors.write(
+            "--require-current нельзя сочетать с --report-out; используйте stdout.\n"
+        )
+        return 2
     requested_packages = (
         tuple(args.packages) if args.packages else CANONICAL_KSRF_PACKAGES
     )
+    if args.require_current and (
+        not args.check_updates
+        or args.profile != "runtime"
+        or not _is_complete_canonical_scope(requested_packages)
+    ):
+        errors.write(
+            "--require-current требует --check-updates, runtime-профиль и "
+            "полный canonical набор KSRF-пакетов.\n"
+        )
+        return 2
     if args.check_updates and (
         args.profile != "runtime"
         or not _is_complete_canonical_scope(requested_packages)
@@ -3166,6 +3361,7 @@ def main(
             package_names=requested_packages,
             profile=args.profile,
             check_updates=args.check_updates,
+            require_current=args.require_current,
         )
         if args.report_out:
             _write_json(args.report_out, report)
@@ -3175,11 +3371,31 @@ def main(
             json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
             output.write("\n")
         else:
-            output.write(_render_text(report))
+            output.write(
+                _render_text(
+                    report,
+                    require_current=args.require_current,
+                    strict=args.strict and args.require_current,
+                )
+            )
         if report["status"] == "fail":
             return 1
         if args.strict and report["summary"]["warnings"]:
             return 1
+        if args.require_current:
+            freshness_exit_codes = {
+                "current": 0,
+                "different": 10,
+                "unknown": 20,
+            }
+            freshness_status = report["freshness"].get("status")
+            if freshness_status not in freshness_exit_codes:
+                errors.write(
+                    "Требуемый результат актуальности не получен; "
+                    "положительный код не выдан.\n"
+                )
+                return 2
+            return freshness_exit_codes[freshness_status]
         return 0
     except Exception as exc:  # fail closed for unexpected packaging errors
         errors.write(f"Валидатор остановлен без публикации: {type(exc).__name__}: {exc}\n")
