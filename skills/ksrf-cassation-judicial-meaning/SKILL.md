@@ -33,15 +33,16 @@ description: "Скилл исследует материалы дела заяв
 Минимальный старт из любого каталога:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py intake \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" intake \
   --workspace ./judicial-meaning-run \
   --inputs ./acts/
 
-python3 <skill-dir>/scripts/judicial_meaning.py case prepare \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" case prepare \
   --workspace ./judicial-meaning-run \
   --answers ./case-answers.json
 
-python3 <skill-dir>/scripts/judicial_meaning.py plan template \
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" plan template \
   --workspace ./judicial-meaning-run
 ```
 

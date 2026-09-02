@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -9,6 +10,18 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+RESOLVER_SPECS = (
+    (
+        "hudoc_kb_cli.py",
+        "HUDOC_KB_CLI",
+        "scripts/hudoc_knowledge_base.py",
+    ),
+    (
+        "hudoc_vector_cli.py",
+        "HUDOC_VECTOR_CLI",
+        "scripts/hudoc_vector_search.py",
+    ),
+)
 
 
 class HudocSkillInterfaceContractTest(unittest.TestCase):
@@ -17,8 +30,8 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            repository = root / "repository"
-            worktree = root / "worktree"
+            repository = root / "repository with spaces"
+            worktree = root / "worktree with spaces"
             home = root / "home"
             home.mkdir()
             self._run(["git", "init", str(repository)])
@@ -50,10 +63,14 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
                     str(worktree),
                 ]
             )
-            self._write_fake_repository(worktree)
+            self._write_fake_repository(worktree, record_runtime_context=True)
 
             environment = self._isolated_environment(home)
             environment["HUDOC_KS_PARSER_REPO"] = str(repository)
+            existing_pythonpath = os.pathsep.join(
+                (str(root / "existing one"), str(root / "existing two"))
+            )
+            environment["PYTHONPATH"] = existing_pythonpath
             knowledge = self._run_resolver(
                 "hudoc_kb_cli.py", environment=environment, cwd=home
             )
@@ -62,9 +79,164 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             )
 
             self.assertEqual(knowledge.returncode, 0, knowledge.stderr)
-            self.assertIn("knowledge-cli-help-v3.8-v7-v2", knowledge.stdout)
             self.assertEqual(vector.returncode, 0, vector.stderr)
-            self.assertIn("vector-cli-help-v3.8-v7-v2", vector.stdout)
+            for result, marker in (
+                (knowledge, "knowledge-cli-help-v3.8-v7-v2"),
+                (vector, "vector-cli-help-v3.8-v7-v2"),
+            ):
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["marker"], marker)
+                self.assertEqual(payload["cwd"], str(worktree.resolve()))
+                self.assertEqual(
+                    payload["pythonpath"],
+                    f"{worktree.resolve()}{os.pathsep}{existing_pythonpath}",
+                )
+                self.assertEqual(payload["argv"], ["--help"])
+
+    def test_resolvers_require_explicit_configuration_and_ignore_current_git_root(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "current repository"
+            home = root / "home"
+            home.mkdir()
+            self._run(["git", "init", str(repository)])
+            self._write_fake_repository(repository)
+            environment = self._isolated_environment(home)
+
+            for resolver, direct_env, _ in RESOLVER_SPECS:
+                with self.subTest(resolver=resolver):
+                    result = self._run_resolver(
+                        resolver, environment=environment, cwd=repository
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(direct_env, result.stderr)
+                    self.assertIn("HUDOC_KS_PARSER_REPO", result.stderr)
+                    self.assertIn("не входит в пакет skills", result.stderr)
+                    self.assertIn("Автопоиск", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_resolvers_require_explicit_configuration_and_ignore_home_default(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            repository = home / "Documents" / "ks_parser"
+            unrelated_cwd = root / "unrelated cwd"
+            unrelated_cwd.mkdir()
+            self._write_fake_repository(repository)
+            environment = self._isolated_environment(home)
+
+            for resolver, direct_env, _ in RESOLVER_SPECS:
+                with self.subTest(resolver=resolver):
+                    result = self._run_resolver(
+                        resolver, environment=environment, cwd=unrelated_cwd
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(direct_env, result.stderr)
+                    self.assertIn("HUDOC_KS_PARSER_REPO", result.stderr)
+                    self.assertIn("не входит в пакет skills", result.stderr)
+                    self.assertIn("Автопоиск", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_direct_cli_environment_is_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "valid configured repository"
+            home = root / "home"
+            home.mkdir()
+            self._write_fake_repository(repository)
+
+            for resolver, direct_env, relative_cli in RESOLVER_SPECS:
+                with self.subTest(resolver=resolver):
+                    missing_cli = root / "missing direct CLI" / Path(relative_cli).name
+                    environment = self._isolated_environment(home)
+                    environment["HUDOC_KS_PARSER_REPO"] = str(repository)
+                    environment[direct_env] = str(missing_cli)
+                    result = self._run_resolver(
+                        resolver, environment=environment, cwd=home
+                    )
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(direct_env, result.stderr)
+                    self.assertIn(str(missing_cli), result.stderr)
+                    self.assertIn("Другие пути не проверялись", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_repository_environment_is_exclusive_from_cwd_and_home(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            configured_repository = root / "configured incompatible repository"
+            current_repository = root / "current valid repository"
+            home = root / "home"
+            home_repository = home / "Documents" / "ks_parser"
+            home.mkdir()
+            self._write_fake_repository(
+                configured_repository,
+                research_version="hudoc-research-extractive-v6",
+            )
+            self._run(["git", "init", str(current_repository)])
+            self._write_fake_repository(current_repository)
+            self._write_fake_repository(home_repository)
+            environment = self._isolated_environment(home)
+            environment["HUDOC_KS_PARSER_REPO"] = str(configured_repository)
+
+            for resolver, direct_env, _ in RESOLVER_SPECS:
+                with self.subTest(resolver=resolver):
+                    result = self._run_resolver(
+                        resolver,
+                        environment=environment,
+                        cwd=current_repository,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(direct_env, result.stderr)
+                    self.assertIn(
+                        str(configured_repository.resolve()), result.stderr
+                    )
+                    self.assertIn("Другие каталоги не проверялись", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_direct_cli_preserves_cwd_pythonpath_and_argv(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "direct repository with spaces"
+            home = root / "home"
+            unrelated_cwd = root / "unrelated cwd"
+            home.mkdir()
+            unrelated_cwd.mkdir()
+            self._write_fake_repository(repository, record_runtime_context=True)
+            existing_pythonpath = os.pathsep.join(
+                (str(root / "existing one"), str(root / "existing two"))
+            )
+
+            for resolver, direct_env, relative_cli in RESOLVER_SPECS:
+                with self.subTest(resolver=resolver):
+                    environment = self._isolated_environment(home)
+                    environment["PYTHONPATH"] = existing_pythonpath
+                    environment[direct_env] = str(repository / relative_cli)
+                    result = self._run_resolver(
+                        resolver,
+                        environment=environment,
+                        cwd=unrelated_cwd,
+                        arguments=("--probe", "value with spaces"),
+                    )
+
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    payload = json.loads(result.stdout)
+                    self.assertEqual(payload["cwd"], str(repository.resolve()))
+                    self.assertEqual(
+                        payload["pythonpath"],
+                        f"{repository.resolve()}{os.pathsep}{existing_pythonpath}",
+                    )
+                    self.assertEqual(
+                        payload["argv"], ["--probe", "value with spaces"]
+                    )
 
     def test_resolvers_fail_closed_for_pre_v7_research_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -130,6 +302,50 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
                     self.assertIn(
                         "hudoc-knowledge-privacy-sanitizer-v2", result.stderr
                     )
+
+    def test_vector_resolver_fails_closed_for_pre_v2_indexer_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "repository"
+            home = root / "home"
+            home.mkdir()
+            self._write_fake_repository(
+                repository,
+                vector_indexer_version="hudoc-vector-indexer-v1",
+            )
+            environment = self._isolated_environment(home)
+            environment["HUDOC_KS_PARSER_REPO"] = str(repository)
+
+            result = self._run_resolver(
+                "hudoc_vector_cli.py", environment=environment, cwd=home
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("hudoc-vector-indexer-v2", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_vector_resolver_fails_closed_for_pre_v2_evaluator_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "repository"
+            home = root / "home"
+            home.mkdir()
+            self._write_fake_repository(
+                repository,
+                vector_evaluator_version="hudoc-vector-evaluator-v1",
+            )
+            environment = self._isolated_environment(home)
+            environment["HUDOC_KS_PARSER_REPO"] = str(repository)
+
+            result = self._run_resolver(
+                "hudoc_vector_cli.py", environment=environment, cwd=home
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("hudoc-vector-evaluator-v2", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_resolvers_are_portable_and_pin_current_interface_versions(self) -> None:
         knowledge = self._read("scripts/hudoc_kb_cli.py")
@@ -216,9 +432,10 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         *,
         environment: dict[str, str],
         cwd: Path,
+        arguments: tuple[str, ...] = ("--help",),
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(SKILL_ROOT / "scripts" / name), "--help"],
+            [sys.executable, str(SKILL_ROOT / "scripts" / name), *arguments],
             cwd=cwd,
             env=environment,
             check=False,
@@ -241,6 +458,9 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         research_version: str = "hudoc-research-extractive-v7",
         knowledge_version: str = "hudoc-knowledge-indexer-v3.8",
         privacy_version: str = "hudoc-knowledge-privacy-sanitizer-v2",
+        vector_indexer_version: str = "hudoc-vector-indexer-v2",
+        vector_evaluator_version: str = "hudoc-vector-evaluator-v2",
+        record_runtime_context: bool = False,
     ) -> None:
         scripts = repository / "scripts"
         source = repository / "src"
@@ -256,17 +476,40 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             encoding="utf-8",
         )
         (source / "hudoc_vector_search.py").write_text(
-            'VECTOR_INDEXER_VERSION = "hudoc-vector-indexer-v2"\n'
-            'RELEASE_EVALUATOR_VERSION = "hudoc-vector-evaluator-v2"\n',
+            f'VECTOR_INDEXER_VERSION = "{vector_indexer_version}"\n'
+            f'RELEASE_EVALUATOR_VERSION = "{vector_evaluator_version}"\n',
             encoding="utf-8",
         )
+        if record_runtime_context:
+            knowledge_cli = self._runtime_context_cli_source(
+                "knowledge-cli-help-v3.8-v7-v2"
+            )
+            vector_cli = self._runtime_context_cli_source(
+                "vector-cli-help-v3.8-v7-v2"
+            )
+        else:
+            knowledge_cli = 'print("knowledge-cli-help-v3.8-v7-v2")\n'
+            vector_cli = 'print("vector-cli-help-v3.8-v7-v2")\n'
         (scripts / "hudoc_knowledge_base.py").write_text(
-            'print("knowledge-cli-help-v3.8-v7-v2")\n',
+            knowledge_cli,
             encoding="utf-8",
         )
         (scripts / "hudoc_vector_search.py").write_text(
-            'print("vector-cli-help-v3.8-v7-v2")\n',
+            vector_cli,
             encoding="utf-8",
+        )
+
+    def _runtime_context_cli_source(self, marker: str) -> str:
+        return (
+            "import json\n"
+            "import os\n"
+            "import sys\n"
+            "print(json.dumps({\n"
+            f'    "marker": "{marker}",\n'
+            '    "cwd": os.getcwd(),\n'
+            '    "pythonpath": os.environ.get("PYTHONPATH"),\n'
+            '    "argv": sys.argv[1:],\n'
+            "}))\n"
         )
 
     def _run(self, command: list[str]) -> None:

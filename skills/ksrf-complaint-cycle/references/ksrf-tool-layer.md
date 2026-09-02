@@ -27,7 +27,7 @@
 Пример:
 
 ```bash
-KSRF_SKILLS_ROOT=/path/to/installed/skills
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf_autocollect.py" /path/to/case-folder --exclude 'private-*' --out /path/to/casefile.json
 ```
 

@@ -9,7 +9,8 @@
 После установки только набора skills состояние равно `skills_only`. Сначала выполни:
 
 ```bash
-python3 <skill-root>/ksrf-complaint-cycle/scripts/ksrf_setup_doctor.py --profile basic --json
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf_setup_doctor.py" --profile basic --json
 ```
 
 Doctor ничего не устанавливает, не показывает значения секретов, не передаёт документы внешним сервисам и не превращает отсутствие платного provider в юридический отказ.

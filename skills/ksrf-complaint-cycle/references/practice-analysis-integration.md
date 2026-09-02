@@ -24,7 +24,8 @@ Compatibility-статусы `not_required`, `ready` и `drafting_ready`, лок
 Точка входа:
 
 ```bash
-python3 ~/.codex/skills/ksrf-complaint-cycle/scripts/ksrf_practice_analysis.py --help
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf_practice_analysis.py" --help
 ```
 
 1. `init` создаёт приватный файловый workspace дела.

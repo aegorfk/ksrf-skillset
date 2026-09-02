@@ -11,7 +11,8 @@
 Core требует Python 3.10+, но не требует сторонних Python-пакетов. Для PDF он пробует локальный `pdftotext`. Для скана при наличии `pdftoppm` и `tesseract` выполните:
 
 ```bash
-python3 <skill-dir>/scripts/judicial_meaning.py ocr \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" ocr \
   --input /полный/путь/акт.pdf \
   --output /полный/путь/акт.ocr.txt \
   --language rus

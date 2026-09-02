@@ -48,24 +48,25 @@ description: "Навык ищет и проверяет российскую п�
 Скрипт строит воспроизводимый план, опрашивает только явно выбранные документированные API, дедуплицирует кандидатов и публикует честный coverage report. Он не делает юридический вывод вместо исследователя.
 
 ```bash
-python3 <skill-dir>/scripts/doctrine_research.py route \
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-doctrine-research/scripts/doctrine_research.py" route \
   --request ./doctrine-request-draft.json
 
-python3 <skill-dir>/scripts/doctrine_research.py plan \
+python3 "$KSRF_SKILLS_ROOT/ksrf-doctrine-research/scripts/doctrine_research.py" plan \
   --request ./doctrine-request.json \
   --workspace ./doctrine-run
 
-python3 <skill-dir>/scripts/doctrine_research.py search \
+python3 "$KSRF_SKILLS_ROOT/ksrf-doctrine-research/scripts/doctrine_research.py" search \
   --request ./doctrine-request.json \
   --workspace ./doctrine-run \
   --providers openalex,crossref \
   --max-queries 12 \
   --max-results 10
 
-python3 <skill-dir>/scripts/doctrine_research.py validate \
+python3 "$KSRF_SKILLS_ROOT/ksrf-doctrine-research/scripts/doctrine_research.py" validate \
   --workspace ./doctrine-run
 
-python3 <skill-dir>/scripts/doctrine_research.py rerank \
+python3 "$KSRF_SKILLS_ROOT/ksrf-doctrine-research/scripts/doctrine_research.py" rerank \
   --request ./doctrine-request.json \
   --workspace ./doctrine-run
 ```

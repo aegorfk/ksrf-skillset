@@ -259,6 +259,73 @@ TRIGGER_CUE = re.compile(
 # Concatenation keeps the validator from flagging its own rule definition.
 REPOSITORY_SOURCE_PREFIX = "Т" + "З/"
 PROJECT_ROOT_PLACEHOLDER = "<project" + "-root>"
+UNRESOLVED_COMMAND_ROOTS = (
+    "<skill" + "-dir>",
+    "<skill" + "-root>",
+    "/" + "path/to/installed/" + "skills",
+)
+HARDCODED_DEFAULT_SKILL_ROOT = "~/" + ".codex/" + "skills"
+PATH_HOME_CALL = re.compile(
+    r"\b" + "path" + r"\s*\.\s*" + "home" + r"\s*\(\s*\)",
+    re.IGNORECASE,
+)
+HOME_ENV_ACCESS = re.compile(
+    r"(?:\$\{?"
+    + "home"
+    + r"\}?|\b(?:"
+    + "os"
+    + r"\s*\.\s*)?"
+    + "environ"
+    + r"\s*(?:\[\s*[\"']"
+    + "home"
+    + r"[\"']\s*\]|\.\s*get\s*\(\s*[\"']"
+    + "home"
+    + r"[\"']\s*(?:,[^)]{0,512})?\))|\b(?:"
+    + "os"
+    + r"\s*\.\s*)?"
+    + "getenv"
+    + r"\s*\(\s*[\"']"
+    + "home"
+    + r"[\"']\s*(?:,[^)]{0,512})?\))",
+    re.IGNORECASE,
+)
+EXPANDUSER_CALL = re.compile(
+    r"(?:\b(?:"
+    + "os"
+    + r"\s*\.\s*"
+    + "path"
+    + r"\s*\.\s*)?"
+    + "expand"
+    + "user"
+    + r"\s*\(|\.\s*"
+    + "expand"
+    + "user"
+    + r"\s*\()",
+    re.IGNORECASE,
+)
+DOCUMENTS_KS_PARSER = re.compile(
+    "documents" + r"[\s/\"'()]*" + "ks_" + "parser" + r"(?![\w-])",
+    re.IGNORECASE,
+)
+GIT_ROOT_DISCOVERY_PARTS = ("rev" + "-parse", "--show" + "-toplevel")
+GIT_COMMAND_TOKEN = re.compile(r"(?<![\w-])git(?![\w-])", re.IGNORECASE)
+HUDOC_REPOSITORY_ENV_NAME = "hudoc_" + "ks_parser_repo"
+HUDOC_REPOSITORY_BINDING = re.compile(
+    r"\s*(?:,\s*)?(?:[\"']?\$\{?"
+    + re.escape(HUDOC_REPOSITORY_ENV_NAME)
+    + r"\}?[\"']?|\b"
+    + "os"
+    + r"\s*\.\s*(?:"
+    + "environ"
+    + r"\s*\[\s*[\"']"
+    + re.escape(HUDOC_REPOSITORY_ENV_NAME)
+    + r"[\"']\s*\]|"
+    + "getenv"
+    + r"\s*\(\s*[\"']"
+    + re.escape(HUDOC_REPOSITORY_ENV_NAME)
+    + r"[\"']\s*\)))",
+    re.IGNORECASE,
+)
 HTTP_URL_PATTERN = re.compile(
     r"(?<![\w+.\-:])https?://[^\s`\"'<>()]+",
     re.IGNORECASE,
@@ -1758,6 +1825,47 @@ def _strip_valid_http_urls(text: str) -> str:
     return HTTP_URL_PATTERN.sub(replace, text)
 
 
+def _has_implicit_cwd_repository_discovery(coordinate_key: str) -> bool:
+    """Detect git-root lookup unless the same invocation binds -C to HUDOC config."""
+
+    revision_token, root_token = GIT_ROOT_DISCOVERY_PARTS
+    cursor = 0
+    while True:
+        revision_index = coordinate_key.find(revision_token, cursor)
+        if revision_index < 0:
+            return False
+        root_index = coordinate_key.find(
+            root_token,
+            revision_index + len(revision_token),
+            revision_index + len(revision_token) + 512,
+        )
+        if root_index < 0:
+            cursor = revision_index + len(revision_token)
+            continue
+
+        window_start = max(0, revision_index - 512)
+        command_window = coordinate_key[window_start:revision_index]
+        git_tokens = tuple(GIT_COMMAND_TOKEN.finditer(command_window))
+        if not git_tokens:
+            return True
+        invocation_start = window_start + git_tokens[-1].start()
+        prefix = coordinate_key[invocation_start:revision_index]
+        root_option = re.search(
+            r'(?:["\']-c["\']|(?<![\w-])-c(?![\w-]))',
+            prefix,
+        )
+        explicitly_bound = False
+        if root_option is not None:
+            explicitly_bound = (
+                HUDOC_REPOSITORY_BINDING.match(prefix, root_option.end())
+                is not None
+            )
+
+        if not explicitly_bound:
+            return True
+        cursor = root_index + len(root_token)
+
+
 def runtime_local_coordinate_markers(
     path: Path,
     text: str,
@@ -1786,6 +1894,25 @@ def runtime_local_coordinate_markers(
             markers.add("project-root-placeholder")
         if any(pattern.search(normalized) for pattern in RUNTIME_USER_HOME_PATTERNS):
             markers.add("user-home-absolute-path")
+        if any(
+            unresolved.casefold() in coordinate_key
+            for unresolved in UNRESOLVED_COMMAND_ROOTS
+        ):
+            markers.add("unresolved-command-root")
+        if HARDCODED_DEFAULT_SKILL_ROOT.casefold() in coordinate_key:
+            markers.add("hardcoded-default-skill-root")
+        implicit_home = (
+            PATH_HOME_CALL.search(normalized) is not None
+            or HOME_ENV_ACCESS.search(normalized) is not None
+            or (
+                "~" in normalized
+                and EXPANDUSER_CALL.search(normalized) is not None
+            )
+        )
+        if implicit_home and DOCUMENTS_KS_PARSER.search(normalized):
+            markers.add("implicit-home-repository-discovery")
+        if _has_implicit_cwd_repository_discovery(coordinate_key):
+            markers.add("implicit-cwd-repository-discovery")
     return tuple(sorted(markers))
 
 
@@ -1854,13 +1981,15 @@ def _validate_runtime_self_containment(
 
         markers = runtime_local_coordinate_markers(path, text)
         if markers:
+            marker_classes = ", ".join(markers)
             findings.append(
                 _finding(
                     "error",
                     "RUNTIME_LOCAL_COORDINATE",
                     (
-                        "Runtime-файл содержит координату локального дерева, "
-                        "недоступную после пользовательской установки."
+                        "Runtime-файл содержит неразрешённый или локально-зависимый "
+                        "маршрут, недоступный после пользовательской установки: "
+                        f"{marker_classes}."
                     ),
                     package=package_dir.name,
                     path=relative_path,
