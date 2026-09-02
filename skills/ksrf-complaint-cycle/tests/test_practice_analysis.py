@@ -1713,6 +1713,322 @@ class TestAdversarialIntegrityAndCoverage(PracticeAnalysisTestCase):
         with self.assertRaisesRegex(ValueError, "SHA-256"):
             practice._request_by_id(self.workspace, "../../../outside")
 
+    def test_private_claim_id_completes_wording_review_through_public_binding(self) -> None:
+        private_claim_id = "Иванов-ivanov@example.com"
+        wording_text = "Суды последовательно придают норме расширительный смысл."
+        self.scan_claims([{"claim_id": private_claim_id, "text": wording_text}])
+        request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
+        public_claim_id = request["payload"]["claim_bindings"][0]["claim_id"]
+        self.assertNotEqual(public_claim_id, private_claim_id)
+        self.assertNotIn(private_claim_id, json.dumps(request, ensure_ascii=False))
+        claim_question = request["payload"]["claim_questions"][0]
+        self.assertEqual(claim_question["claim_id"], public_claim_id)
+        self.assertEqual(
+            claim_question["question_id"],
+            _digest(
+                {
+                    "claim_id": public_claim_id,
+                    "question": claim_question["question"],
+                }
+            ),
+        )
+
+        validation_workspace = self.root / "real-sibling-validation"
+        practice.init_workspace(
+            validation_workspace,
+            case_id="case-real-sibling-validation",
+            case_file=self.case_file,
+            now="2026-08-27T10:00:00Z",
+        )
+        practice.scan_input(
+            validation_workspace,
+            self.root / "claims.json",
+            now="2026-08-27T10:05:00Z",
+        )
+        validation_request = practice.create_request(
+            validation_workspace,
+            now="2026-08-27T10:10:00Z",
+        )
+        self.assertEqual(validation_request, request)
+        with mock.patch.dict("os.environ", {"PYTHONPATH": ""}):
+            attachment = practice.attach_run(
+                validation_workspace,
+                request_id=validation_request["handoff_id"],
+                cassation_workspace=self.root / "real-cassation-run",
+                now="2026-08-27T10:10:00Z",
+            )
+        self.assertEqual(attachment["status"], "attached", attachment.get("error"))
+
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "private-claim-result.json"
+        _write_json(result_path, result)
+        imported = self.import_with_attached_source(request, result_path)
+        self.assertTrue(imported["eligible_for_drafting"], imported)
+        finding_id = result["payload"]["findings"][0]["finding_id"]
+        canonical_request_path = (
+            self.workspace
+            / "practice-analysis"
+            / "requests"
+            / f"{request['handoff_id']}.json"
+        )
+        canonical_result_path = (
+            self.workspace
+            / "practice-analysis"
+            / "results"
+            / f"{result['handoff_id']}.json"
+        )
+        request_bytes = canonical_request_path.read_bytes()
+        result_bytes = canonical_result_path.read_bytes()
+
+        review_args = {
+            "handoff_id": result["handoff_id"],
+            "decision": "within_limit",
+            "reviewer": "И.И. Иванов",
+            "reason": "Формулировка не сильнее проверенного вывода.",
+            "finding_ids": [finding_id],
+            "wording_text": wording_text,
+            "wording_source": self.root / "claims.json",
+            "now": "2026-08-27T11:05:00Z",
+        }
+        with self.assertRaisesRegex(ValueError, "Не найден активный claim_id"):
+            practice.review_wording(
+                self.workspace,
+                claim_id=public_claim_id,
+                **review_args,
+            )
+        reviews_path = self.workspace / "practice-analysis" / "wording-reviews.jsonl"
+        self.assertFalse(reviews_path.exists())
+
+        foreign_binding = json.loads(result_bytes.decode("utf-8"))
+        foreign_binding["payload"]["claim_bindings"][0]["claim_id"] = "claim-foreign"
+        _write_json(canonical_result_path, foreign_binding)
+        with self.assertRaisesRegex(ValueError, "Result не связан"):
+            practice.review_wording(
+                self.workspace,
+                claim_id=private_claim_id,
+                **review_args,
+            )
+        self.assertFalse(reviews_path.exists())
+        canonical_result_path.write_bytes(result_bytes)
+
+        foreign_finding = json.loads(result_bytes.decode("utf-8"))
+        foreign_finding["payload"]["findings"][0]["claim_ids"] = ["claim-foreign"]
+        _write_json(canonical_result_path, foreign_finding)
+        with self.assertRaisesRegex(ValueError, "не относится к текущему claim"):
+            practice.review_wording(
+                self.workspace,
+                claim_id=private_claim_id,
+                **review_args,
+            )
+        self.assertFalse(reviews_path.exists())
+        canonical_result_path.write_bytes(result_bytes)
+
+        aliases_path = self.workspace / "practice-analysis" / "claim-aliases.json"
+        aliases = json.loads(aliases_path.read_text(encoding="utf-8"))
+        aliases[public_claim_id]["private_claim_id"] = "claim-foreign"
+        _write_json(aliases_path, aliases)
+
+        review = practice.review_wording(
+            self.workspace,
+            claim_id=private_claim_id,
+            **review_args,
+        )
+        self.assertEqual(review["claim_id"], private_claim_id)
+        self.assertEqual(canonical_request_path.read_bytes(), request_bytes)
+        self.assertEqual(canonical_result_path.read_bytes(), result_bytes)
+        self.assertNotIn(private_claim_id, canonical_request_path.read_text(encoding="utf-8"))
+        self.assertNotIn(private_claim_id, canonical_result_path.read_text(encoding="utf-8"))
+        state = practice.derive_state(self.workspace, stage="drafting")
+        self.assertEqual(state["claims"][0]["state"], "ready")
+
+        revised_wording = "Судебная практика по этому вопросу противоречива."
+        _write_json(
+            self.root / "claims.json",
+            {"claims": [{"claim_id": private_claim_id, "text": revised_wording}]},
+        )
+        practice.scan_input(
+            self.workspace,
+            self.root / "claims.json",
+            now="2026-08-27T11:06:00Z",
+        )
+        review_bytes = reviews_path.read_bytes()
+        stale_review_args = {
+            **review_args,
+            "wording_text": revised_wording,
+            "now": "2026-08-27T11:07:00Z",
+        }
+        with self.assertRaisesRegex(ValueError, "Result не связан"):
+            practice.review_wording(
+                self.workspace,
+                claim_id=private_claim_id,
+                **stale_review_args,
+            )
+        self.assertEqual(reviews_path.read_bytes(), review_bytes)
+        stale_state = practice.derive_state(self.workspace, stage="drafting")
+        self.assertEqual(stale_state["claims"][0]["state"], "stale")
+
+    def test_request_rejects_projected_claim_id_collision_before_writes(self) -> None:
+        projected_source_id = "Иванов-ivanov@example.com"
+        colliding_local_id = practice._public_claim_id(projected_source_id)
+        self.scan_claims(
+            [
+                {
+                    "claim_id": projected_source_id,
+                    "text": "Судебная практика противоречива.",
+                },
+                {
+                    "claim_id": colliding_local_id,
+                    "text": "Суды последовательно толкуют норму.",
+                },
+            ]
+        )
+        analysis_root = self.workspace / "practice-analysis"
+        aliases_path = analysis_root / "claim-aliases.json"
+        requests_path = analysis_root / "requests"
+
+        with self.assertRaisesRegex(ValueError, "Публичный claim_id"):
+            practice.create_request(
+                self.workspace,
+                claim_ids=[projected_source_id],
+                now="2026-08-27T10:10:00Z",
+            )
+
+        self.assertFalse(aliases_path.exists())
+        self.assertEqual(list(requests_path.glob("*.json")), [])
+
+    def test_legacy_result_cannot_select_owner_after_active_alias_collision(self) -> None:
+        private_claim_id = "Иванов-ivanov@example.com"
+        wording_text = "Суды последовательно придают норме расширительный смысл."
+        self.scan_claims([{"claim_id": private_claim_id, "text": wording_text}])
+        request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "legacy-collision-result.json"
+        _write_json(result_path, result)
+        imported = self.import_with_attached_source(request, result_path)
+        self.assertTrue(imported["eligible_for_drafting"], imported)
+
+        public_claim_id = request["payload"]["claim_bindings"][0]["claim_id"]
+        collision_source = self.root / "collision.json"
+        _write_json(
+            collision_source,
+            {
+                "claims": [
+                    {
+                        "claim_id": public_claim_id,
+                        "text": "Судебная практика по вопросу противоречива.",
+                    }
+                ]
+            },
+        )
+        practice.scan_input(
+            self.workspace,
+            collision_source,
+            now="2026-08-27T11:03:00Z",
+        )
+
+        claim_ledger = self.workspace / "practice-analysis" / "claim-ledger.jsonl"
+        records = practice.read_jsonl(claim_ledger)
+        claim_ledger.unlink()
+        practice._ledger_checkpoint_path(claim_ledger).unlink(missing_ok=True)
+        for record in reversed(records):
+            for field in ("ledger_id", "sequence", "previous_event_sha256", "event_sha256"):
+                record.pop(field, None)
+            practice._append_event(claim_ledger, record)
+        self.assertEqual(list(practice._active_claims(self.workspace))[-1], private_claim_id)
+
+        analysis_root = self.workspace / "practice-analysis"
+        immutable_paths = [
+            analysis_root / "requests" / f"{request['handoff_id']}.json",
+            analysis_root / "results" / f"{result['handoff_id']}.json",
+            analysis_root / "run-attachments.jsonl",
+            analysis_root / "result-imports.jsonl",
+        ]
+        immutable_bytes = {path: path.read_bytes() for path in immutable_paths}
+        reviews_path = analysis_root / "wording-reviews.jsonl"
+
+        with self.assertRaisesRegex(ValueError, "Публичный claim_id.*нескольким"):
+            practice.review_wording(
+                self.workspace,
+                claim_id=private_claim_id,
+                handoff_id=result["handoff_id"],
+                decision="within_limit",
+                reviewer="И.И. Иванов",
+                reason="Коллизия не должна выбирать владельца.",
+                finding_ids=[result["payload"]["findings"][0]["finding_id"]],
+                wording_text=wording_text,
+                wording_source=self.root / "claims.json",
+                now="2026-08-27T11:05:00Z",
+            )
+
+        self.assertFalse(reviews_path.exists())
+        self.assertEqual(
+            {path: path.read_bytes() for path in immutable_paths},
+            immutable_bytes,
+        )
+        state = practice.derive_state(self.workspace, stage="drafting")
+        self.assertNotIn("ready", {claim["state"] for claim in state["claims"]})
+
+    def test_legacy_inconsistent_request_cannot_supersede_corrected_request(self) -> None:
+        private_claim_id = "Иванов-4@example.com"
+        self.scan_claims(
+            [
+                {
+                    "claim_id": private_claim_id,
+                    "text": "Суды последовательно придают норме расширительный смысл.",
+                }
+            ]
+        )
+        corrected = practice.create_request(
+            self.workspace,
+            now="2026-08-27T10:10:00Z",
+        )
+        legacy = json.loads(json.dumps(corrected, ensure_ascii=False))
+        legacy_question = legacy["payload"]["claim_questions"][0]
+        legacy_question["question_id"] = _digest(
+            {
+                "claim_id": private_claim_id,
+                "question": legacy_question["question"],
+            }
+        )
+        legacy = _sign_envelope(legacy)
+        self.assertGreater(legacy["handoff_id"], corrected["handoff_id"])
+        legacy_path = (
+            self.workspace
+            / "practice-analysis"
+            / "requests"
+            / f"{legacy['handoff_id']}.json"
+        )
+        _write_json(legacy_path, legacy)
+        legacy_bytes = legacy_path.read_bytes()
+
+        with mock.patch.dict("os.environ", {"PYTHONPATH": ""}):
+            legacy_attachment = practice.attach_run(
+                self.workspace,
+                request_id=legacy["handoff_id"],
+                cassation_workspace=self.root / "cassation-run",
+                now="2026-08-27T10:11:00Z",
+            )
+            corrected_attachment = practice.attach_run(
+                self.workspace,
+                request_id=corrected["handoff_id"],
+                cassation_workspace=self.root / "cassation-run",
+                now="2026-08-27T10:12:00Z",
+            )
+        self.assertEqual(legacy_attachment["status"], "blocked")
+        self.assertIn("question_id не соответствует", legacy_attachment["error"])
+        self.assertEqual(
+            corrected_attachment["status"],
+            "attached",
+            corrected_attachment.get("error"),
+        )
+
+        state = practice.derive_state(self.workspace, stage="drafting")
+        self.assertEqual(state["claims"][0]["state"], "running")
+        self.assertEqual(state["claims"][0]["request_id"], corrected["handoff_id"])
+        self.assertEqual(legacy_path.read_bytes(), legacy_bytes)
+
     def test_docx_footnote_is_scanned_and_oversize_entry_is_blocked(self) -> None:
         docx = self.root / "footnote.docx"
         namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"

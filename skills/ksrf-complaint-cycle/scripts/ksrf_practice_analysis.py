@@ -1353,6 +1353,22 @@ def _public_claim_id(value: str) -> str:
     return "claim-" + _digest({"private_claim_id": value})[:24]
 
 
+def _unique_active_claim_for_public_id(
+    active: Mapping[str, Mapping[str, Any]],
+    public_claim_id: str,
+) -> tuple[str, Mapping[str, Any]]:
+    owners = [
+        (str(private_id), claim)
+        for private_id, claim in active.items()
+        if _public_claim_id(str(private_id)) == public_claim_id
+    ]
+    if not owners:
+        raise ValueError(f"Claim {public_claim_id} больше не активен.")
+    if len(owners) != 1:
+        raise ValueError("Публичный claim_id соответствует нескольким активным claims.")
+    return owners[0]
+
+
 def _public_source_locator(value: str) -> str:
     if (
         re.fullmatch(r"[A-Za-z0-9._#\[\]-]{1,160}", value)
@@ -1401,6 +1417,46 @@ def _request_core(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _request_claim_questions_are_self_consistent(request: Mapping[str, Any]) -> bool:
+    payload = request.get("payload")
+    if not isinstance(payload, Mapping):
+        return False
+    claim_questions = payload.get("claim_questions")
+    if claim_questions is None:
+        return True
+    if not isinstance(claim_questions, list):
+        return False
+    questions = payload.get("questions")
+    bindings = payload.get("claim_bindings")
+    if not isinstance(questions, list) or not isinstance(bindings, list):
+        return False
+    question_values = {item for item in questions if isinstance(item, str)}
+    claim_ids = {
+        str(item.get("claim_id"))
+        for item in bindings
+        if isinstance(item, Mapping)
+    }
+    required = {"claim_id", "question_id", "question", "disconfirmation_prompts"}
+    seen_question_ids: set[str] = set()
+    for item in claim_questions:
+        if not isinstance(item, Mapping) or set(item) != required:
+            return False
+        claim_id = item.get("claim_id")
+        question = item.get("question")
+        question_id = item.get("question_id")
+        prompts = item.get("disconfirmation_prompts")
+        if claim_id not in claim_ids or question not in question_values:
+            return False
+        if question_id != _digest({"claim_id": claim_id, "question": question}):
+            return False
+        if question_id in seen_question_ids:
+            return False
+        seen_question_ids.add(str(question_id))
+        if not isinstance(prompts, list) or not all(_nonempty(prompt) for prompt in prompts):
+            return False
+    return True
+
+
 def _envelope_digest(envelope: Mapping[str, Any]) -> str:
     return _digest({key: value for key, value in envelope.items() if key != "handoff_id"})
 
@@ -1434,23 +1490,29 @@ def create_request(
     if not selected:
         raise ValueError("Нет practice-dependent claims для нейтрального запроса.")
 
+    public_claim_ids = [
+        _public_claim_id(str(claim["claim_id"]))
+        for claim in selected
+    ]
+    for public_claim_id in public_claim_ids:
+        _unique_active_claim_for_public_id(active, public_claim_id)
     bindings = _sorted_claim_bindings(
         [
             {
-                "claim_id": _public_claim_id(str(claim["claim_id"])),
+                "claim_id": public_claim_id,
                 "claim_sha256": claim["claim_sha256"],
                 "source_locator": _public_source_locator(str(claim["source"]["locator"])),
             }
-            for claim in selected
+            for claim, public_claim_id in zip(selected, public_claim_ids)
         ]
     )
     questions = [_neutral_question(claim) for claim in selected]
     alias_records = {
-        _public_claim_id(str(claim["claim_id"])): {
+        public_claim_id: {
             "private_claim_id": claim["claim_id"],
             "private_source_locator": claim["source"]["locator"],
         }
-        for claim in selected
+        for claim, public_claim_id in zip(selected, public_claim_ids)
     }
     aliases_path = _analysis_root(workspace) / CLAIM_ALIASES_FILE
     existing_aliases = _read_json(aliases_path) if aliases_path.exists() else {}
@@ -1469,9 +1531,12 @@ def create_request(
         "request_sha256": request_sha,
         "claim_questions": [
             {
-                "claim_id": _public_claim_id(str(claim["claim_id"])),
+                "claim_id": public_claim_id,
                 "question_id": _digest(
-                    {"claim_id": claim["claim_id"], "question": question}
+                    {
+                        "claim_id": public_claim_id,
+                        "question": question,
+                    }
                 ),
                 "question": question,
                 "disconfirmation_prompts": [
@@ -1480,7 +1545,11 @@ def create_request(
                     "Проверить позднейшее регулирование и позиции высшей инстанции.",
                 ],
             }
-            for claim, question in zip(selected, questions)
+            for claim, question, public_claim_id in zip(
+                selected,
+                questions,
+                public_claim_ids,
+            )
         ],
         "drafting_ready": False,
     }
@@ -2009,19 +2078,12 @@ def _validate_v2_result(
                 raise ValueError(f"claim_sha256 result не совпадает для claim {claim_id}.")
         raise ValueError("claim_bindings result не совпадает со связанным request.")
     claim_ids: list[str] = []
-    active_by_public_id = {
-        _public_claim_id(str(private_id)): (str(private_id), claim)
-        for private_id, claim in active.items()
-    }
     for binding in result_bindings:
         public_claim_id = _require_nonempty(binding.get("claim_id"), "claim_bindings.claim_id")
         if claim_id_filter is not None and public_claim_id != _public_claim_id(claim_id_filter):
             claim_ids.append(public_claim_id)
             continue
-        resolved = active_by_public_id.get(public_claim_id)
-        if resolved is None:
-            raise ValueError(f"Claim {public_claim_id} больше не активен.")
-        claim_id, claim = resolved
+        claim_id, claim = _unique_active_claim_for_public_id(active, public_claim_id)
         if binding.get("claim_sha256") != claim.get("claim_sha256"):
             raise ValueError(f"claim_sha256 result устарел для claim {claim_id}.")
         if binding.get("source_locator") != _public_source_locator(
@@ -2322,11 +2384,15 @@ def review_wording(
         raise ValueError("Result не импортирован как v2 drafting-eligible proof.")
     payload = result.get("payload", {})
     bindings = payload.get("claim_bindings", []) if isinstance(payload, Mapping) else []
+    public_claim_id = _public_claim_id(claim_id)
+    resolved_claim_id, _ = _unique_active_claim_for_public_id(active, public_claim_id)
+    if resolved_claim_id != claim_id:
+        raise ValueError("Публичный claim_id не связан с выбранным активным claim.")
     binding = next(
         (
             item
             for item in bindings
-            if isinstance(item, Mapping) and item.get("claim_id") == claim_id
+            if isinstance(item, Mapping) and item.get("claim_id") == public_claim_id
         ),
         None,
     )
@@ -2340,7 +2406,6 @@ def review_wording(
     unknown = set(str(item) for item in finding_ids) - known_findings
     if unknown:
         raise ValueError(f"Неизвестные finding_id для result: {sorted(unknown)}")
-    public_claim_id = _public_claim_id(claim_id)
     applicable_findings = {
         str(item.get("finding_id"))
         for item in payload.get("findings", [])
@@ -2640,6 +2705,7 @@ def derive_state(
                 and binding.get("claim_sha256") == claim.get("claim_sha256")
                 and binding.get("source_locator")
                 == _public_source_locator(str(claim.get("source", {}).get("locator")))
+                and _request_claim_questions_are_self_consistent(request)
             ]
             if dependency_stale:
                 state = "stale"
