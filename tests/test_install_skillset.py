@@ -1,10 +1,12 @@
+import hashlib
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 
 
-TOOLS = Path(__file__).resolve().parents[1] / "tools"
+REPO = Path(__file__).resolve().parents[1]
+TOOLS = REPO / "tools"
 sys.path.insert(0, str(TOOLS))
 
 from install_skillset import InstallationError, _validate_target, copy_skillset  # noqa: E402
@@ -28,6 +30,10 @@ EXACT_MAINTAINER_FILES = (
         Path("references/automation-backlog.md"),
     ),
     ("ksrf-complaint-cycle", Path("scripts/add_reference_tocs.py")),
+    (
+        "ksrf-argument-patterns",
+        Path("scripts/build_constitutionalist_authority_corpus.py"),
+    ),
     (
         "ksrf-argument-patterns",
         Path("scripts/enrich_ksrf_argument_patterns.py"),
@@ -119,6 +125,35 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 (target / SKILL_NAMES[0] / "references" / "evals-guide.md").is_file()
             )
 
+    def test_exact_install_removes_stale_builder_and_preserves_prebuilt_corpus(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(raw) / "target"
+            stale_builder = (
+                target
+                / "ksrf-argument-patterns"
+                / "scripts"
+                / "build_constitutionalist_authority_corpus.py"
+            )
+            stale_builder.parent.mkdir(parents=True)
+            stale_builder.write_bytes(b"stale installed builder\n")
+
+            copy_skillset(REPO / "skills", target)
+
+            self.assertFalse(stale_builder.exists())
+            expected = {
+                "constitutionalist-authority-corpus.json": "285b854f9d53a0a1ce3fa38c59f9d9ddeed8bd199979a40be6fa95b4570b7015",
+                "constitutionalist-authority-corpus.md": "58405ad08d408147b72ee952b5e6422963e62da19c31c8b13a5c8d91a2375e98",
+            }
+            reference_root = target / "ksrf-argument-patterns" / "references"
+            for name, digest in expected.items():
+                with self.subTest(name=name):
+                    self.assertEqual(
+                        hashlib.sha256((reference_root / name).read_bytes()).hexdigest(),
+                        digest,
+                    )
+
     def test_copy_excludes_only_exact_maintainer_files(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -129,6 +164,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                 path.write_text("maintainer only\n", encoding="utf-8")
 
             controls = (
+                source
+                / "ksrf-case-triage"
+                / "scripts"
+                / "build_constitutionalist_authority_corpus.py",
+                source
+                / "ksrf-argument-patterns"
+                / "scripts"
+                / "build_constitutionalist_authority_corpus_runtime.py",
                 source
                 / "ksrf-case-triage"
                 / "references"
@@ -200,6 +243,47 @@ class ExactSkillsetInstallTests(unittest.TestCase):
                     (target / package / relative).read_bytes(),
                     b"tracked source bytes\n",
                 )
+
+    def test_source_sync_does_not_reintroduce_stale_authority_builder(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = self._source(root)
+            stale_builder = (
+                source
+                / "ksrf-argument-patterns"
+                / "scripts"
+                / "build_constitutionalist_authority_corpus.py"
+            )
+            stale_builder.parent.mkdir(parents=True, exist_ok=True)
+            stale_builder.write_bytes(b"stale global builder bytes\n")
+
+            target = root / "target"
+            markers = (
+                target
+                / "ksrf-argument-patterns"
+                / "references"
+                / "complaint-methodology-sources.md",
+                target
+                / "ksrf-argument-patterns"
+                / "references"
+                / "automation-backlog.md",
+            )
+            for marker in markers:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_bytes(b"tracked source marker\n")
+
+            copy_skillset(source, target, preserve_target_development=True)
+
+            self.assertFalse(
+                (
+                    target
+                    / "ksrf-argument-patterns"
+                    / "scripts"
+                    / "build_constitutionalist_authority_corpus.py"
+                ).exists()
+            )
+            for marker in markers:
+                self.assertEqual(marker.read_bytes(), b"tracked source marker\n")
 
     def test_source_sync_preserves_target_tests_and_evals_while_replacing_runtime_files(
         self,
@@ -324,11 +408,14 @@ class ExactSkillsetInstallTests(unittest.TestCase):
             self.assertEqual(marker.read_text(encoding="utf-8"), "unchanged\n")
             self.assertFalse((existing_skill / "nested" / "leak.txt").exists())
 
-    def test_sync_handles_an_empty_retired_tool_allowlist_on_macos_bash(self) -> None:
+    def test_sync_handles_empty_active_and_retired_tool_lists_on_macos_bash(self) -> None:
         sync_script = (TOOLS / "sync_global_skills.sh").read_text(encoding="utf-8")
 
+        self.assertNotIn('mirrored_tools=()', sync_script)
+        self.assertNotIn('${mirrored_tools[@]}', sync_script)
         self.assertNotIn('retired_mirrored_tools=()', sync_script)
         self.assertNotIn('${retired_mirrored_tools[@]}', sync_script)
+        self.assertIn('--active-mirrored-tools', sync_script)
         self.assertIn('--retired-mirrored-tools', sync_script)
         self.assertIn('--preserve-target-development', sync_script)
 

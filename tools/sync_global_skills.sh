@@ -19,13 +19,10 @@ python3 "$repo_dir/tools/verify_publication_state.py" --repo "$repo_dir"
 base_commit="$(git -C "$repo_dir" rev-parse HEAD)"
 
 argument_scripts="$source_dir/ksrf-argument-patterns/scripts"
-mirrored_tools=()
-while IFS= read -r tool_name; do
-  [[ -n "$tool_name" ]] && mirrored_tools+=("$tool_name")
-done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --active-mirrored-tools)
 
 # Validate all mirrored tools before changing either skills/ or tools/.
-for tool_name in "${mirrored_tools[@]}"; do
+while IFS= read -r tool_name; do
+  [[ -n "$tool_name" ]] || continue
   source_tool="$argument_scripts/$tool_name"
   target_tool="$repo_dir/tools/$tool_name"
   [[ -f "$source_tool" && ! -L "$source_tool" ]] || {
@@ -37,16 +34,17 @@ for tool_name in "${mirrored_tools[@]}"; do
     echo "Refusing unsafe mirrored tool destination: $target_tool" >&2
     exit 1
   fi
-done
+done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --active-mirrored-tools)
 
 python3 "$repo_dir/tools/install_skillset.py" \
   --source-skills-root "$source_dir" \
   --preserve-target-development \
   --target "$target_dir"
 
-for tool_name in "${mirrored_tools[@]}"; do
+while IFS= read -r tool_name; do
+  [[ -n "$tool_name" ]] || continue
   cp "$argument_scripts/$tool_name" "$repo_dir/tools/$tool_name"
-done
+done < <(python3 "$repo_dir/tools/skillset_file_contract.py" --active-mirrored-tools)
 
 # Only explicitly retired first-party mirrors may be removed automatically.
 while IFS= read -r tool_name; do

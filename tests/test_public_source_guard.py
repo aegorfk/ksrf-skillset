@@ -168,6 +168,7 @@ class PublicSourceGuardTests(unittest.TestCase):
             "absolute path": 'SOURCE = "/Users/alice/Documents/private/input.pdf"\n',
         }
         for name in (
+            "build_constitutionalist_authority_corpus.py",
             "enrich_ksrf_argument_patterns.py",
             "extract_ksrf_argument_patterns.py",
         ):
@@ -186,6 +187,7 @@ class PublicSourceGuardTests(unittest.TestCase):
 
     def test_repository_guard_rejects_benign_root_only_skill_duplicate(self) -> None:
         for name in (
+            "build_constitutionalist_authority_corpus.py",
             "enrich_ksrf_argument_patterns.py",
             "extract_ksrf_argument_patterns.py",
         ):

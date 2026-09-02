@@ -51,6 +51,7 @@ RUNTIME_PARTS = {".git", ".serena", ".pytest_cache", "__pycache__"}
 DEVELOPMENT_ONLY_PARTS = {"evals", "tests"}
 ROOT_ONLY_TOOL_SKILL_PATHS = frozenset(
     {
+        "ksrf-argument-patterns/scripts/build_constitutionalist_authority_corpus.py",
         "ksrf-argument-patterns/scripts/enrich_ksrf_argument_patterns.py",
         "ksrf-argument-patterns/scripts/extract_ksrf_argument_patterns.py",
     }

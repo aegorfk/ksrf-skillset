@@ -19,10 +19,15 @@ from generate_skills_manifest import build_manifest  # noqa: E402
 
 
 ROOT_ONLY = (
+    "build_constitutionalist_authority_corpus.py",
     "enrich_ksrf_argument_patterns.py",
     "extract_ksrf_argument_patterns.py",
 )
-ACTIVE_MIRRORED = ("build_constitutionalist_authority_corpus.py",)
+ACTIVE_MIRRORED: tuple[str, ...] = ()
+RETIRED_MIRRORED: tuple[str, ...] = ()
+AUTHORITY_BUILDER_SHA256 = (
+    "b1c393460420cc1c3382720d60188dbe4e52f9c72a78d87457f833682f67c33f"
+)
 
 
 class ToolOwnershipContractTests(unittest.TestCase):
@@ -43,6 +48,7 @@ class ToolOwnershipContractTests(unittest.TestCase):
 
         self.assertEqual(mirrored, ACTIVE_MIRRORED)
         self.assertEqual(root_only, ROOT_ONLY)
+        self.assertEqual(retired, RETIRED_MIRRORED)
         self.assertFalse(set(mirrored) & set(root_only))
         self.assertFalse(set(mirrored) & set(retired))
         self.assertFalse(set(root_only) & set(retired))
@@ -107,19 +113,32 @@ class ToolOwnershipContractTests(unittest.TestCase):
                     ):
                         build_manifest(root, "a" * 40)
 
-    def test_active_mirror_cli_exposes_only_the_runtime_builder(self) -> None:
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(TOOLS / "skillset_file_contract.py"),
-                "--active-mirrored-tools",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+    def test_mirror_clis_are_empty_after_runtime_builder_retirement(self) -> None:
+        for option, expected in (
+            ("--active-mirrored-tools", ACTIVE_MIRRORED),
+            ("--retired-mirrored-tools", RETIRED_MIRRORED),
+        ):
+            with self.subTest(option=option):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(TOOLS / "skillset_file_contract.py"),
+                        option,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
 
-        self.assertEqual(result.stdout.splitlines(), list(ACTIVE_MIRRORED))
+                self.assertEqual(result.stdout.splitlines(), list(expected))
+
+    def test_root_authority_builder_bytes_remain_frozen(self) -> None:
+        self.assertEqual(
+            contract.file_digest(
+                TOOLS / "build_constitutionalist_authority_corpus.py"
+            ),
+            AUTHORITY_BUILDER_SHA256,
+        )
 
     def test_root_enrich_default_targets_argument_pattern_skill(self) -> None:
         path = TOOLS / "enrich_ksrf_argument_patterns.py"
