@@ -15,6 +15,9 @@
     {"$ref": "#/definitions/coding_audit_screening_frame_row"},
     {"$ref": "#/definitions/coding_audit_review_queue_row"},
     {"$ref": "#/definitions/coding_audit_pending_template"},
+    {"$ref": "#/definitions/coding_audit_neutral_brief"},
+    {"$ref": "#/definitions/coding_audit_blinded_review_material"},
+    {"$ref": "#/definitions/coding_audit_blinded_review_manifest"},
     {"$ref": "#/definitions/coding_audit_inputs_manifest"},
     {"$ref": "#/definitions/coding_audit_plan"},
     {"$ref": "#/definitions/coding_audit_completed_coding"},
@@ -37,6 +40,12 @@
       "minLength": 1,
       "pattern": "^(?![\\s\\S]*[\\u0000-\\u0008\\u000B-\\u000C\\u000E-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF])(?=[\\s\\S]*\\S)[\\s\\S]+$",
       "x-runtime-invariant": "runtime rejects every Cf and Cs code point and every Cc code point except TAB, LF, and CR"
+    },
+    "captured_full_text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\s\\S]*[\\u0000-\\u0008\\u000E-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF])(?=[\\s\\S]*\\S)[\\s\\S]+$",
+      "x-runtime-invariant": "exact captured court text; runtime permits layout TAB, LF, VT, FF and CR but rejects every other Cc plus every Cf and Cs code point"
     },
     "coding_audit_candidate_id": {
       "type": "string",
@@ -594,6 +603,212 @@
       "minProperties": 20,
       "additionalProperties": false
     },
+    "coding_audit_neutral_question": {
+      "type": "object",
+      "required": ["id", "status", "question", "norm_refs"],
+      "properties": {
+        "id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "status": {"type": "string", "const": "hypothesis_under_test"},
+        "question": {"$ref": "#/definitions/visible_text"},
+        "norm_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/definitions/visible_text"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_neutral_norm_edition": {
+      "type": "object",
+      "required": [
+        "id", "norm_ref", "valid_from", "valid_to", "official_source_url",
+        "edition_status"
+      ],
+      "properties": {
+        "id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "norm_ref": {"$ref": "#/definitions/visible_text"},
+        "valid_from": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "valid_to": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+            {"type": "null"}
+          ]
+        },
+        "official_source_url": {"$ref": "#/definitions/visible_text"},
+        "edition_status": {"type": "string", "const": "verified"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_neutral_population": {
+      "type": "object",
+      "required": [
+        "unit", "date_from", "date_to", "courts", "regimes",
+        "official_population_rule"
+      ],
+      "properties": {
+        "unit": {"type": "string", "const": "independent_case_chain"},
+        "date_from": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "date_to": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "courts": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/visible_text"}},
+        "regimes": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/visible_text"}},
+        "official_population_rule": {"$ref": "#/definitions/visible_text"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_neutral_brief": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "the brief is the exact closed projection of reviewer-needed neutral frozen-plan fields and never contains query or search lanes, screening matches, sampling metadata, primary coding, approved_by or adverse_review",
+        "exactly one directional hypothesis_under_test is present because supports/adverse require a fixed proposition and the current 20-field coding record has one unqualified relation; an open, zero, or multiple question set fails before publication",
+        "codebook_version is the required independently selected built-in neutral codebook version, not a value derived from primary coding",
+        "norm-edition IDs are unique, every date is a real ISO calendar date, edition periods and the population period are not reversed, and only verified editions for independent_case_chain are emitted",
+        "brief_sha256 is the canonical digest of the exact remaining fields and coding_brief_file_sha256 in both manifests binds the exact serialized brief bytes"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "plan_sha256", "codebook_version",
+        "title", "research_questions", "norm_editions", "population",
+        "inclusion_rules", "exclusion_rules", "materiality_rule",
+        "contradiction_rule", "brief_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {"type": "string", "const": "coding_audit_neutral_brief"},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "title": {"$ref": "#/definitions/visible_text"},
+        "research_questions": {
+          "type": "array", "minItems": 1, "maxItems": 1,
+          "items": {"$ref": "#/definitions/coding_audit_neutral_question"}
+        },
+        "norm_editions": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/definitions/coding_audit_neutral_norm_edition"}
+        },
+        "population": {"$ref": "#/definitions/coding_audit_neutral_population"},
+        "inclusion_rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/visible_text"}},
+        "exclusion_rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/visible_text"}},
+        "materiality_rule": {"$ref": "#/definitions/visible_text"},
+        "contradiction_rule": {"$ref": "#/definitions/visible_text"},
+        "brief_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_blinded_review_material": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "candidate_id, chain_id and document_id equal the corresponding selected screening-frame, review-queue and pending-template identities",
+        "source_text_sha256 equals the canonical store digest bound by document_id, while packet_text_sha256 equals SHA-256 of the exact UTF-8 bytes of text carried in this packet",
+        "text is non-empty with a visible non-whitespace character; exact TAB, LF, VT, FF and CR layout controls are preserved, while every other Cc plus every Cf and Cs code point fails before publication",
+        "the packet contains exactly one material row for every required candidate and no row for any other candidate",
+        "the closed material intentionally omits source IDs, screening matches, sampling lane and every primary coding field"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "candidate_id", "chain_id", "document_id",
+        "source_text_sha256", "packet_text_sha256", "text"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "document_id": {"$ref": "#/definitions/coding_audit_document_id"},
+        "source_text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "packet_text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "text": {"$ref": "#/definitions/captured_full_text"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_blinded_review_file": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "enum": [
+            "CODING-BRIEF.json",
+            "CODING-CODEBOOK.md",
+            "REVIEW-INSTRUCTIONS.md",
+            "review-materials.jsonl",
+            "secondary-coding-template.jsonl"
+          ]
+        },
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_blinded_review_manifest": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "candidate_ids are sorted and unique and equal the frozen audit plan required_candidate_ids",
+        "candidate_ids equal both the review-materials candidate IDs and secondary-coding-template candidate IDs, with exactly one row per candidate and no missing or extra row",
+        "for every candidate, candidate_id, chain_id and document_id are identical across screening frame, review queue, review material and pending template; source_text_sha256 equals the review-queue digest and packet_text_sha256 binds the exact packet text bytes",
+        "the ZIP has exactly six members: files contains each of the five payload members exactly once and excludes review-packet-manifest.json itself",
+        "codebook_sha256 and coding_brief_file_sha256 equal the corresponding file-inventory digests for the exact built-in codebook and serialized neutral brief bytes",
+        "manifest_sha256 is the canonical digest of the exact remaining manifest fields",
+        "codebook_version is required independently and resolves only a release-allowlisted built-in neutral codebook; primary versions are equality checks and never supply packet data",
+        "at fixed independently selected codebook, closed neutral frozen-plan projection, unchanged source text and required candidate union, packet metadata, member order and bytes never depend on primary answers, primary coder identity, screening matches or sampling lane"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "producer", "plan_sha256",
+        "codebook_version", "codebook_sha256", "coding_brief_file_sha256",
+        "candidate_ids", "blinding_scope", "excluded_information",
+        "contains_full_text", "contains_primary_coding", "review_state",
+        "human_approval_created", "publication_safe", "legal_readiness",
+        "files", "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {"type": "string", "const": "coding_audit_blinded_review_packet"},
+        "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_prepare"},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "codebook_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coding_brief_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "blinding_scope": {"type": "string", "const": "primary_coding_answer_only"},
+        "excluded_information": {
+          "const": [
+            "adjudication",
+            "primary_coder_identity",
+            "primary_coding",
+            "primary_coding_sha256",
+            "sample_lane",
+            "screening_matches",
+            "screening_queries"
+          ]
+        },
+        "contains_full_text": {"type": "boolean", "const": true},
+        "contains_primary_coding": {"type": "boolean", "const": false},
+        "review_state": {"type": "string", "const": "independent_secondary_required"},
+        "human_approval_created": {"type": "boolean", "const": false},
+        "publication_safe": {"type": "boolean", "const": false},
+        "legal_readiness": {"type": "boolean", "const": false},
+        "files": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_blinded_review_file"},
+          "allOf": [
+            {"contains": {"properties": {"path": {"const": "CODING-BRIEF.json"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "CODING-CODEBOOK.md"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "REVIEW-INSTRUCTIONS.md"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "review-materials.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "secondary-coding-template.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1}
+          ]
+        },
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "coding_audit_bundle_file": {
       "type": "object",
       "required": ["path", "bytes", "sha256"],
@@ -605,7 +820,8 @@
             "primary-decisions.audit.jsonl",
             "coding-audit-plan.json",
             "secondary-review-queue.jsonl",
-            "secondary-coding-template.jsonl"
+            "secondary-coding-template.jsonl",
+            "independent-review-packet.zip"
           ]
         },
         "bytes": {"type": "integer", "minimum": 0},
@@ -614,11 +830,14 @@
       "additionalProperties": false
     },
     "coding_audit_inputs_manifest": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
       "x-runtime-invariants": [
         "candidate_ids are sorted and equal the complete audit screening-frame population",
         "required_candidate_ids are sorted, are a subset of candidate_ids, and equal the frozen audit plan required_candidate_ids",
-        "files contains each of the five generated content files exactly once in the producer-declared deterministic order and excludes the manifest itself",
+        "a legacy manifest without bundle_contract_version contains exactly the original five content files; a newly produced bundle_contract_version 1.1 manifest contains those five files plus independent-review-packet.zip exactly once",
+        "for bundle_contract_version 1.1, required_candidate_ids equal the candidate IDs in review materials and pending templates, with one row of each per candidate and exact candidate, chain, document, codebook and source-text-digest identity parity across the parent bundle",
+        "for bundle_contract_version 1.1, codebook_sha256 and coding_brief_file_sha256 equal the inner manifest values and the corresponding exact ZIP payload-member digests; neither field exists in the legacy branch",
+        "the required release-allowlisted codebook version is selected independently of primary coding, whose version fields are used only for exact equality checks",
         "source hashes bind the exact frozen plan, screening, primary and sources bytes plus the canonical candidate/source-text inventory",
         "manifest_sha256 is the canonical digest of the exact remaining manifest fields"
       ],
@@ -634,9 +853,13 @@
       ],
       "properties": {
         "schema_version": {"type": "string", "const": "1.0"},
+        "bundle_contract_version": {"type": "string", "const": "1.1"},
         "artifact_type": {"type": "string", "const": "coding_audit_input_bundle"},
         "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_prepare"},
         "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "codebook_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coding_brief_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "source_plan_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "source_screening_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "source_primary_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -660,7 +883,7 @@
         "files": {
           "type": "array",
           "minItems": 5,
-          "maxItems": 5,
+          "maxItems": 6,
           "uniqueItems": true,
           "items": {"$ref": "#/definitions/coding_audit_bundle_file"},
           "allOf": [
@@ -673,6 +896,41 @@
         },
         "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
+      "allOf": [
+        {
+          "if": {"required": ["bundle_contract_version"]},
+          "then": {
+            "required": [
+              "codebook_version", "codebook_sha256",
+              "coding_brief_file_sha256"
+            ],
+            "properties": {
+              "files": {
+                "minItems": 6,
+                "maxItems": 6,
+                "contains": {
+                  "properties": {"path": {"const": "independent-review-packet.zip"}},
+                  "required": ["path"]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {"required": ["codebook_version"]},
+                {"required": ["codebook_sha256"]},
+                {"required": ["coding_brief_file_sha256"]}
+              ]
+            },
+            "properties": {
+              "files": {"minItems": 5, "maxItems": 5}
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "coding_audit_plan": {

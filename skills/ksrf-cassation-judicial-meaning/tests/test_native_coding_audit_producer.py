@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import errno
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -10,13 +11,16 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from jsonschema import Draft202012Validator, ValidationError
 
 from judicial_meaning.analysis import screen_text
 import judicial_meaning.cli as cli_module
+import judicial_meaning.practice_quality as practice_quality_module
 from judicial_meaning.cli import (
     _atomic_rename_no_replace,
     read_json,
@@ -27,6 +31,7 @@ from judicial_meaning.cli import (
 from judicial_meaning.plan import freeze_plan
 from judicial_meaning.practice_quality import (
     AUDIT_CODING_RECORD_FIELDS,
+    build_native_coding_audit_inputs,
     canonical_digest,
 )
 
@@ -41,7 +46,16 @@ BUNDLE_FILES = {
     "coding-audit-plan.json",
     "secondary-review-queue.jsonl",
     "secondary-coding-template.jsonl",
+    "independent-review-packet.zip",
     "coding-audit-inputs-manifest.json",
+}
+REVIEW_PACKET_FILES = {
+    "CODING-BRIEF.json",
+    "CODING-CODEBOOK.md",
+    "REVIEW-INSTRUCTIONS.md",
+    "review-materials.jsonl",
+    "review-packet-manifest.json",
+    "secondary-coding-template.jsonl",
 }
 
 
@@ -113,11 +127,24 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             if path.is_file()
         }
 
+    @staticmethod
+    def _jsonl_bytes(value: bytes) -> list[dict[str, object]]:
+        return [
+            json.loads(line)
+            for line in value.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
     def _seed_workspace(self, root: Path) -> dict[str, object]:
         workspace = root / "workspace"
         workspace.mkdir(parents=True)
         plan = json.loads(
             (FIXTURES / "research-plan-valid.json").read_text(encoding="utf-8")
+        )
+        plan["research_questions"][0]["status"] = "hypothesis_under_test"
+        plan["research_questions"][0]["question"] = (
+            "Подтверждается ли предположение, что спорная норма допускает "
+            "восстановление срока при сопоставимых обстоятельствах?"
         )
         frozen = freeze_plan(plan, workspace)
         text = (
@@ -198,12 +225,16 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
         }
 
     @staticmethod
-    def _prepare_arguments(state: dict[str, object], output: Path) -> list[str]:
+    def _prepare_arguments(
+        state: dict[str, object], output: Path, *, codebook_version: str = "1.0"
+    ) -> list[str]:
         return [
             "quality",
             "coding-audit-prepare",
             "--workspace",
             str(state["workspace"]),
+            "--codebook-version",
+            codebook_version,
             "--sample-size",
             "5",
             "--exclusion-sample-size",
@@ -322,6 +353,179 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
         }:
             self.assertIsNone(template[field], field)
 
+        review_zip = bundle / "independent-review-packet.zip"
+        with zipfile.ZipFile(review_zip, "r") as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(sorted(REVIEW_PACKET_FILES), archive.namelist())
+            review_bytes = {
+                name: archive.read(name) for name in archive.namelist()
+            }
+            for info in archive.infolist():
+                self.assertEqual((1980, 1, 1, 0, 0, 0), info.date_time)
+                self.assertEqual(zipfile.ZIP_STORED, info.compress_type)
+                self.assertEqual(3, info.create_system)
+                self.assertEqual(0o644, (info.external_attr >> 16) & 0o777)
+                self.assertNotIn("/", info.filename)
+            self.assertEqual(b"", archive.comment)
+
+        review_materials = self._jsonl_bytes(
+            review_bytes["review-materials.jsonl"]
+        )
+        self.assertEqual(1, len(review_materials))
+        material = review_materials[0]
+        self.assertEqual(
+            {
+                "schema_version",
+                "candidate_id",
+                "chain_id",
+                "document_id",
+                "source_text_sha256",
+                "packet_text_sha256",
+                "text",
+            },
+            set(material),
+        )
+        self.assertEqual(expected_candidate_id, material["candidate_id"])
+        self.assertEqual(state["text"], material["text"])
+        self.assertEqual(
+            hashlib.sha256(str(state["text"]).encode("utf-8")).hexdigest(),
+            material["packet_text_sha256"],
+        )
+        self.assertEqual(
+            review_bytes["secondary-coding-template.jsonl"],
+            (bundle / "secondary-coding-template.jsonl").read_bytes(),
+        )
+        self.assertEqual(
+            (
+                SKILL_ROOT / "references" / "coding-audit-codebook-v1.md"
+            ).read_bytes(),
+            review_bytes["CODING-CODEBOOK.md"],
+        )
+        coding_brief = json.loads(review_bytes["CODING-BRIEF.json"].decode("utf-8"))
+        self.assertEqual(frozen["plan_sha256"], coding_brief["plan_sha256"])
+        self.assertEqual("1.0", coding_brief["codebook_version"])
+        self.assertEqual(
+            "hypothesis_under_test",
+            coding_brief["research_questions"][0]["status"],
+        )
+        self.assertEqual(frozen["research_questions"][0]["question"], coding_brief["research_questions"][0]["question"])
+        self.assertNotIn("query_lanes", coding_brief)
+        self.assertNotIn("approved_by", coding_brief)
+        self.assertNotIn("adverse_review", coding_brief)
+        self.assertEqual(
+            canonical_digest(
+                {
+                    key: value
+                    for key, value in coding_brief.items()
+                    if key != "brief_sha256"
+                }
+            ),
+            coding_brief["brief_sha256"],
+        )
+        guide = review_bytes["REVIEW-INSTRUCTIONS.md"].decode("utf-8")
+        logical_guide = " ".join(guide.casefold().split())
+        self.assertIn("не передавайте весь родительский каталог", logical_guide)
+        self.assertIn("по независимому каналу", logical_guide)
+        self.assertIn("shasum -a 256", logical_guide)
+        self.assertIn("ровно 20 полями", logical_guide)
+        self.assertIn("independently_sufficient", logical_guide)
+        self.assertIn("distinguishes", logical_guide)
+        self.assertIn("строгий utf-8 jsonl", logical_guide)
+        self.assertIn("повторяющихся ключей", logical_guide)
+        self.assertIn("nan", logical_guide)
+        self.assertIn("штатного импорта", logical_guide)
+        self.assertIn("coding-codebook.md", logical_guide)
+        self.assertIn("coding-brief.json", logical_guide)
+        self.assertIn("направленную проверяемую гипотезу", logical_guide)
+        self.assertIn("supports", logical_guide)
+        self.assertIn("adverse", logical_guide)
+        self.assertIn("сам факт включения", logical_guide)
+        self.assertIn("конкретную поисковую дорожку", logical_guide)
+        self.assertIn("логическое json-значение", logical_guide)
+        self.assertIn("не скрывает исход судебного дела", logical_guide)
+        self.assertIn("не разрешает публикацию", logical_guide)
+
+        review_manifest = json.loads(
+            review_bytes["review-packet-manifest.json"].decode("utf-8")
+        )
+        self.assertEqual(
+            {
+                "schema_version",
+                "artifact_type",
+                "producer",
+                "plan_sha256",
+                "codebook_version",
+                "codebook_sha256",
+                "coding_brief_file_sha256",
+                "candidate_ids",
+                "blinding_scope",
+                "excluded_information",
+                "contains_full_text",
+                "contains_primary_coding",
+                "review_state",
+                "human_approval_created",
+                "publication_safe",
+                "legal_readiness",
+                "files",
+                "manifest_sha256",
+            },
+            set(review_manifest),
+        )
+        self.assertEqual(
+            "coding_audit_blinded_review_packet",
+            review_manifest["artifact_type"],
+        )
+        self.assertEqual("1.0", review_manifest["codebook_version"])
+        self.assertEqual(
+            hashlib.sha256(review_bytes["CODING-CODEBOOK.md"]).hexdigest(),
+            review_manifest["codebook_sha256"],
+        )
+        self.assertEqual(
+            hashlib.sha256(review_bytes["CODING-BRIEF.json"]).hexdigest(),
+            review_manifest["coding_brief_file_sha256"],
+        )
+        self.assertEqual([expected_candidate_id], review_manifest["candidate_ids"])
+        self.assertEqual("primary_coding_answer_only", review_manifest["blinding_scope"])
+        self.assertEqual(
+            [
+                "adjudication",
+                "primary_coder_identity",
+                "primary_coding",
+                "primary_coding_sha256",
+                "sample_lane",
+                "screening_matches",
+                "screening_queries",
+            ],
+            review_manifest["excluded_information"],
+        )
+        self.assertIs(review_manifest["contains_full_text"], True)
+        self.assertIs(review_manifest["contains_primary_coding"], False)
+        self.assertEqual(
+            "independent_secondary_required",
+            review_manifest["review_state"],
+        )
+        self.assertIs(review_manifest["human_approval_created"], False)
+        self.assertIs(review_manifest["publication_safe"], False)
+        self.assertIs(review_manifest["legal_readiness"], False)
+        self.assertEqual(
+            canonical_digest(
+                {
+                    key: value
+                    for key, value in review_manifest.items()
+                    if key != "manifest_sha256"
+                }
+            ),
+            review_manifest["manifest_sha256"],
+        )
+        self.assertEqual(
+            REVIEW_PACKET_FILES - {"review-packet-manifest.json"},
+            {item["path"] for item in review_manifest["files"]},
+        )
+        for item in review_manifest["files"]:
+            content = review_bytes[item["path"]]
+            self.assertEqual(len(content), item["bytes"])
+            self.assertEqual(hashlib.sha256(content).hexdigest(), item["sha256"])
+
         plan = read_json(bundle / "coding-audit-plan.json")
         self.assertEqual([expected_candidate_id], plan["sample_candidate_ids"])
         self.assertEqual([expected_candidate_id], plan["exclusion_sample_candidate_ids"])
@@ -332,6 +536,15 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
 
         manifest = read_json(bundle / "coding-audit-inputs-manifest.json")
         self.assertEqual("1.0", manifest["schema_version"])
+        self.assertEqual("1.1", manifest["bundle_contract_version"])
+        self.assertEqual("1.0", manifest["codebook_version"])
+        self.assertEqual(
+            review_manifest["codebook_sha256"], manifest["codebook_sha256"]
+        )
+        self.assertEqual(
+            review_manifest["coding_brief_file_sha256"],
+            manifest["coding_brief_file_sha256"],
+        )
         self.assertEqual(
             "judicial_meaning.quality.coding_audit_prepare", manifest["producer"]
         )
@@ -378,8 +591,43 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
         validate_definition("coding_audit_screening_frame_row", frame[0])
         validate_definition("coding_audit_review_queue_row", queue[0])
         validate_definition("coding_audit_pending_template", template)
+        validate_definition("coding_audit_neutral_brief", coding_brief)
+        validate_definition("coding_audit_blinded_review_material", material)
+        validate_definition("coding_audit_blinded_review_manifest", review_manifest)
         validate_definition("coding_audit_plan", plan)
         validate_definition("coding_audit_inputs_manifest", manifest)
+        legacy_manifest = copy.deepcopy(manifest)
+        del legacy_manifest["bundle_contract_version"]
+        del legacy_manifest["codebook_version"]
+        del legacy_manifest["codebook_sha256"]
+        del legacy_manifest["coding_brief_file_sha256"]
+        legacy_manifest["files"] = [
+            item
+            for item in legacy_manifest["files"]
+            if item["path"] != "independent-review-packet.zip"
+        ]
+        legacy_unsigned = {
+            key: value
+            for key, value in legacy_manifest.items()
+            if key != "manifest_sha256"
+        }
+        legacy_manifest["manifest_sha256"] = canonical_digest(legacy_unsigned)
+        validate_definition("coding_audit_inputs_manifest", legacy_manifest)
+        incompatible_new_manifest = copy.deepcopy(manifest)
+        incompatible_new_manifest["files"] = legacy_manifest["files"]
+        with self.assertRaises(ValidationError):
+            validate_definition(
+                "coding_audit_inputs_manifest", incompatible_new_manifest
+            )
+        incompatible_legacy_manifest = copy.deepcopy(manifest)
+        del incompatible_legacy_manifest["bundle_contract_version"]
+        del incompatible_legacy_manifest["codebook_version"]
+        del incompatible_legacy_manifest["codebook_sha256"]
+        del incompatible_legacy_manifest["coding_brief_file_sha256"]
+        with self.assertRaises(ValidationError):
+            validate_definition(
+                "coding_audit_inputs_manifest", incompatible_legacy_manifest
+            )
         top_level_validator = Draft202012Validator(schema)
         for artifact_name, artifact in (
             ("screening-candidates.audit.jsonl", frame[0]),
@@ -387,7 +635,10 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             ("coding-audit-plan.json", plan),
             ("secondary-review-queue.jsonl", queue[0]),
             ("secondary-coding-template.jsonl", template),
+            ("CODING-BRIEF.json", coding_brief),
             ("coding-audit-inputs-manifest.json", manifest),
+            ("review-materials.jsonl", material),
+            ("review-packet-manifest.json", review_manifest),
         ):
             self.assertEqual(
                 [],
@@ -420,7 +671,28 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
                 )
                 self.assertEqual(0, completed.returncode, completed.stderr)
                 self.assertEqual("", completed.stderr)
-                self.assertIsInstance(json.loads(completed.stdout), dict)
+                payload = json.loads(completed.stdout)
+                self.assertIsInstance(payload, dict)
+                self.assertEqual(
+                    {
+                        "artifact_type",
+                        "output_dir",
+                        "manifest_sha256",
+                        "independent_review_packet_sha256",
+                        "candidate_count",
+                        "required_candidate_count",
+                        "secondary_review_state",
+                        "human_approval_created",
+                        "legal_readiness",
+                    },
+                    set(payload),
+                )
+                self.assertEqual(
+                    hashlib.sha256(
+                        (bundle / "independent-review-packet.zip").read_bytes()
+                    ).hexdigest(),
+                    payload["independent_review_packet_sha256"],
+                )
                 self._assert_bundle_contract(state, bundle)
                 bundles[location] = bundle
                 outputs[location] = self._bundle_bytes(bundle)
@@ -438,6 +710,428 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             )
             self.assertEqual(0, completed.returncode, completed.stderr)
             self.assertEqual(outputs["source"], self._bundle_bytes(repeated))
+
+    def test_review_zip_is_invariant_to_primary_answers_and_sampling_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            first = Path(state["bundles"]) / "first"
+            completed = self._run(
+                REPO / SCRIPT,
+                self._prepare_arguments(state, first),
+                cwd=root,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+
+            primary = read_jsonl(Path(state["primary_path"]))
+            primary[0].update(
+                {
+                    "label": "core_merits",
+                    "coder": "changed-primary-reviewer",
+                    "proposition": "Иная допустимая формулировка первого кодировщика.",
+                    "quote": "Проверенная позиция суда обусловила отмену акта",
+                    "quote_locator": "иной локатор первичного кодировщика",
+                    "reasoning_to_outcome": "Иное объяснение связи мотива и исхода.",
+                    "reading_family": "changed-primary-family",
+                    "material_facts": ["иной первично выделенный факт"],
+                }
+            )
+            write_jsonl(Path(state["primary_path"]), primary)
+            second = Path(state["bundles"]) / "second"
+            completed = self._run(
+                REPO / SCRIPT,
+                self._prepare_arguments(state, second),
+                cwd=root,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+
+            self.assertNotEqual(
+                (first / "primary-decisions.audit.jsonl").read_bytes(),
+                (second / "primary-decisions.audit.jsonl").read_bytes(),
+            )
+            self.assertNotEqual(
+                (first / "coding-audit-plan.json").read_bytes(),
+                (second / "coding-audit-plan.json").read_bytes(),
+            )
+            self.assertEqual(
+                (first / "independent-review-packet.zip").read_bytes(),
+                (second / "independent-review-packet.zip").read_bytes(),
+            )
+
+    def test_review_material_distinguishes_store_and_exact_packet_text_digests(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            sources = read_jsonl(Path(state["sources_path"]))
+            text = str(sources[0]["text"]).replace(
+                "Суд установил, что",
+                "Суд\t  установил,\n\v\f\rчто",
+            )
+            normalized = re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
+            sources[0]["text"] = text
+            sources[0]["text_sha256"] = hashlib.sha256(
+                normalized.encode("utf-8")
+            ).hexdigest()
+            sources[0]["document_id"] = (
+                f"document-sha256:{sources[0]['text_sha256']}"
+            )
+            write_jsonl(Path(state["sources_path"]), sources)
+
+            frozen = state["frozen"]
+            screening = {
+                "source_id": sources[0]["source_id"],
+                "document_id": sources[0]["document_id"],
+                "chain_id": sources[0]["chain_id"],
+                "matches": screen_text(text, frozen["query_lanes"]),
+                "status": "candidate_needs_full_text_review",
+            }
+            write_jsonl(Path(state["screening_path"]), [screening])
+            primary = read_jsonl(Path(state["primary_path"]))
+            primary[0]["document_id"] = sources[0]["document_id"]
+            write_jsonl(Path(state["primary_path"]), primary)
+
+            bundle = Path(state["bundles"]) / "whitespace"
+            completed = self._run(
+                REPO / SCRIPT,
+                self._prepare_arguments(state, bundle),
+                cwd=root,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            with zipfile.ZipFile(bundle / "independent-review-packet.zip") as archive:
+                material = self._jsonl_bytes(
+                    archive.read("review-materials.jsonl")
+                )[0]
+            self.assertEqual(text, material["text"])
+            self.assertEqual(sources[0]["text_sha256"], material["source_text_sha256"])
+            self.assertEqual(
+                hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                material["packet_text_sha256"],
+            )
+            self.assertNotEqual(
+                material["source_text_sha256"],
+                material["packet_text_sha256"],
+            )
+
+    def test_captured_text_runtime_rejects_every_forbidden_unicode_category(self) -> None:
+        allowed_layout = {"\t", "\n", "\v", "\f", "\r"}
+        for character in allowed_layout:
+            self.assertTrue(
+                practice_quality_module._is_captured_full_text(
+                    f"видимый{character}текст"
+                )
+            )
+
+        wrongly_accepted: list[str] = []
+        for codepoint in range(sys.maxunicode + 1):
+            character = chr(codepoint)
+            category = unicodedata.category(character)
+            if category in {"Cf", "Cs"} or (
+                category == "Cc" and character not in allowed_layout
+            ):
+                if practice_quality_module._is_captured_full_text(
+                    "видимый" + character + "текст"
+                ):
+                    wrongly_accepted.append(f"U+{codepoint:04X}/{category}")
+        self.assertEqual([], wrongly_accepted)
+
+    def test_review_packet_requires_exact_multi_candidate_bijection_and_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            sources = read_jsonl(Path(state["sources_path"]))
+            second_source = copy.deepcopy(sources[0])
+            second_source.update(
+                {
+                    "source_id": 202,
+                    "chain_id": "chain-second",
+                    "canonical_url": "https://1kas.sudrf.ru/second-document",
+                    "text": (
+                        "Суд установил, что срок подлежит восстановлению. "
+                        "Второй полный текст содержит самостоятельные факты."
+                    ),
+                }
+            )
+            second_source["text_sha256"] = hashlib.sha256(
+                second_source["text"].encode("utf-8")
+            ).hexdigest()
+            second_source["raw_sha256"] = hashlib.sha256(
+                ("RAW:" + second_source["text"]).encode("utf-8")
+            ).hexdigest()
+            second_source["document_id"] = (
+                f"document-sha256:{second_source['text_sha256']}"
+            )
+            sources.append(second_source)
+
+            screening = read_jsonl(Path(state["screening_path"]))
+            screening.append(
+                {
+                    "source_id": second_source["source_id"],
+                    "document_id": second_source["document_id"],
+                    "chain_id": second_source["chain_id"],
+                    "matches": screen_text(
+                        second_source["text"], state["frozen"]["query_lanes"]
+                    ),
+                    "status": "candidate_needs_full_text_review",
+                }
+            )
+            primary = read_jsonl(Path(state["primary_path"]))
+            second_primary = copy.deepcopy(primary[0])
+            second_primary.update(
+                {
+                    "chain_id": second_source["chain_id"],
+                    "document_id": second_source["document_id"],
+                    "quote": "срок подлежит восстановлению",
+                    "coder": "primary-reviewer-second-record",
+                }
+            )
+            primary.append(second_primary)
+            captured_sources = cli_module._captured_workspace_source_texts(
+                Path(state["workspace"]), sources
+            )
+            projection = build_native_coding_audit_inputs(
+                screening,
+                primary,
+                captured_sources,
+                plan_sha256=state["frozen"]["plan_sha256"],
+                codebook_version="1.0",
+                sample_size=5,
+                exclusion_sample_size=5,
+            )
+            self.assertEqual(
+                2, len(projection["audit_plan"]["required_candidate_ids"])
+            )
+            baseline = cli_module._build_blinded_review_packet(
+                projection,
+                plan_sha256=state["frozen"]["plan_sha256"],
+                codebook_content=cli_module._load_audit_codebook("1.0"),
+                coding_brief_content=cli_module._canonical_json_bytes(
+                    cli_module._build_neutral_coding_brief(
+                        state["frozen"], codebook_version="1.0"
+                    )
+                ),
+            )
+            with zipfile.ZipFile(io.BytesIO(baseline)) as archive:
+                self.assertEqual(
+                    2,
+                    len(self._jsonl_bytes(archive.read("review-materials.jsonl"))),
+                )
+
+            def missing_material(value: dict[str, object]) -> None:
+                value["secondary_review_materials"].pop()
+
+            def duplicate_template(value: dict[str, object]) -> None:
+                value["secondary_coding_templates"].append(
+                    copy.deepcopy(value["secondary_coding_templates"][0])
+                )
+
+            def extra_material(value: dict[str, object]) -> None:
+                extra = copy.deepcopy(value["secondary_review_materials"][0])
+                extra["candidate_id"] = "audit-candidate-sha256:" + "e" * 64
+                value["secondary_review_materials"].append(extra)
+
+            def swapped_identity(value: dict[str, object]) -> None:
+                materials = value["secondary_review_materials"]
+                materials[0]["chain_id"] = materials[1]["chain_id"]
+
+            def stale_packet_digest(value: dict[str, object]) -> None:
+                value["secondary_review_materials"][0]["packet_text_sha256"] = (
+                    "f" * 64
+                )
+
+            def cross_bound_text(value: dict[str, object]) -> None:
+                material = value["secondary_review_materials"][0]
+                material["text"] = "Совершенно другой полный текст."
+                material["packet_text_sha256"] = hashlib.sha256(
+                    material["text"].encode("utf-8")
+                ).hexdigest()
+
+            cases = (
+                ("missing-material", missing_material),
+                ("duplicate-template", duplicate_template),
+                ("extra-material", extra_material),
+                ("swapped-identity", swapped_identity),
+                ("stale-packet-digest", stale_packet_digest),
+                ("cross-bound-text", cross_bound_text),
+            )
+            for name, mutate in cases:
+                with self.subTest(case=name):
+                    tampered = copy.deepcopy(projection)
+                    mutate(tampered)
+                    with self.assertRaises(ValueError):
+                        cli_module._build_blinded_review_packet(
+                            tampered,
+                            plan_sha256=state["frozen"]["plan_sha256"],
+                            codebook_content=cli_module._load_audit_codebook("1.0"),
+                            coding_brief_content=cli_module._canonical_json_bytes(
+                                cli_module._build_neutral_coding_brief(
+                                    state["frozen"], codebook_version="1.0"
+                                )
+                            ),
+                        )
+
+    def test_neutral_brief_and_codebook_are_closed_trusted_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            sources = read_jsonl(Path(state["sources_path"]))
+            projection = build_native_coding_audit_inputs(
+                read_jsonl(Path(state["screening_path"])),
+                read_jsonl(Path(state["primary_path"])),
+                cli_module._captured_workspace_source_texts(
+                    Path(state["workspace"]), sources
+                ),
+                plan_sha256=state["frozen"]["plan_sha256"],
+                codebook_version="1.0",
+                sample_size=5,
+                exclusion_sample_size=5,
+            )
+            codebook = cli_module._load_audit_codebook("1.0")
+            brief = cli_module._build_neutral_coding_brief(
+                state["frozen"], codebook_version="1.0"
+            )
+
+            def extra_search_field(value: dict[str, object]) -> None:
+                value["screening_queries"] = ["скрытый запрос"]
+
+            def unsafe_visible_text(value: dict[str, object]) -> None:
+                value["title"] = str(value["title"]) + "\u200b"
+
+            def unsafe_canonical_identifier(value: dict[str, object]) -> None:
+                value["research_questions"][0]["id"] += "\x00"
+
+            for name, mutate in (
+                ("extra-search-field", extra_search_field),
+                ("unsafe-visible-text", unsafe_visible_text),
+                ("unsafe-canonical-identifier", unsafe_canonical_identifier),
+            ):
+                with self.subTest(case=name):
+                    tampered = copy.deepcopy(brief)
+                    mutate(tampered)
+                    unsigned = {
+                        key: value
+                        for key, value in tampered.items()
+                        if key != "brief_sha256"
+                    }
+                    tampered["brief_sha256"] = canonical_digest(unsigned)
+                    with self.assertRaises(ValueError):
+                        cli_module._build_blinded_review_packet(
+                            projection,
+                            plan_sha256=state["frozen"]["plan_sha256"],
+                            codebook_content=codebook,
+                            coding_brief_content=cli_module._canonical_json_bytes(
+                                tampered
+                            ),
+                        )
+
+            with self.assertRaises(ValueError):
+                cli_module._build_blinded_review_packet(
+                    projection,
+                    plan_sha256=state["frozen"]["plan_sha256"],
+                    codebook_content=codebook + b"\n<!-- untrusted change -->\n",
+                    coding_brief_content=cli_module._canonical_json_bytes(brief),
+                )
+
+    def test_codebook_asset_failures_and_concurrent_change_publish_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            existing = root / "codebook.md"
+            link = root / "codebook-link.md"
+            cases = (
+                ("missing", root / "missing.md"),
+                ("empty", existing),
+                ("non-utf8", existing),
+                ("symlink", link),
+            )
+            for name, path in cases:
+                with self.subTest(case=name):
+                    if existing.exists():
+                        existing.unlink()
+                    if link.is_symlink():
+                        link.unlink()
+                    if name == "empty":
+                        existing.write_bytes(b"")
+                    elif name == "non-utf8":
+                        existing.write_bytes(b"\xff")
+                    elif name == "symlink":
+                        existing.write_text("valid", encoding="utf-8")
+                        link.symlink_to(existing)
+                    with patch.dict(
+                        cli_module._AUDIT_CODEBOOK_PATHS,
+                        {"1.0": str(path)},
+                        clear=True,
+                    ):
+                        with self.assertRaises(ValueError):
+                            cli_module._load_audit_codebook("1.0")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "must-not-exist"
+            codebook = cli_module._load_audit_codebook("1.0")
+            args = cli_module.argparse.Namespace(
+                workspace=str(state["workspace"]),
+                output_dir=str(destination),
+                codebook_version="1.0",
+                sample_size=5,
+                exclusion_sample_size=5,
+            )
+            with patch.object(
+                cli_module,
+                "_load_audit_codebook",
+                side_effect=(codebook, codebook, codebook + b"\nchanged\n"),
+            ):
+                with self.assertRaisesRegex(ValueError, "изменились"):
+                    cli_module.cmd_quality_coding_audit_prepare(args)
+            self.assertFalse(destination.exists())
+
+    def test_multiple_questions_and_unsafe_brief_text_publish_nothing(self) -> None:
+        def add_second_question(plan: dict[str, object]) -> None:
+            question = copy.deepcopy(plan["research_questions"][0])
+            question["id"] = "rq-second"
+            question["question"] = "Каков второй отдельный проверяемый вопрос?"
+            plan["research_questions"].append(question)
+
+        def add_nul_to_title(plan: dict[str, object]) -> None:
+            plan["title"] = str(plan["title"]) + "\x00"
+
+        def add_zero_width_to_rule(plan: dict[str, object]) -> None:
+            plan["inclusion_rules"][0] += "\u200b"
+
+        def make_question_open(plan: dict[str, object]) -> None:
+            plan["research_questions"][0]["status"] = "research_question"
+            plan["research_questions"][0]["question"] = (
+                "Как суды толкуют спорную норму?"
+            )
+
+        for name, mutate in (
+            ("multiple-questions", add_second_question),
+            ("open-question", make_question_open),
+            ("nul-title", add_nul_to_title),
+            ("zero-width-rule", add_zero_width_to_rule),
+        ):
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                state = self._seed_workspace(root)
+                plan_path = Path(state["workspace"]) / "plans" / "plan-v1.json"
+                plan = read_json(plan_path)
+                mutate(plan)
+                unsigned = {
+                    key: value
+                    for key, value in plan.items()
+                    if key not in {"frozen", "plan_sha256"}
+                }
+                plan["plan_sha256"] = canonical_digest(unsigned)
+                write_json(plan_path, plan)
+                destination = Path(state["bundles"]) / "must-not-exist"
+                completed = self._run(
+                    REPO / SCRIPT,
+                    self._prepare_arguments(state, destination),
+                    cwd=root,
+                )
+                self.assertEqual(2, completed.returncode, completed.stdout)
+                self.assertEqual("", completed.stdout)
+                self.assertTrue(completed.stderr.startswith("Ошибка: "))
+                self.assertFalse(destination.exists())
 
     def test_valid_nonmatching_source_and_legacy_alternative_quote_are_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -499,6 +1193,16 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
         def invalid_source_id(state: dict[str, object]) -> None:
             records = read_jsonl(Path(state["sources_path"]))
             records[0]["source_id"] = True
+            write_jsonl(Path(state["sources_path"]), records)
+
+        def nul_in_source_text(state: dict[str, object]) -> None:
+            records = read_jsonl(Path(state["sources_path"]))
+            records[0]["text"] += "\x00"
+            write_jsonl(Path(state["sources_path"]), records)
+
+        def zero_width_in_source_text(state: dict[str, object]) -> None:
+            records = read_jsonl(Path(state["sources_path"]))
+            records[0]["text"] += "\u200b"
             write_jsonl(Path(state["sources_path"]), records)
 
         def stale_source_text_hash(state: dict[str, object]) -> None:
@@ -582,9 +1286,32 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             screening.append(mirror_screening)
             write_jsonl(Path(state["screening_path"]), screening)
 
+        def duplicate_with_different_exact_layout(state: dict[str, object]) -> None:
+            records = read_jsonl(Path(state["sources_path"]))
+            mirror = copy.deepcopy(records[0])
+            mirror["source_id"] = 102
+            mirror["canonical_url"] = "https://1kas.sudrf.ru/layout-mirror"
+            mirror["text"] += "\n"
+            records.append(mirror)
+            write_jsonl(Path(state["sources_path"]), records)
+
+            screening = read_jsonl(Path(state["screening_path"]))
+            mirror_screening = copy.deepcopy(screening[0])
+            mirror_screening["source_id"] = 102
+            mirror_screening["matches"] = screen_text(
+                mirror["text"], state["frozen"]["query_lanes"]
+            )
+            screening.append(mirror_screening)
+            write_jsonl(Path(state["screening_path"]), screening)
+
         def missing_coding_field(state: dict[str, object]) -> None:
             records = read_jsonl(Path(state["primary_path"]))
             del records[0]["remedy"]
+            write_jsonl(Path(state["primary_path"]), records)
+
+        def primary_codebook_mismatch(state: dict[str, object]) -> None:
+            records = read_jsonl(Path(state["primary_path"]))
+            records[0]["codebook_version"] = "primary-reviewer-says-false-positive"
             write_jsonl(Path(state["primary_path"]), records)
 
         def quote_not_in_text(state: dict[str, object]) -> None:
@@ -624,6 +1351,8 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             ("stale-screening", stale_screening_match),
             ("missing-source", missing_source),
             ("invalid-source-id", invalid_source_id),
+            ("nul-in-source-text", nul_in_source_text),
+            ("zero-width-in-source-text", zero_width_in_source_text),
             ("stale-source-text-hash", stale_source_text_hash),
             ("stale-document-content-id", stale_document_content_id),
             ("stale-nonmatching-source-text-hash", stale_nonmatching_source_text_hash),
@@ -635,7 +1364,12 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             ("noncanonical-nonmatching-identity", noncanonical_nonmatching_identity),
             ("ambiguous-source", ambiguous_source_text),
             ("conflicting-duplicate-matches", conflicting_duplicate_matches),
+            (
+                "duplicate-with-different-exact-layout",
+                duplicate_with_different_exact_layout,
+            ),
             ("missing-coding-field", missing_coding_field),
+            ("primary-codebook-mismatch", primary_codebook_mismatch),
             ("quote-mismatch", quote_not_in_text),
             ("alternative-quote-mismatch", alternative_quote_not_in_text),
             ("foreign-candidate-id", foreign_candidate_id),
@@ -1101,6 +1835,8 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
                 "coding-audit-prepare",
                 "--workspace",
                 str(state["workspace"]),
+                "--codebook-version",
+                "1.0",
                 "--sample-size",
                 "0",
                 "--exclusion-sample-size",
@@ -1115,9 +1851,27 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             self.assertFalse(destination.exists())
             self.assertEqual(before, self._tree_snapshot(Path(state["workspace"])))
 
+    def test_unknown_codebook_version_is_refused_without_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "must-not-exist"
+            completed = self._run(
+                REPO / SCRIPT,
+                self._prepare_arguments(
+                    state, destination, codebook_version="primary-controlled"
+                ),
+                cwd=root,
+            )
+            self.assertEqual(2, completed.returncode, completed.stdout)
+            self.assertEqual("", completed.stdout)
+            self.assertIn("--codebook-version", completed.stderr)
+            self.assertFalse(destination.exists())
+
     def test_russian_help_explains_outputs_refusal_and_human_boundaries(self) -> None:
         required_fragments = (
             "--workspace",
+            "--codebook-version",
             "--sample-size",
             "--exclusion-sample-size",
             "--output-dir",
@@ -1129,6 +1883,12 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             "ожидающ",
             "вторичн",
             "расхожд",
+            "independent_review_packet_sha256",
+            "coding-codebook.md",
+            "coding-brief.json",
+            "hypothesis_under_test",
+            "независимому каналу",
+            "до распаковки",
             "юридическ",
             "пода",
             *sorted(BUNDLE_FILES),

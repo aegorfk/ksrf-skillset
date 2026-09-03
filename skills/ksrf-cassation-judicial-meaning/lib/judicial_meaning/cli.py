@@ -6,14 +6,18 @@ import argparse
 import ctypes
 import errno
 import hashlib
+import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import sys
 import tempfile
 import textwrap
-from datetime import datetime, timezone
+import unicodedata
+import zipfile
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -52,6 +56,9 @@ from .handoff_workbench import (
 )
 from .public_corpus import PublicCorpus
 from .practice_quality import (
+    AUDIT_CODING_RECORD_FIELDS,
+    NATIVE_AUDIT_CODEBOOK_VERSIONS,
+    NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS,
     analyze_chain_stage_propagation,
     assess_coding_reliability,
     assess_prefiling_refresh,
@@ -100,6 +107,7 @@ _RUSSIAN_METAVARS = {
     "chain_id": "ИДЕНТИФИКАТОР_ЦЕПОЧКИ",
     "checked_through": "ДАТА_И_ВРЕМЯ_ISO",
     "claim_id": "ИДЕНТИФИКАТОР_ТРЕБОВАНИЯ",
+    "codebook_version": "ВЕРСИЯ_СПРАВОЧНИКА_КОДИРОВАНИЯ",
     "coding_reliability": "ФАЙЛ_НАДЁЖНОСТИ_КОДИРОВАНИЯ",
     "comparison": "ФАЙЛ_СОПОСТАВЛЕНИЯ",
     "comparisons": "ФАЙЛ_СОПОСТАВЛЕНИЙ",
@@ -405,6 +413,645 @@ def _canonical_json_bytes(value: Any) -> bytes:
 
 def _canonical_jsonl_bytes(records: Iterable[Mapping[str, Any]]) -> bytes:
     return b"".join(_canonical_json_bytes(dict(record)) for record in records)
+
+
+_BLINDED_REVIEW_GUIDE = textwrap.dedent(
+    """
+    # Независимая проверка кодирования
+
+    Этот ZIP предназначен только для второго кодировщика. Не передавайте весь
+    родительский каталог audit-пакета: в нём находятся ответы первого кодировщика.
+
+    Сопровождающий обязан сохранить показанный командой ожидаемый SHA-256 и
+    передать его отдельно от ZIP по независимому каналу. До начала работы получите
+    это значение и сравните его с результатом команды:
+    `shasum -a 256 independent-review-packet.zip`. При несовпадении остановитесь.
+
+    `codebook_version` задаётся сопровождающим отдельно как версия процедуры,
+    проверяется на совпадение с первичными карточками и связан с приложенным
+    `CODING-CODEBOOK.md`; ответ первого кодировщика не является источником этого
+    значения. До разметки прочитайте этот справочник полностью, а направленную
+    проверяемую гипотезу, нормы и правила включения возьмите из
+    `CODING-BRIEF.json`. Поля `supports` и `adverse` относятся именно к этой
+    гипотезе, а не к желаемому результату дела.
+
+    Пакет скрывает первичную разметку, её хеши, автора первичной разметки,
+    поисковые совпадения, конкретную поисковую дорожку и основание отбора.
+    Сам факт включения показывает принадлежность документа объединённой
+    audit-выборке. Пакет не скрывает исход судебного дела: факты, мотивы и
+    результат видны в полном тексте и нужны для юридического кодирования.
+
+    Для каждого `candidate_id`:
+
+    1. Прочитайте весь соответствующий `text` из `review-materials.jsonl`.
+    2. Скопируйте `secondary-coding-template.jsonl` в отдельный рабочий файл.
+       Не изменяйте файлы внутри исходного ZIP.
+    3. Не меняйте `candidate_id`, `chain_id`, `document_id` и `codebook_version`.
+    4. Верните ровно одну запись с ровно 20 полями: `candidate_id`, `chain_id`,
+       `document_id`, `label`, `speaker`, `proposition`, `quote`, `quote_locator`,
+       `norm_edition_id`, `reasoning_to_outcome`, `reading_family`, `relation`,
+       `remedy`, `coder`, `codebook_version`, `material_facts`,
+       `alternative_grounds`, `human_review`, `quote_verified`,
+       `full_text_reviewed`.
+    5. Заполните все поля самостоятельно. Допустимые `label`:
+       `core_merits`, `contextual`, `party_only`, `mentioned_only`,
+       `quoted_not_adopted`, `false_positive`, `unclear`.
+       Для `core_merits` и `contextual` поле `speaker` должно быть `court`.
+       Допустимые `relation`: `supports`, `adverse`, `neutral`, `distinguishes`,
+       `supersedes`.
+    6. Укажите точную цитату и локатор, связь мотива с исходом, хотя бы один
+       существенный факт, результат, reading family и своё отличающееся имя в
+       `coder`. `alternative_grounds` может быть пустым списком; иначе каждый
+       элемент содержит только `ground`, `independently_sufficient` и, при
+       наличии, `quote`, `quote_locator`.
+       `material_facts` — непустой список видимых строк. Поле
+       `independently_sufficient` — логическое JSON-значение `true` или `false`.
+       Остальные текстовые значения должны быть непустыми и видимыми,
+       идентификаторы — каноническими, без крайних, повторных или управляющих
+       пробелов и символов.
+    7. Только после реального полного чтения поставьте `human_review="approved"`,
+       `quote_verified=true` и `full_text_reviewed=true`.
+
+    Верните сопровождающему отдельный строгий UTF-8 JSONL: ровно один закрытый
+    JSON-объект на каждый обязательный `candidate_id`, без отсутствующих, лишних
+    или повторных `candidate_id`, лишних полей, повторяющихся ключей, `NaN` или
+    `Infinity`. Этот выпуск ещё не содержит
+    штатного импорта решений или квитанции проверки текста. Возврат файла сам по
+    себе не доказывает независимость, сверку цитат, согласие кодировщиков,
+    юридическое одобрение или право на подачу.
+
+    ZIP содержит полные судебные тексты и может содержать персональные либо иные
+    чувствительные сведения. Передавайте его выбранному проверяющему по подходящему
+    защищённому каналу. Подготовка пакета не разрешает публикацию, распространение
+    текста или подачу жалобы.
+    """
+).lstrip().encode("utf-8")
+
+
+_AUDIT_CODEBOOK_PATHS = {"1.0": "coding-audit-codebook-v1.md"}
+
+_NEUTRAL_CODING_BRIEF_FIELDS = {
+    "schema_version",
+    "artifact_type",
+    "plan_sha256",
+    "codebook_version",
+    "title",
+    "research_questions",
+    "norm_editions",
+    "population",
+    "inclusion_rules",
+    "exclusion_rules",
+    "materiality_rule",
+    "contradiction_rule",
+    "brief_sha256",
+}
+_NEUTRAL_QUESTION_FIELDS = {"id", "status", "question", "norm_refs"}
+_NEUTRAL_NORM_EDITION_FIELDS = {
+    "id",
+    "norm_ref",
+    "valid_from",
+    "valid_to",
+    "official_source_url",
+    "edition_status",
+}
+_NEUTRAL_POPULATION_FIELDS = {
+    "unit",
+    "date_from",
+    "date_to",
+    "courts",
+    "regimes",
+    "official_population_rule",
+}
+
+
+def _is_packet_visible_text(value: Any) -> bool:
+    """Mirror visible_text without requiring jsonschema at runtime."""
+
+    if not isinstance(value, str) or not value.strip():
+        return False
+    permitted_layout_controls = {"\t", "\n", "\r"}
+    return not any(
+        unicodedata.category(character) in {"Cf", "Cs"}
+        or (
+            unicodedata.category(character) == "Cc"
+            and character not in permitted_layout_controls
+        )
+        for character in value
+    )
+
+
+def _is_packet_canonical_identifier(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    if any(
+        unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+        for character in value
+    ):
+        return False
+    return value == " ".join(value.split())
+
+
+def _is_packet_iso_date(value: Any, *, nullable: bool = False) -> bool:
+    if value is None:
+        return nullable
+    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_nonempty_visible_text_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(_is_packet_visible_text(item) for item in value)
+    )
+
+
+def _validate_neutral_coding_brief(
+    coding_brief: Any,
+    *,
+    plan_sha256: str,
+    codebook_version: str,
+    require_digest: bool,
+) -> None:
+    """Fail closed on the exact dependency-free neutral-brief contract."""
+
+    expected_fields = set(_NEUTRAL_CODING_BRIEF_FIELDS)
+    if not require_digest:
+        expected_fields.remove("brief_sha256")
+    if not isinstance(coding_brief, Mapping) or set(coding_brief) != expected_fields:
+        raise ValueError("Нейтральный coding brief имеет неверный закрытый формат.")
+    if (
+        coding_brief.get("schema_version") != "1.0"
+        or coding_brief.get("artifact_type") != "coding_audit_neutral_brief"
+        or coding_brief.get("plan_sha256") != plan_sha256
+        or re.fullmatch(r"[0-9a-f]{64}", plan_sha256) is None
+        or coding_brief.get("codebook_version") != codebook_version
+        or codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS
+        or not _is_packet_visible_text(coding_brief.get("title"))
+        or not _is_nonempty_visible_text_list(coding_brief.get("inclusion_rules"))
+        or not _is_nonempty_visible_text_list(coding_brief.get("exclusion_rules"))
+        or not _is_packet_visible_text(coding_brief.get("materiality_rule"))
+        or not _is_packet_visible_text(coding_brief.get("contradiction_rule"))
+    ):
+        raise ValueError("Нейтральный coding brief не связан с допустимым планом.")
+
+    questions = coding_brief.get("research_questions")
+    if (
+        not isinstance(questions, list)
+        or len(questions) != 1
+        or not isinstance(questions[0], Mapping)
+        or set(questions[0]) != _NEUTRAL_QUESTION_FIELDS
+        or not _is_packet_canonical_identifier(questions[0].get("id"))
+        or questions[0].get("status") != "hypothesis_under_test"
+        or not _is_packet_visible_text(questions[0].get("question"))
+        or not _is_nonempty_visible_text_list(questions[0].get("norm_refs"))
+    ):
+        raise ValueError(
+            "Нейтральный coding brief должен содержать ровно одну направленную гипотезу."
+        )
+
+    editions = coding_brief.get("norm_editions")
+    if not isinstance(editions, list) or not editions:
+        raise ValueError("Нейтральный coding brief не содержит редакций норм.")
+    seen_edition_ids: set[str] = set()
+    for edition in editions:
+        if not isinstance(edition, Mapping) or set(edition) != _NEUTRAL_NORM_EDITION_FIELDS:
+            raise ValueError("Редакция нормы в coding brief имеет неверный формат.")
+        edition_id = edition.get("id")
+        if (
+            not _is_packet_canonical_identifier(edition_id)
+            or edition_id in seen_edition_ids
+            or not _is_packet_visible_text(edition.get("norm_ref"))
+            or not _is_packet_iso_date(edition.get("valid_from"))
+            or not _is_packet_iso_date(edition.get("valid_to"), nullable=True)
+            or not _is_packet_visible_text(edition.get("official_source_url"))
+            or edition.get("edition_status") != "verified"
+        ):
+            raise ValueError("Редакция нормы в coding brief неканонична.")
+        valid_to = edition.get("valid_to")
+        if valid_to is not None and valid_to < edition["valid_from"]:
+            raise ValueError("Период редакции нормы в coding brief задан в обратном порядке.")
+        seen_edition_ids.add(edition_id)
+
+    population = coding_brief.get("population")
+    if (
+        not isinstance(population, Mapping)
+        or set(population) != _NEUTRAL_POPULATION_FIELDS
+        or population.get("unit") != "independent_case_chain"
+        or not _is_packet_iso_date(population.get("date_from"))
+        or not _is_packet_iso_date(population.get("date_to"))
+        or population["date_from"] > population["date_to"]
+        or not _is_nonempty_visible_text_list(population.get("courts"))
+        or not _is_nonempty_visible_text_list(population.get("regimes"))
+        or not _is_packet_visible_text(population.get("official_population_rule"))
+    ):
+        raise ValueError("Исследуемая совокупность в coding brief неканонична.")
+
+    if require_digest:
+        unsigned = {
+            key: value for key, value in coding_brief.items() if key != "brief_sha256"
+        }
+        if coding_brief.get("brief_sha256") != canonical_digest(unsigned):
+            raise ValueError("SHA-256 нейтрального coding brief не совпадает.")
+
+
+def _load_audit_codebook(codebook_version: str) -> bytes:
+    if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError("Запрошена неподдерживаемая версия справочника кодирования.")
+    path = Path(__file__).resolve().parents[2] / "references" / _AUDIT_CODEBOOK_PATHS[
+        codebook_version
+    ]
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("Штатный справочник кодирования отсутствует или небезопасен.")
+    content = path.read_bytes()
+    try:
+        decoded = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Штатный справочник кодирования не является UTF-8.") from exc
+    if not decoded.strip():
+        raise ValueError("Штатный справочник кодирования пуст.")
+    return content
+
+
+def _build_neutral_coding_brief(
+    frozen_plan: Mapping[str, Any], *, codebook_version: str
+) -> dict[str, Any]:
+    """Project the frozen plan into reviewer-needed, non-search metadata."""
+
+    research_questions = frozen_plan.get("research_questions")
+    if not isinstance(research_questions, list) or len(research_questions) != 1:
+        raise ValueError(
+            "Native audit требует ровно один замороженный исследовательский "
+            "вопрос; для нескольких вопросов подготовьте отдельные audit-пакеты."
+        )
+    if (
+        not isinstance(research_questions[0], Mapping)
+        or research_questions[0].get("status") != "hypothesis_under_test"
+    ):
+        raise ValueError(
+            "Native audit требует ровно одну направленную гипотезу со статусом "
+            "hypothesis_under_test; открытый research_question сначала "
+            "переформулируйте и заново заморозьте в отдельном плане."
+        )
+    if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError("Запрошена неподдерживаемая версия справочника кодирования.")
+
+    payload = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_neutral_brief",
+        "plan_sha256": frozen_plan["plan_sha256"],
+        "codebook_version": codebook_version,
+        "title": frozen_plan["title"],
+        "research_questions": [
+            {
+                "id": question["id"],
+                "status": question["status"],
+                "question": question["question"],
+                "norm_refs": list(question["norm_refs"]),
+            }
+            for question in research_questions
+        ],
+        "norm_editions": [
+            {
+                "id": edition["id"],
+                "norm_ref": edition["norm_ref"],
+                "valid_from": edition["valid_from"],
+                "valid_to": edition["valid_to"],
+                "official_source_url": edition["official_source_url"],
+                "edition_status": edition["edition_status"],
+            }
+            for edition in frozen_plan["norm_editions"]
+        ],
+        "population": {
+            "unit": frozen_plan["population"]["unit"],
+            "date_from": frozen_plan["population"]["date_from"],
+            "date_to": frozen_plan["population"]["date_to"],
+            "courts": list(frozen_plan["population"]["courts"]),
+            "regimes": list(frozen_plan["population"]["regimes"]),
+            "official_population_rule": frozen_plan["population"][
+                "official_population_rule"
+            ],
+        },
+        "inclusion_rules": list(frozen_plan["inclusion_rules"]),
+        "exclusion_rules": list(frozen_plan["exclusion_rules"]),
+        "materiality_rule": frozen_plan["materiality_rule"],
+        "contradiction_rule": frozen_plan["contradiction_rule"],
+    }
+    _validate_neutral_coding_brief(
+        payload,
+        plan_sha256=frozen_plan["plan_sha256"],
+        codebook_version=codebook_version,
+        require_digest=False,
+    )
+    result = {**payload, "brief_sha256": canonical_digest(payload)}
+    _validate_neutral_coding_brief(
+        result,
+        plan_sha256=frozen_plan["plan_sha256"],
+        codebook_version=codebook_version,
+        require_digest=True,
+    )
+    return result
+
+
+def _deterministic_flat_zip(files: Mapping[str, bytes]) -> bytes:
+    """Build one byte-stable stored ZIP with safe flat ASCII member names."""
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(
+        buffer,
+        mode="w",
+        compression=zipfile.ZIP_STORED,
+        allowZip64=True,
+    ) as archive:
+        archive.comment = b""
+        for name in sorted(files):
+            if Path(name).name != name or not name.isascii():
+                raise AssertionError("review packet ZIP paths must be flat ASCII")
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            info.extra = b""
+            info.comment = b""
+            archive.writestr(info, files[name])
+    return buffer.getvalue()
+
+
+def _build_blinded_review_packet(
+    bundle: Mapping[str, Any],
+    *,
+    plan_sha256: str,
+    codebook_content: bytes,
+    coding_brief_content: bytes,
+) -> bytes:
+    """Validate and serialize the selected reviewer-only projection."""
+
+    audit_plan = bundle.get("audit_plan")
+    if not isinstance(audit_plan, Mapping):
+        raise ValueError("Внутренний audit-план отсутствует или повреждён.")
+    if audit_plan.get("plan_sha256") != plan_sha256:
+        raise ValueError("Внутренний audit-план связан с другим замороженным планом.")
+    required = audit_plan.get("required_candidate_ids")
+    if (
+        not isinstance(required, list)
+        or not required
+        or any(not isinstance(value, str) or not value for value in required)
+        or required != sorted(set(required))
+    ):
+        raise ValueError(
+            "Внутренний audit-план должен содержать непустой отсортированный "
+            "набор уникальных required_candidate_ids."
+        )
+
+    codebook_version = bundle.get("codebook_version")
+    if (
+        not isinstance(codebook_version, str)
+        or not codebook_version
+        or codebook_version != codebook_version.strip()
+        or any(
+            unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+            for character in codebook_version
+        )
+    ):
+        raise ValueError("Внутренняя версия справочника кодирования неканонична.")
+    if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError("Внутренняя версия справочника кодирования не поддерживается.")
+    if not isinstance(codebook_content, bytes) or not codebook_content:
+        raise ValueError("Внутренний справочник кодирования отсутствует.")
+    try:
+        decoded_codebook = codebook_content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Внутренний справочник кодирования не является UTF-8.") from exc
+    if not decoded_codebook.strip():
+        raise ValueError("Внутренний справочник кодирования пуст.")
+    if codebook_content != _load_audit_codebook(codebook_version):
+        raise ValueError("Внутренний справочник не совпадает со штатной версией.")
+    codebook_sha256 = hashlib.sha256(codebook_content).hexdigest()
+    try:
+        coding_brief = json.loads(coding_brief_content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Внутренний нейтральный coding brief повреждён.") from exc
+    _validate_neutral_coding_brief(
+        coding_brief,
+        plan_sha256=plan_sha256,
+        codebook_version=codebook_version,
+        require_digest=True,
+    )
+    if _canonical_json_bytes(coding_brief) != coding_brief_content:
+        raise ValueError("Внутренний нейтральный coding brief неканоничен.")
+    coding_brief_file_sha256 = hashlib.sha256(coding_brief_content).hexdigest()
+
+    def index_records(key: str, *, exact: bool) -> dict[str, Mapping[str, Any]]:
+        records = bundle.get(key)
+        if not isinstance(records, list):
+            raise ValueError(f"Внутренний набор {key} отсутствует или повреждён.")
+        indexed: dict[str, Mapping[str, Any]] = {}
+        observed: list[str] = []
+        for record in records:
+            if not isinstance(record, Mapping):
+                raise ValueError(f"Внутренний набор {key} содержит не объект.")
+            candidate_id = record.get("candidate_id")
+            if not isinstance(candidate_id, str) or not candidate_id:
+                raise ValueError(f"Внутренний набор {key} содержит пустой candidate_id.")
+            if candidate_id in indexed:
+                raise ValueError(
+                    f"Внутренний набор {key} повторяет candidate_id {candidate_id}."
+                )
+            indexed[candidate_id] = record
+            observed.append(candidate_id)
+        if exact and observed != required:
+            raise ValueError(
+                f"Внутренний набор {key} не совпадает по порядку и составу с "
+                "required_candidate_ids."
+            )
+        return indexed
+
+    screening = index_records("screening_candidates", exact=False)
+    queue = index_records("secondary_review_queue", exact=True)
+    templates = index_records("secondary_coding_templates", exact=True)
+    materials = index_records("secondary_review_materials", exact=True)
+    if not set(required).issubset(screening):
+        raise ValueError(
+            "required_candidate_ids не являются подмножеством screening-кандидатов."
+        )
+
+    pending_values = {
+        "human_review": "pending",
+        "quote_verified": False,
+        "full_text_reviewed": False,
+        "material_facts": [],
+        "alternative_grounds": [],
+    }
+    identity_fields = ("candidate_id", "chain_id", "document_id")
+    for candidate_id in required:
+        frame = screening[candidate_id]
+        queue_record = queue[candidate_id]
+        template = templates[candidate_id]
+        material = materials[candidate_id]
+        if set(material) != NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS:
+            raise ValueError(
+                f"Review material {candidate_id} содержит неожиданные поля."
+            )
+        if material.get("schema_version") != "1.0":
+            raise ValueError(
+                f"Review material {candidate_id} имеет неподдерживаемую схему."
+            )
+        if set(template) != AUDIT_CODING_RECORD_FIELDS:
+            raise ValueError(
+                f"Secondary template {candidate_id} содержит неожиданные поля."
+            )
+        for field in identity_fields:
+            expected_value = material.get(field)
+            if (
+                not isinstance(expected_value, str)
+                or not expected_value
+                or any(
+                    record.get(field) != expected_value
+                    for record in (frame, queue_record, template)
+                )
+            ):
+                raise ValueError(
+                    f"Review candidate {candidate_id} имеет несовпадающее поле {field}."
+                )
+        if frame.get("plan_sha256") != plan_sha256:
+            raise ValueError(
+                f"Review candidate {candidate_id} связан с другим замороженным планом."
+            )
+        chain_id = material.get("chain_id")
+        document_id = material.get("document_id")
+        expected_candidate_id = "audit-candidate-sha256:" + canonical_digest(
+            {
+                "schema_version": "1.0",
+                "plan_sha256": plan_sha256,
+                "chain_id": chain_id,
+                "document_id": document_id,
+            }
+        )
+        if candidate_id != expected_candidate_id:
+            raise ValueError(
+                f"Review candidate {candidate_id} не связан с планом и документом."
+            )
+        source_text_sha256 = material.get("source_text_sha256")
+        if (
+            not isinstance(source_text_sha256, str)
+            or len(source_text_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in source_text_sha256)
+            or queue_record.get("source_text_sha256") != source_text_sha256
+            or document_id != f"document-sha256:{source_text_sha256}"
+        ):
+            raise ValueError(
+                f"Review candidate {candidate_id} имеет несогласованный digest текста."
+            )
+        text = material.get("text")
+        packet_text_sha256 = material.get("packet_text_sha256")
+        if (
+            not isinstance(text, str)
+            or not text.strip()
+            or any(
+                unicodedata.category(character) in {"Cf", "Cs"}
+                or (
+                    unicodedata.category(character) == "Cc"
+                    and character not in {"\t", "\n", "\v", "\f", "\r"}
+                )
+                for character in text
+            )
+            or packet_text_sha256 != hashlib.sha256(text.encode("utf-8")).hexdigest()
+        ):
+            raise ValueError(
+                f"Review candidate {candidate_id} не связан с точным текстом пакета."
+            )
+        normalized_text = re.sub(
+            r"\s+", " ", unicodedata.normalize("NFC", text)
+        ).strip()
+        if hashlib.sha256(normalized_text.encode("utf-8")).hexdigest() != source_text_sha256:
+            raise ValueError(
+                f"Review candidate {candidate_id} не связан с нормализованным "
+                "текстом хранилища."
+            )
+        if template.get("codebook_version") != queue_record.get("codebook_version"):
+            raise ValueError(
+                f"Review candidate {candidate_id} имеет разные версии codebook."
+            )
+        if template.get("codebook_version") != codebook_version:
+            raise ValueError(
+                f"Review candidate {candidate_id} связан с другой версией codebook."
+            )
+        if any(template.get(field) != value for field, value in pending_values.items()):
+            raise ValueError(
+                f"Secondary template {candidate_id} не находится в состоянии pending."
+            )
+        fixed_template_fields = set(identity_fields) | {"codebook_version"} | set(
+            pending_values
+        )
+        if any(
+            template.get(field) is not None
+            for field in AUDIT_CODING_RECORD_FIELDS - fixed_template_fields
+        ):
+            raise ValueError(
+                f"Secondary template {candidate_id} заранее содержит ответ."
+            )
+
+    review_content_files: dict[str, bytes] = {
+        "CODING-BRIEF.json": coding_brief_content,
+        "CODING-CODEBOOK.md": codebook_content,
+        "REVIEW-INSTRUCTIONS.md": _BLINDED_REVIEW_GUIDE,
+        "review-materials.jsonl": _canonical_jsonl_bytes(
+            materials[candidate_id] for candidate_id in required
+        ),
+        "secondary-coding-template.jsonl": _canonical_jsonl_bytes(
+            templates[candidate_id] for candidate_id in required
+        ),
+    }
+    review_file_entries = [
+        {
+            "path": name,
+            "bytes": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+        for name, content in sorted(review_content_files.items())
+    ]
+    unsigned_review_manifest = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_blinded_review_packet",
+        "producer": "judicial_meaning.quality.coding_audit_prepare",
+        "plan_sha256": plan_sha256,
+        "codebook_version": codebook_version,
+        "codebook_sha256": codebook_sha256,
+        "coding_brief_file_sha256": coding_brief_file_sha256,
+        "candidate_ids": required,
+        "blinding_scope": "primary_coding_answer_only",
+        "excluded_information": [
+            "adjudication",
+            "primary_coder_identity",
+            "primary_coding",
+            "primary_coding_sha256",
+            "sample_lane",
+            "screening_matches",
+            "screening_queries",
+        ],
+        "contains_full_text": True,
+        "contains_primary_coding": False,
+        "review_state": "independent_secondary_required",
+        "human_approval_created": False,
+        "publication_safe": False,
+        "legal_readiness": False,
+        "files": review_file_entries,
+    }
+    review_manifest = {
+        **unsigned_review_manifest,
+        "manifest_sha256": canonical_digest(unsigned_review_manifest),
+    }
+    return _deterministic_flat_zip(
+        {
+            **review_content_files,
+            "review-packet-manifest.json": _canonical_json_bytes(review_manifest),
+        }
+    )
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
@@ -2763,6 +3410,13 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
     primary_records, primary_file_bytes = _strict_jsonl_file(primary_path)
     source_records, sources_file_bytes = _strict_jsonl_file(sources_path)
     captured_sources = _captured_workspace_source_texts(workspace, source_records)
+    codebook_content = _load_audit_codebook(args.codebook_version)
+    coding_brief_content = _canonical_json_bytes(
+        _build_neutral_coding_brief(
+            frozen_plan,
+            codebook_version=args.codebook_version,
+        )
+    )
 
     regenerated_screening: list[dict[str, Any]] = []
     for source in captured_sources:
@@ -2793,6 +3447,7 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
         primary_records,
         captured_sources,
         plan_sha256=frozen_plan["plan_sha256"],
+        codebook_version=args.codebook_version,
         sample_size=args.sample_size,
         exclusion_sample_size=args.exclusion_sample_size,
     )
@@ -2812,6 +3467,12 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
             bundle["secondary_coding_templates"]
         ),
     }
+    content_files["independent-review-packet.zip"] = _build_blinded_review_packet(
+        bundle,
+        plan_sha256=frozen_plan["plan_sha256"],
+        codebook_content=codebook_content,
+        coding_brief_content=coding_brief_content,
+    )
     file_entries = [
         {
             "path": name,
@@ -2823,9 +3484,15 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
     audit_plan = bundle["audit_plan"]
     unsigned_manifest = {
         "schema_version": "1.0",
+        "bundle_contract_version": "1.1",
         "artifact_type": "coding_audit_input_bundle",
         "producer": "judicial_meaning.quality.coding_audit_prepare",
         "plan_sha256": frozen_plan["plan_sha256"],
+        "codebook_version": args.codebook_version,
+        "codebook_sha256": hashlib.sha256(codebook_content).hexdigest(),
+        "coding_brief_file_sha256": hashlib.sha256(
+            coding_brief_content
+        ).hexdigest(),
         "source_plan_file_sha256": hashlib.sha256(plan_file_bytes).hexdigest(),
         "source_screening_sha256": hashlib.sha256(screening_file_bytes).hexdigest(),
         "source_primary_sha256": hashlib.sha256(primary_file_bytes).hexdigest(),
@@ -2860,6 +3527,7 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
         or post_sources != source_records
         or post_sources_bytes != sources_file_bytes
         or canonical_digest(post_captured_sources) != canonical_digest(captured_sources)
+        or _load_audit_codebook(args.codebook_version) != codebook_content
     ):
         raise ValueError(
             "Рабочие входы изменились во время подготовки; audit-пакет не опубликован."
@@ -2874,6 +3542,9 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
             "artifact_type": manifest["artifact_type"],
             "output_dir": str(destination),
             "manifest_sha256": manifest["manifest_sha256"],
+            "independent_review_packet_sha256": hashlib.sha256(
+                content_files["independent-review-packet.zip"]
+            ).hexdigest(),
             "candidate_count": len(manifest["candidate_ids"]),
             "required_candidate_count": len(manifest["required_candidate_ids"]),
             "secondary_review_state": manifest["secondary_review_state"],
@@ -4059,8 +4730,26 @@ def build_parser() -> argparse.ArgumentParser:
             "тексты. Она создаёт screening-candidates.audit.jsonl, "
             "primary-decisions.audit.jsonl, coding-audit-plan.json, "
             "secondary-review-queue.jsonl, secondary-coding-template.jsonl и "
-            "coding-audit-inputs-manifest.json. Папка --output-dir должна не "
-            "существовать: перезапись запрещена. Шаблон остаётся ожидающим "
+            "coding-audit-inputs-manifest.json, а также отдельный "
+            "independent-review-packet.zip: в нём CODING-BRIEF.json, штатный "
+            "CODING-CODEBOOK.md, REVIEW-INSTRUCTIONS.md, выбранные полные тексты, "
+            "пустые шаблоны без ответов и хешей первого кодировщика и внутренний "
+            "manifest. Передавайте "
+            "независимому проверяющему только ZIP, а не родительский каталог с "
+            "первичной разметкой. Сохраните показанный в stdout "
+            "independent_review_packet_sha256, сообщите его проверяющему отдельно "
+            "по независимому каналу и потребуйте сверить SHA-256 до распаковки. "
+            "Такая слепая проверка скрывает только ответ "
+            "первого кодировщика: факты и исход дела видны в судебном тексте. "
+            "Версия справочника задаётся отдельно через --codebook-version и "
+            "должна точно совпасть во всех первичных карточках; она не берётся "
+            "из ответа первого кодировщика. План должен содержать ровно одну "
+            "направленную гипотезу со статусом hypothesis_under_test: открытый "
+            "вопрос нельзя однозначно разметить как supports или adverse. ZIP с "
+            "полными текстами не считается "
+            "автоматически безопасным для "
+            "публикации. Папка --output-dir должна не существовать: перезапись "
+            "запрещена. Шаблон остаётся ожидающим "
             "независимой вторичной проверки и сам не является её доказательством. "
             "После отдельной ручной разметки и разрешения расхождений используйте "
             "quality coding-reliability. Создание пакета не означает юридическую "
@@ -4074,6 +4763,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Существующая рабочая папка с замороженным планом, полным screening, "
             "одобренной первичной разметкой и экспортом исходных текстов."
+        ),
+    )
+    quality_audit_prepare.add_argument(
+        "--codebook-version",
+        required=True,
+        choices=sorted(NATIVE_AUDIT_CODEBOOK_VERSIONS),
+        help=(
+            "Доверенная версия справочника кодирования, заданная хранителем "
+            "отдельно от ответов первого кодировщика; должна точно совпасть во "
+            "всех первичных карточках. Сейчас поддерживается версия 1.0."
         ),
     )
     quality_audit_prepare.add_argument(

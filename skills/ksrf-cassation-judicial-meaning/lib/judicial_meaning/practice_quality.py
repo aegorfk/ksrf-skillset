@@ -122,6 +122,18 @@ NATIVE_AUDIT_QUEUE_FIELDS = frozenset(
         "review_state",
     }
 )
+NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS = frozenset(
+    {
+        "schema_version",
+        "candidate_id",
+        "chain_id",
+        "document_id",
+        "source_text_sha256",
+        "packet_text_sha256",
+        "text",
+    }
+)
+NATIVE_AUDIT_CODEBOOK_VERSIONS = frozenset({"1.0"})
 SUBSTANTIVE_LABELS = {"core_merits", "contextual"}
 EXCLUSION_LABELS = {
     "party_only",
@@ -351,6 +363,20 @@ def _canonical_identifier(value: Any) -> str | None:
 def _is_canonical_identifier(value: Any) -> bool:
     canonical = _canonical_identifier(value)
     return canonical is not None and canonical == value
+
+
+def _is_captured_full_text(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    permitted_layout_controls = {"\t", "\n", "\v", "\f", "\r"}
+    return not any(
+        unicodedata.category(character) in {"Cf", "Cs"}
+        or (
+            unicodedata.category(character) == "Cc"
+            and character not in permitted_layout_controls
+        )
+        for character in value
+    )
 
 
 def _coding_provenance_valid(record: Mapping[str, Any]) -> bool:
@@ -2329,6 +2355,7 @@ def build_native_coding_audit_inputs(
     source_texts: Iterable[Any],
     *,
     plan_sha256: str,
+    codebook_version: str,
     sample_size: int,
     exclusion_sample_size: int,
 ) -> dict[str, Any]:
@@ -2341,6 +2368,10 @@ def build_native_coding_audit_inputs(
 
     if not _is_sha256(plan_sha256):
         raise ValueError("Хеш замороженного плана должен быть lowercase SHA-256.")
+    if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError(
+            "Версия справочника кодирования не поддерживается этим runtime."
+        )
     if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in (sample_size, exclusion_sample_size)
@@ -2380,8 +2411,10 @@ def build_native_coding_audit_inputs(
             raise ValueError(
                 f"У полного текста source_id={source_id} неканоническая identity."
             )
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError(f"У source_id={source_id} отсутствует полный текст.")
+        if not _is_captured_full_text(text):
+            raise ValueError(
+                f"У source_id={source_id} отсутствует или небезопасен полный текст."
+            )
         normalized_text = re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
         expected_text_sha256 = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
         if text_sha256 != expected_text_sha256:
@@ -2468,11 +2501,19 @@ def build_native_coding_audit_inputs(
         text_digests = {
             sources_by_id[source_id]["text_sha256"] for source_id in source_ids
         }
+        packet_text_digests = {
+            hashlib.sha256(text.encode("utf-8")).hexdigest() for text in texts
+        }
         match_digests = {canonical_digest(record["matches"]) for record in records}
-        if len(text_digests) != 1 or len(match_digests) != 1:
+        if (
+            len(text_digests) != 1
+            or len(packet_text_digests) != 1
+            or len(match_digests) != 1
+        ):
             raise ValueError(
                 "Несколько источников одной chain/document identity содержат "
-                f"разные тексты или screening matches: {chain_id}/{document_id}."
+                "разные точные тексты или screening matches: "
+                f"{chain_id}/{document_id}."
             )
         candidate_id = _native_audit_candidate_id(
             plan_sha256=plan_sha256,
@@ -2545,6 +2586,11 @@ def build_native_coding_audit_inputs(
             field: ordinary.get(field) for field in AUDIT_CODING_RECORD_FIELDS
         }
         projected["candidate_id"] = candidate_id
+        if projected.get("codebook_version") != codebook_version:
+            raise ValueError(
+                f"Primary coding {pair[0]}/{pair[1]} использует другую "
+                "версию справочника кодирования."
+            )
         errors = validate_coding_against_text(projected, text_by_pair[pair])
         if errors:
             raise ValueError(
@@ -2574,6 +2620,7 @@ def build_native_coding_audit_inputs(
 
     secondary_queue: list[dict[str, Any]] = []
     secondary_templates: list[dict[str, Any]] = []
+    secondary_review_materials: list[dict[str, Any]] = []
     source_text_inventory: list[dict[str, Any]] = []
     for screening_record in audit_screening:
         candidate_id = screening_record["candidate_id"]
@@ -2588,6 +2635,21 @@ def build_native_coding_audit_inputs(
         if candidate_id not in required_candidate_ids:
             continue
         primary = primary_by_candidate[candidate_id]
+        packet_text = text_by_pair[pair]
+        review_material = {
+            "schema_version": SCHEMA_VERSION,
+            "candidate_id": candidate_id,
+            "chain_id": pair[0],
+            "document_id": pair[1],
+            "source_text_sha256": text_digest_by_pair[pair],
+            "packet_text_sha256": hashlib.sha256(
+                packet_text.encode("utf-8")
+            ).hexdigest(),
+            "text": packet_text,
+        }
+        if set(review_material) != NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS:
+            raise AssertionError("unexpected native audit review material shape")
+        secondary_review_materials.append(review_material)
         queue_record = {
             "schema_version": SCHEMA_VERSION,
             "candidate_id": candidate_id,
@@ -2596,7 +2658,7 @@ def build_native_coding_audit_inputs(
             "source_ids": screening_record["source_ids"],
             "source_text_sha256": text_digest_by_pair[pair],
             "primary_coding_sha256": canonical_digest(primary),
-            "codebook_version": primary["codebook_version"],
+            "codebook_version": codebook_version,
             "review_state": "independent_secondary_required",
         }
         if set(queue_record) != NATIVE_AUDIT_QUEUE_FIELDS:
@@ -2608,7 +2670,7 @@ def build_native_coding_audit_inputs(
                 "candidate_id": candidate_id,
                 "chain_id": pair[0],
                 "document_id": pair[1],
-                "codebook_version": primary["codebook_version"],
+                "codebook_version": codebook_version,
                 "material_facts": [],
                 "alternative_grounds": [],
                 "human_review": "pending",
@@ -2624,6 +2686,8 @@ def build_native_coding_audit_inputs(
         "audit_plan": audit_plan,
         "secondary_review_queue": secondary_queue,
         "secondary_coding_templates": secondary_templates,
+        "secondary_review_materials": secondary_review_materials,
+        "codebook_version": codebook_version,
         "source_text_inventory_sha256": canonical_digest(source_text_inventory),
     }
 

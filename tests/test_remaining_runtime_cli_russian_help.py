@@ -115,7 +115,7 @@ EXPECTED_ROUTE_COUNTS = {
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "9d3f3d0e9f8a362f036fb3b4335056457d8f6aca014bc8a556b69675c82db309",
+    "judicial": "130f2ffef0113efc8729b89c0678f3b86703d5df0ea69db9ef99efd766e48435",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "4a3637d2d26d9d972ba7cdd27d67c9f92be3955b5a3cdd9ba363ab15790cd2e7",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
@@ -255,6 +255,7 @@ REQUIRED_ROUTE_HELP = {
     ),
     ("judicial", ("quality", "coding-audit-prepare")): (
         "--workspace",
+        "--codebook-version",
         "--sample-size",
         "--exclusion-sample-size",
         "--output-dir",
@@ -264,6 +265,10 @@ REQUIRED_ROUTE_HELP = {
         "secondary-review-queue.jsonl",
         "secondary-coding-template.jsonl",
         "coding-audit-inputs-manifest.json",
+        "CODING-BRIEF.json",
+        "CODING-CODEBOOK.md",
+        "independent_review_packet_sha256",
+        "hypothesis_under_test",
         "без сетевого доступа",
         "ожидающим независимой вторичной проверки",
         "не означает юридическую готовность",
