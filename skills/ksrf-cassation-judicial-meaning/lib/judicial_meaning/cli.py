@@ -4444,8 +4444,17 @@ def build_parser() -> argparse.ArgumentParser:
     cache_treatment_sub = cache_treatment.add_subparsers(
         dest="cache_treatment_command", required=True
     )
+    treatment_write_epilog = (
+        "Если публичный кэш занят другой операцией записи, команда завершится "
+        "с кодом 2 и ничего не запишет в treatment и его историю. "
+        "Автоматического повтора нет: после завершения другой операции явно "
+        "повторите команду. Повтор не заменяет ручную юридическую проверку."
+    )
     cache_treatment_discover = cache_treatment_sub.add_parser(
-        "discover", help="Создать кандидата связи без придания доказательственной силы"
+        "discover",
+        help="Создать кандидата связи без придания доказательственной силы",
+        epilog=treatment_write_epilog,
+        formatter_class=RussianHelpFormatter,
     )
     cache_treatment_discover.add_argument("--root", required=True)
     cache_treatment_discover.add_argument("--source-chain-id", required=True)
@@ -4478,7 +4487,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cache_treatment_discover.set_defaults(func=cmd_cache_treatment_discover)
     cache_treatment_review = cache_treatment_sub.add_parser(
-        "review", help="Неизменяемо подтвердить или отклонить кандидата"
+        "review",
+        help="Неизменяемо подтвердить или отклонить кандидата",
+        epilog=treatment_write_epilog,
+        formatter_class=RussianHelpFormatter,
     )
     cache_treatment_review.add_argument("--root", required=True)
     cache_treatment_review.add_argument("--treatment-id", required=True)

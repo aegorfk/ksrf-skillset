@@ -15,10 +15,11 @@ import re
 import sqlite3
 import unicodedata
 import uuid
-from functools import wraps
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 from urllib.parse import parse_qsl, urldefrag, urlparse, urlunparse
 
 
@@ -79,6 +80,8 @@ RFC3339_AWARE_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?"
     r"(?:[Zz]|[+-]\d{2}:\d{2})"
 )
+SQLITE_BUSY_PRIMARY_CODE = 5
+SQLITE_LOCKED_PRIMARY_CODE = 6
 
 
 class PublicCorpusError(ValueError):
@@ -103,6 +106,61 @@ class FunnelTransitionError(PublicCorpusError):
 
 class TreatmentReviewError(PublicCorpusError):
     """A treatment edge did not satisfy quote-level human review."""
+
+
+class PublicCorpusBusyError(PublicCorpusError):
+    """A treatment write could not acquire or commit its SQLite reservation."""
+
+
+class _QuarantinedSQLiteConnection:
+    """Fail closed after SQLite connection state can no longer be trusted."""
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def close(self) -> None:
+        return None
+
+    def __enter__(self) -> "_QuarantinedSQLiteConnection":
+        raise PublicCorpusError(self._reason)
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def __getattr__(self, name: str) -> Any:
+        raise PublicCorpusError(self._reason)
+
+
+TREATMENT_BUSY_MESSAGE = (
+    "Публичный кэш занят другой операцией. Эта попытка ничего не записала; "
+    "автоматического повтора нет. Повторите команду после завершения другой операции."
+)
+
+
+def _is_sqlite_busy_or_locked(exc: BaseException) -> bool:
+    """Classify only SQLite BUSY/LOCKED operational failures.
+
+    Python 3.11 and newer expose the numeric SQLite result code.  Older supported
+    runtimes need a deliberately narrow message fallback; a coded non-contention
+    failure is never reclassified from its wording.
+    """
+
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    error_code = getattr(exc, "sqlite_errorcode", None)
+    if isinstance(error_code, int):
+        return error_code & 0xFF in {
+            SQLITE_BUSY_PRIMARY_CODE,
+            SQLITE_LOCKED_PRIMARY_CODE,
+        }
+    message = str(exc).strip().lower()
+    return (
+        message == "database is locked"
+        or message == "database table is locked"
+        or message.startswith("database table is locked:")
+        or message == "database schema is locked"
+        or message.startswith("database schema is locked:")
+    )
 
 
 def _consistent_read(method: Any) -> Any:
@@ -521,6 +579,136 @@ class PublicCorpus:
 
     def close(self) -> None:
         self.conn.close()
+
+    def _quarantine_treatment_connection(
+        self,
+        connection: Any,
+        *,
+        reason: str,
+    ) -> bool:
+        """Prevent corpus-level reuse and best-effort close the raw connection."""
+
+        self.conn = _QuarantinedSQLiteConnection(reason)
+        try:
+            connection.close()
+        except BaseException:
+            return False
+        return True
+
+    @contextmanager
+    def _treatment_write_transaction(self) -> Iterator[None]:
+        """Own one no-retry reserved transaction for a treatment operation."""
+
+        connection = self.conn
+        if connection.in_transaction:
+            raise TreatmentReviewError(
+                "Treatment operation requires ownership of its SQLite transaction; "
+                "a caller-owned transaction is already active."
+            )
+        timeout_row = connection.execute("PRAGMA busy_timeout").fetchone()
+        if timeout_row is None:
+            raise PublicCorpusError("Не удалось прочитать SQLite busy_timeout.")
+        previous_timeout = int(timeout_row[0])
+        transaction_outcome = "not_started"
+        timeout_change_attempted = False
+        begin_attempted = False
+        commit_attempted = False
+        quarantined = False
+        quarantine_reason = (
+            "Соединение SQLite выведено из использования после сбоя "
+            "транзакции записи связи. Откройте публичный кэш заново."
+        )
+
+        def quarantine_note(close_confirmed: bool) -> str:
+            if close_confirmed:
+                return (
+                    "Низкоуровневое соединение SQLite закрыто; откройте кэш заново."
+                )
+            return (
+                "Закрытие низкоуровневого соединения SQLite не подтверждено, "
+                "но текущий объект корпуса выведен из использования; откройте "
+                "кэш заново."
+            )
+
+        def quarantine() -> bool:
+            nonlocal quarantined
+            quarantined = True
+            return self._quarantine_treatment_connection(
+                connection,
+                reason=quarantine_reason,
+            )
+
+        try:
+            try:
+                timeout_change_attempted = True
+                connection.execute("PRAGMA busy_timeout=0")
+                begin_attempted = True
+                connection.execute("BEGIN IMMEDIATE")
+                transaction_outcome = "active"
+                yield
+                commit_attempted = True
+                connection.execute("COMMIT")
+                transaction_outcome = "committed"
+            except BaseException as exc:
+                try:
+                    transaction_active = bool(connection.in_transaction)
+                except BaseException as state_error:
+                    transaction_outcome = "uncertain"
+                    close_confirmed = quarantine()
+                    raise PublicCorpusError(
+                        "Не удалось определить состояние транзакции записи связи. "
+                        + quarantine_note(close_confirmed)
+                    ) from state_error
+
+                if begin_attempted and transaction_active:
+                    try:
+                        connection.execute("ROLLBACK")
+                        transaction_outcome = "rolled_back"
+                    except BaseException as rollback_error:
+                        transaction_outcome = "uncertain"
+                        close_confirmed = quarantine()
+                        raise PublicCorpusError(
+                            "Не удалось подтвердить откат транзакции записи связи. "
+                            "Вручную проверьте связь и её историю. "
+                            + quarantine_note(close_confirmed)
+                        ) from rollback_error
+                elif transaction_outcome == "active" or commit_attempted:
+                    transaction_outcome = "uncertain"
+                    close_confirmed = quarantine()
+                    raise PublicCorpusError(
+                        "Не удалось подтвердить, была ли транзакция записи связи "
+                        "зафиксирована. Вручную проверьте связь и её историю. "
+                        + quarantine_note(close_confirmed)
+                    ) from exc
+                if _is_sqlite_busy_or_locked(exc):
+                    raise PublicCorpusBusyError(TREATMENT_BUSY_MESSAGE) from exc
+                raise
+        finally:
+            if timeout_change_attempted and not quarantined:
+                try:
+                    connection.execute(f"PRAGMA busy_timeout={previous_timeout}")
+                except BaseException as restore_error:
+                    close_confirmed = quarantine()
+                    if transaction_outcome == "committed":
+                        message = (
+                            "Транзакция записи связи зафиксирована, но прежний "
+                            "тайм-аут SQLite не восстановлен. Проверьте сохранённый "
+                            "результат; не повторяйте решение вслепую. "
+                        )
+                    elif transaction_outcome in {"not_started", "rolled_back"}:
+                        message = (
+                            "Транзакция записи связи не зафиксирована, а прежний "
+                            "тайм-аут SQLite не восстановлен. "
+                        )
+                    else:
+                        message = (
+                            "Итог транзакции записи связи и восстановление прежнего "
+                            "тайм-аута SQLite не подтверждены. Вручную проверьте связь "
+                            "и её историю. "
+                        )
+                    raise PublicCorpusError(
+                        message + quarantine_note(close_confirmed)
+                    ) from restore_error
 
     def _create_schema(self) -> None:
         self.conn.executescript(
@@ -2690,6 +2878,320 @@ class PublicCorpus:
         }
         return {"plan_id": _identifier("refresh-plan", payload), **payload}
 
+    @staticmethod
+    def _treatment_proposal_payload(
+        *,
+        source_chain_id: str,
+        source_court_id: str,
+        target_authority_id: str,
+        target_kind: str,
+        target_identity: dict[str, Any],
+        treatment_type: str,
+        snapshot_id: str,
+        supersedes_treatment_id: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "source_chain_id": source_chain_id,
+            "source_court_id": source_court_id,
+            "target_authority_id": target_authority_id,
+            "target_kind": target_kind,
+            "target_identity": target_identity,
+            "treatment_type": treatment_type,
+            "snapshot_id": snapshot_id,
+            "supersedes_treatment_id": supersedes_treatment_id,
+        }
+
+    def _treatment_proposal_payload_from_row(
+        self, row: sqlite3.Row
+    ) -> dict[str, Any]:
+        required_text_fields = (
+            "treatment_id",
+            "source_chain_id",
+            "source_court_id",
+            "target_authority_id",
+            "target_kind",
+            "target_identity_json",
+            "treatment_type",
+            "snapshot_id",
+            "status",
+            "created_at",
+        )
+        if any(not isinstance(row[field], str) for field in required_text_fields):
+            raise TreatmentReviewError(
+                "Treatment immutable fields must retain their exact SQLite text types."
+            )
+        supersedes_treatment_id = row["supersedes_treatment_id"]
+        if supersedes_treatment_id is not None and not isinstance(
+            supersedes_treatment_id, str
+        ):
+            raise TreatmentReviewError(
+                "Treatment supersession identity must retain its exact SQLite text type."
+            )
+        raw_identity = row["target_identity_json"]
+        try:
+            target_identity = json.loads(str(raw_identity))
+            canonical_identity = _canonical_json(target_identity)
+        except (TypeError, ValueError, json.JSONDecodeError, PublicCorpusError) as exc:
+            raise TreatmentReviewError(
+                "Treatment has invalid canonical target identity."
+            ) from exc
+        if (
+            not isinstance(target_identity, dict)
+            or not target_identity
+            or raw_identity != canonical_identity
+        ):
+            raise TreatmentReviewError(
+                "Treatment has invalid canonical target identity."
+            )
+        return self._treatment_proposal_payload(
+            source_chain_id=row["source_chain_id"],
+            source_court_id=row["source_court_id"],
+            target_authority_id=row["target_authority_id"],
+            target_kind=row["target_kind"],
+            target_identity=target_identity,
+            treatment_type=row["treatment_type"],
+            snapshot_id=row["snapshot_id"],
+            supersedes_treatment_id=(
+                supersedes_treatment_id
+                if isinstance(supersedes_treatment_id, str)
+                else None
+            ),
+        )
+
+    def _treatment_history_rows(self, treatment_id: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            """
+            SELECT history_id, event_type, reviewer, payload_json, event_at
+            FROM treatment_review_history
+            WHERE treatment_id=?
+            ORDER BY rowid
+            """,
+            (treatment_id,),
+        ).fetchall()
+
+    @staticmethod
+    def _canonical_history_payload(history_row: sqlite3.Row) -> dict[str, Any]:
+        raw_payload = history_row["payload_json"]
+        try:
+            payload = json.loads(str(raw_payload))
+            canonical_payload = _canonical_json(payload)
+        except (TypeError, ValueError, json.JSONDecodeError, PublicCorpusError) as exc:
+            raise TreatmentReviewError(
+                "Treatment history contains an invalid canonical payload."
+            ) from exc
+        if not isinstance(payload, dict) or raw_payload != canonical_payload:
+            raise TreatmentReviewError(
+                "Treatment history contains an invalid canonical payload."
+            )
+        return payload
+
+    def _require_exact_treatment_history(
+        self, row: sqlite3.Row
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Validate the complete immutable history appropriate to the row status."""
+
+        treatment_id = str(row["treatment_id"])
+        proposal_payload = self._treatment_proposal_payload_from_row(row)
+        if treatment_id != _identifier("treatment", proposal_payload):
+            raise TreatmentReviewError(
+                "Treatment identity does not match its immutable proposal fields."
+            )
+        created_at = row["created_at"]
+        if not _aware_rfc3339_datetime(created_at):
+            raise TreatmentReviewError(
+                "Treatment creation time is not a complete aware RFC 3339 timestamp."
+            )
+        status = str(row["status"])
+        if status not in {"candidate", "verified", "rejected"}:
+            raise TreatmentReviewError("Treatment has an unsupported review status.")
+        history_rows = self._treatment_history_rows(treatment_id)
+        expected_count = 1 if status == "candidate" else 2
+        if len(history_rows) != expected_count:
+            raise TreatmentReviewError(
+                "Treatment history does not match its immutable review state."
+            )
+
+        candidate_history = history_rows[0]
+        candidate_payload = self._canonical_history_payload(candidate_history)
+        expected_candidate_history_id = _identifier(
+            "treatment-history",
+            {
+                "treatment_id": treatment_id,
+                "event_type": "candidate_created",
+                "reviewer": None,
+                "payload": proposal_payload,
+                "event_at": created_at,
+            },
+        )
+        if (
+            candidate_history["event_type"] != "candidate_created"
+            or candidate_history["reviewer"] is not None
+            or candidate_history["event_at"] != created_at
+            or candidate_payload != proposal_payload
+            or candidate_history["history_id"] != expected_candidate_history_id
+        ):
+            raise TreatmentReviewError(
+                "Treatment candidate history does not match its immutable proposal."
+            )
+
+        mutable_fields = ("reviewer", "quote", "locator", "speaker", "reviewed_at")
+        if status == "candidate":
+            if any(row[field] is not None for field in mutable_fields):
+                raise TreatmentReviewError(
+                    "Candidate treatment contains decision fields without exact history."
+                )
+            return proposal_payload, None
+
+        reviewer = row["reviewer"]
+        reviewed_at = row["reviewed_at"]
+        if not _is_canonical_identifier(reviewer) or not _aware_rfc3339_datetime(
+            reviewed_at
+        ):
+            raise TreatmentReviewError(
+                "Completed treatment has invalid reviewer or review timestamp."
+            )
+        if (
+            _parse_timestamp(str(reviewed_at)) < _parse_timestamp(str(created_at))
+            or _parse_timestamp(str(reviewed_at)) > datetime.now(timezone.utc)
+        ):
+            raise TreatmentReviewError(
+                "Completed treatment has invalid review chronology."
+            )
+
+        decision_history = history_rows[1]
+        decision_payload = self._canonical_history_payload(decision_history)
+        expected_decision_fields = {
+            "quote",
+            "locator",
+            "speaker",
+            "confirmed_target_authority_id",
+            "target_identity_confirmed",
+            "decision_reason",
+        }
+        expected_decision_history_id = _identifier(
+            "treatment-history",
+            {
+                "treatment_id": treatment_id,
+                "event_type": status,
+                "reviewer": reviewer,
+                "payload": decision_payload,
+                "event_at": reviewed_at,
+            },
+        )
+        if (
+            decision_history["event_type"] != status
+            or decision_history["reviewer"] != reviewer
+            or decision_history["event_at"] != reviewed_at
+            or decision_history["history_id"] != expected_decision_history_id
+            or set(decision_payload) != expected_decision_fields
+            or decision_payload["quote"] != row["quote"]
+            or decision_payload["locator"] != row["locator"]
+            or decision_payload["speaker"] != row["speaker"]
+            or not isinstance(decision_payload["target_identity_confirmed"], bool)
+        ):
+            raise TreatmentReviewError(
+                "Treatment decision history does not match its immutable row."
+            )
+        if status == "verified":
+            if (
+                decision_payload["decision_reason"] is not None
+                or decision_payload["confirmed_target_authority_id"]
+                != row["target_authority_id"]
+                or decision_payload["target_identity_confirmed"] is not True
+                or not all(
+                    value is not None and str(value).strip()
+                    for value in (
+                        row["source_court_id"],
+                        row["target_kind"],
+                        row["quote"],
+                        row["locator"],
+                    )
+                )
+                or row["speaker"] != "court"
+            ):
+                raise TreatmentReviewError(
+                    "Verified treatment history does not match target confirmation."
+                )
+        elif (
+            not _is_canonical_identifier(decision_payload["decision_reason"])
+            or (
+                decision_payload["target_identity_confirmed"] is True
+                and decision_payload["confirmed_target_authority_id"]
+                != row["target_authority_id"]
+            )
+            or (
+                decision_payload["target_identity_confirmed"] is False
+                and decision_payload["confirmed_target_authority_id"] is not None
+            )
+            or (
+                row["quote"] is None
+                and (row["locator"] is not None or row["speaker"] is not None)
+            )
+            or (
+                row["quote"] is not None
+                and (
+                    not str(row["quote"]).strip()
+                    or not _is_canonical_identifier(row["locator"])
+                    or row["speaker"] != "court"
+                )
+            )
+        ):
+            raise TreatmentReviewError(
+                "Rejected treatment history does not match target confirmation."
+            )
+        return proposal_payload, decision_payload
+
+    def _require_replacement_context(
+        self,
+        *,
+        treatment_id: str,
+        source_chain_id: str,
+        target_authority_id: str,
+        supersedes_treatment_id: str,
+        successor_created_at: str | None,
+        replay: bool,
+    ) -> None:
+        prior = self.conn.execute(
+            "SELECT * FROM treatments WHERE treatment_id=?",
+            (supersedes_treatment_id,),
+        ).fetchone()
+        if prior is None or str(prior["status"]) not in {"verified", "rejected"}:
+            raise TreatmentReviewError(
+                "A replacement treatment must reference a completed prior review."
+            )
+        self._require_exact_treatment_history(prior)
+        if (
+            str(prior["source_chain_id"]) != source_chain_id
+            or str(prior["target_authority_id"]) != target_authority_id
+        ):
+            raise TreatmentReviewError(
+                "A replacement treatment must preserve source and target identity."
+            )
+        successors = [
+            str(successor["treatment_id"])
+            for successor in self.conn.execute(
+                """
+                SELECT treatment_id FROM treatments
+                WHERE supersedes_treatment_id=? ORDER BY treatment_id
+                """,
+                (supersedes_treatment_id,),
+            ).fetchall()
+        ]
+        expected_successors = [treatment_id] if replay else []
+        if successors != expected_successors:
+            raise TreatmentReviewError(
+                "A completed treatment already has a replacement candidate."
+            )
+        if successor_created_at is not None and (
+            not _aware_rfc3339_datetime(prior["reviewed_at"])
+            or not _aware_rfc3339_datetime(successor_created_at)
+            or _parse_timestamp(str(prior["reviewed_at"]))
+            > _parse_timestamp(successor_created_at)
+        ):
+            raise TreatmentReviewError(
+                "A replacement treatment cannot predate the completed prior review."
+            )
+
     def propose_treatment(
         self,
         *,
@@ -2714,8 +3216,6 @@ class PublicCorpus:
                 )
         if treatment_type not in TREATMENT_TYPES:
             raise TreatmentReviewError(f"Unsupported treatment type: {treatment_type}")
-        if not self._snapshot_exists(snapshot_id):
-            raise TreatmentReviewError(f"Unknown treatment snapshot: {snapshot_id}")
         if not isinstance(target_identity, dict) or not target_identity:
             raise TreatmentReviewError("target_identity must be a non-empty object.")
         try:
@@ -2724,58 +3224,67 @@ class PublicCorpus:
             raise TreatmentReviewError(
                 "target_identity must contain finite JSON-compatible values."
             ) from exc
-        if supersedes_treatment_id is not None:
-            prior = self.conn.execute(
-                "SELECT source_chain_id, target_authority_id, status FROM treatments WHERE treatment_id=?",
-                (supersedes_treatment_id,),
-            ).fetchone()
-            if prior is None or str(prior["status"]) not in {"verified", "rejected"}:
-                raise TreatmentReviewError(
-                    "A replacement treatment must reference a completed prior review."
-                )
-            if (
-                str(prior["source_chain_id"]) != source_chain_id
-                or str(prior["target_authority_id"]) != target_authority_id
-            ):
-                raise TreatmentReviewError(
-                    "A replacement treatment must preserve source and target identity."
-                )
-            existing_replacement = self.conn.execute(
-                "SELECT treatment_id FROM treatments WHERE supersedes_treatment_id=?",
-                (supersedes_treatment_id,),
-            ).fetchone()
-            if existing_replacement is not None:
-                raise TreatmentReviewError(
-                    "A completed treatment already has a replacement candidate."
-                )
+        canonical_target_identity_value = json.loads(canonical_target_identity)
+        canonical_target_identity = _canonical_json(canonical_target_identity_value)
+        proposal_payload = self._treatment_proposal_payload(
+            source_chain_id=source_chain_id,
+            source_court_id=str(source_court_id),
+            target_authority_id=target_authority_id,
+            target_kind=str(target_kind),
+            target_identity=canonical_target_identity_value,
+            treatment_type=treatment_type,
+            snapshot_id=snapshot_id,
+            supersedes_treatment_id=supersedes_treatment_id,
+        )
         treatment_id = _identifier(
             "treatment",
-            {
-                "source_chain_id": source_chain_id,
-                "source_court_id": source_court_id,
-                "target_authority_id": target_authority_id,
-                "target_kind": target_kind,
-                "target_identity": target_identity,
-                "treatment_type": treatment_type,
-                "snapshot_id": snapshot_id,
-                "supersedes_treatment_id": supersedes_treatment_id,
-            },
+            proposal_payload,
         )
-        created_at = _utc_now()
-        with self.conn:
-            self.conn.execute("BEGIN IMMEDIATE")
-            if supersedes_treatment_id is not None:
-                concurrent_replacement = self.conn.execute(
-                    "SELECT treatment_id FROM treatments WHERE supersedes_treatment_id=?",
-                    (supersedes_treatment_id,),
-                ).fetchone()
-                if concurrent_replacement is not None:
+        result: dict[str, Any]
+        with self._treatment_write_transaction():
+            if not self._snapshot_exists(snapshot_id):
+                raise TreatmentReviewError(
+                    f"Unknown treatment snapshot: {snapshot_id}"
+                )
+            existing = self.conn.execute(
+                "SELECT * FROM treatments WHERE treatment_id=?",
+                (treatment_id,),
+            ).fetchone()
+            if existing is not None:
+                stored_payload, _ = self._require_exact_treatment_history(existing)
+                if stored_payload != proposal_payload:
                     raise TreatmentReviewError(
-                        "A completed treatment already has a replacement candidate."
+                        "Existing treatment does not match the exact proposal replay."
                     )
+                if supersedes_treatment_id is not None:
+                    self._require_replacement_context(
+                        treatment_id=treatment_id,
+                        source_chain_id=source_chain_id,
+                        target_authority_id=target_authority_id,
+                        supersedes_treatment_id=supersedes_treatment_id,
+                        successor_created_at=str(existing["created_at"]),
+                        replay=True,
+                    )
+                result = {
+                    "treatment_id": treatment_id,
+                    "status": str(existing["status"]),
+                    "supersedes_treatment_id": supersedes_treatment_id,
+                }
+                return result
+
+            created_at = _utc_now()
+            if supersedes_treatment_id is not None:
+                self._require_replacement_context(
+                    treatment_id=treatment_id,
+                    source_chain_id=source_chain_id,
+                    target_authority_id=target_authority_id,
+                    supersedes_treatment_id=supersedes_treatment_id,
+                    successor_created_at=created_at,
+                    replay=False,
+                )
             inserted = self.conn.execute(
                 """
-                INSERT OR IGNORE INTO treatments(
+                INSERT INTO treatments(
                     treatment_id, source_chain_id, source_court_id,
                     target_authority_id, target_kind, target_identity_json,
                     treatment_type, snapshot_id, supersedes_treatment_id,
@@ -2795,35 +3304,35 @@ class PublicCorpus:
                     created_at,
                 ),
             )
-            if inserted.rowcount == 1:
-                self._append_treatment_history(
-                    treatment_id,
-                    event_type="candidate_created",
-                    reviewer=None,
-                    payload={
-                        "source_chain_id": source_chain_id,
-                        "source_court_id": source_court_id,
-                        "target_authority_id": target_authority_id,
-                        "target_kind": target_kind,
-                        "target_identity": target_identity,
-                        "treatment_type": treatment_type,
-                        "snapshot_id": snapshot_id,
-                        "supersedes_treatment_id": supersedes_treatment_id,
-                    },
-                    event_at=created_at,
+            if inserted.rowcount != 1:
+                raise TreatmentReviewError(
+                    "Treatment proposal did not create exactly one candidate."
                 )
-        current = self.conn.execute(
-            "SELECT status FROM treatments WHERE treatment_id=?", (treatment_id,)
-        ).fetchone()
-        if current is None:
-            raise TreatmentReviewError(
-                "Another replacement candidate already won the supersession race."
+            self._append_treatment_history(
+                treatment_id,
+                event_type="candidate_created",
+                reviewer=None,
+                payload=proposal_payload,
+                event_at=created_at,
             )
-        return {
-            "treatment_id": treatment_id,
-            "status": str(current["status"]),
-            "supersedes_treatment_id": supersedes_treatment_id,
-        }
+            current = self.conn.execute(
+                "SELECT * FROM treatments WHERE treatment_id=?", (treatment_id,)
+            ).fetchone()
+            if current is None:
+                raise TreatmentReviewError(
+                    "Treatment candidate disappeared before transaction commit."
+                )
+            stored_payload, _ = self._require_exact_treatment_history(current)
+            if stored_payload != proposal_payload:
+                raise TreatmentReviewError(
+                    "Created treatment does not match its immutable proposal."
+                )
+            result = {
+                "treatment_id": treatment_id,
+                "status": str(current["status"]),
+                "supersedes_treatment_id": supersedes_treatment_id,
+            }
+        return result
 
     def _append_treatment_history(
         self,
@@ -2844,21 +3353,30 @@ class PublicCorpus:
                 "event_at": event_at,
             },
         )
-        self.conn.execute(
-            """
-            INSERT OR IGNORE INTO treatment_review_history(
-                history_id, treatment_id, event_type, reviewer, payload_json, event_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                history_id,
-                treatment_id,
-                event_type,
-                reviewer,
-                _canonical_json(payload),
-                event_at,
-            ),
-        )
+        try:
+            inserted = self.conn.execute(
+                """
+                INSERT INTO treatment_review_history(
+                    history_id, treatment_id, event_type, reviewer, payload_json, event_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    history_id,
+                    treatment_id,
+                    event_type,
+                    reviewer,
+                    _canonical_json(payload),
+                    event_at,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise TreatmentReviewError(
+                "Immutable treatment history insertion failed."
+            ) from exc
+        if inserted.rowcount != 1:
+            raise TreatmentReviewError(
+                "Immutable treatment history insertion did not create exactly one row."
+            )
 
     def review_treatment(
         self,
@@ -2874,33 +3392,10 @@ class PublicCorpus:
         decision_reason: str | None = None,
         reviewed_at: str | None = None,
     ) -> dict[str, Any]:
-        row = self.conn.execute(
-            "SELECT * FROM treatments WHERE treatment_id=?", (treatment_id,)
-        ).fetchone()
-        if row is None:
-            raise TreatmentReviewError(f"Unknown treatment candidate: {treatment_id}")
-        try:
-            stored_target_identity = json.loads(str(row["target_identity_json"]))
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise TreatmentReviewError(
-                "Treatment review requires a valid structured target identity."
-            ) from exc
-        if not isinstance(stored_target_identity, dict) or not stored_target_identity:
-            raise TreatmentReviewError(
-                "Treatment review requires a non-empty structured target identity."
-            )
         if decision not in {"verified", "rejected"}:
             raise TreatmentReviewError("Treatment decision must be verified or rejected.")
         if not _is_canonical_identifier(reviewer):
             raise TreatmentReviewError("Treatment review requires a reviewer.")
-        if not self._snapshot_integrity(str(row["snapshot_id"]))["valid"]:
-            raise TreatmentReviewError(
-                "Treatment review requires intact content-addressed snapshot bytes."
-            )
-        if not self._indexed_text_integrity(str(row["snapshot_id"]))["valid"]:
-            raise TreatmentReviewError(
-                "Treatment review requires intact indexed full text and text hash."
-            )
         if decision == "verified":
             if decision_reason is not None:
                 raise TreatmentReviewError(
@@ -2908,82 +3403,14 @@ class PublicCorpus:
                 )
             if not all(
                 value is not None and str(value).strip()
-                for value in (
-                    quote,
-                    locator,
-                    row["source_court_id"],
-                    row["target_kind"],
-                    row["target_identity_json"],
-                )
+                for value in (quote, locator)
             ) or speaker != "court":
                 raise TreatmentReviewError(
                     "Verified treatment requires source court, court speaker, quote, locator, and structured target identity."
                 )
-            if (
-                confirmed_target_authority_id != row["target_authority_id"]
-                or target_identity_confirmed is not True
-            ):
+            if target_identity_confirmed is not True:
                 raise TreatmentReviewError(
                     "Verified treatment requires reviewed confirmation of the exact target identity."
-                )
-            indexed = self.conn.execute(
-                """
-                SELECT i.original_text, i.chain_candidate_id,
-                       i.document_id, i.text_hash, s.raw_sha256,
-                       (
-                         SELECT seed.canonical_url
-                         FROM observations o
-                         JOIN seeds seed ON seed.seed_id=o.seed_id
-                         WHERE o.snapshot_id=i.snapshot_id
-                           AND seed.role IN (
-                             'official_enumerator_observation',
-                             'official_user_seed',
-                             'official_authority_seed'
-                           )
-                         ORDER BY CASE seed.role
-                           WHEN 'official_enumerator_observation' THEN 0
-                           WHEN 'official_authority_seed' THEN 1
-                           WHEN 'official_user_seed' THEN 2
-                           ELSE 9 END,
-                           seed.canonical_url
-                         LIMIT 1
-                       ) AS official_url,
-                       (
-                         SELECT seed.role
-                         FROM observations o
-                         JOIN seeds seed ON seed.seed_id=o.seed_id
-                         WHERE o.snapshot_id=i.snapshot_id
-                           AND seed.role IN (
-                             'official_enumerator_observation',
-                             'official_user_seed',
-                             'official_authority_seed'
-                           )
-                         ORDER BY CASE seed.role
-                           WHEN 'official_enumerator_observation' THEN 0
-                           WHEN 'official_authority_seed' THEN 1
-                           WHEN 'official_user_seed' THEN 2
-                           ELSE 9 END,
-                           seed.canonical_url
-                         LIMIT 1
-                       ) AS source_role
-                FROM indexed_texts i
-                JOIN snapshots s ON s.snapshot_id=i.snapshot_id
-                WHERE i.snapshot_id=?
-                """,
-                (row["snapshot_id"],),
-            ).fetchone()
-            if (
-                indexed is None
-                or indexed["chain_candidate_id"] != row["source_chain_id"]
-                or not _is_canonical_identifier(indexed["document_id"])
-                or indexed["source_role"] not in OFFICIAL_EVIDENCE_SEED_ROLES
-                or not official_public_url_allowed(indexed["official_url"])
-                or _normalise_text(str(quote))
-                not in _normalise_text(str(indexed["original_text"]))
-            ):
-                raise TreatmentReviewError(
-                    "Verified treatment requires a matching quote in indexed "
-                    "official full text bound to the same source chain."
                 )
         else:
             if not _is_canonical_identifier(decision_reason):
@@ -2995,14 +3422,56 @@ class PublicCorpus:
                     "Rejected treatment without a quote must not include a locator or speaker."
                 )
             if (
-                target_identity_confirmed is True
-                and confirmed_target_authority_id != row["target_authority_id"]
-            ) or (
                 target_identity_confirmed is False
                 and confirmed_target_authority_id is not None
             ):
                 raise TreatmentReviewError(
                     "Rejected treatment target confirmation must be internally consistent."
+                )
+            if quote is not None and (
+                not isinstance(quote, str)
+                or not quote.strip()
+                or not _is_canonical_identifier(locator)
+                or speaker != "court"
+            ):
+                raise TreatmentReviewError(
+                    "A quoted rejection reason requires a matching court quote and locator."
+                )
+        if reviewed_at is not None:
+            if not _aware_rfc3339_datetime(reviewed_at):
+                raise TreatmentReviewError(
+                    "reviewed_at должен содержать полные дату, время с секундами "
+                    "и часовой пояс RFC 3339."
+                )
+            if _parse_timestamp(reviewed_at) > datetime.now(timezone.utc):
+                raise TreatmentReviewError("reviewed_at не может находиться в будущем.")
+
+        result: dict[str, Any]
+        with self._treatment_write_transaction():
+            row = self.conn.execute(
+                "SELECT * FROM treatments WHERE treatment_id=?", (treatment_id,)
+            ).fetchone()
+            if row is None:
+                raise TreatmentReviewError(
+                    f"Unknown treatment candidate: {treatment_id}"
+                )
+            if str(row["status"]) != "candidate":
+                raise TreatmentReviewError(
+                    "Treatment review is immutable after the first decision."
+                )
+            proposal_payload, _ = self._require_exact_treatment_history(row)
+            stored_target_identity = proposal_payload["target_identity"]
+            if not isinstance(stored_target_identity, dict) or not stored_target_identity:
+                raise TreatmentReviewError(
+                    "Treatment review requires a non-empty structured target identity."
+                )
+            if not self._snapshot_integrity(str(row["snapshot_id"]))["valid"]:
+                raise TreatmentReviewError(
+                    "Treatment review requires intact content-addressed snapshot bytes."
+                )
+            if not self._indexed_text_integrity(str(row["snapshot_id"]))["valid"]:
+                raise TreatmentReviewError(
+                    "Treatment review requires intact indexed full text and text hash."
                 )
             indexed = self.conn.execute(
                 """
@@ -3058,39 +3527,63 @@ class PublicCorpus:
                 or not official_public_url_allowed(indexed["official_url"])
             ):
                 raise TreatmentReviewError(
-                    "Rejected treatment requires indexed official full text "
+                    f"{decision.capitalize()} treatment requires indexed official full text "
                     "bound to the same source chain."
                 )
-            if quote is not None and (
-                not quote.strip()
-                or not _is_canonical_identifier(locator)
-                or speaker != "court"
-                or _normalise_text(quote)
-                not in _normalise_text(str(indexed["original_text"]))
+            if quote is not None and _normalise_text(quote) not in _normalise_text(
+                str(indexed["original_text"])
             ):
                 raise TreatmentReviewError(
-                    "A quoted rejection reason requires a matching court quote and locator."
+                    "Treatment review requires a matching court quote in indexed official full text."
                 )
-        existing_status = str(row["status"])
-        if existing_status != "candidate":
-            raise TreatmentReviewError("Treatment review is immutable after the first decision.")
-        decided_at = reviewed_at if reviewed_at is not None else _utc_now()
-        if not _aware_rfc3339_datetime(decided_at):
-            raise TreatmentReviewError(
-                "reviewed_at должен содержать полные дату, время с секундами "
-                "и часовой пояс RFC 3339."
-            )
-        if _parse_timestamp(decided_at) > datetime.now(timezone.utc):
-            raise TreatmentReviewError("reviewed_at не может находиться в будущем.")
-        created_at = str(row["created_at"])
-        if (
-            not _aware_rfc3339_datetime(created_at)
-            or _parse_timestamp(decided_at) < _parse_timestamp(created_at)
-        ):
-            raise TreatmentReviewError(
-                "reviewed_at не может предшествовать созданию treatment candidate."
-            )
-        with self.conn:
+            if decision == "verified" and (
+                not _is_canonical_identifier(row["source_court_id"])
+                or not _is_canonical_identifier(row["target_kind"])
+                or confirmed_target_authority_id != row["target_authority_id"]
+            ):
+                raise TreatmentReviewError(
+                    "Verified treatment requires reviewed confirmation of the exact target identity."
+                )
+            if decision == "rejected" and (
+                target_identity_confirmed is True
+                and confirmed_target_authority_id != row["target_authority_id"]
+            ):
+                raise TreatmentReviewError(
+                    "Rejected treatment target confirmation must be internally consistent."
+                )
+            if row["supersedes_treatment_id"] is not None:
+                self._require_replacement_context(
+                    treatment_id=treatment_id,
+                    source_chain_id=str(row["source_chain_id"]),
+                    target_authority_id=str(row["target_authority_id"]),
+                    supersedes_treatment_id=str(row["supersedes_treatment_id"]),
+                    successor_created_at=str(row["created_at"]),
+                    replay=True,
+                )
+            decided_at = reviewed_at if reviewed_at is not None else _utc_now()
+            if not _aware_rfc3339_datetime(decided_at):
+                raise TreatmentReviewError(
+                    "reviewed_at должен содержать полные дату, время с секундами "
+                    "и часовой пояс RFC 3339."
+                )
+            if _parse_timestamp(decided_at) > datetime.now(timezone.utc):
+                raise TreatmentReviewError("reviewed_at не может находиться в будущем.")
+            created_at = str(row["created_at"])
+            if (
+                not _aware_rfc3339_datetime(created_at)
+                or _parse_timestamp(decided_at) < _parse_timestamp(created_at)
+            ):
+                raise TreatmentReviewError(
+                    "reviewed_at не может предшествовать созданию treatment candidate."
+                )
+            review_payload = {
+                "quote": quote,
+                "locator": locator,
+                "speaker": speaker,
+                "confirmed_target_authority_id": confirmed_target_authority_id,
+                "target_identity_confirmed": target_identity_confirmed,
+                "decision_reason": decision_reason,
+            }
             updated = self.conn.execute(
                 """
                 UPDATE treatments SET status=?, reviewer=?, quote=?, locator=?, speaker=?, reviewed_at=?
@@ -3106,26 +3599,34 @@ class PublicCorpus:
                 treatment_id,
                 event_type=decision,
                 reviewer=reviewer.strip(),
-                payload={
-                    "quote": quote,
-                    "locator": locator,
-                    "speaker": speaker,
-                    "confirmed_target_authority_id": confirmed_target_authority_id,
-                    "target_identity_confirmed": target_identity_confirmed,
-                    "decision_reason": decision_reason,
-                },
+                payload=review_payload,
                 event_at=decided_at,
             )
-        return {
-            "treatment_id": treatment_id,
-            "status": decision,
-            "reviewer": reviewer.strip(),
-            "quote": quote,
-            "locator": locator,
-            "speaker": speaker,
-            "reviewed_at": decided_at,
-            "decision_reason": decision_reason,
-        }
+            final_row = self.conn.execute(
+                "SELECT * FROM treatments WHERE treatment_id=?", (treatment_id,)
+            ).fetchone()
+            if final_row is None or str(final_row["status"]) != decision:
+                raise TreatmentReviewError(
+                    "Treatment decision disappeared before transaction commit."
+                )
+            final_proposal, final_decision = self._require_exact_treatment_history(
+                final_row
+            )
+            if final_proposal != proposal_payload or final_decision != review_payload:
+                raise TreatmentReviewError(
+                    "Treatment decision does not match its immutable history."
+                )
+            result = {
+                "treatment_id": treatment_id,
+                "status": decision,
+                "reviewer": str(final_row["reviewer"]),
+                "quote": final_row["quote"],
+                "locator": final_row["locator"],
+                "speaker": final_row["speaker"],
+                "reviewed_at": str(final_row["reviewed_at"]),
+                "decision_reason": final_decision["decision_reason"],
+            }
+        return result
 
     @_consistent_read
     def treatment_quality_export(self) -> dict[str, Any]:

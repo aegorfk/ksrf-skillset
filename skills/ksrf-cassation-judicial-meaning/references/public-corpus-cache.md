@@ -119,6 +119,8 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
 
 Допустимые типы: `applies`, `follows`, `distinguishes`, `limits`, `rejects`, `does_not_reach`, `supersedes`, `unclear`. `source-chain-id`, `source-court-id`, `target-authority-id` и `target-kind` должны быть непустыми каноническими идентификаторами: без лишних пробелов и управляющих/форматирующих символов. Candidate не имеет доказательственной силы.
 
+`discover` защищает чтение текущего snapshot, повтор уже существующего кандидата, проверку predecessor/successor, создание treatment и его `candidate_created` одной зарезервированной SQLite-транзакцией. Точный повтор того же ordinary или replacement candidate безопасно возвращает уже сохранённый статус и не дублирует историю; несовпадающая строка или история не исправляется молча, а блокирует операцию.
+
 Для `verified` одновременно нужны:
 
 - индексированный официальный полный текст, чей `snapshot_id` и `chain-id` совпадают с candidate;
@@ -175,6 +177,8 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
 ```
 
 Review и его история неизменяемы: сохранённый `review_decision` остаётся `verified` или `rejected`. Новая оценка создаёт новый treatment; для явной замены используй `--supersedes-treatment-id` при `discover`, не редактируй прежнюю запись. Replacement разрешён только для уже завершённой записи с теми же `source_chain_id` и `target_authority_id`, и у прежней записи может быть только один непосредственный replacement.
+
+Проверка snapshot/index, официального источника, source chain, candidate и его исходной истории, запись решения и новая неизменяемая запись истории выполняются в одной зарезервированной SQLite-транзакции. Если кэш уже занят другой записью, команда возвращает код `2`, пишет понятную ошибку в stderr и не делает автоматических повторов: дождись завершения другой операции и повтори команду явно. Такая ошибка не выбирает решение проверяющего и не означает юридического одобрения. Прямая замена файла в content-addressed object store не блокируется SQLite; поэтому целостность файла проверяется при review и ещё раз последующими quality/live-cache gates.
 
 Как только создан единственный replacement candidate, прежний treatment экспортируется с эффективным `status=superseded`, сохраняя исходный `review_decision` и его доказательства. Replacement остаётся `candidate`, поэтому prefiling блокируется до нового review. После него population содержит старый `superseded` и новый `verified` либо `rejected`. Ветка, цикл, отсутствующий predecessor, несовпадение взаимных ссылок или source/target identity, а также `reviewed_at < created_at` не разрешаются эвристически: quality-export сохраняет затронутые IDs как candidate/blocker.
 
