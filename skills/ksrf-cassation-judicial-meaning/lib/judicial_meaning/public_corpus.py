@@ -15,9 +15,10 @@ import re
 import sqlite3
 import unicodedata
 import uuid
+from functools import wraps
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import parse_qsl, urldefrag, urlparse, urlunparse
 
 
@@ -26,6 +27,11 @@ PUBLIC_SEED_ROLES = {
     "official_user_seed",
     "official_authority_seed",
     "discovery_only",
+}
+OFFICIAL_EVIDENCE_SEED_ROLES = {
+    "official_enumerator_observation",
+    "official_user_seed",
+    "official_authority_seed",
 }
 PRIVATE_SEED_ROLE = "applicant_private"
 FUNNEL_STAGES = (
@@ -69,6 +75,10 @@ OFFICIAL_HOST_SUFFIXES = (
     "ksrf.ru",
     "pravo.gov.ru",
 )
+RFC3339_AWARE_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+    r"(?:[Zz]|[+-]\d{2}:\d{2})"
+)
 
 
 class PublicCorpusError(ValueError):
@@ -95,12 +105,40 @@ class TreatmentReviewError(PublicCorpusError):
     """A treatment edge did not satisfy quote-level human review."""
 
 
+def _consistent_read(method: Any) -> Any:
+    """Run a multi-query producer against one SQLite read snapshot."""
+
+    @wraps(method)
+    def wrapped(self: "PublicCorpus", *args: Any, **kwargs: Any) -> Any:
+        owns_transaction = not self.conn.in_transaction
+        if owns_transaction:
+            self.conn.execute("BEGIN")
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            if owns_transaction and self.conn.in_transaction:
+                self.conn.rollback()
+
+    return wrapped
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        raise PublicCorpusError(
+            "Canonical JSON payload contains an unsupported or non-finite value."
+        ) from exc
 
 
 def _sha256(value: bytes) -> str:
@@ -116,14 +154,66 @@ def _normalise_text(value: str) -> str:
     return re.sub(r"\s+", " ", normalised).strip()
 
 
+def treatment_quality_proposition(
+    *,
+    status: str,
+    source_chain_id: str,
+    treatment_type: str,
+    target_authority_id: str,
+    decision_reason: str | None = None,
+) -> str:
+    """Build the exact status-aware proposition used by quality exports."""
+
+    if status == "verified":
+        return (
+            f"Судебный акт {source_chain_id} содержит проверенное отношение "
+            f"{treatment_type} к акту {target_authority_id}."
+        )
+    if status == "rejected" and decision_reason is not None:
+        return (
+            f"Проверяющий отклонил предполагаемое отношение {treatment_type} "
+            f"акта {source_chain_id} к акту {target_authority_id}: "
+            f"{decision_reason}"
+        )
+    raise ValueError("Treatment quality proposition requires a resolved status.")
+
+
+def _canonical_identifier(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    if any(unicodedata.category(character) in {"Cc", "Cf", "Cs"} for character in value):
+        return None
+    normalized = " ".join(value.split())
+    return normalized if normalized == value else None
+
+
+def _is_canonical_identifier(value: Any) -> bool:
+    canonical = _canonical_identifier(value)
+    return canonical is not None and canonical == value
+
+
 def _parse_timestamp(value: str) -> datetime:
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        normalized = value[:-1] + "+00:00" if value[-1:] in {"Z", "z"} else value
+        parsed = datetime.fromisoformat(normalized)
     except (TypeError, ValueError) as exc:
         raise PublicCorpusError(f"Invalid ISO timestamp: {value!r}") from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _aware_rfc3339_datetime(value: Any) -> bool:
+    if (
+        not isinstance(value, str)
+        or value != value.strip()
+        or RFC3339_AWARE_RE.fullmatch(value) is None
+    ):
+        return False
+    try:
+        return _parse_timestamp(value).utcoffset() is not None
+    except PublicCorpusError:
+        return False
 
 
 def _canonical_public_url(value: str) -> str:
@@ -215,6 +305,30 @@ def _official_host_allowed(url: str) -> bool:
     return any(host == suffix or host.endswith("." + suffix) for suffix in OFFICIAL_HOST_SUFFIXES)
 
 
+def official_public_url_allowed(value: Any) -> bool:
+    """Use the corpus privacy and official-host boundary for portable evidence."""
+
+    if not isinstance(value, str):
+        return False
+    try:
+        canonical = _canonical_public_url(value)
+    except PublicCorpusError:
+        return False
+    return _official_host_allowed(canonical)
+
+
+def public_url_allowed(value: Any) -> bool:
+    """Apply the reusable-corpus privacy boundary without requiring an official host."""
+
+    if not isinstance(value, str):
+        return False
+    try:
+        _canonical_public_url(value)
+    except PublicCorpusError:
+        return False
+    return True
+
+
 def _write_portable_file(path: Path, payload: bytes) -> None:
     """Write a package member once; never overwrite different evidence."""
 
@@ -231,8 +345,26 @@ def _write_portable_file(path: Path, payload: bytes) -> None:
     os.replace(temporary, path)
 
 
+def _database_file_fingerprint(path: Path) -> tuple[int, int, int, int, str]:
+    stat = path.stat()
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return (
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_size,
+        stat.st_mtime_ns,
+        digest.hexdigest(),
+    )
+
+
 class PublicCorpus:
     """A local immutable public corpus with optional SQLite FTS5 search."""
+
+    _read_only_database_path: Path | None
+    _read_only_database_fingerprint: tuple[int, int, int, int, str] | None
 
     def __init__(self, root: Path, *, force_fallback_search: bool = False) -> None:
         self.root = Path(root)
@@ -242,8 +374,144 @@ class PublicCorpus:
         self.conn = sqlite3.connect(self.root / "public-corpus.sqlite3")
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys=ON")
+        self._read_only_database_path = None
+        self._read_only_database_fingerprint = None
         self._create_schema()
         self.search_backend = self._configure_search(force_fallback_search)
+
+    @classmethod
+    def open_read_only(cls, root: Path) -> "PublicCorpus":
+        """Open an existing cache without creating or migrating anything."""
+
+        requested_root = Path(root).expanduser()
+        try:
+            resolved_root = requested_root.resolve(strict=True)
+        except OSError as exc:
+            raise PublicCorpusError(
+                "Корневая папка публичного корпуса не существует."
+            ) from exc
+        if not resolved_root.is_dir():
+            raise PublicCorpusError(
+                "Корневая папка публичного корпуса должна быть каталогом."
+            )
+        database_path = resolved_root / "public-corpus.sqlite3"
+        if (
+            not database_path.exists()
+            or not database_path.is_file()
+            or database_path.is_symlink()
+        ):
+            raise PublicCorpusError(
+                "В корневой папке нет обычного файла public-corpus.sqlite3."
+            )
+        try:
+            with database_path.open("rb") as stream:
+                header = stream.read(20)
+            initial_database_fingerprint = _database_file_fingerprint(database_path)
+        except OSError as exc:
+            raise PublicCorpusError(
+                "Не удалось прочитать заголовок public-corpus.sqlite3."
+            ) from exc
+        auxiliary_paths = tuple(
+            Path(str(database_path) + suffix)
+            for suffix in ("-wal", "-shm", "-journal")
+        )
+        if (
+            len(header) < 20
+            or header[:16] != b"SQLite format 3\x00"
+        ):
+            raise PublicCorpusError("public-corpus.sqlite3 не является базой SQLite 3.")
+        if b"\x02" in header[18:20] or any(
+            path.exists() for path in auxiliary_paths
+        ):
+            raise PublicCorpusError(
+                "Проверка качества не открывает WAL/журналируемый корпус: "
+                "завершите запись и переведите отдельную проверяемую копию SQLite "
+                "в режим DELETE."
+            )
+
+        instance = cls.__new__(cls)
+        instance.root = resolved_root
+        instance.objects = resolved_root / "objects" / "sha256"
+        try:
+            instance.conn = sqlite3.connect(
+                f"{database_path.as_uri()}?mode=ro",
+                uri=True,
+            )
+            instance.conn.row_factory = sqlite3.Row
+            instance.conn.execute("PRAGMA query_only=ON")
+            instance.conn.execute("PRAGMA foreign_keys=ON")
+            required_tables = {
+                "seeds",
+                "snapshots",
+                "observations",
+                "indexed_texts",
+                "funnel_state",
+                "treatments",
+                "treatment_review_history",
+            }
+            actual_tables = {
+                str(row["name"])
+                for row in instance.conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            missing_tables = sorted(required_tables - actual_tables)
+            if missing_tables:
+                raise PublicCorpusError(
+                    "Публичный корпус не содержит обязательные таблицы: "
+                    + ", ".join(missing_tables)
+                )
+        except (OSError, sqlite3.Error):
+            if hasattr(instance, "conn"):
+                instance.conn.close()
+            raise PublicCorpusError(
+                "Не удалось открыть публичный корпус только для чтения."
+            )
+        except Exception:
+            if hasattr(instance, "conn"):
+                instance.conn.close()
+            raise
+        instance.search_backend = "read_only"
+        instance._read_only_database_path = database_path
+        instance._read_only_database_fingerprint = initial_database_fingerprint
+        if instance._read_only_store_issue_ids():
+            instance.conn.close()
+            raise PublicCorpusError(
+                "Публичный корпус изменился во время открытия только для чтения."
+            )
+        return instance
+
+    def _read_only_store_issue_ids(self) -> list[str]:
+        database_path = getattr(self, "_read_only_database_path", None)
+        expected_fingerprint = getattr(
+            self, "_read_only_database_fingerprint", None
+        )
+        if not isinstance(database_path, Path) or expected_fingerprint is None:
+            return []
+        issues: list[str] = []
+        if database_path.is_symlink():
+            issues.append("live_cache_database_symlinked")
+        if any(
+            Path(str(database_path) + suffix).exists()
+            for suffix in ("-wal", "-shm", "-journal")
+        ):
+            issues.append("live_cache_journal_present")
+        try:
+            with database_path.open("rb") as stream:
+                header = stream.read(20)
+            if (
+                len(header) < 20
+                or header[:16] != b"SQLite format 3\x00"
+                or b"\x02" in header[18:20]
+            ):
+                issues.append("live_cache_database_header_invalid")
+            current_fingerprint = _database_file_fingerprint(database_path)
+        except OSError:
+            issues.append("live_cache_database_unreadable")
+        else:
+            if current_fingerprint != expected_fingerprint:
+                issues.append("live_cache_database_changed")
+        return sorted(set(issues))
 
     def __enter__(self) -> "PublicCorpus":
         return self
@@ -365,6 +633,24 @@ class PublicCorpus:
         self._ensure_column("treatments", "target_kind", "TEXT")
         self._ensure_column("treatments", "target_identity_json", "TEXT")
         self._ensure_column("treatments", "supersedes_treatment_id", "TEXT")
+        branched_supersession = self.conn.execute(
+            """
+            SELECT 1
+            FROM treatments
+            WHERE supersedes_treatment_id IS NOT NULL
+            GROUP BY supersedes_treatment_id
+            HAVING COUNT(*) > 1
+            LIMIT 1
+            """
+        ).fetchone()
+        if branched_supersession is None:
+            self.conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_treatments_one_replacement
+                    ON treatments(supersedes_treatment_id)
+                    WHERE supersedes_treatment_id IS NOT NULL
+                """
+            )
         self.conn.commit()
 
     def _ensure_column(self, table: str, column: str, declaration: str) -> None:
@@ -470,7 +756,13 @@ class PublicCorpus:
             raise PublicCorpusError("Raw snapshot payload must be bytes.")
         if not isinstance(parser_manifest, dict) or not parser_manifest:
             raise PublicCorpusError("Snapshot observation requires a non-empty parser manifest.")
-        _parse_timestamp(fetched_at)
+        if not _aware_rfc3339_datetime(fetched_at):
+            raise PublicCorpusError(
+                "fetched_at должен содержать полные дату, время с секундами "
+                "и часовой пояс RFC 3339."
+            )
+        if _parse_timestamp(fetched_at) > datetime.now(timezone.utc):
+            raise PublicCorpusError("fetched_at не может находиться в будущем.")
         raw_hash = _sha256(raw)
         snapshot_id = f"snapshot-sha256:{raw_hash}"
         object_path = self.objects / raw_hash[:2] / f"{raw_hash}.bin"
@@ -537,6 +829,156 @@ class PublicCorpus:
             raise PublicCorpusError(f"Unknown snapshot: {snapshot_id}")
         return Path(str(row["object_path"])).read_bytes()
 
+    def _snapshot_integrity(self, snapshot_id: str) -> dict[str, Any]:
+        row = self.conn.execute(
+            """
+            SELECT snapshot_id, raw_sha256, object_path, byte_length
+            FROM snapshots WHERE snapshot_id=?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+        if row is None:
+            return {
+                "valid": False,
+                "stored_sha256": None,
+                "observed_sha256": None,
+                "stored_byte_length": None,
+                "observed_byte_length": None,
+                "path_valid": False,
+                "readable": False,
+            }
+        stored_sha256 = str(row["raw_sha256"])
+        stored_length = int(row["byte_length"])
+        object_path = Path(str(row["object_path"]))
+        expected_path = self.objects / stored_sha256[:2] / f"{stored_sha256}.bin"
+        try:
+            canonical_objects_root = self.objects.resolve(strict=True)
+            canonical_object_path = object_path.resolve(strict=True)
+            canonical_expected_path = expected_path.resolve(strict=True)
+        except OSError:
+            canonical_objects_root = None
+            canonical_object_path = None
+            canonical_expected_path = None
+        contained_in_objects = False
+        if canonical_objects_root is not None and canonical_object_path is not None:
+            try:
+                canonical_object_path.relative_to(canonical_objects_root)
+            except ValueError:
+                pass
+            else:
+                contained_in_objects = True
+        expected_components_are_plain = not self.root.is_symlink()
+        try:
+            expected_relative = expected_path.relative_to(self.root)
+        except ValueError:
+            expected_components_are_plain = False
+        else:
+            component = self.root
+            for part in expected_relative.parts:
+                component = component / part
+                if component.is_symlink():
+                    expected_components_are_plain = False
+                    break
+        path_valid = (
+            canonical_object_path is not None
+            and canonical_object_path == canonical_expected_path
+            and contained_in_objects
+            and expected_components_are_plain
+            and object_path.is_file()
+            and not object_path.is_symlink()
+        )
+        observed_sha256: str | None = None
+        observed_length: int | None = None
+        readable = False
+        if path_valid:
+            try:
+                raw = object_path.read_bytes()
+            except OSError:
+                pass
+            else:
+                readable = True
+                observed_sha256 = _sha256(raw)
+                observed_length = len(raw)
+        valid = (
+            path_valid
+            and readable
+            and re.fullmatch(r"[0-9a-f]{64}", stored_sha256) is not None
+            and snapshot_id == f"snapshot-sha256:{stored_sha256}"
+            and observed_sha256 == stored_sha256
+            and observed_length == stored_length
+        )
+        return {
+            "valid": valid,
+            "stored_sha256": stored_sha256,
+            "observed_sha256": observed_sha256,
+            "stored_byte_length": stored_length,
+            "observed_byte_length": observed_length,
+            "path_valid": path_valid,
+            "readable": readable,
+        }
+
+    def _indexed_text_integrity(self, snapshot_id: str) -> dict[str, Any]:
+        row = self.conn.execute(
+            """
+            SELECT text_hash, original_text, normalized_text
+            FROM indexed_texts WHERE snapshot_id=?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+        if row is None:
+            return {
+                "valid": False,
+                "stored_text_sha256": None,
+                "observed_text_sha256": None,
+                "normalized_text_matches": False,
+            }
+        original_text = row["original_text"]
+        normalized_text = row["normalized_text"]
+        if not isinstance(original_text, str) or not isinstance(normalized_text, str):
+            return {
+                "valid": False,
+                "stored_text_sha256": row["text_hash"],
+                "observed_text_sha256": None,
+                "normalized_text_matches": False,
+            }
+        observed_normalized = _normalise_text(original_text)
+        observed_hash = _sha256(observed_normalized.encode("utf-8"))
+        stored_hash = str(row["text_hash"])
+        normalized_matches = normalized_text == observed_normalized
+        return {
+            "valid": stored_hash == observed_hash and normalized_matches,
+            "stored_text_sha256": stored_hash,
+            "observed_text_sha256": observed_hash,
+            "normalized_text_matches": normalized_matches,
+        }
+
+    def _cache_integrity_issue_ids(self) -> list[str]:
+        """Return deterministic issues that make a live quality read unsafe."""
+
+        issues: set[str] = set(self._read_only_store_issue_ids())
+        for row in self.conn.execute("PRAGMA foreign_key_check").fetchall():
+            table_name = str(row[0])
+            row_id = str(row[1])
+            parent_name = str(row[2])
+            foreign_key_id = str(row[3])
+            issues.add(
+                "foreign_key_violation:"
+                f"{table_name}:{row_id}:{parent_name}:{foreign_key_id}"
+            )
+        for row in self.conn.execute(
+            "SELECT snapshot_id FROM snapshots ORDER BY snapshot_id"
+        ).fetchall():
+            snapshot_id = str(row["snapshot_id"])
+            if not self._snapshot_integrity(snapshot_id)["valid"]:
+                issues.add(f"snapshot_object_integrity_invalid:{snapshot_id}")
+        for row in self.conn.execute(
+            "SELECT snapshot_id FROM indexed_texts ORDER BY snapshot_id"
+        ).fetchall():
+            snapshot_id = str(row["snapshot_id"])
+            if not self._indexed_text_integrity(snapshot_id)["valid"]:
+                issues.add(f"indexed_text_integrity_invalid:{snapshot_id}")
+        return sorted(issues)
+
     def create_run(self, run_id: str, snapshot_ids: Iterable[str]) -> dict[str, Any]:
         clean_run_id = run_id.strip()
         if not clean_run_id:
@@ -581,6 +1023,7 @@ class PublicCorpus:
             raise PublicCorpusError(f"Unknown run: {run_id}")
         return [str(row["snapshot_id"]) for row in rows]
 
+    @_consistent_read
     def export_run(self, run_id: str, destination: str | Path) -> dict[str, Any]:
         """Export one immutable public run as a deterministic directory package."""
 
@@ -1075,6 +1518,31 @@ class PublicCorpus:
             raise PublicCorpusError(
                 "Every portable snapshot requires at least one public source observation."
             )
+        observed_snapshot_roles = {
+            (
+                str(observation["snapshot_id"]),
+                str(validated_seeds[str(observation["seed_id"])]["role"]),
+            )
+            for observation in validated_observations
+        }
+
+        def validate_funnel_source_binding(
+            item: Mapping[str, Any], *, label: str
+        ) -> None:
+            role = item.get("source_role")
+            snapshot_id = item.get("snapshot_id")
+            if role is not None and role not in PUBLIC_SEED_ROLES:
+                raise PublicCorpusError(
+                    f"Portable funnel {label} has an unknown source role."
+                )
+            if (
+                role is not None
+                and snapshot_id is not None
+                and (str(snapshot_id), str(role)) not in observed_snapshot_roles
+            ):
+                raise PublicCorpusError(
+                    f"Portable funnel {label} source role is not bound to its observation."
+                )
         expected_pins = run.get("snapshot_ids")
         if (
             not isinstance(expected_pins, list)
@@ -1135,6 +1603,7 @@ class PublicCorpus:
                 raise PublicCorpusError("Portable funnel state has an unknown status.")
             if state.get("snapshot_id") is not None and state.get("snapshot_id") not in raw_by_snapshot:
                 raise PublicCorpusError("Portable funnel state references an unknown snapshot.")
+            validate_funnel_source_binding(state, label="state")
             _parse_timestamp(str(state.get("updated_at", "")))
             state_chain_ids.add(chain_id)
             validated_states.append(state)
@@ -1161,6 +1630,7 @@ class PublicCorpus:
                 raise PublicCorpusError("Portable funnel event has an unknown status.")
             if event.get("snapshot_id") is not None and event.get("snapshot_id") not in raw_by_snapshot:
                 raise PublicCorpusError("Portable funnel event references an unknown snapshot.")
+            validate_funnel_source_binding(event, label="event")
             if not isinstance(event.get("chain_id"), str) or not str(event["chain_id"]).strip():
                 raise PublicCorpusError("Portable funnel event requires a chain ID.")
             if not isinstance(event.get("ordinal"), int) or event["ordinal"] < 0:
@@ -1283,9 +1753,24 @@ class PublicCorpus:
                 raise PublicCorpusError("Portable treatment identity does not match its payload.")
             if expected_treatment_id in validated_treatments:
                 raise PublicCorpusError("Portable treatment identities must be unique.")
-            _parse_timestamp(str(treatment.get("created_at", "")))
-            if treatment.get("reviewed_at") is not None:
-                _parse_timestamp(str(treatment["reviewed_at"]))
+            created_at = treatment.get("created_at")
+            reviewed_at = treatment.get("reviewed_at")
+            if (
+                not _aware_rfc3339_datetime(created_at)
+                or _parse_timestamp(str(created_at)) > datetime.now(timezone.utc)
+            ):
+                raise PublicCorpusError(
+                    "Portable treatment created_at must be an aware RFC 3339 time not in the future."
+                )
+            if reviewed_at is not None and (
+                not _aware_rfc3339_datetime(reviewed_at)
+                or _parse_timestamp(str(reviewed_at)) > datetime.now(timezone.utc)
+                or _parse_timestamp(str(reviewed_at))
+                < _parse_timestamp(str(created_at))
+            ):
+                raise PublicCorpusError(
+                    "Portable treatment review chronology is invalid."
+                )
             if treatment.get("status") in {"verified", "rejected"} and not all(
                 treatment.get(key) is not None and str(treatment[key]).strip()
                 for key in ("reviewer", "reviewed_at")
@@ -1331,7 +1816,10 @@ class PublicCorpus:
                     raise PublicCorpusError("Portable treatment history has an unknown event type.")
                 if not isinstance(history_item.get("payload"), dict):
                     raise PublicCorpusError("Portable treatment history payload must be an object.")
-                _parse_timestamp(str(history_item.get("event_at", "")))
+                if not _aware_rfc3339_datetime(history_item.get("event_at")):
+                    raise PublicCorpusError(
+                        "Portable treatment history requires aware RFC 3339 event times."
+                    )
                 expected_history_id = _identifier(
                     "treatment-history",
                     {
@@ -1367,20 +1855,45 @@ class PublicCorpus:
                 raise PublicCorpusError(
                     "Portable treatment candidate history conflicts with its identity."
                 )
+            if (
+                history[0].get("reviewer") is not None
+                or history[0].get("event_at") != treatment.get("created_at")
+            ):
+                raise PublicCorpusError(
+                    "Portable treatment candidate history conflicts with creation metadata."
+                )
             if treatment.get("status") in {"verified", "rejected"}:
                 decision_history = history[-1]
+                decision_payload = decision_history.get("payload", {})
                 if (
                     decision_history.get("reviewer") != treatment.get("reviewer")
                     or decision_history.get("event_at") != treatment.get("reviewed_at")
-                    or decision_history.get("payload", {}).get("quote")
-                    != treatment.get("quote")
-                    or decision_history.get("payload", {}).get("locator")
-                    != treatment.get("locator")
-                    or decision_history.get("payload", {}).get("speaker")
-                    != treatment.get("speaker")
+                    or set(decision_payload)
+                    != {
+                        "quote",
+                        "locator",
+                        "speaker",
+                        "confirmed_target_authority_id",
+                        "target_identity_confirmed",
+                        "decision_reason",
+                    }
+                    or decision_payload.get("quote") != treatment.get("quote")
+                    or decision_payload.get("locator") != treatment.get("locator")
+                    or decision_payload.get("speaker") != treatment.get("speaker")
                 ):
                     raise PublicCorpusError(
                         "Portable treatment decision conflicts with immutable review history."
+                    )
+                decision_reason = decision_payload.get("decision_reason")
+                if treatment.get("status") == "verified" and decision_reason is not None:
+                    raise PublicCorpusError(
+                        "Portable verified treatment must not contain a rejection reason."
+                    )
+                if treatment.get("status") == "rejected" and not _is_canonical_identifier(
+                    decision_reason
+                ):
+                    raise PublicCorpusError(
+                        "Portable rejected treatment requires a canonical decision reason."
                     )
                 if treatment.get("status") == "verified" and (
                     decision_history.get("payload", {}).get(
@@ -1409,6 +1922,24 @@ class PublicCorpus:
                 or prior.get("target_authority_id") != treatment.get("target_authority_id")
             ):
                 raise PublicCorpusError("Portable treatment supersession changes source or target.")
+            if _parse_timestamp(str(prior.get("reviewed_at"))) > _parse_timestamp(
+                str(treatment.get("created_at"))
+            ):
+                raise PublicCorpusError(
+                    "Portable treatment supersession predates the completed prior review."
+                )
+
+        successor_counts: dict[str, int] = {}
+        for treatment in validated_treatments.values():
+            prior_id = treatment.get("supersedes_treatment_id")
+            if prior_id is not None:
+                successor_counts[str(prior_id)] = (
+                    successor_counts.get(str(prior_id), 0) + 1
+                )
+        if any(count != 1 for count in successor_counts.values()):
+            raise PublicCorpusError(
+                "Portable treatment supersession must be a single-successor chain."
+            )
 
         if rich_package:
             evidence_payload = {
@@ -1674,11 +2205,12 @@ class PublicCorpus:
         )
         query_lane = query_lane or "manual_public_import"
         if not all(
-            isinstance(value, str) and value.strip()
+            _is_canonical_identifier(value)
             for value in (document_id, chain_candidate_id, query_lane)
         ):
             raise PublicCorpusError(
-                "Search provenance requires document_id, chain_candidate_id, and query_lane."
+                "Search provenance requires canonical document_id, "
+                "chain_candidate_id, and query_lane."
             )
         text_hash = _sha256(normalized.encode("utf-8"))
         existing = self.conn.execute(
@@ -1824,10 +2356,43 @@ class PublicCorpus:
             raise FunnelTransitionError(f"Unknown funnel status: {status}")
         if snapshot_id is not None and not self._snapshot_exists(snapshot_id):
             raise FunnelTransitionError(f"Unknown funnel snapshot: {snapshot_id}")
+        if source_role is not None and source_role not in PUBLIC_SEED_ROLES:
+            raise FunnelTransitionError(f"Unknown funnel source role: {source_role}")
         current = self.conn.execute(
-            "SELECT status FROM funnel_state WHERE chain_id=?", (chain_id,)
+            "SELECT status, snapshot_id, source_role FROM funnel_state WHERE chain_id=?",
+            (chain_id,),
         ).fetchone()
         current_status = str(current["status"]) if current is not None else None
+        effective_snapshot_id = snapshot_id or (
+            str(current["snapshot_id"])
+            if current is not None and current["snapshot_id"] is not None
+            else None
+        )
+        effective_source_role = source_role or (
+            str(current["source_role"])
+            if current is not None and current["source_role"] is not None
+            else None
+        )
+        if effective_source_role is not None and effective_snapshot_id is not None:
+            bound_observation = (
+                self.conn.execute(
+                    """
+                    SELECT seed.canonical_url
+                    FROM observations o
+                    JOIN seeds seed ON seed.seed_id=o.seed_id
+                    WHERE o.snapshot_id=? AND seed.role=?
+                    ORDER BY seed.canonical_url LIMIT 1
+                    """,
+                    (effective_snapshot_id, effective_source_role),
+                ).fetchone()
+            )
+            if bound_observation is None or (
+                effective_source_role in OFFICIAL_EVIDENCE_SEED_ROLES
+                and not official_public_url_allowed(bound_observation["canonical_url"])
+            ):
+                raise FunnelTransitionError(
+                    "Funnel source_role must match an observation for the effective snapshot."
+                )
         if current_status is None:
             allowed = status == "enumerated"
         elif status == current_status:
@@ -1946,6 +2511,7 @@ class PublicCorpus:
         counts["strata"] = strata
         return counts
 
+    @_consistent_read
     def plan_refresh(
         self,
         *,
@@ -1953,9 +2519,20 @@ class PublicCorpus:
         max_age_seconds: int,
         coverage_requirements: Iterable[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        if max_age_seconds < 0:
+        if (
+            isinstance(max_age_seconds, bool)
+            or not isinstance(max_age_seconds, int)
+            or max_age_seconds < 0
+        ):
             raise PublicCorpusError("max_age_seconds must be non-negative")
+        if not _aware_rfc3339_datetime(as_of):
+            raise PublicCorpusError(
+                "--as-of должен содержать полные дату, время с секундами "
+                "и часовой пояс RFC 3339."
+            )
         as_of_time = _parse_timestamp(as_of)
+        if as_of_time > datetime.now(timezone.utc):
+            raise PublicCorpusError("--as-of не может находиться в будущем.")
         rows = self.conn.execute(
             """
             SELECT s.seed_id, s.canonical_url, s.role, MAX(o.fetched_at) AS last_fetched_at
@@ -1968,9 +2545,15 @@ class PublicCorpus:
             last_value = row["last_fetched_at"]
             if last_value is None:
                 reason = "never_fetched"
+            elif not _aware_rfc3339_datetime(str(last_value)):
+                reason = "invalid_fetched_at"
             else:
-                age = (as_of_time - _parse_timestamp(str(last_value))).total_seconds()
-                reason = "stale" if age >= max_age_seconds else ""
+                last_time = _parse_timestamp(str(last_value))
+                if last_time > as_of_time:
+                    reason = "future_fetched_at"
+                else:
+                    age = (as_of_time - last_time).total_seconds()
+                    reason = "stale" if age >= max_age_seconds else ""
             if reason:
                 entries.append(
                     {
@@ -1981,30 +2564,107 @@ class PublicCorpus:
                         "reason": reason,
                     }
                 )
+        normalized_requirements: list[dict[str, str]] = []
         coverage_gaps: list[dict[str, Any]] = []
         allowed_dimensions = ("court_id", "period_id", "enumerator_id", "source_role")
+        seen_requirements: set[str] = set()
         for raw_requirement in coverage_requirements or []:
             if not isinstance(raw_requirement, dict):
                 raise PublicCorpusError("Coverage requirement must be an object.")
-            requirement = {
-                key: raw_requirement.get(key)
-                for key in allowed_dimensions
-                if isinstance(raw_requirement.get(key), str)
-                and raw_requirement.get(key).strip()
-            }
-            if not requirement:
+            if not raw_requirement or not set(raw_requirement).issubset(allowed_dimensions):
                 raise PublicCorpusError(
-                    "Coverage requirement needs court, period, enumerator, or source role."
+                    "Coverage requirement contains an unsupported dimension."
                 )
-            clauses = [f"{key}=?" for key in requirement]
+            if not all(
+                isinstance(raw_requirement.get(key), str)
+                and bool(raw_requirement[key].strip())
+                for key in raw_requirement
+            ):
+                raise PublicCorpusError(
+                    "Coverage requirement values must be non-empty strings."
+                )
+            requirement = {
+                key: str(raw_requirement[key])
+                for key in allowed_dimensions
+                if key in raw_requirement
+            }
+            if any(
+                value != " ".join(value.split())
+                or any(
+                    unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+                    for character in value
+                )
+                for value in requirement.values()
+            ):
+                raise PublicCorpusError(
+                    "Coverage requirement identifiers must use canonical whitespace."
+                )
+            if (
+                "source_role" in requirement
+                and requirement["source_role"] not in PUBLIC_SEED_ROLES
+            ):
+                raise PublicCorpusError("Coverage requirement source_role is unsupported.")
+            requirement_digest = _sha256(
+                _canonical_json(requirement).encode("utf-8")
+            )
+            if requirement_digest in seen_requirements:
+                continue
+            seen_requirements.add(requirement_digest)
+            normalized_requirements.append(requirement)
+            clauses = [f"f.{key}=?" for key in requirement]
             values = [requirement[key] for key in requirement]
-            observed = self.conn.execute(
-                "SELECT COUNT(*) AS count FROM funnel_state WHERE "
+            scope_rows = self.conn.execute(
+                """
+                SELECT f.chain_id, f.status, f.snapshot_id, f.source_role
+                FROM funnel_state f
+                WHERE """
                 + " AND ".join(clauses)
-                + " AND snapshot_id IS NOT NULL",
+                + " ORDER BY f.chain_id",
                 values,
-            ).fetchone()
-            if observed is None or int(observed["count"]) == 0:
+            ).fetchall()
+
+            def chain_is_observed(row: sqlite3.Row) -> bool:
+                snapshot_id = row["snapshot_id"]
+                status = str(row["status"])
+                source_role = row["source_role"]
+                if (
+                    not isinstance(snapshot_id, str)
+                    or status
+                    not in {
+                        "full_text_extracted",
+                        "indexed",
+                        "screened",
+                        "coded",
+                        "approved_independent_chain",
+                    }
+                    or source_role not in OFFICIAL_EVIDENCE_SEED_ROLES
+                    or not self._snapshot_integrity(snapshot_id)["valid"]
+                    or (
+                        status != "full_text_extracted"
+                        and not self._indexed_text_integrity(snapshot_id)["valid"]
+                    )
+                ):
+                    return False
+                observation_rows = self.conn.execute(
+                    """
+                    SELECT seed.canonical_url, seed.role
+                    FROM observations o
+                    JOIN seeds seed ON seed.seed_id=o.seed_id
+                    WHERE o.snapshot_id=? AND seed.role=?
+                    ORDER BY seed.canonical_url
+                    """,
+                    (snapshot_id, source_role),
+                ).fetchall()
+                return any(
+                    observation["role"] in OFFICIAL_EVIDENCE_SEED_ROLES
+                    and official_public_url_allowed(observation["canonical_url"])
+                    for observation in observation_rows
+                )
+
+            observed = bool(scope_rows) and all(
+                chain_is_observed(row) for row in scope_rows
+            )
+            if not observed:
                 coverage_gaps.append(
                     {
                         **requirement,
@@ -2015,10 +2675,16 @@ class PublicCorpus:
         coverage_gaps.sort(
             key=lambda item: tuple(str(item.get(key, "")) for key in allowed_dimensions)
         )
+        normalized_requirements.sort(
+            key=lambda item: tuple(str(item.get(key, "")) for key in allowed_dimensions)
+        )
         payload = {
             "as_of": as_of,
             "max_age_seconds": max_age_seconds,
             "evidence_digest": self.evidence_digest(),
+            "treatment_ids": self.treatment_ids(),
+            "treatment_population_sha256": self.treatment_population_sha256(),
+            "coverage_requirements": normalized_requirements,
             "entries": entries,
             "coverage_gaps": coverage_gaps,
         }
@@ -2036,14 +2702,28 @@ class PublicCorpus:
         snapshot_id: str,
         supersedes_treatment_id: str | None = None,
     ) -> dict[str, Any]:
+        for label, value in (
+            ("source_chain_id", source_chain_id),
+            ("source_court_id", source_court_id),
+            ("target_authority_id", target_authority_id),
+            ("target_kind", target_kind),
+        ):
+            if not _is_canonical_identifier(value):
+                raise TreatmentReviewError(
+                    f"{label} must be a non-empty canonical identifier."
+                )
         if treatment_type not in TREATMENT_TYPES:
             raise TreatmentReviewError(f"Unsupported treatment type: {treatment_type}")
         if not self._snapshot_exists(snapshot_id):
             raise TreatmentReviewError(f"Unknown treatment snapshot: {snapshot_id}")
-        if target_identity is not None and (
-            not isinstance(target_identity, dict) or not target_identity
-        ):
-            raise TreatmentReviewError("target_identity must be a non-empty object when supplied.")
+        if not isinstance(target_identity, dict) or not target_identity:
+            raise TreatmentReviewError("target_identity must be a non-empty object.")
+        try:
+            canonical_target_identity = _canonical_json(target_identity)
+        except PublicCorpusError as exc:
+            raise TreatmentReviewError(
+                "target_identity must contain finite JSON-compatible values."
+            ) from exc
         if supersedes_treatment_id is not None:
             prior = self.conn.execute(
                 "SELECT source_chain_id, target_authority_id, status FROM treatments WHERE treatment_id=?",
@@ -2060,6 +2740,14 @@ class PublicCorpus:
                 raise TreatmentReviewError(
                     "A replacement treatment must preserve source and target identity."
                 )
+            existing_replacement = self.conn.execute(
+                "SELECT treatment_id FROM treatments WHERE supersedes_treatment_id=?",
+                (supersedes_treatment_id,),
+            ).fetchone()
+            if existing_replacement is not None:
+                raise TreatmentReviewError(
+                    "A completed treatment already has a replacement candidate."
+                )
         treatment_id = _identifier(
             "treatment",
             {
@@ -2075,7 +2763,17 @@ class PublicCorpus:
         )
         created_at = _utc_now()
         with self.conn:
-            self.conn.execute(
+            self.conn.execute("BEGIN IMMEDIATE")
+            if supersedes_treatment_id is not None:
+                concurrent_replacement = self.conn.execute(
+                    "SELECT treatment_id FROM treatments WHERE supersedes_treatment_id=?",
+                    (supersedes_treatment_id,),
+                ).fetchone()
+                if concurrent_replacement is not None:
+                    raise TreatmentReviewError(
+                        "A completed treatment already has a replacement candidate."
+                    )
+            inserted = self.conn.execute(
                 """
                 INSERT OR IGNORE INTO treatments(
                     treatment_id, source_chain_id, source_court_id,
@@ -2090,32 +2788,40 @@ class PublicCorpus:
                     source_court_id,
                     target_authority_id,
                     target_kind,
-                    _canonical_json(target_identity) if target_identity is not None else None,
+                    canonical_target_identity,
                     treatment_type,
                     snapshot_id,
                     supersedes_treatment_id,
                     created_at,
                 ),
             )
-            self._append_treatment_history(
-                treatment_id,
-                event_type="candidate_created",
-                reviewer=None,
-                payload={
-                    "source_chain_id": source_chain_id,
-                    "source_court_id": source_court_id,
-                    "target_authority_id": target_authority_id,
-                    "target_kind": target_kind,
-                    "target_identity": target_identity,
-                    "treatment_type": treatment_type,
-                    "snapshot_id": snapshot_id,
-                    "supersedes_treatment_id": supersedes_treatment_id,
-                },
-                event_at=created_at,
+            if inserted.rowcount == 1:
+                self._append_treatment_history(
+                    treatment_id,
+                    event_type="candidate_created",
+                    reviewer=None,
+                    payload={
+                        "source_chain_id": source_chain_id,
+                        "source_court_id": source_court_id,
+                        "target_authority_id": target_authority_id,
+                        "target_kind": target_kind,
+                        "target_identity": target_identity,
+                        "treatment_type": treatment_type,
+                        "snapshot_id": snapshot_id,
+                        "supersedes_treatment_id": supersedes_treatment_id,
+                    },
+                    event_at=created_at,
+                )
+        current = self.conn.execute(
+            "SELECT status FROM treatments WHERE treatment_id=?", (treatment_id,)
+        ).fetchone()
+        if current is None:
+            raise TreatmentReviewError(
+                "Another replacement candidate already won the supersession race."
             )
         return {
             "treatment_id": treatment_id,
-            "status": "candidate",
+            "status": str(current["status"]),
             "supersedes_treatment_id": supersedes_treatment_id,
         }
 
@@ -2165,6 +2871,7 @@ class PublicCorpus:
         speaker: str | None = None,
         confirmed_target_authority_id: str | None = None,
         target_identity_confirmed: bool = False,
+        decision_reason: str | None = None,
         reviewed_at: str | None = None,
     ) -> dict[str, Any]:
         row = self.conn.execute(
@@ -2172,11 +2879,33 @@ class PublicCorpus:
         ).fetchone()
         if row is None:
             raise TreatmentReviewError(f"Unknown treatment candidate: {treatment_id}")
+        try:
+            stored_target_identity = json.loads(str(row["target_identity_json"]))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise TreatmentReviewError(
+                "Treatment review requires a valid structured target identity."
+            ) from exc
+        if not isinstance(stored_target_identity, dict) or not stored_target_identity:
+            raise TreatmentReviewError(
+                "Treatment review requires a non-empty structured target identity."
+            )
         if decision not in {"verified", "rejected"}:
             raise TreatmentReviewError("Treatment decision must be verified or rejected.")
-        if not reviewer.strip():
+        if not _is_canonical_identifier(reviewer):
             raise TreatmentReviewError("Treatment review requires a reviewer.")
+        if not self._snapshot_integrity(str(row["snapshot_id"]))["valid"]:
+            raise TreatmentReviewError(
+                "Treatment review requires intact content-addressed snapshot bytes."
+            )
+        if not self._indexed_text_integrity(str(row["snapshot_id"]))["valid"]:
+            raise TreatmentReviewError(
+                "Treatment review requires intact indexed full text and text hash."
+            )
         if decision == "verified":
+            if decision_reason is not None:
+                raise TreatmentReviewError(
+                    "Verified treatment must not include a rejection reason."
+                )
             if not all(
                 value is not None and str(value).strip()
                 for value in (
@@ -2197,19 +2926,182 @@ class PublicCorpus:
                 raise TreatmentReviewError(
                     "Verified treatment requires reviewed confirmation of the exact target identity."
                 )
+            indexed = self.conn.execute(
+                """
+                SELECT i.original_text, i.chain_candidate_id,
+                       i.document_id, i.text_hash, s.raw_sha256,
+                       (
+                         SELECT seed.canonical_url
+                         FROM observations o
+                         JOIN seeds seed ON seed.seed_id=o.seed_id
+                         WHERE o.snapshot_id=i.snapshot_id
+                           AND seed.role IN (
+                             'official_enumerator_observation',
+                             'official_user_seed',
+                             'official_authority_seed'
+                           )
+                         ORDER BY CASE seed.role
+                           WHEN 'official_enumerator_observation' THEN 0
+                           WHEN 'official_authority_seed' THEN 1
+                           WHEN 'official_user_seed' THEN 2
+                           ELSE 9 END,
+                           seed.canonical_url
+                         LIMIT 1
+                       ) AS official_url,
+                       (
+                         SELECT seed.role
+                         FROM observations o
+                         JOIN seeds seed ON seed.seed_id=o.seed_id
+                         WHERE o.snapshot_id=i.snapshot_id
+                           AND seed.role IN (
+                             'official_enumerator_observation',
+                             'official_user_seed',
+                             'official_authority_seed'
+                           )
+                         ORDER BY CASE seed.role
+                           WHEN 'official_enumerator_observation' THEN 0
+                           WHEN 'official_authority_seed' THEN 1
+                           WHEN 'official_user_seed' THEN 2
+                           ELSE 9 END,
+                           seed.canonical_url
+                         LIMIT 1
+                       ) AS source_role
+                FROM indexed_texts i
+                JOIN snapshots s ON s.snapshot_id=i.snapshot_id
+                WHERE i.snapshot_id=?
+                """,
+                (row["snapshot_id"],),
+            ).fetchone()
+            if (
+                indexed is None
+                or indexed["chain_candidate_id"] != row["source_chain_id"]
+                or not _is_canonical_identifier(indexed["document_id"])
+                or indexed["source_role"] not in OFFICIAL_EVIDENCE_SEED_ROLES
+                or not official_public_url_allowed(indexed["official_url"])
+                or _normalise_text(str(quote))
+                not in _normalise_text(str(indexed["original_text"]))
+            ):
+                raise TreatmentReviewError(
+                    "Verified treatment requires a matching quote in indexed "
+                    "official full text bound to the same source chain."
+                )
+        else:
+            if not _is_canonical_identifier(decision_reason):
+                raise TreatmentReviewError(
+                    "Rejected treatment requires a non-empty canonical decision reason."
+                )
+            if quote is None and (locator is not None or speaker is not None):
+                raise TreatmentReviewError(
+                    "Rejected treatment without a quote must not include a locator or speaker."
+                )
+            if (
+                target_identity_confirmed is True
+                and confirmed_target_authority_id != row["target_authority_id"]
+            ) or (
+                target_identity_confirmed is False
+                and confirmed_target_authority_id is not None
+            ):
+                raise TreatmentReviewError(
+                    "Rejected treatment target confirmation must be internally consistent."
+                )
+            indexed = self.conn.execute(
+                """
+                SELECT i.original_text, i.chain_candidate_id,
+                       i.document_id, i.text_hash, s.raw_sha256,
+                       (
+                         SELECT seed.canonical_url
+                         FROM observations o
+                         JOIN seeds seed ON seed.seed_id=o.seed_id
+                         WHERE o.snapshot_id=i.snapshot_id
+                           AND seed.role IN (
+                             'official_enumerator_observation',
+                             'official_user_seed',
+                             'official_authority_seed'
+                           )
+                         ORDER BY CASE seed.role
+                           WHEN 'official_enumerator_observation' THEN 0
+                           WHEN 'official_authority_seed' THEN 1
+                           WHEN 'official_user_seed' THEN 2
+                           ELSE 9 END,
+                           seed.canonical_url
+                         LIMIT 1
+                       ) AS official_url,
+                       (
+                         SELECT seed.role
+                         FROM observations o
+                         JOIN seeds seed ON seed.seed_id=o.seed_id
+                         WHERE o.snapshot_id=i.snapshot_id
+                           AND seed.role IN (
+                             'official_enumerator_observation',
+                             'official_user_seed',
+                             'official_authority_seed'
+                           )
+                         ORDER BY CASE seed.role
+                           WHEN 'official_enumerator_observation' THEN 0
+                           WHEN 'official_authority_seed' THEN 1
+                           WHEN 'official_user_seed' THEN 2
+                           ELSE 9 END,
+                           seed.canonical_url
+                         LIMIT 1
+                       ) AS source_role
+                FROM indexed_texts i
+                JOIN snapshots s ON s.snapshot_id=i.snapshot_id
+                WHERE i.snapshot_id=?
+                """,
+                (row["snapshot_id"],),
+            ).fetchone()
+            if (
+                indexed is None
+                or indexed["chain_candidate_id"] != row["source_chain_id"]
+                or not _is_canonical_identifier(indexed["document_id"])
+                or indexed["source_role"] not in OFFICIAL_EVIDENCE_SEED_ROLES
+                or not official_public_url_allowed(indexed["official_url"])
+            ):
+                raise TreatmentReviewError(
+                    "Rejected treatment requires indexed official full text "
+                    "bound to the same source chain."
+                )
+            if quote is not None and (
+                not quote.strip()
+                or not _is_canonical_identifier(locator)
+                or speaker != "court"
+                or _normalise_text(quote)
+                not in _normalise_text(str(indexed["original_text"]))
+            ):
+                raise TreatmentReviewError(
+                    "A quoted rejection reason requires a matching court quote and locator."
+                )
         existing_status = str(row["status"])
         if existing_status != "candidate":
             raise TreatmentReviewError("Treatment review is immutable after the first decision.")
-        decided_at = reviewed_at or _utc_now()
-        _parse_timestamp(decided_at)
+        decided_at = reviewed_at if reviewed_at is not None else _utc_now()
+        if not _aware_rfc3339_datetime(decided_at):
+            raise TreatmentReviewError(
+                "reviewed_at должен содержать полные дату, время с секундами "
+                "и часовой пояс RFC 3339."
+            )
+        if _parse_timestamp(decided_at) > datetime.now(timezone.utc):
+            raise TreatmentReviewError("reviewed_at не может находиться в будущем.")
+        created_at = str(row["created_at"])
+        if (
+            not _aware_rfc3339_datetime(created_at)
+            or _parse_timestamp(decided_at) < _parse_timestamp(created_at)
+        ):
+            raise TreatmentReviewError(
+                "reviewed_at не может предшествовать созданию treatment candidate."
+            )
         with self.conn:
-            self.conn.execute(
+            updated = self.conn.execute(
                 """
                 UPDATE treatments SET status=?, reviewer=?, quote=?, locator=?, speaker=?, reviewed_at=?
-                WHERE treatment_id=?
+                WHERE treatment_id=? AND status='candidate'
                 """,
                 (decision, reviewer.strip(), quote, locator, speaker, decided_at, treatment_id),
             )
+            if updated.rowcount != 1:
+                raise TreatmentReviewError(
+                    "Treatment review is immutable after the first decision."
+                )
             self._append_treatment_history(
                 treatment_id,
                 event_type=decision,
@@ -2220,6 +3112,7 @@ class PublicCorpus:
                     "speaker": speaker,
                     "confirmed_target_authority_id": confirmed_target_authority_id,
                     "target_identity_confirmed": target_identity_confirmed,
+                    "decision_reason": decision_reason,
                 },
                 event_at=decided_at,
             )
@@ -2231,6 +3124,463 @@ class PublicCorpus:
             "locator": locator,
             "speaker": speaker,
             "reviewed_at": decided_at,
+            "decision_reason": decision_reason,
+        }
+
+    @_consistent_read
+    def treatment_quality_export(self) -> dict[str, Any]:
+        """Export the complete treatment population for the pre-filing gate.
+
+        Resolved database rows are promoted only when their official snapshot,
+        indexed full text, quote, target confirmation, and immutable review
+        history agree.  Every other row remains visibly candidate-only.
+        """
+
+        rows = self.conn.execute(
+            """
+            SELECT t.*, s.raw_sha256, i.text_hash, i.original_text,
+                   i.document_id, i.chain_candidate_id,
+                   (
+                     SELECT seed.canonical_url
+                     FROM observations o
+                     JOIN seeds seed ON seed.seed_id=o.seed_id
+                     WHERE o.snapshot_id=t.snapshot_id
+                       AND seed.role IN (
+                         'official_enumerator_observation',
+                         'official_user_seed',
+                         'official_authority_seed'
+                       )
+                     ORDER BY CASE seed.role
+                       WHEN 'official_enumerator_observation' THEN 0
+                       WHEN 'official_authority_seed' THEN 1
+                       WHEN 'official_user_seed' THEN 2
+                       ELSE 9 END,
+                       seed.canonical_url
+                     LIMIT 1
+                   ) AS official_url,
+                   (
+                     SELECT seed.role
+                     FROM observations o
+                     JOIN seeds seed ON seed.seed_id=o.seed_id
+                     WHERE o.snapshot_id=t.snapshot_id
+                       AND seed.role IN (
+                         'official_enumerator_observation',
+                         'official_user_seed',
+                         'official_authority_seed'
+                       )
+                     ORDER BY CASE seed.role
+                       WHEN 'official_enumerator_observation' THEN 0
+                       WHEN 'official_authority_seed' THEN 1
+                       WHEN 'official_user_seed' THEN 2
+                       ELSE 9 END,
+                       seed.canonical_url
+                     LIMIT 1
+                   ) AS source_role
+            FROM treatments t
+            LEFT JOIN snapshots s ON s.snapshot_id=t.snapshot_id
+            LEFT JOIN indexed_texts i ON i.snapshot_id=t.snapshot_id
+            ORDER BY t.treatment_id
+            """
+        ).fetchall()
+        rows_by_id = {str(row["treatment_id"]): row for row in rows}
+        successors_by_prior: dict[str, list[str]] = {}
+        for row in rows:
+            prior_id = row["supersedes_treatment_id"]
+            if isinstance(prior_id, str):
+                successors_by_prior.setdefault(prior_id, []).append(
+                    str(row["treatment_id"])
+                )
+        for successor_ids in successors_by_prior.values():
+            successor_ids.sort()
+
+        supersession_blockers: dict[str, set[str]] = {
+            treatment_id: set() for treatment_id in rows_by_id
+        }
+        for prior_id, successor_ids in successors_by_prior.items():
+            if len(successor_ids) > 1:
+                supersession_blockers.setdefault(prior_id, set()).add(
+                    "supersession_branch_invalid"
+                )
+                for successor_id in successor_ids:
+                    supersession_blockers[successor_id].add(
+                        "supersession_branch_invalid"
+                    )
+            prior_row = rows_by_id.get(prior_id)
+            for successor_id in successor_ids:
+                successor_row = rows_by_id[successor_id]
+                if prior_row is None or not _is_canonical_identifier(prior_id):
+                    supersession_blockers[successor_id].add(
+                        "supersedes_treatment_missing"
+                    )
+                    continue
+                if str(prior_row["status"]) not in {"verified", "rejected"}:
+                    supersession_blockers[successor_id].add(
+                        "superseded_prior_unresolved"
+                    )
+                    supersession_blockers[prior_id].add(
+                        "superseded_while_unresolved"
+                    )
+                if (
+                    prior_row["source_chain_id"] != successor_row["source_chain_id"]
+                    or prior_row["target_authority_id"]
+                    != successor_row["target_authority_id"]
+                ):
+                    supersession_blockers[successor_id].add(
+                        "supersession_identity_mismatch"
+                    )
+                    supersession_blockers[prior_id].add(
+                        "supersession_identity_mismatch"
+                    )
+                prior_reviewed_at = prior_row["reviewed_at"]
+                successor_created_at = successor_row["created_at"]
+                if (
+                    not _aware_rfc3339_datetime(prior_reviewed_at)
+                    or not _aware_rfc3339_datetime(successor_created_at)
+                    or _parse_timestamp(str(prior_reviewed_at))
+                    > _parse_timestamp(str(successor_created_at))
+                ):
+                    supersession_blockers[successor_id].add(
+                        "supersession_chronology_invalid"
+                    )
+                    supersession_blockers[prior_id].add(
+                        "supersession_chronology_invalid"
+                    )
+
+        def supersession_cycle(start_id: str) -> bool:
+            seen: set[str] = set()
+            current_id: str | None = start_id
+            while current_id is not None:
+                if current_id in seen:
+                    return True
+                seen.add(current_id)
+                current_row = rows_by_id.get(current_id)
+                if current_row is None:
+                    return False
+                prior_id = current_row["supersedes_treatment_id"]
+                current_id = str(prior_id) if isinstance(prior_id, str) else None
+            return False
+
+        for treatment_id in rows_by_id:
+            if supersession_cycle(treatment_id):
+                supersession_blockers[treatment_id].add(
+                    "supersession_cycle_invalid"
+                )
+
+        records: list[dict[str, Any]] = []
+        for row in rows:
+            treatment_id = str(row["treatment_id"])
+            status = str(row["status"])
+            blockers: list[str] = sorted(supersession_blockers[treatment_id])
+            prior_treatment_id = row["supersedes_treatment_id"]
+            successor_ids = successors_by_prior.get(treatment_id, [])
+            identity: Any = None
+            try:
+                identity = json.loads(str(row["target_identity_json"]))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                blockers.append("target_identity_invalid")
+            history_rows = self.conn.execute(
+                """
+                SELECT history_id, event_type, reviewer, payload_json, event_at
+                FROM treatment_review_history
+                WHERE treatment_id=?
+                ORDER BY rowid
+                """,
+                (treatment_id,),
+            ).fetchall()
+            history = history_rows[1] if len(history_rows) == 2 else None
+            candidate_history = history_rows[0] if len(history_rows) == 2 else None
+            history_payload: Any = None
+            candidate_history_payload: Any = None
+            if history is not None:
+                try:
+                    history_payload = json.loads(str(history["payload_json"]))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    history_payload = None
+            if candidate_history is not None:
+                try:
+                    candidate_history_payload = json.loads(
+                        str(candidate_history["payload_json"])
+                    )
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    candidate_history_payload = None
+
+            canonical_fields = (
+                "treatment_id",
+                "source_chain_id",
+                "source_court_id",
+                "target_authority_id",
+                "target_kind",
+                "snapshot_id",
+                "reviewer",
+                "document_id",
+            )
+            for field in canonical_fields:
+                if not _is_canonical_identifier(row[field]):
+                    blockers.append(f"{field}_invalid")
+            if status not in {"verified", "rejected"}:
+                blockers.append("review_pending")
+            if row["treatment_type"] not in TREATMENT_TYPES:
+                blockers.append("treatment_type_invalid")
+            if not isinstance(identity, dict) or not identity:
+                blockers.append("target_identity_invalid")
+            expected_candidate_history = {
+                "source_chain_id": row["source_chain_id"],
+                "source_court_id": row["source_court_id"],
+                "target_authority_id": row["target_authority_id"],
+                "target_kind": row["target_kind"],
+                "target_identity": identity,
+                "treatment_type": row["treatment_type"],
+                "snapshot_id": row["snapshot_id"],
+                "supersedes_treatment_id": row["supersedes_treatment_id"],
+            }
+            if status in {"verified", "rejected"} and (
+                len(history_rows) != 2
+                or candidate_history is None
+                or candidate_history["event_type"] != "candidate_created"
+                or candidate_history["reviewer"] is not None
+                or candidate_history["event_at"] != row["created_at"]
+                or candidate_history_payload != expected_candidate_history
+                or candidate_history["history_id"]
+                != _identifier(
+                    "treatment-history",
+                    {
+                        "treatment_id": treatment_id,
+                        "event_type": "candidate_created",
+                        "reviewer": None,
+                        "payload": expected_candidate_history,
+                        "event_at": row["created_at"],
+                    },
+                )
+                or history is None
+                or history["event_type"] != status
+            ):
+                blockers.append("review_history_cardinality_invalid")
+            reviewed_at = row["reviewed_at"]
+            created_at = row["created_at"]
+            if (
+                not _aware_rfc3339_datetime(reviewed_at)
+                or _parse_timestamp(str(reviewed_at)) > datetime.now(timezone.utc)
+            ):
+                blockers.append("reviewed_at_invalid")
+            if (
+                not _aware_rfc3339_datetime(created_at)
+                or (
+                    _aware_rfc3339_datetime(reviewed_at)
+                    and _parse_timestamp(str(reviewed_at))
+                    < _parse_timestamp(str(created_at))
+                )
+            ):
+                blockers.append("review_chronology_invalid")
+            raw_sha256 = row["raw_sha256"]
+            if raw_sha256 is None:
+                blockers.append("snapshot_missing")
+            if (
+                not isinstance(raw_sha256, str)
+                or re.fullmatch(r"[0-9a-f]{64}", raw_sha256) is None
+                or row["snapshot_id"] != f"snapshot-sha256:{raw_sha256}"
+            ):
+                blockers.append("snapshot_binding_invalid")
+            if not self._snapshot_integrity(str(row["snapshot_id"]))["valid"]:
+                blockers.append("snapshot_object_integrity_invalid")
+            text_sha256 = row["text_hash"]
+            if not isinstance(text_sha256, str) or re.fullmatch(
+                r"[0-9a-f]{64}", text_sha256
+            ) is None:
+                blockers.append("indexed_text_missing")
+            if not self._indexed_text_integrity(str(row["snapshot_id"]))["valid"]:
+                blockers.append("indexed_text_integrity_invalid")
+            if row["chain_candidate_id"] != row["source_chain_id"]:
+                blockers.append("source_chain_binding_invalid")
+            official_url = row["official_url"]
+            source_role = row["source_role"]
+            if source_role not in OFFICIAL_EVIDENCE_SEED_ROLES:
+                blockers.append("official_source_role_missing")
+            if not official_public_url_allowed(official_url):
+                blockers.append("official_url_missing")
+            quote = row["quote"]
+            original_text = row["original_text"]
+            quote_matches = (
+                isinstance(quote, str)
+                and bool(quote.strip())
+                and isinstance(original_text, str)
+                and _normalise_text(quote) in _normalise_text(original_text)
+            )
+            if status == "verified":
+                if not quote_matches:
+                    blockers.append("quote_not_found_in_indexed_text")
+                if not _is_canonical_identifier(row["locator"]):
+                    blockers.append("quote_locator_invalid")
+                if row["speaker"] != "court":
+                    blockers.append("speaker_not_court")
+            elif quote is not None and (
+                not quote_matches
+                or not _is_canonical_identifier(row["locator"])
+                or row["speaker"] != "court"
+            ):
+                blockers.append("optional_rejection_quote_invalid")
+            decision_reason = (
+                history_payload.get("decision_reason")
+                if isinstance(history_payload, dict)
+                else None
+            )
+            if status == "rejected" and not _is_canonical_identifier(
+                decision_reason
+            ):
+                blockers.append("decision_reason_invalid")
+            if status == "verified" and decision_reason is not None:
+                blockers.append("verified_decision_reason_invalid")
+            if (
+                history is None
+                or history["event_type"] != status
+                or history["reviewer"] != row["reviewer"]
+                or history["event_at"] != reviewed_at
+                or not isinstance(history_payload, dict)
+                or (
+                    isinstance(history_payload, dict)
+                    and history["history_id"]
+                    != _identifier(
+                        "treatment-history",
+                        {
+                            "treatment_id": treatment_id,
+                            "event_type": status,
+                            "reviewer": row["reviewer"],
+                            "payload": history_payload,
+                            "event_at": reviewed_at,
+                        },
+                    )
+                )
+                or set(history_payload)
+                != {
+                    "quote",
+                    "locator",
+                    "speaker",
+                    "confirmed_target_authority_id",
+                    "target_identity_confirmed",
+                    "decision_reason",
+                }
+                or (
+                    isinstance(history_payload, dict)
+                    and (
+                        history_payload.get("quote") != quote
+                        or history_payload.get("locator") != row["locator"]
+                        or history_payload.get("speaker") != row["speaker"]
+                        or history_payload.get("decision_reason")
+                        != decision_reason
+                    )
+                )
+                or (
+                    status == "verified"
+                    and history_payload.get("confirmed_target_authority_id")
+                    != row["target_authority_id"]
+                )
+                or not isinstance(
+                    history_payload.get("target_identity_confirmed"), bool
+                )
+                or (
+                    status == "verified"
+                    and history_payload.get("target_identity_confirmed") is not True
+                )
+                or (
+                    status == "rejected"
+                    and history_payload.get("target_identity_confirmed") is True
+                    and history_payload.get("confirmed_target_authority_id")
+                    != row["target_authority_id"]
+                )
+                or (
+                    status == "rejected"
+                    and history_payload.get("target_identity_confirmed") is False
+                    and history_payload.get("confirmed_target_authority_id") is not None
+                )
+            ):
+                blockers.append("review_history_binding_invalid")
+
+            if blockers:
+                records.append(
+                    {
+                        "treatment_id": treatment_id,
+                        "status": "candidate",
+                        "recorded_status": status,
+                        "quality_blockers": sorted(set(blockers)),
+                        "source_chain_id": row["source_chain_id"],
+                        "target_authority_id": row["target_authority_id"],
+                        "supersedes_treatment_id": prior_treatment_id,
+                        "superseded_by_treatment_id": (
+                            successor_ids[0] if len(successor_ids) == 1 else None
+                        ),
+                        "created_at": row["created_at"],
+                    }
+                )
+                continue
+
+            proposition = treatment_quality_proposition(
+                status=status,
+                source_chain_id=str(row["source_chain_id"]),
+                treatment_type=str(row["treatment_type"]),
+                target_authority_id=str(row["target_authority_id"]),
+                decision_reason=(
+                    str(decision_reason) if status == "rejected" else None
+                ),
+            )
+            source = {
+                "source_chain_id": row["source_chain_id"],
+                "source_court_id": row["source_court_id"],
+                "target_authority_id": row["target_authority_id"],
+                "target_kind": row["target_kind"],
+                "target_identity": identity,
+                "target_identity_confirmed": history_payload[
+                    "target_identity_confirmed"
+                ],
+                "treatment_type": row["treatment_type"],
+                "review_decision": status,
+                "snapshot_id": row["snapshot_id"],
+                "supersedes_treatment_id": prior_treatment_id,
+                "superseded_by_treatment_id": (
+                    successor_ids[0] if len(successor_ids) == 1 else None
+                ),
+                "speaker": row["speaker"],
+                "document_id": row["document_id"],
+                "document_sha256": raw_sha256,
+                "text_sha256": text_sha256,
+                "source_role": source_role,
+                "official_url": official_url,
+                "quote": quote,
+                "quote_locator": row["locator"],
+                "proposition": proposition,
+                "decision_reason": (
+                    decision_reason if status == "rejected" else None
+                ),
+                "created_at": created_at,
+            }
+            effective_status = "superseded" if len(successor_ids) == 1 else status
+            records.append(
+                {
+                    "treatment_id": treatment_id,
+                    "status": effective_status,
+                    **source,
+                    "source_binding_sha256": _sha256(
+                        _canonical_json(source).encode("utf-8")
+                    ),
+                    "reviewer": row["reviewer"],
+                    "reviewed_at": reviewed_at,
+                    "human_review": "approved",
+                    "quote_verified": quote_matches,
+                    "full_text_reviewed": True,
+                }
+            )
+
+        treatment_ids = [str(row["treatment_id"]) for row in rows]
+        payload = {
+            "schema_version": "1.0",
+            "export_type": "public_corpus_treatment_quality_set",
+            "corpus_evidence_digest": self.evidence_digest(),
+            "treatment_population_sha256": self.treatment_population_sha256(),
+            "integrity_issue_ids": self._cache_integrity_issue_ids(),
+            "treatment_ids": treatment_ids,
+            "items": records,
+        }
+        return {
+            **payload,
+            "set_sha256": _sha256(_canonical_json(payload).encode("utf-8")),
         }
 
     def treatment_history(self, treatment_id: str) -> list[dict[str, Any]]:
@@ -2254,26 +3604,89 @@ class PublicCorpus:
             for row in rows
         ]
 
+    @_consistent_read
     def list_treatments(self, *, verified_only: bool = False) -> list[dict[str, Any]]:
-        where = "WHERE status='verified'" if verified_only else ""
         rows = self.conn.execute(
             f"""
             SELECT treatment_id, source_chain_id, source_court_id,
                    target_authority_id, target_kind, target_identity_json,
                    treatment_type, snapshot_id, supersedes_treatment_id, status,
-                   reviewer, quote, locator, speaker, reviewed_at
-            FROM treatments {where} ORDER BY treatment_id
+                   reviewer, quote, locator, speaker, created_at, reviewed_at
+            FROM treatments ORDER BY treatment_id
             """
         ).fetchall()
+        quality_by_id = {
+            str(item["treatment_id"]): item
+            for item in self.treatment_quality_export()["items"]
+        }
         records: list[dict[str, Any]] = []
         for row in rows:
             record = dict(row)
             raw_identity = record.pop("target_identity_json", None)
-            record["target_identity"] = (
-                json.loads(str(raw_identity)) if raw_identity is not None else None
+            raw_status = str(record.pop("status"))
+            quality = quality_by_id[str(record["treatment_id"])]
+            record["review_decision"] = (
+                raw_status if raw_status in {"verified", "rejected"} else None
             )
+            record["status"] = quality["status"]
+            record["superseded_by_treatment_id"] = quality.get(
+                "superseded_by_treatment_id"
+            )
+            record["quality_blockers"] = quality.get("quality_blockers", [])
+            try:
+                record["target_identity"] = (
+                    json.loads(str(raw_identity)) if raw_identity is not None else None
+                )
+            except (TypeError, ValueError, json.JSONDecodeError):
+                record["target_identity"] = None
+            if verified_only and record["status"] != "verified":
+                continue
             records.append(record)
         return records
+
+    def treatment_ids(self) -> list[str]:
+        return [
+            str(row["treatment_id"])
+            for row in self.conn.execute(
+                "SELECT treatment_id FROM treatments ORDER BY treatment_id"
+            ).fetchall()
+        ]
+
+    def _treatment_population_records(
+        self,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        treatments = [
+            dict(row)
+            for row in self.conn.execute(
+                """
+                SELECT treatment_id, source_chain_id, source_court_id,
+                       target_authority_id, target_kind, target_identity_json,
+                       snapshot_id, treatment_type, supersedes_treatment_id,
+                       status, reviewer, quote, locator, speaker, created_at, reviewed_at
+                FROM treatments ORDER BY treatment_id
+                """
+            ).fetchall()
+        ]
+        history = [
+            dict(row)
+            for row in self.conn.execute(
+                """
+                SELECT history_id, treatment_id, event_type, reviewer,
+                       payload_json, event_at
+                FROM treatment_review_history
+                ORDER BY treatment_id, rowid
+                """
+            ).fetchall()
+        ]
+        return treatments, history
+
+    def treatment_population_sha256(self) -> str:
+        treatments, history = self._treatment_population_records()
+        return _sha256(
+            _canonical_json(
+                {"treatments": treatments, "treatment_history": history}
+            ).encode("utf-8")
+        )
 
     def evidence_digest(self) -> str:
         seeds = [
@@ -2282,19 +3695,49 @@ class PublicCorpus:
                 "SELECT seed_id, canonical_url, role FROM seeds ORDER BY seed_id"
             ).fetchall()
         ]
-        snapshots = [
-            dict(row)
-            for row in self.conn.execute(
-                "SELECT snapshot_id, raw_sha256, byte_length FROM snapshots ORDER BY snapshot_id"
-            ).fetchall()
-        ]
-        indexed = [
+        snapshot_rows = self.conn.execute(
+            "SELECT snapshot_id, raw_sha256, byte_length FROM snapshots ORDER BY snapshot_id"
+        ).fetchall()
+        snapshots = []
+        for row in snapshot_rows:
+            integrity = self._snapshot_integrity(str(row["snapshot_id"]))
+            snapshots.append(
+                {
+                    **dict(row),
+                    "observed_raw_sha256": integrity["observed_sha256"],
+                    "observed_byte_length": integrity["observed_byte_length"],
+                    "object_path_valid": integrity["path_valid"],
+                    "object_readable": integrity["readable"],
+                    "object_integrity_valid": integrity["valid"],
+                }
+            )
+        indexed_rows = self.conn.execute(
+            """
+            SELECT snapshot_id, text_hash, document_id,
+                   chain_candidate_id, query_lane
+            FROM indexed_texts ORDER BY snapshot_id
+            """
+        ).fetchall()
+        indexed = []
+        for row in indexed_rows:
+            integrity = self._indexed_text_integrity(str(row["snapshot_id"]))
+            indexed.append(
+                {
+                    **dict(row),
+                    "observed_text_sha256": integrity["observed_text_sha256"],
+                    "normalized_text_matches": integrity[
+                        "normalized_text_matches"
+                    ],
+                    "text_integrity_valid": integrity["valid"],
+                }
+            )
+        observation_bindings = [
             dict(row)
             for row in self.conn.execute(
                 """
-                SELECT snapshot_id, text_hash, document_id,
-                       chain_candidate_id, query_lane
-                FROM indexed_texts ORDER BY snapshot_id
+                SELECT DISTINCT seed_id, snapshot_id
+                FROM observations
+                ORDER BY seed_id, snapshot_id
                 """
             ).fetchall()
         ]
@@ -2308,39 +3751,135 @@ class PublicCorpus:
                 """
             ).fetchall()
         ]
-        verified_treatments = [
-            dict(row)
-            for row in self.conn.execute(
-                """
-                SELECT treatment_id, source_chain_id, source_court_id,
-                       target_authority_id, target_kind, target_identity_json,
-                       snapshot_id, treatment_type, supersedes_treatment_id,
-                       reviewer, quote, locator, speaker, created_at, reviewed_at
-                FROM treatments WHERE status='verified' ORDER BY treatment_id
-                """
-            ).fetchall()
-        ]
-        treatment_history = [
-            dict(row)
-            for row in self.conn.execute(
-                """
-                SELECT h.history_id, h.treatment_id, h.event_type, h.reviewer,
-                       h.payload_json, h.event_at
-                FROM treatment_review_history h
-                JOIN treatments t ON t.treatment_id=h.treatment_id
-                WHERE t.status='verified'
-                ORDER BY h.treatment_id, h.rowid
-                """
-            ).fetchall()
-        ]
+        treatments, treatment_history = self._treatment_population_records()
         return _identifier(
             "corpus-evidence",
             {
                 "seeds": seeds,
                 "snapshots": snapshots,
+                "observation_bindings": observation_bindings,
                 "indexed": indexed,
                 "funnel_states": funnel_states,
-                "verified_treatments": verified_treatments,
+                "treatments": treatments,
                 "treatment_history": treatment_history,
             },
         )
+
+    def verify_prefiling_inputs(
+        self,
+        *,
+        refresh_plan: Mapping[str, Any],
+        treatment_set: Mapping[str, Any],
+        current_corpus_digest: str,
+    ) -> dict[str, Any]:
+        """Bind caller-supplied quality inputs to this existing cache snapshot."""
+
+        if self.conn.in_transaction:
+            raise PublicCorpusError(
+                "Prefiling verification requires ownership of its read transaction."
+            )
+        read_only_issues_before = self._read_only_store_issue_ids()
+        result = self._verify_prefiling_inputs_snapshot(
+            refresh_plan=refresh_plan,
+            treatment_set=treatment_set,
+            current_corpus_digest=current_corpus_digest,
+            read_only_issues_before=read_only_issues_before,
+        )
+        # The snapshot decorator has rolled back the SQLite read transaction before
+        # this second observation of the externally mutable database file.
+        read_only_issues_after = self._read_only_store_issue_ids()
+        issue_ids = list(result["issue_ids"])
+        issue_ids.extend(read_only_issues_after)
+        if read_only_issues_before != read_only_issues_after:
+            issue_ids.append("live_cache_static_store_changed_during_read")
+        normalized_issues = sorted(set(issue_ids))
+        result["issue_ids"] = normalized_issues
+        result["verified"] = not normalized_issues
+        result["live_cache_stable"] = bool(result["live_cache_stable"]) and not (
+            read_only_issues_before or read_only_issues_after
+        )
+        return result
+
+    @_consistent_read
+    def _verify_prefiling_inputs_snapshot(
+        self,
+        *,
+        refresh_plan: Mapping[str, Any],
+        treatment_set: Mapping[str, Any],
+        current_corpus_digest: str,
+        read_only_issues_before: list[str],
+    ) -> dict[str, Any]:
+        """Regenerate quality inputs inside one consistent SQLite snapshot."""
+
+        issue_ids: list[str] = []
+        issue_ids.extend(read_only_issues_before)
+        digest_before = self.evidence_digest()
+        live_plan: dict[str, Any] | None = None
+        try:
+            live_plan = self.plan_refresh(
+                as_of=refresh_plan.get("as_of"),
+                max_age_seconds=refresh_plan.get("max_age_seconds"),
+                coverage_requirements=refresh_plan.get("coverage_requirements"),
+            )
+        except (PublicCorpusError, TypeError, ValueError):
+            issue_ids.append("refresh_plan_regeneration_failed")
+
+        live_treatment_set = self.treatment_quality_export()
+        digest_after = self.evidence_digest()
+        live_integrity_issues = self._cache_integrity_issue_ids()
+        if live_integrity_issues:
+            issue_ids.append("live_cache_integrity_invalid")
+            issue_ids.extend(
+                f"live_cache:{identifier}" for identifier in live_integrity_issues
+            )
+        cache_stable = digest_before == digest_after
+        if not cache_stable:
+            issue_ids.append("live_cache_changed_during_read")
+
+        expected_current_digest = f"corpus-evidence-sha256:{current_corpus_digest}"
+        if digest_after != expected_current_digest:
+            issue_ids.append("current_corpus_digest_mismatch")
+
+        live_plan_sha256: str | None = None
+        if live_plan is not None:
+            live_plan_sha256 = _sha256(
+                _canonical_json(live_plan).encode("utf-8")
+            )
+            if _canonical_json(dict(refresh_plan)) != _canonical_json(live_plan):
+                issue_ids.append("refresh_plan_mismatch")
+            if live_plan.get("evidence_digest") != digest_after:
+                issue_ids.append("live_refresh_plan_digest_mismatch")
+
+        live_treatment_set_sha256 = live_treatment_set.get("set_sha256")
+        if _canonical_json(dict(treatment_set)) != _canonical_json(live_treatment_set):
+            issue_ids.append("treatment_set_mismatch")
+        if live_treatment_set.get("corpus_evidence_digest") != digest_after:
+            issue_ids.append("live_treatment_set_digest_mismatch")
+
+        live_treatment_ids = self.treatment_ids()
+        live_treatment_population_sha256 = self.treatment_population_sha256()
+        if live_treatment_set.get("treatment_ids") != live_treatment_ids:
+            issue_ids.append("live_treatment_ids_mismatch")
+        if (
+            live_treatment_set.get("treatment_population_sha256")
+            != live_treatment_population_sha256
+        ):
+            issue_ids.append("live_treatment_population_mismatch")
+
+        normalized_issues = sorted(set(issue_ids))
+        cache_stable = cache_stable and not read_only_issues_before
+        return {
+            "binding_version": "1.0",
+            "verified": not normalized_issues,
+            "live_cache_stable": cache_stable,
+            "live_corpus_evidence_digest": digest_after,
+            "live_refresh_plan_sha256": live_plan_sha256,
+            "live_treatment_set_sha256": (
+                str(live_treatment_set_sha256)
+                if isinstance(live_treatment_set_sha256, str)
+                else None
+            ),
+            "live_treatment_population_sha256": live_treatment_population_sha256,
+            "live_treatment_ids": live_treatment_ids,
+            "issue_ids": normalized_issues,
+        }

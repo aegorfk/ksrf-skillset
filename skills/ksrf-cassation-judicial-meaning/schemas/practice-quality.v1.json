@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/practice-quality.v1.json",
   "title": "Practice quality contracts",
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "$defs": {
     "trajectory": {"$ref": "#/definitions/chain_meaning_trajectory"},
     "dimension": {"$ref": "#/definitions/uncertainty_dimension"}
@@ -16,9 +16,23 @@
     {"$ref": "#/definitions/coding_audit_decision"},
     {"$ref": "#/definitions/coding_adjudication"},
     {"$ref": "#/definitions/coding_reliability"},
+    {"$ref": "#/definitions/refresh_plan"},
+    {"$ref": "#/definitions/treatment_quality_set"},
     {"$ref": "#/definitions/prefiling_refresh"}
   ],
   "definitions": {
+    "canonical_visible_identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\s)(?!.*\\s$)(?!.*[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF]).+$",
+      "x-runtime-invariant": "visible text with canonical whitespace; runtime rejects all Cc, Cf, and Cs code points"
+    },
+    "visible_text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\s\\S]*[\\u0000-\\u0008\\u000B-\\u000C\\u000E-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF])(?=[\\s\\S]*\\S)[\\s\\S]+$",
+      "x-runtime-invariant": "runtime rejects every Cf and Cs code point and every Cc code point except TAB, LF, and CR"
+    },
     "chain_stage_observation": {
       "x-contract-version": "1.0",
       "type": "object",
@@ -75,7 +89,10 @@
         },
         "alternative_grounds": {"type": "array", "items": {"type": "object"}},
         "reviewer": {"type": "string", "minLength": 1},
-        "reviewed_at": {"type": "string", "format": "date-time"},
+        "reviewed_at": {
+          "type": "string", "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
         "human_review": {"type": "string", "const": "approved"}
       },
       "additionalProperties": false
@@ -448,7 +465,12 @@
       "additionalProperties": false
     },
     "coding_audit_plan": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "audit_plan_sha256 is the canonical digest of the exact remaining fields",
+        "required_candidate_ids is exactly the disjoint union of substantive and false-exclusion samples",
+        "sample sizes equal their canonical unique ID lists and every screening-frame candidate has a primary decision"
+      ],
       "type": "object",
       "required": [
         "schema_version", "plan_sha256", "screening_sha256",
@@ -460,82 +482,192 @@
       ],
       "properties": {
         "schema_version": {"type": "string", "const": "1.0"},
-        "plan_sha256": {"type": "string", "minLength": 1},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "screening_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "invalid_screening_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_primary_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "selection_method": {"type": "string", "const": "canonical_sha256_rank"},
         "sample_size": {"type": "integer", "minimum": 0},
         "exclusion_sample_size": {"type": "integer", "minimum": 0},
-        "sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "exclusion_sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "exclusion_sample_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
         "frozen": {"type": "boolean", "const": true},
         "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
       "additionalProperties": false
     },
+    "coding_alternative_ground": {
+      "type": "object",
+      "required": ["ground", "independently_sufficient"],
+      "properties": {
+        "ground": {"$ref": "#/definitions/visible_text"},
+        "independently_sufficient": {"type": "boolean"},
+        "quote": {
+          "oneOf": [
+            {"$ref": "#/definitions/visible_text"},
+            {"type": "null"}
+          ]
+        },
+        "quote_locator": {
+          "oneOf": [
+            {"$ref": "#/definitions/visible_text"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "coding_audit_decision": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "outer candidate_id must equal secondary_coding.candidate_id",
+        "primary_coding_sha256 must equal the selected primary record digest and secondary_coding_sha256 must equal the canonical secondary_coding digest",
+        "secondary_coding must pass the authoritative coding validator"
+      ],
       "type": "object",
       "required": [
         "candidate_id", "primary_coding_sha256", "secondary_coding",
         "secondary_coding_sha256"
       ],
       "properties": {
-        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
         "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "secondary_coding": {
           "type": "object",
           "required": [
-            "candidate_id", "coder", "human_review",
-            "quote_verified", "full_text_reviewed"
+            "candidate_id", "chain_id", "document_id", "label", "speaker",
+            "proposition", "quote", "quote_locator", "norm_edition_id",
+            "reasoning_to_outcome", "reading_family", "relation", "remedy",
+            "coder", "codebook_version", "material_facts",
+            "alternative_grounds", "human_review", "quote_verified",
+            "full_text_reviewed"
           ],
           "properties": {
-            "candidate_id": {"type": "string", "minLength": 1},
-            "coder": {"type": "string", "minLength": 1},
+            "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "document_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "label": {
+              "type": "string",
+              "enum": ["core_merits", "contextual", "party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
+            },
+            "speaker": {"$ref": "#/definitions/visible_text"},
+            "proposition": {"$ref": "#/definitions/visible_text"},
+            "quote": {"$ref": "#/definitions/visible_text"},
+            "quote_locator": {"$ref": "#/definitions/visible_text"},
+            "norm_edition_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "reasoning_to_outcome": {"$ref": "#/definitions/visible_text"},
+            "reading_family": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "relation": {
+              "type": "string",
+              "enum": ["supports", "adverse", "neutral", "distinguishes", "supersedes"]
+            },
+            "remedy": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "coder": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "codebook_version": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "material_facts": {
+              "type": "array", "minItems": 1,
+              "items": {"$ref": "#/definitions/visible_text"}
+            },
+            "alternative_grounds": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/coding_alternative_ground"}
+            },
             "human_review": {"type": "string", "const": "approved"},
             "quote_verified": {"type": "boolean", "const": true},
             "full_text_reviewed": {"type": "boolean", "const": true}
           },
-          "minProperties": 5
+          "allOf": [
+            {
+              "if": {
+                "required": ["label"],
+                "properties": {
+                  "label": {"enum": ["core_merits", "contextual"]}
+                }
+              },
+              "then": {"properties": {"speaker": {"const": "court"}}}
+            }
+          ],
+          "minProperties": 20,
+          "additionalProperties": false
         },
         "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
       "additionalProperties": false
     },
     "coding_adjudication": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "resolved_fields are overlaid on the digest-bound primary coding and the resulting complete coding must pass the authoritative coding validator",
+        "a substantive resolved label requires the resulting speaker to be court",
+        "candidate and reviewer identities must be canonical visible strings",
+        "both coding digests must match the disagreement being resolved, adjudicator must differ from both coders, and reviewed_at must not be in the future"
+      ],
       "type": "object",
       "required": [
         "candidate_id", "primary_coding_sha256", "secondary_coding_sha256",
         "resolved_fields", "adjudicator", "reviewed_at", "human_review"
       ],
       "properties": {
-        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
         "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "resolved_fields": {"type": "object", "minProperties": 1},
-        "adjudicator": {"type": "string", "minLength": 1},
-        "reviewed_at": {"type": "string", "format": "date-time"},
+        "resolved_fields": {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "label": {
+              "type": "string",
+              "enum": ["core_merits", "contextual", "party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
+            },
+            "speaker": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "norm_edition_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "reading_family": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "relation": {
+              "type": "string",
+              "enum": ["supports", "adverse", "neutral", "distinguishes", "supersedes"]
+            },
+            "reasoning_to_outcome": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "alternative_grounds": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/coding_alternative_ground"}
+            },
+            "remedy": {"$ref": "#/definitions/canonical_visible_identifier"}
+          },
+          "additionalProperties": false
+        },
+        "adjudicator": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reviewed_at": {
+          "type": "string", "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
         "human_review": {"type": "string", "const": "approved"}
       },
       "additionalProperties": false
     },
     "coding_reliability": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "audited_candidate_ids must equal required_candidate_ids exactly and all diagnostic identifier arrays must be unique canonical visible strings",
+        "each disagreement candidate_id must be required, unique, and bound to the exact primary and secondary coding digests",
+        "each false_exclusion_diagnostic must be unique and match a label field disagreement for the same candidate_id",
+        "a complete result requires every disagreement resolved by a digest-bound independent human adjudication and every invalid or unresolved array empty"
+      ],
       "type": "object",
       "required": [
-        "schema_version", "audit_plan_sha256", "audit_plan_frozen",
-        "audit_plan_digest_valid", "primary_coding_sha256",
+        "schema_version", "audit_plan_input_sha256", "audit_plan_sha256",
+        "audit_plan_frozen",
+        "audit_plan_contract_valid", "audit_plan_digest_valid",
+        "primary_coding_sha256",
         "current_primary_coding_sha256", "required_candidate_ids",
+        "audit_decisions_sha256", "adjudications_sha256",
         "audited_candidate_ids", "missing_candidate_ids",
         "same_reviewer_candidate_ids", "invalid_binding_candidate_ids",
         "invalid_provenance_candidate_ids",
@@ -546,21 +678,25 @@
       ],
       "properties": {
         "schema_version": {"type": "string", "const": "1.0"},
+        "audit_plan_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "audit_plan_sha256": {"type": ["string", "null"]},
         "audit_plan_frozen": {"type": "boolean"},
+        "audit_plan_contract_valid": {"type": "boolean"},
         "audit_plan_digest_valid": {"type": "boolean"},
         "primary_coding_sha256": {"type": ["string", "null"]},
         "current_primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "audited_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "missing_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "same_reviewer_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "invalid_binding_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "invalid_provenance_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "invalid_screening_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "invalid_primary_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "invalid_audit_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "invalid_adjudication_record_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "audit_decisions_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "adjudications_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "required_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "audited_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "missing_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "same_reviewer_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_binding_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_provenance_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_screening_record_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_primary_record_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_audit_record_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
+        "invalid_adjudication_record_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
         "field_disagreements": {
           "type": "array",
           "items": {
@@ -570,8 +706,18 @@
               "secondary_coding_sha256", "resolved", "adjudication_sha256"
             ],
             "properties": {
-              "candidate_id": {"type": "string"},
-              "fields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+              "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+              "fields": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "label", "speaker", "norm_edition_id", "reading_family",
+                    "relation", "reasoning_to_outcome", "alternative_grounds",
+                    "remedy"
+                  ]
+                }
+              },
               "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "resolved": {"type": "boolean"},
@@ -586,15 +732,21 @@
             "type": "object",
             "required": ["candidate_id", "primary_label", "secondary_label", "resolved"],
             "properties": {
-              "candidate_id": {"type": "string"},
-              "primary_label": {"type": ["string", "null"]},
-              "secondary_label": {"type": ["string", "null"]},
+              "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+              "primary_label": {
+                "type": "string",
+                "enum": ["party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
+              },
+              "secondary_label": {
+                "type": "string",
+                "enum": ["core_merits", "contextual"]
+              },
               "resolved": {"type": "boolean"}
             },
             "additionalProperties": false
           }
         },
-        "unresolved_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "unresolved_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}},
         "stale": {"type": "boolean"},
         "complete": {"type": "boolean"},
         "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
@@ -609,6 +761,7 @@
             "properties": {
               "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "audit_plan_frozen": {"const": true},
+              "audit_plan_contract_valid": {"const": true},
               "audit_plan_digest_valid": {"const": true},
               "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "required_candidate_ids": {"minItems": 1},
@@ -621,30 +774,390 @@
               "invalid_primary_record_ids": {"maxItems": 0},
               "invalid_audit_record_ids": {"maxItems": 0},
               "invalid_adjudication_record_ids": {"maxItems": 0},
+              "field_disagreements": {
+                "items": {
+                  "properties": {
+                    "resolved": {"const": true},
+                    "adjudication_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                  }
+                }
+              },
+              "false_exclusion_diagnostics": {
+                "items": {"properties": {"resolved": {"const": true}}}
+              },
               "unresolved_candidate_ids": {"maxItems": 0},
               "stale": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"field_disagreements": {"maxItems": 0}}},
+          "then": {
+            "properties": {
+              "adjudications_sha256": {
+                "const": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "adjudications_sha256": {
+                "not": {
+                  "const": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                }
+              }
             }
           }
         }
       ],
       "additionalProperties": false
     },
+    "coverage_requirement": {
+      "type": "object",
+      "properties": {
+        "court_id": {"type": "string", "minLength": 1},
+        "period_id": {"type": "string", "minLength": 1},
+        "enumerator_id": {"type": "string", "minLength": 1},
+        "source_role": {
+          "type": "string",
+          "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+        }
+      },
+      "anyOf": [
+        {"required": ["court_id"]},
+        {"required": ["period_id"]},
+        {"required": ["enumerator_id"]},
+        {"required": ["source_role"]}
+      ],
+      "additionalProperties": false
+    },
+    "refresh_plan_entry": {
+      "type": "object",
+      "required": ["seed_id", "url", "role", "last_fetched_at", "reason"],
+      "properties": {
+        "seed_id": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "pattern": "^https?://"},
+        "role": {
+          "type": "string",
+          "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+        },
+        "last_fetched_at": {"type": ["string", "null"]},
+        "reason": {
+          "type": "string",
+          "enum": ["never_fetched", "stale", "invalid_fetched_at", "future_fetched_at"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage_gap": {
+      "type": "object",
+      "required": ["reason", "action"],
+      "properties": {
+        "court_id": {"type": "string", "minLength": 1},
+        "period_id": {"type": "string", "minLength": 1},
+        "enumerator_id": {"type": "string", "minLength": 1},
+        "source_role": {
+          "type": "string",
+          "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+        },
+        "reason": {"type": "string", "const": "coverage_gap_not_observed"},
+        "action": {"type": "string", "minLength": 1}
+      },
+      "anyOf": [
+        {"required": ["court_id"]},
+        {"required": ["period_id"]},
+        {"required": ["enumerator_id"]},
+        {"required": ["source_role"]}
+      ]
+      ,"additionalProperties": false
+    },
+    "refresh_plan": {
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "plan_id is the canonical identifier of the exact remaining fields",
+        "treatment IDs are sorted canonical unique IDs bound to the population digest",
+        "entries are unique closed records with allowed reasons and aware timestamps, and coverage gaps are exact declared scopes"
+      ],
+      "type": "object",
+      "required": [
+        "plan_id", "as_of", "max_age_seconds", "evidence_digest",
+        "treatment_ids", "treatment_population_sha256",
+        "coverage_requirements", "entries", "coverage_gaps"
+      ],
+      "properties": {
+        "plan_id": {"type": "string", "pattern": "^refresh-plan-sha256:[0-9a-f]{64}$"},
+        "as_of": {
+          "type": "string", "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "max_age_seconds": {"type": "integer", "minimum": 0},
+        "evidence_digest": {"type": "string", "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"},
+        "treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "treatment_population_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coverage_requirements": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coverage_requirement"}
+        },
+        "entries": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/refresh_plan_entry"}
+        },
+        "coverage_gaps": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coverage_gap"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "treatment_quality_record": {
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "resolved source_binding_sha256 must equal the canonical digest of every source field",
+        "resolved quote, indexed text, snapshot object, official observation role and immutable review history must agree",
+        "each emitted record is bound by treatment_quality_set ordering, population digest and set digest",
+        "superseded is an effective quality status while review_decision preserves the immutable verified or rejected decision",
+        "supersession is reciprocal, acyclic, single-successor, source and target preserving, and chronological"
+      ],
+      "type": "object",
+      "required": ["treatment_id", "status"],
+      "properties": {
+        "treatment_id": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "enum": ["candidate", "verified", "rejected", "superseded"]},
+        "recorded_status": {"type": "string", "enum": ["candidate", "verified", "rejected"]},
+        "quality_blockers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "source_chain_id": {"type": "string", "minLength": 1},
+        "source_court_id": {"type": "string", "minLength": 1},
+        "target_authority_id": {"type": "string", "minLength": 1},
+        "target_kind": {"type": "string", "minLength": 1},
+        "target_identity": {"type": "object", "minProperties": 1},
+        "target_identity_confirmed": {"type": "boolean"},
+        "treatment_type": {"type": "string", "enum": ["applies", "follows", "distinguishes", "limits", "rejects", "supersedes", "unclear", "does_not_reach"]},
+        "review_decision": {"type": "string", "enum": ["verified", "rejected"]},
+        "snapshot_id": {"type": "string", "pattern": "^snapshot-sha256:[0-9a-f]{64}$"},
+        "supersedes_treatment_id": {
+          "oneOf": [
+            {"$ref": "#/definitions/canonical_visible_identifier"},
+            {"type": "null"}
+          ]
+        },
+        "superseded_by_treatment_id": {
+          "oneOf": [
+            {"$ref": "#/definitions/canonical_visible_identifier"},
+            {"type": "null"}
+          ]
+        },
+        "speaker": {"type": ["string", "null"]},
+        "document_id": {"type": "string", "minLength": 1},
+        "document_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_role": {
+          "type": "string",
+          "enum": [
+            "official_enumerator_observation",
+            "official_user_seed",
+            "official_authority_seed"
+          ]
+        },
+        "official_url": {"type": "string", "pattern": "^https?://"},
+        "quote": {"type": ["string", "null"]},
+        "quote_locator": {"type": ["string", "null"]},
+        "proposition": {"type": "string", "minLength": 1},
+        "decision_reason": {"type": ["string", "null"]},
+        "created_at": {
+          "type": "string", "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "source_binding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "reviewer": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reviewed_at": {
+          "type": "string", "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "human_review": {"type": "string", "const": "approved"},
+        "quote_verified": {"type": "boolean"},
+        "full_text_reviewed": {"type": "boolean", "const": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "candidate"}}},
+          "then": {
+            "required": [
+              "recorded_status", "quality_blockers", "source_chain_id",
+              "target_authority_id", "supersedes_treatment_id",
+              "superseded_by_treatment_id", "created_at"
+            ],
+            "propertyNames": {
+              "enum": [
+                "treatment_id", "status", "recorded_status", "quality_blockers",
+                "source_chain_id", "target_authority_id",
+                "supersedes_treatment_id", "superseded_by_treatment_id",
+                "created_at"
+              ]
+            },
+            "not": {
+              "anyOf": [
+                {"required": ["source_binding_sha256"]},
+                {"required": ["reviewer"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"enum": ["verified", "rejected", "superseded"]}}},
+          "then": {
+            "required": [
+              "source_chain_id", "source_court_id", "target_authority_id",
+              "target_kind", "target_identity", "target_identity_confirmed",
+              "treatment_type", "review_decision", "snapshot_id",
+              "supersedes_treatment_id", "superseded_by_treatment_id",
+              "speaker", "document_id",
+              "document_sha256", "text_sha256", "source_role", "official_url", "quote",
+              "quote_locator", "proposition", "decision_reason", "created_at",
+              "source_binding_sha256", "reviewer", "reviewed_at",
+              "human_review", "quote_verified", "full_text_reviewed"
+            ],
+            "not": {
+              "anyOf": [
+                {"required": ["recorded_status"]},
+                {"required": ["quality_blockers"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["review_decision"],
+            "properties": {"review_decision": {"const": "verified"}}
+          },
+          "then": {
+            "properties": {
+              "target_identity_confirmed": {"const": true},
+              "speaker": {"const": "court"},
+              "quote": {"type": "string", "minLength": 1},
+              "quote_locator": {"type": "string", "minLength": 1},
+              "decision_reason": {"type": "null"},
+              "quote_verified": {"const": true}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["review_decision"],
+            "properties": {"review_decision": {"const": "rejected"}}
+          },
+          "then": {
+            "properties": {"decision_reason": {"type": "string", "minLength": 1}},
+            "oneOf": [
+              {
+                "properties": {
+                  "quote": {"type": "null"},
+                  "quote_locator": {"type": "null"},
+                  "speaker": {"type": "null"},
+                  "quote_verified": {"const": false}
+                }
+              },
+              {
+                "properties": {
+                  "quote": {"type": "string", "minLength": 1},
+                  "quote_locator": {"type": "string", "minLength": 1},
+                  "speaker": {"const": "court"},
+                  "quote_verified": {"const": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"status": {"enum": ["verified", "rejected"]}}},
+          "then": {
+            "properties": {"superseded_by_treatment_id": {"type": "null"}}
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "verified"}}},
+          "then": {"properties": {"review_decision": {"const": "verified"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "rejected"}}},
+          "then": {"properties": {"review_decision": {"const": "rejected"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "superseded"}}},
+          "then": {
+            "properties": {
+              "superseded_by_treatment_id": {
+                "$ref": "#/definitions/canonical_visible_identifier"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "treatment_quality_set": {
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "set_sha256 is the canonical digest of the exact remaining fields",
+        "treatment_ids exactly equal item order and the live population binding",
+        "integrity diagnostics and the reciprocal acyclic supersession graph are validated at runtime"
+      ],
+      "type": "object",
+      "required": ["schema_version", "export_type", "corpus_evidence_digest", "treatment_population_sha256", "integrity_issue_ids", "treatment_ids", "items", "set_sha256"],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "export_type": {"type": "string", "const": "public_corpus_treatment_quality_set"},
+        "corpus_evidence_digest": {"type": "string", "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"},
+        "treatment_population_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "integrity_issue_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
+        },
+        "treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "items": {"type": "array", "items": {"$ref": "#/definitions/treatment_quality_record"}},
+        "set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "prefiling_refresh": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
       "x-pairwise-disjoint": [
         "pending_treatment_ids",
         "verified_treatment_ids",
-        "rejected_treatment_ids"
+        "rejected_treatment_ids",
+        "superseded_treatment_ids"
+      ],
+      "x-runtime-invariants": [
+        "refresh_plan_sha256 and refresh_plan_id must bind the exact closed refresh plan",
+        "coverage_gaps must be an exact subset of declared coverage_requirements and their digest must match",
+        "plan, treatment set and live read-only cache must have identical corpus, treatment ID and population bindings",
+        "pending, verified, rejected and superseded treatment IDs must be pairwise disjoint and their union must equal the complete treatment population",
+        "complete=true requires an exact verified live binding, empty blocking diagnostics and valid chronology"
       ],
       "type": "object",
       "required": [
         "schema_version", "baseline_corpus_digest", "current_corpus_digest",
         "subject_evidence_sha256", "refresh_plan_id", "refresh_plan_sha256",
+        "refresh_plan_contract_valid", "refresh_plan_as_of",
+        "refresh_plan_max_age_seconds", "refresh_plan_evidence_digest",
+        "refresh_plan_treatment_ids",
+        "refresh_plan_treatment_population_sha256",
+        "refresh_plan_coverage_requirements",
+        "refresh_plan_coverage_requirements_sha256",
         "checked_through", "filing_cutoff", "reviewer", "reviewed_at",
-        "claim_ids", "affected_claim_ids", "treatments_sha256",
+        "claim_ids", "affected_claim_ids", "live_binding_version",
+        "live_corpus_binding_contract_valid", "live_corpus_binding_verified",
+        "live_cache_stable", "live_corpus_evidence_digest",
+        "live_refresh_plan_sha256", "live_treatment_set_sha256",
+        "live_treatment_population_sha256", "live_treatment_ids",
+        "live_binding_issue_ids", "treatment_set_contract_valid",
+        "treatment_set_sha256", "treatment_set_corpus_evidence_digest",
+        "treatment_set_population_sha256",
+        "treatments_sha256",
         "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids",
+        "superseded_treatment_ids",
         "treatment_chronology_issue_ids", "stale_seed_ids",
-        "malformed_refresh_entry_ids", "malformed_coverage_gap_ids",
+        "malformed_refresh_entry_ids", "malformed_coverage_requirement_ids",
+        "malformed_coverage_gap_ids",
         "coverage_gaps", "reasons", "status",
         "complete", "refresh_id"
       ],
@@ -655,21 +1168,116 @@
         "subject_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "refresh_plan_id": {"type": ["string", "null"]},
         "refresh_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "checked_through": {"type": "string", "format": "date-time"},
-        "filing_cutoff": {"type": "string", "format": "date-time"},
-        "reviewer": {"type": "string", "minLength": 1},
-        "reviewed_at": {"type": "string", "format": "date-time"},
-        "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "affected_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "refresh_plan_contract_valid": {"type": "boolean"},
+        "refresh_plan_as_of": {
+          "type": ["string", "null"], "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "refresh_plan_max_age_seconds": {"type": ["integer", "null"], "minimum": 0},
+        "refresh_plan_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "refresh_plan_treatment_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "refresh_plan_treatment_population_sha256": {
+          "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"
+        },
+        "refresh_plan_coverage_requirements": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "court_id": {"type": "string", "minLength": 1},
+              "period_id": {"type": "string", "minLength": 1},
+              "enumerator_id": {"type": "string", "minLength": 1},
+              "source_role": {
+                "type": "string",
+                "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+              }
+            },
+            "anyOf": [
+              {"required": ["court_id"]}, {"required": ["period_id"]},
+              {"required": ["enumerator_id"]}, {"required": ["source_role"]}
+            ],
+            "additionalProperties": false
+          }
+        },
+        "refresh_plan_coverage_requirements_sha256": {
+          "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"
+        },
+        "checked_through": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
+        "filing_cutoff": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
+        "reviewer": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
+        "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "affected_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "live_binding_version": {"type": ["string", "null"], "enum": ["1.0", null]},
+        "live_corpus_binding_contract_valid": {"type": "boolean"},
+        "live_corpus_binding_verified": {"type": "boolean"},
+        "live_cache_stable": {"type": "boolean"},
+        "live_corpus_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "live_refresh_plan_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "live_treatment_set_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "live_treatment_population_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "live_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "live_binding_issue_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "treatment_set_contract_valid": {"type": "boolean"},
+        "treatment_set_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "treatment_set_corpus_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "treatment_set_population_sha256": {
+          "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"
+        },
         "treatments_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "pending_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "verified_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "rejected_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "superseded_treatment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "treatment_chronology_issue_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "stale_seed_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "malformed_refresh_entry_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "malformed_coverage_requirement_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "malformed_coverage_gap_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "coverage_gaps": {"type": "array", "items": {"type": "object"}},
+        "coverage_gaps": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["reason", "action"],
+            "properties": {
+              "court_id": {"type": "string", "minLength": 1},
+              "period_id": {"type": "string", "minLength": 1},
+              "enumerator_id": {"type": "string", "minLength": 1},
+              "source_role": {
+                "type": "string",
+                "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+              },
+              "reason": {"type": "string", "const": "coverage_gap_not_observed"},
+              "action": {"type": "string", "minLength": 1}
+            },
+            "anyOf": [
+              {"required": ["court_id"]}, {"required": ["period_id"]},
+              {"required": ["enumerator_id"]}, {"required": ["source_role"]}
+            ],
+            "additionalProperties": false
+          }
+        },
         "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "status": {
           "type": "string",
@@ -707,10 +1315,68 @@
           "then": {
             "properties": {
               "complete": {"const": true},
+              "refresh_plan_id": {
+                "type": "string",
+                "pattern": "^refresh-plan-sha256:[0-9a-f]{64}$"
+              },
+              "refresh_plan_contract_valid": {"const": true},
+              "refresh_plan_as_of": {
+                "type": "string", "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "refresh_plan_max_age_seconds": {"type": "integer", "minimum": 0},
+              "refresh_plan_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "refresh_plan_treatment_population_sha256": {
+                "type": "string", "pattern": "^[0-9a-f]{64}$"
+              },
+              "refresh_plan_coverage_requirements": {"minItems": 1},
+              "refresh_plan_coverage_requirements_sha256": {
+                "type": "string", "pattern": "^[0-9a-f]{64}$"
+              },
+              "claim_ids": {"minItems": 1},
+              "live_binding_version": {"const": "1.0"},
+              "live_corpus_binding_contract_valid": {"const": true},
+              "live_corpus_binding_verified": {"const": true},
+              "live_cache_stable": {"const": true},
+              "live_corpus_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "live_refresh_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "live_treatment_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "live_treatment_population_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "live_binding_issue_ids": {"maxItems": 0},
+              "treatment_set_contract_valid": {"const": true},
+              "treatment_set_sha256": {
+                "type": "string", "pattern": "^[0-9a-f]{64}$"
+              },
+              "treatment_set_corpus_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "treatment_set_population_sha256": {
+                "type": "string", "pattern": "^[0-9a-f]{64}$"
+              },
+              "checked_through": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "filing_cutoff": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "reviewed_at": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
               "pending_treatment_ids": {"maxItems": 0},
               "treatment_chronology_issue_ids": {"maxItems": 0},
               "stale_seed_ids": {"maxItems": 0},
               "malformed_refresh_entry_ids": {"maxItems": 0},
+              "malformed_coverage_requirement_ids": {"maxItems": 0},
               "malformed_coverage_gap_ids": {"maxItems": 0},
               "affected_claim_ids": {"maxItems": 0}
             }

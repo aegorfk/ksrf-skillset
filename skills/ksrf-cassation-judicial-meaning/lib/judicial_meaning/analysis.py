@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from collections import Counter
 from datetime import date
 from typing import Any, Iterable
@@ -55,6 +56,12 @@ _VALID_LABELS = {
     "unclear",
 }
 _VALID_RELATIONS = {"supports", "adverse", "neutral", "distinguishes", "supersedes"}
+_ALTERNATIVE_GROUND_FIELDS = {
+    "ground",
+    "independently_sufficient",
+    "quote",
+    "quote_locator",
+}
 _CLOSED_ENUMERATION_COVERAGE = {
     "closed_declared_enumeration_observed",
     "closed_official_population_observed",
@@ -84,6 +91,29 @@ _RISKY_CLAIM_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         "Тренд или динамику нельзя заявлять без раздельных временных страт, редакций и comparability review.",
     ),
 )
+
+
+def _is_visible_text(value: Any) -> bool:
+    """Accept substantive text only when it has no invisible control payload."""
+
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and not any(
+            unicodedata.category(character) in {"Cf", "Cs"}
+            or (
+                unicodedata.category(character) == "Cc"
+                and character not in {"\t", "\n", "\r"}
+            )
+            for character in value
+        )
+    )
+
+
+def _is_canonical_visible_identifier(value: Any) -> bool:
+    """Require stable identity text rather than merely truthy Unicode."""
+
+    return _is_visible_text(value) and value == " ".join(value.split())
 
 
 def screen_text(text: str, query_lanes: dict[str, list[str]]) -> list[dict[str, Any]]:
@@ -124,9 +154,30 @@ def validate_coding_record(record: dict[str, Any]) -> list[str]:
     if not isinstance(record, dict):
         return ["Карточка кодирования должна быть JSON-объектом."]
     errors: list[str] = []
-    missing = sorted(field for field in _REQUIRED_CODING_FIELDS if not record.get(field))
+    missing = sorted(
+        field for field in _REQUIRED_CODING_FIELDS if not _is_visible_text(record.get(field))
+    )
     if missing:
         errors.append("Не заполнены обязательные поля: " + ", ".join(missing) + ".")
+    malformed_identifiers = sorted(
+        field
+        for field in (
+            "chain_id",
+            "document_id",
+            "norm_edition_id",
+            "reading_family",
+            "remedy",
+            "coder",
+            "codebook_version",
+        )
+        if not _is_canonical_visible_identifier(record.get(field))
+    )
+    if malformed_identifiers:
+        errors.append(
+            "Идентификаторы должны быть видимыми и каноническими: "
+            + ", ".join(malformed_identifiers)
+            + "."
+        )
     if record.get("label") in {"core_merits", "contextual"} and record.get("speaker") != "court":
         errors.append("Правовую позицию нужно атрибутировать суду, а не стороне или пересказу.")
     if record.get("full_text_reviewed") is not True:
@@ -139,12 +190,34 @@ def validate_coding_record(record: dict[str, Any]) -> list[str]:
         errors.append("Неизвестное отношение акта к проверяемому предположению.")
     if record.get("human_review") != "approved":
         errors.append("Кодирование не одобрено человеком.")
-    if not isinstance(record.get("reasoning_to_outcome"), str) or not record.get("reasoning_to_outcome", "").strip():
+    if not _is_visible_text(record.get("reasoning_to_outcome")):
         errors.append("Не объяснена связь толкования с исходом дела.")
-    if not isinstance(record.get("material_facts"), list) or not record.get("material_facts"):
+    material_facts = record.get("material_facts")
+    if (
+        not isinstance(material_facts, list)
+        or not material_facts
+        or not all(_is_visible_text(item) for item in material_facts)
+    ):
         errors.append("Не указаны материальные факты для проверки сопоставимости.")
-    if not isinstance(record.get("alternative_grounds"), list):
+    alternative_grounds = record.get("alternative_grounds")
+    if not isinstance(alternative_grounds, list):
         errors.append("Альтернативные основания должны быть явно перечислены, даже если список пуст.")
+    elif not all(
+        isinstance(item, dict)
+        and set(item).issubset(_ALTERNATIVE_GROUND_FIELDS)
+        and _is_visible_text(item.get("ground"))
+        and isinstance(item.get("independently_sufficient"), bool)
+        and (item.get("quote") is None or _is_visible_text(item.get("quote")))
+        and (
+            item.get("quote_locator") is None
+            or _is_visible_text(item.get("quote_locator"))
+        )
+        for item in alternative_grounds
+    ):
+        errors.append(
+            "Каждое альтернативное основание должно содержать текст "
+            "ground и логическое поле independently_sufficient."
+        )
     return errors
 
 

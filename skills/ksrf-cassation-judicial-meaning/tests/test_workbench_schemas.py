@@ -59,7 +59,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             "https://json-schema.org/draft/2020-12/schema",
             self.schema["$schema"],
         )
-        self.assertEqual("1.0", self.schema["contract_version"])
+        self.assertEqual("1.1", self.schema["contract_version"])
         expected = {
             "case_fingerprint",
             "query_suggestion",
@@ -88,7 +88,13 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             with self.subTest(definition=name):
                 definition = self.definitions[name]
                 self.assertEqual(
-                    "2.0" if name == "handoff_envelope" else "1.0",
+                    (
+                        "2.0"
+                        if name == "handoff_envelope"
+                        else "1.1"
+                        if name == "treatment_edge"
+                        else "1.0"
+                    ),
                     definition["x-contract-version"],
                 )
                 self.assertEqual("object", definition["type"])
@@ -461,7 +467,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             definition = self.definitions[definition_name]
             self.assertIn("quality_bindings", definition["required"])
             quality = definition["properties"]["quality_bindings"]
-            self.assertEqual(4, quality["minItems"])
+            self.assertEqual(5, quality["minItems"])
             self.assertTrue(quality["uniqueItems"])
 
     def test_handoff_quality_bindings_reference_closed_mirrored_contracts(self):
@@ -479,7 +485,13 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         }:
             with self.subTest(definition=definition_name):
                 definition = self.definitions[definition_name]
-                self.assertEqual("1.0", definition["x-contract-version"])
+                expected_version = (
+                    "1.1"
+                    if definition_name
+                    in {"coding_audit_plan", "coding_reliability", "prefiling_refresh"}
+                    else "1.0"
+                )
+                self.assertEqual(expected_version, definition["x-contract-version"])
                 self.assertIs(definition["additionalProperties"], False)
 
         binding = self.definitions["handoff_quality_binding"]
@@ -503,6 +515,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
                 "pending_treatment_ids",
                 "verified_treatment_ids",
                 "rejected_treatment_ids",
+                "superseded_treatment_ids",
             ],
             prefiling["x-pairwise-disjoint"],
         )
@@ -511,6 +524,10 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
                 "treatment_chronology_issue_ids",
                 "malformed_refresh_entry_ids",
                 "malformed_coverage_gap_ids",
+                "refresh_plan_contract_valid",
+                "refresh_plan_as_of",
+                "refresh_plan_max_age_seconds",
+                "refresh_plan_evidence_digest",
             }.issubset(prefiling["required"])
         )
         for key in ("baseline_corpus_digest", "current_corpus_digest"):
@@ -540,13 +557,20 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         self.assertTrue(
             (
                 invalid_audit_fields
-                | {"invalid_audit_record_ids", "invalid_adjudication_record_ids"}
+                | {
+                    "audit_plan_input_sha256",
+                    "audit_plan_contract_valid",
+                    "audit_decisions_sha256",
+                    "adjudications_sha256",
+                    "invalid_audit_record_ids",
+                    "invalid_adjudication_record_ids",
+                }
             ).issubset(self.definitions["coding_reliability"]["required"])
         )
 
         audit_payload = {
             "schema_version": "1.0",
-            "plan_sha256": "plan-1",
+            "plan_sha256": "0" * 64,
             "screening_sha256": "1" * 64,
             "primary_coding_sha256": "2" * 64,
             "selection_method": "canonical_sha256_rank",
@@ -566,6 +590,27 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             "artifact": audit_payload,
         }
         self.assertSchemaValid("handoff_quality_binding", valid_binding)
+        audit_validator = Draft202012Validator(
+            {
+                "$schema": self.schema["$schema"],
+                "$ref": "#/definitions/coding_audit_plan",
+                "definitions": self.definitions,
+            },
+            format_checker=FormatChecker(),
+        )
+        for label, changes in (
+            ("boolean sample size", {"sample_size": True}),
+            (
+                "duplicate sample IDs",
+                {
+                    "sample_size": 2,
+                    "sample_candidate_ids": ["candidate-1", "candidate-1"],
+                },
+            ),
+        ):
+            with self.subTest(label=label):
+                invalid_audit = {**audit_payload, **changes}
+                self.assertTrue(list(audit_validator.iter_errors(invalid_audit)))
         mislabeled = {**valid_binding, "quality_type": "prefiling_refresh"}
         validator = Draft202012Validator(
             {
@@ -622,7 +667,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             set(self.definitions["treatment_edge"]["properties"]["treatment_type"]["enum"]),
         )
         self.assertEqual(
-            {"candidate", "verified", "rejected"},
+            {"candidate", "verified", "rejected", "superseded"},
             set(self.definitions["treatment_edge"]["properties"]["status"]["enum"]),
         )
         self.assertEqual(

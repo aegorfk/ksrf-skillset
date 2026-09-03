@@ -10,8 +10,19 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime
-from typing import Any, Iterable, Mapping
+import unicodedata
+from datetime import datetime, timezone
+from typing import Any, Iterable, Mapping, Sequence
+
+from .analysis import validate_coding_record
+from .public_corpus import (
+    OFFICIAL_EVIDENCE_SEED_ROLES,
+    PUBLIC_SEED_ROLES,
+    TREATMENT_TYPES,
+    official_public_url_allowed,
+    public_url_allowed,
+    treatment_quality_proposition,
+)
 
 
 SCHEMA_VERSION = "1.0"
@@ -62,6 +73,30 @@ AUDITED_CODING_FIELDS = (
     "alternative_grounds",
     "remedy",
 )
+AUDIT_CODING_RECORD_FIELDS = frozenset(
+    {
+        "candidate_id",
+        "chain_id",
+        "document_id",
+        "label",
+        "speaker",
+        "proposition",
+        "quote",
+        "quote_locator",
+        "norm_edition_id",
+        "reasoning_to_outcome",
+        "reading_family",
+        "relation",
+        "remedy",
+        "coder",
+        "codebook_version",
+        "material_facts",
+        "alternative_grounds",
+        "human_review",
+        "quote_verified",
+        "full_text_reviewed",
+    }
+)
 SUBSTANTIVE_LABELS = {"core_merits", "contextual"}
 EXCLUSION_LABELS = {
     "party_only",
@@ -76,6 +111,109 @@ PREFILING_STATUSES = {
     "refresh_incomplete",
     "material_change_requires_reanalysis",
 }
+LIVE_CORPUS_BINDING_FIELDS = frozenset(
+    {
+        "binding_version",
+        "verified",
+        "live_cache_stable",
+        "live_corpus_evidence_digest",
+        "live_refresh_plan_sha256",
+        "live_treatment_set_sha256",
+        "live_treatment_population_sha256",
+        "live_treatment_ids",
+        "issue_ids",
+    }
+)
+CODING_AUDIT_PLAN_FIELDS = frozenset(
+    {
+        "schema_version",
+        "plan_sha256",
+        "screening_sha256",
+        "primary_coding_sha256",
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "selection_method",
+        "sample_size",
+        "exclusion_sample_size",
+        "sample_candidate_ids",
+        "exclusion_sample_candidate_ids",
+        "required_candidate_ids",
+        "frozen",
+        "audit_plan_sha256",
+    }
+)
+CODING_AUDIT_DECISION_FIELDS = frozenset(
+    {
+        "candidate_id",
+        "primary_coding_sha256",
+        "secondary_coding",
+        "secondary_coding_sha256",
+    }
+)
+CODING_ADJUDICATION_FIELDS = frozenset(
+    {
+        "candidate_id",
+        "primary_coding_sha256",
+        "secondary_coding_sha256",
+        "resolved_fields",
+        "adjudicator",
+        "reviewed_at",
+        "human_review",
+    }
+)
+CODING_RELIABILITY_FIELDS = frozenset(
+    {
+        "schema_version",
+        "audit_plan_input_sha256",
+        "audit_plan_sha256",
+        "audit_plan_frozen",
+        "audit_plan_contract_valid",
+        "audit_plan_digest_valid",
+        "primary_coding_sha256",
+        "current_primary_coding_sha256",
+        "audit_decisions_sha256",
+        "adjudications_sha256",
+        "required_candidate_ids",
+        "audited_candidate_ids",
+        "missing_candidate_ids",
+        "same_reviewer_candidate_ids",
+        "invalid_binding_candidate_ids",
+        "invalid_provenance_candidate_ids",
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "invalid_audit_record_ids",
+        "invalid_adjudication_record_ids",
+        "field_disagreements",
+        "false_exclusion_diagnostics",
+        "unresolved_candidate_ids",
+        "stale",
+        "complete",
+        "evidence_sha256",
+    }
+)
+REFRESH_PLAN_FIELDS = frozenset(
+    {
+        "plan_id",
+        "as_of",
+        "max_age_seconds",
+        "evidence_digest",
+        "treatment_ids",
+        "treatment_population_sha256",
+        "coverage_requirements",
+        "entries",
+        "coverage_gaps",
+    }
+)
+REFRESH_ENTRY_FIELDS = frozenset(
+    {"seed_id", "url", "role", "last_fetched_at", "reason"}
+)
+REFRESH_GAP_SCOPE_FIELDS = frozenset(
+    {"court_id", "period_id", "enumerator_id", "source_role"}
+)
+RFC3339_DATETIME_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+    r"(?:[Zz]|[+-]\d{2}:\d{2})?"
+)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -116,13 +254,62 @@ def _is_sha256(value: Any) -> bool:
 
 
 def _valid_iso(value: Any) -> bool:
+    return _aware_iso_datetime(value)
+
+
+def _parse_iso_datetime(value: str) -> datetime:
+    cleaned = value.strip()
+    normalized = cleaned[:-1] + "+00:00" if cleaned[-1:] in {"Z", "z"} else cleaned
+    return datetime.fromisoformat(normalized)
+
+
+def _valid_iso_datetime(value: Any) -> bool:
+    """Require the RFC 3339 calendar-date/full-time shape used by our schemas."""
+
     if not _nonempty(value):
         return False
+    raw = str(value)
+    cleaned = raw.strip()
+    if cleaned != raw:
+        return False
+    if RFC3339_DATETIME_RE.fullmatch(cleaned) is None:
+        return False
     try:
-        datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        _parse_iso_datetime(cleaned)
     except ValueError:
         return False
     return True
+
+
+def _aware_iso_datetime(value: Any) -> bool:
+    if not _valid_iso_datetime(value):
+        return False
+    parsed = _parse_iso_datetime(str(value))
+    return parsed.utcoffset() is not None
+
+
+def _canonical_reviewer(value: Any) -> str | None:
+    if not _nonempty(value):
+        return None
+    raw = str(value)
+    if any(unicodedata.category(character) in {"Cc", "Cf", "Cs"} for character in raw):
+        return None
+    normalized = unicodedata.normalize("NFKC", raw).casefold()
+    return " ".join(normalized.split())
+
+
+def _canonical_identifier(value: Any) -> str | None:
+    if not _nonempty(value):
+        return None
+    raw = str(value)
+    if any(unicodedata.category(character) in {"Cc", "Cf", "Cs"} for character in raw):
+        return None
+    return " ".join(raw.split())
+
+
+def _is_canonical_identifier(value: Any) -> bool:
+    canonical = _canonical_identifier(value)
+    return canonical is not None and canonical == value
 
 
 def _coding_provenance_valid(record: Mapping[str, Any]) -> bool:
@@ -133,7 +320,24 @@ def _coding_provenance_valid(record: Mapping[str, Any]) -> bool:
     )
 
 
+def _audit_coding_identity_valid(record: Mapping[str, Any]) -> bool:
+    return all(
+        _is_canonical_identifier(record.get(field))
+        for field in (
+            "candidate_id",
+            "chain_id",
+            "document_id",
+            "norm_edition_id",
+            "reading_family",
+            "remedy",
+            "codebook_version",
+        )
+    ) and _canonical_reviewer(record.get("coder")) is not None
+
+
 def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
+    if set(record) != CODING_RELIABILITY_FIELDS:
+        return False
     evidence_sha256 = record.get("evidence_sha256")
     digest_payload = dict(record)
     digest_payload.pop("evidence_sha256", None)
@@ -144,13 +348,17 @@ def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
         or record.get("complete") is not True
         or record.get("stale") is not False
         or record.get("audit_plan_frozen") is not True
+        or record.get("audit_plan_contract_valid") is not True
         or record.get("audit_plan_digest_valid") is not True
     ):
         return False
     for field in (
+        "audit_plan_input_sha256",
         "audit_plan_sha256",
         "primary_coding_sha256",
         "current_primary_coding_sha256",
+        "audit_decisions_sha256",
+        "adjudications_sha256",
     ):
         if not _is_sha256(record.get(field)):
             return False
@@ -164,8 +372,10 @@ def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
         not isinstance(required, list)
         or not required
         or len(required) != len(set(required))
-        or not all(_nonempty(identifier) for identifier in required)
+        or not all(_is_canonical_identifier(identifier) for identifier in required)
         or not isinstance(audited, list)
+        or len(audited) != len(set(audited))
+        or not all(_is_canonical_identifier(identifier) for identifier in audited)
         or set(audited) != set(required)
     ):
         return False
@@ -184,26 +394,125 @@ def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
             return False
     disagreements = record.get("field_disagreements")
     false_exclusions = record.get("false_exclusion_diagnostics")
-    if not isinstance(disagreements, list) or not all(
-        isinstance(item, Mapping) and item.get("resolved") is True
-        for item in disagreements
+    if not isinstance(disagreements, list):
+        return False
+    disagreement_by_candidate: dict[str, Mapping[str, Any]] = {}
+    for item in disagreements:
+        if (
+            not isinstance(item, Mapping)
+            or set(item)
+            != {
+                "candidate_id",
+                "fields",
+                "primary_coding_sha256",
+                "secondary_coding_sha256",
+                "resolved",
+                "adjudication_sha256",
+            }
+            or item.get("candidate_id") not in required
+            or item.get("resolved") is not True
+            or not _is_sha256(item.get("primary_coding_sha256"))
+            or not _is_sha256(item.get("secondary_coding_sha256"))
+            or not _is_sha256(item.get("adjudication_sha256"))
+            or not _unique_nonempty_string_list(item.get("fields"))
+            or not set(item.get("fields", [])).issubset(AUDITED_CODING_FIELDS)
+            or item.get("candidate_id") in disagreement_by_candidate
+        ):
+            return False
+        disagreement_by_candidate[str(item["candidate_id"])] = item
+    empty_adjudications_sha256 = canonical_digest([])
+    if (
+        (not disagreements and record.get("adjudications_sha256") != empty_adjudications_sha256)
+        or (
+            disagreements
+            and record.get("adjudications_sha256") == empty_adjudications_sha256
+        )
     ):
         return False
-    if not isinstance(false_exclusions, list) or not all(
-        isinstance(item, Mapping) and item.get("resolved") is True
-        for item in false_exclusions
-    ):
+    if not isinstance(false_exclusions, list):
         return False
+    seen_false_exclusions: set[str] = set()
+    for item in false_exclusions:
+        candidate_id = item.get("candidate_id") if isinstance(item, Mapping) else None
+        disagreement = disagreement_by_candidate.get(str(candidate_id))
+        if (
+            not isinstance(item, Mapping)
+            or set(item)
+            != {"candidate_id", "primary_label", "secondary_label", "resolved"}
+            or candidate_id not in required
+            or candidate_id in seen_false_exclusions
+            or item.get("primary_label") not in EXCLUSION_LABELS
+            or item.get("secondary_label") not in SUBSTANTIVE_LABELS
+            or item.get("resolved") is not True
+            or disagreement is None
+            or "label" not in disagreement.get("fields", [])
+        ):
+            return False
+        seen_false_exclusions.add(str(candidate_id))
     return True
 
 
 TREATMENT_SOURCE_FIELDS = (
+    "source_chain_id",
+    "source_court_id",
+    "target_authority_id",
+    "target_kind",
+    "target_identity",
+    "target_identity_confirmed",
+    "treatment_type",
+    "review_decision",
+    "snapshot_id",
+    "supersedes_treatment_id",
+    "superseded_by_treatment_id",
+    "speaker",
     "document_id",
     "document_sha256",
+    "text_sha256",
+    "source_role",
     "official_url",
     "quote",
     "quote_locator",
     "proposition",
+    "decision_reason",
+    "created_at",
+)
+TREATMENT_SET_FIELDS = frozenset(
+    {
+        "schema_version",
+        "export_type",
+        "corpus_evidence_digest",
+        "treatment_population_sha256",
+        "integrity_issue_ids",
+        "treatment_ids",
+        "items",
+        "set_sha256",
+    }
+)
+TREATMENT_RESOLVED_FIELDS = frozenset(
+    {
+        "treatment_id",
+        "status",
+        *TREATMENT_SOURCE_FIELDS,
+        "source_binding_sha256",
+        "reviewer",
+        "reviewed_at",
+        "human_review",
+        "quote_verified",
+        "full_text_reviewed",
+    }
+)
+TREATMENT_CANDIDATE_FIELDS = frozenset(
+    {
+        "treatment_id",
+        "status",
+        "recorded_status",
+        "quality_blockers",
+        "source_chain_id",
+        "target_authority_id",
+        "supersedes_treatment_id",
+        "superseded_by_treatment_id",
+        "created_at",
+    }
 )
 
 
@@ -219,37 +528,352 @@ def _malformed_treatment_reference(treatment: Any) -> str:
 
 
 def _treatment_has_reviewed_source(treatment: Mapping[str, Any]) -> bool:
+    if set(treatment) != TREATMENT_RESOLVED_FIELDS:
+        return False
     source_payload = {field: treatment.get(field) for field in TREATMENT_SOURCE_FIELDS}
     source_bound = (
-        _nonempty(treatment.get("document_id"))
+        _nonempty(treatment.get("source_chain_id"))
+        and _is_canonical_identifier(treatment.get("source_chain_id"))
+        and _nonempty(treatment.get("source_court_id"))
+        and _is_canonical_identifier(treatment.get("source_court_id"))
+        and _nonempty(treatment.get("target_authority_id"))
+        and _is_canonical_identifier(treatment.get("target_authority_id"))
+        and _nonempty(treatment.get("target_kind"))
+        and _is_canonical_identifier(treatment.get("target_kind"))
+        and isinstance(treatment.get("target_identity"), Mapping)
+        and bool(treatment.get("target_identity"))
+        and isinstance(treatment.get("target_identity_confirmed"), bool)
+        and treatment.get("treatment_type") in TREATMENT_TYPES
+        and treatment.get("review_decision") in {"verified", "rejected"}
+        and _nonempty(treatment.get("snapshot_id"))
+        and (
+            treatment.get("supersedes_treatment_id") is None
+            or _is_canonical_identifier(treatment.get("supersedes_treatment_id"))
+        )
+        and (
+            treatment.get("superseded_by_treatment_id") is None
+            or _is_canonical_identifier(
+                treatment.get("superseded_by_treatment_id")
+            )
+        )
+        and treatment.get("snapshot_id")
+        == f"snapshot-sha256:{treatment.get('document_sha256')}"
+        and _nonempty(treatment.get("document_id"))
+        and _is_canonical_identifier(treatment.get("document_id"))
         and _is_sha256(treatment.get("document_sha256"))
-        and _nonempty(treatment.get("official_url"))
-        and re.match(r"^https?://", str(treatment.get("official_url"))) is not None
-        and _nonempty(treatment.get("quote"))
-        and _nonempty(treatment.get("quote_locator"))
+        and _is_sha256(treatment.get("text_sha256"))
+        and treatment.get("source_role") in OFFICIAL_EVIDENCE_SEED_ROLES
+        and official_public_url_allowed(treatment.get("official_url"))
         and _nonempty(treatment.get("proposition"))
+        and _aware_iso_datetime(treatment.get("created_at"))
         and _is_sha256(treatment.get("source_binding_sha256"))
         and treatment.get("source_binding_sha256") == canonical_digest(source_payload)
     )
-    return (
+    common_review = (
         source_bound
         and _nonempty(treatment.get("treatment_id"))
-        and _nonempty(treatment.get("reviewer"))
-        and _valid_iso(treatment.get("reviewed_at"))
+        and _is_canonical_identifier(treatment.get("treatment_id"))
+        and _is_canonical_identifier(treatment.get("reviewer"))
+        and _aware_iso_datetime(treatment.get("reviewed_at"))
+        and _parse_iso_datetime(str(treatment.get("reviewed_at")))
+        >= _parse_iso_datetime(str(treatment.get("created_at")))
+        and _parse_iso_datetime(str(treatment.get("reviewed_at")))
+        <= datetime.now(timezone.utc)
         and treatment.get("human_review") == "approved"
-        and treatment.get("quote_verified") is True
         and treatment.get("full_text_reviewed") is True
+    )
+    if not common_review:
+        return False
+    status = treatment.get("status")
+    review_decision = treatment.get("review_decision")
+    if status in {"verified", "rejected"} and status != review_decision:
+        return False
+    if status == "superseded":
+        if (
+            not _is_canonical_identifier(
+                treatment.get("superseded_by_treatment_id")
+            )
+            or treatment.get("superseded_by_treatment_id")
+            == treatment.get("treatment_id")
+        ):
+            return False
+    elif treatment.get("superseded_by_treatment_id") is not None:
+        return False
+    if review_decision == "verified":
+        return (
+            treatment.get("target_identity_confirmed") is True
+            and treatment.get("speaker") == "court"
+            and _nonempty(treatment.get("quote"))
+            and _nonempty(treatment.get("quote_locator"))
+            and treatment.get("quote_verified") is True
+            and treatment.get("decision_reason") is None
+            and treatment.get("proposition")
+            == treatment_quality_proposition(
+                status="verified",
+                source_chain_id=str(treatment.get("source_chain_id")),
+                treatment_type=str(treatment.get("treatment_type")),
+                target_authority_id=str(treatment.get("target_authority_id")),
+            )
+        )
+    return (
+        review_decision == "rejected"
+        and _nonempty(treatment.get("decision_reason"))
+        and _is_canonical_identifier(treatment.get("decision_reason"))
+        and treatment.get("proposition")
+        == treatment_quality_proposition(
+            status="rejected",
+            source_chain_id=str(treatment.get("source_chain_id")),
+            treatment_type=str(treatment.get("treatment_type")),
+            target_authority_id=str(treatment.get("target_authority_id")),
+            decision_reason=str(treatment.get("decision_reason")),
+        )
+        and (
+            (
+                treatment.get("quote") is None
+                and treatment.get("quote_locator") is None
+                and treatment.get("speaker") is None
+                and treatment.get("quote_verified") is False
+            )
+            or (
+                treatment.get("speaker") == "court"
+                and _nonempty(treatment.get("quote"))
+                and _nonempty(treatment.get("quote_locator"))
+                and treatment.get("quote_verified") is True
+            )
+        )
+    )
+
+
+def _treatment_supersession_issue_ids(
+    treatments: Sequence[Mapping[str, Any]],
+) -> set[str]:
+    """Return every record participating in an invalid supersession graph."""
+
+    issues: set[str] = set()
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    for treatment in treatments:
+        reference = _treatment_reference(treatment)
+        grouped.setdefault(reference, []).append(treatment)
+    for reference, records in grouped.items():
+        if len(records) != 1:
+            issues.add(reference)
+    records_by_id = {
+        reference: records[0]
+        for reference, records in grouped.items()
+        if len(records) == 1
+    }
+    successors_by_prior: dict[str, list[str]] = {}
+    for treatment_id, treatment in records_by_id.items():
+        status = treatment.get("status")
+        exact_fields = (
+            set(treatment) == TREATMENT_CANDIDATE_FIELDS
+            if status == "candidate"
+            else set(treatment) == TREATMENT_RESOLVED_FIELDS
+        )
+        if (
+            not exact_fields
+            or not _is_canonical_identifier(treatment_id)
+            or not _is_canonical_identifier(treatment.get("source_chain_id"))
+            or not _is_canonical_identifier(treatment.get("target_authority_id"))
+            or not _aware_iso_datetime(treatment.get("created_at"))
+        ):
+            issues.add(treatment_id)
+        for field in ("supersedes_treatment_id", "superseded_by_treatment_id"):
+            value = treatment.get(field)
+            if value is not None and (
+                not _is_canonical_identifier(value) or value == treatment_id
+            ):
+                issues.add(treatment_id)
+        prior_id = treatment.get("supersedes_treatment_id")
+        if _is_canonical_identifier(prior_id):
+            successors_by_prior.setdefault(str(prior_id), []).append(treatment_id)
+
+    for successor_ids in successors_by_prior.values():
+        successor_ids.sort()
+    for prior_id, successor_ids in successors_by_prior.items():
+        if len(successor_ids) != 1:
+            issues.add(prior_id)
+            issues.update(successor_ids)
+        prior = records_by_id.get(prior_id)
+        if prior is None:
+            issues.update(successor_ids)
+            continue
+        for successor_id in successor_ids:
+            successor = records_by_id[successor_id]
+            if (
+                prior.get("status") != "superseded"
+                or prior.get("superseded_by_treatment_id") != successor_id
+                or successor.get("supersedes_treatment_id") != prior_id
+                or prior.get("source_chain_id")
+                != successor.get("source_chain_id")
+                or prior.get("target_authority_id")
+                != successor.get("target_authority_id")
+                or set(prior) != TREATMENT_RESOLVED_FIELDS
+                or not _aware_iso_datetime(prior.get("reviewed_at"))
+                or not _aware_iso_datetime(successor.get("created_at"))
+                or (
+                    _aware_iso_datetime(prior.get("reviewed_at"))
+                    and _aware_iso_datetime(successor.get("created_at"))
+                    and _parse_iso_datetime(str(prior.get("reviewed_at")))
+                    > _parse_iso_datetime(str(successor.get("created_at")))
+                )
+            ):
+                issues.add(prior_id)
+                issues.add(successor_id)
+
+    for treatment_id, treatment in records_by_id.items():
+        successor_ids = successors_by_prior.get(treatment_id, [])
+        expected_successor = successor_ids[0] if len(successor_ids) == 1 else None
+        if (
+            treatment.get("superseded_by_treatment_id") != expected_successor
+            or (treatment.get("status") == "superseded")
+            != (expected_successor is not None)
+        ):
+            issues.add(treatment_id)
+        seen: set[str] = set()
+        current_id: str | None = treatment_id
+        while current_id is not None:
+            if current_id in seen:
+                issues.update(seen)
+                break
+            seen.add(current_id)
+            current = records_by_id.get(current_id)
+            if current is None:
+                break
+            prior_id = current.get("supersedes_treatment_id")
+            current_id = str(prior_id) if _is_canonical_identifier(prior_id) else None
+    return issues
+
+
+def _treatment_set_contract(
+    value: Any,
+    *,
+    current_corpus_digest: str,
+    expected_treatment_ids: Any,
+    expected_treatment_population_sha256: Any,
+) -> tuple[list[Any], bool, str | None, str | None, str | None]:
+    if not isinstance(value, Mapping) or set(value) != TREATMENT_SET_FIELDS:
+        return [], False, None, None, None
+    items = value.get("items")
+    treatment_ids = value.get("treatment_ids")
+    corpus_evidence_digest = value.get("corpus_evidence_digest")
+    treatment_population_sha256 = value.get("treatment_population_sha256")
+    integrity_issue_ids = value.get("integrity_issue_ids")
+    set_sha256 = value.get("set_sha256")
+    unsigned = dict(value)
+    unsigned.pop("set_sha256", None)
+    valid = (
+        value.get("schema_version") == SCHEMA_VERSION
+        and value.get("export_type") == "public_corpus_treatment_quality_set"
+        and corpus_evidence_digest
+        == f"corpus-evidence-sha256:{current_corpus_digest}"
+        and treatment_ids == expected_treatment_ids
+        and _is_sha256(treatment_population_sha256)
+        and treatment_population_sha256
+        == expected_treatment_population_sha256
+        and _unique_nonempty_string_list(integrity_issue_ids)
+        and isinstance(items, list)
+        and isinstance(treatment_ids, list)
+        and treatment_ids == sorted(set(treatment_ids))
+        and all(
+            _is_canonical_identifier(identifier)
+            for identifier in treatment_ids
+        )
+        and all(isinstance(item, Mapping) for item in items)
+        and all(
+            (
+                set(item) == TREATMENT_CANDIDATE_FIELDS
+                and item.get("status") == "candidate"
+                and item.get("recorded_status")
+                in {"candidate", "verified", "rejected"}
+                and _unique_nonempty_string_list(item.get("quality_blockers"))
+            )
+            or (
+                set(item) == TREATMENT_RESOLVED_FIELDS
+                and item.get("status") in {"verified", "rejected", "superseded"}
+            )
+            for item in items
+        )
+        and [item.get("treatment_id") for item in items] == treatment_ids
+        and _is_sha256(set_sha256)
+        and set_sha256 == canonical_digest(unsigned)
+        and not _treatment_supersession_issue_ids(items)
+    )
+    if valid:
+        items_by_id = {
+            str(item["treatment_id"]): item
+            for item in items
+            if isinstance(item, Mapping)
+        }
+        resolved_successors_by_prior: dict[str, list[str]] = {}
+        for item in items_by_id.values():
+            if set(item) != TREATMENT_RESOLVED_FIELDS:
+                continue
+            item_id = str(item["treatment_id"])
+            prior_id = item.get("supersedes_treatment_id")
+            successor_id = item.get("superseded_by_treatment_id")
+            if item.get("status") == "superseded":
+                if (
+                    not _is_canonical_identifier(successor_id)
+                    or successor_id == item_id
+                    or successor_id not in items_by_id
+                ):
+                    valid = False
+            elif successor_id is not None:
+                valid = False
+            if prior_id is not None:
+                if (
+                    not _is_canonical_identifier(prior_id)
+                    or prior_id == item_id
+                    or prior_id not in items_by_id
+                ):
+                    valid = False
+                else:
+                    resolved_successors_by_prior.setdefault(str(prior_id), []).append(
+                        item_id
+                    )
+                    prior = items_by_id[str(prior_id)]
+                    if (
+                        set(prior) != TREATMENT_RESOLVED_FIELDS
+                        or prior.get("status") != "superseded"
+                        or prior.get("superseded_by_treatment_id") != item_id
+                        or prior.get("source_chain_id") != item.get("source_chain_id")
+                        or prior.get("target_authority_id")
+                        != item.get("target_authority_id")
+                    ):
+                        valid = False
+        if any(len(successors) != 1 for successors in resolved_successors_by_prior.values()):
+            valid = False
+    return (
+        list(items) if isinstance(items, list) else [],
+        bool(valid),
+        set_sha256 if _is_sha256(set_sha256) else None,
+        (
+            corpus_evidence_digest
+            if isinstance(corpus_evidence_digest, str)
+            and re.fullmatch(
+                r"corpus-evidence-sha256:[0-9a-f]{64}",
+                corpus_evidence_digest,
+            )
+            else None
+        ),
+        (
+            treatment_population_sha256
+            if _is_sha256(treatment_population_sha256)
+            else None
+        ),
     )
 
 
 def _classify_treatments(
-    treatments: Iterable[Any],
+    treatments: Any,
     *,
     final_reviewed_at: str | None = None,
-) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], list[str], list[str], list[str]]:
     pending: set[str] = set()
     verified: set[str] = set()
     rejected: set[str] = set()
+    superseded: set[str] = set()
     invalid_resolved: set[str] = set()
     chronology_issues: set[str] = set()
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -266,12 +890,37 @@ def _classify_treatments(
             continue
         grouped.setdefault(reference, []).append(dict(treatment))
 
+    graph_issue_ids = _treatment_supersession_issue_ids(
+        [record for records in grouped.values() for record in records]
+    )
+
     final_time = (
-        datetime.fromisoformat(final_reviewed_at.replace("Z", "+00:00"))
+        _parse_iso_datetime(final_reviewed_at)
         if final_reviewed_at is not None
         else None
     )
     for reference, records in sorted(grouped.items()):
+        candidate_chronology_issue = any(
+            record.get("status") == "candidate"
+            and record.get("recorded_status") in {"verified", "rejected"}
+            and isinstance(record.get("quality_blockers"), list)
+            and any(
+                blocker
+                in {
+                    "review_chronology_invalid",
+                    "reviewed_at_invalid",
+                    "supersession_chronology_invalid",
+                }
+                for blocker in record["quality_blockers"]
+            )
+            for record in records
+        )
+        if reference in graph_issue_ids:
+            pending.add(reference)
+            invalid_resolved.add(reference)
+            if candidate_chronology_issue:
+                chronology_issues.add(reference)
+            continue
         statuses = {record.get("status") for record in records}
         source_bindings = {record.get("source_binding_sha256") for record in records}
         if len(statuses) != 1 or len(source_bindings) != 1:
@@ -279,8 +928,15 @@ def _classify_treatments(
             invalid_resolved.add(reference)
             continue
         status = next(iter(statuses))
-        if status not in {"verified", "rejected"}:
+        if status not in {"verified", "rejected", "superseded"}:
             pending.add(reference)
+            if any(
+                record.get("recorded_status") in {"verified", "rejected"}
+                for record in records
+            ):
+                invalid_resolved.add(reference)
+            if candidate_chronology_issue:
+                chronology_issues.add(reference)
             continue
         if not all(_treatment_has_reviewed_source(record) for record in records):
             pending.add(reference)
@@ -289,9 +945,7 @@ def _classify_treatments(
         if final_time is not None:
             chronology_valid = True
             for record in records:
-                treatment_time = datetime.fromisoformat(
-                    str(record["reviewed_at"]).replace("Z", "+00:00")
-                )
+                treatment_time = _parse_iso_datetime(str(record["reviewed_at"]))
                 timezone_mismatch = (treatment_time.utcoffset() is None) != (
                     final_time.utcoffset() is None
                 )
@@ -307,15 +961,23 @@ def _classify_treatments(
                 continue
         if status == "verified":
             verified.add(reference)
-        else:
+        elif status == "rejected":
             rejected.add(reference)
+        else:
+            superseded.add(reference)
 
-    if pending & verified or pending & rejected or verified & rejected:
+    partitions = (pending, verified, rejected, superseded)
+    if any(
+        left & right
+        for index, left in enumerate(partitions)
+        for right in partitions[index + 1 :]
+    ):
         raise AssertionError("treatment resolution partitions must be disjoint")
     return (
         sorted(pending),
         sorted(verified),
         sorted(rejected),
+        sorted(superseded),
         sorted(invalid_resolved),
         sorted(chronology_issues),
     )
@@ -323,13 +985,8 @@ def _classify_treatments(
 
 def _candidate_id(value: Mapping[str, Any]) -> str | None:
     candidate_id = value.get("candidate_id")
-    if _nonempty(candidate_id):
-        return " ".join(str(candidate_id).split())
-    chain_id = value.get("chain_id")
-    document_id = value.get("document_id")
-    if _nonempty(chain_id) and _nonempty(document_id):
-        return f"{str(chain_id).strip()}::{str(document_id).strip()}"
-    return None
+    canonical = _canonical_identifier(candidate_id)
+    return canonical if canonical is not None and canonical == candidate_id else None
 
 
 def _index_unique(
@@ -357,6 +1014,265 @@ def _index_unique(
         else:
             indexed[identifier] = dict(value)
     return indexed, sorted(set(duplicates)), sorted(set(invalid_records))
+
+
+def _invalid_coding_record_ids(
+    records: Mapping[str, dict[str, Any]],
+) -> list[str]:
+    """Keep malformed codings inspectable while preventing false agreement."""
+
+    return sorted(
+        identifier
+        for identifier, record in records.items()
+        if set(record) != AUDIT_CODING_RECORD_FIELDS
+        or validate_coding_record(record)
+        or not _audit_coding_identity_valid(record)
+    )
+
+
+def _unique_nonempty_string_list(value: Any) -> bool:
+    if not isinstance(value, list) or not all(_nonempty(item) for item in value):
+        return False
+    normalized = [" ".join(item.split()) for item in value]
+    return value == normalized and len(normalized) == len(set(normalized))
+
+
+def _coding_audit_plan_contract_valid(plan: Mapping[str, Any]) -> bool:
+    """Validate the closed frozen-plan contract without an optional dependency."""
+
+    if set(plan) != CODING_AUDIT_PLAN_FIELDS:
+        return False
+    unsigned = {key: value for key, value in plan.items() if key != "audit_plan_sha256"}
+    if (
+        plan.get("schema_version") != SCHEMA_VERSION
+        or not _is_sha256(plan.get("plan_sha256"))
+        or not _is_sha256(plan.get("screening_sha256"))
+        or not _is_sha256(plan.get("primary_coding_sha256"))
+        or plan.get("selection_method") != "canonical_sha256_rank"
+        or plan.get("frozen") is not True
+        or not _is_sha256(plan.get("audit_plan_sha256"))
+        or plan.get("audit_plan_sha256") != canonical_digest(unsigned)
+    ):
+        return False
+    for field in ("sample_size", "exclusion_sample_size"):
+        value = plan.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return False
+    for field in (
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "sample_candidate_ids",
+        "exclusion_sample_candidate_ids",
+        "required_candidate_ids",
+    ):
+        if not _unique_nonempty_string_list(plan.get(field)):
+            return False
+    sample = plan["sample_candidate_ids"]
+    exclusion = plan["exclusion_sample_candidate_ids"]
+    required = plan["required_candidate_ids"]
+    return (
+        len(sample) <= plan["sample_size"]
+        and len(exclusion) <= plan["exclusion_sample_size"]
+        and set(required) == set(sample) | set(exclusion)
+    )
+
+
+def _coding_audit_record_contract_valid(
+    record: Mapping[str, Any],
+    identifier: str,
+) -> bool:
+    if set(record) != CODING_AUDIT_DECISION_FIELDS:
+        return False
+    secondary = record.get("secondary_coding")
+    return (
+        _canonical_identifier(record.get("candidate_id")) == identifier
+        and record.get("candidate_id") == identifier
+        and _is_sha256(record.get("primary_coding_sha256"))
+        and isinstance(secondary, Mapping)
+        and set(secondary) == AUDIT_CODING_RECORD_FIELDS
+        and _audit_coding_identity_valid(secondary)
+        and _is_sha256(record.get("secondary_coding_sha256"))
+        and record.get("secondary_coding_sha256")
+        == canonical_digest(dict(secondary))
+    )
+
+
+def _coding_adjudication_contract_valid(
+    record: Mapping[str, Any],
+    identifier: str,
+) -> bool:
+    resolved_fields = record.get("resolved_fields")
+    reviewed_at = record.get("reviewed_at")
+    return (
+        set(record) == CODING_ADJUDICATION_FIELDS
+        and _canonical_identifier(record.get("candidate_id")) == identifier
+        and record.get("candidate_id") == identifier
+        and _is_sha256(record.get("primary_coding_sha256"))
+        and _is_sha256(record.get("secondary_coding_sha256"))
+        and isinstance(resolved_fields, Mapping)
+        and bool(resolved_fields)
+        and set(resolved_fields).issubset(AUDITED_CODING_FIELDS)
+        and all(
+            not isinstance(value, str) or _is_canonical_identifier(value)
+            for value in resolved_fields.values()
+        )
+        and _canonical_reviewer(record.get("adjudicator")) is not None
+        and _aware_iso_datetime(reviewed_at)
+        and _parse_iso_datetime(str(reviewed_at)) <= datetime.now(timezone.utc)
+        and record.get("human_review") == "approved"
+    )
+
+
+def _refresh_entry_contract_valid(
+    entry: Any,
+    *,
+    as_of: datetime,
+    max_age_seconds: int,
+) -> bool:
+    if not isinstance(entry, Mapping) or set(entry) != REFRESH_ENTRY_FIELDS:
+        return False
+    canonical_seed_id = _canonical_identifier(entry.get("seed_id"))
+    if (
+        canonical_seed_id is None
+        or canonical_seed_id != entry.get("seed_id")
+        or not (
+            public_url_allowed(entry.get("url"))
+            if entry.get("role") == "discovery_only"
+            else official_public_url_allowed(entry.get("url"))
+        )
+        or entry.get("role") not in PUBLIC_SEED_ROLES
+        or entry.get("reason")
+        not in {
+            "never_fetched",
+            "stale",
+            "invalid_fetched_at",
+            "future_fetched_at",
+        }
+    ):
+        return False
+    last_fetched = entry.get("last_fetched_at")
+    if entry.get("reason") == "never_fetched":
+        return last_fetched is None
+    if entry.get("reason") == "invalid_fetched_at":
+        return _nonempty(last_fetched) and not _aware_iso_datetime(last_fetched)
+    if not _aware_iso_datetime(last_fetched):
+        return False
+    last_time = _parse_iso_datetime(str(last_fetched))
+    if entry.get("reason") == "future_fetched_at":
+        return last_time > as_of
+    return last_time <= as_of and (as_of - last_time).total_seconds() >= max_age_seconds
+
+
+def _refresh_gap_contract_valid(gap: Any) -> bool:
+    if not isinstance(gap, Mapping):
+        return False
+    allowed = REFRESH_GAP_SCOPE_FIELDS | {"reason", "action"}
+    scope = set(gap) & REFRESH_GAP_SCOPE_FIELDS
+    if not set(gap).issubset(allowed) or not scope:
+        return False
+    canonical_scope = {
+        field: _canonical_identifier(gap.get(field)) for field in scope
+    }
+    return (
+        all(
+            normalized is not None and normalized == gap.get(field)
+            for field, normalized in canonical_scope.items()
+        )
+        and (
+            "source_role" not in scope
+            or gap.get("source_role") in PUBLIC_SEED_ROLES
+        )
+        and gap.get("reason") == "coverage_gap_not_observed"
+        and _nonempty(gap.get("action"))
+    )
+
+
+def _refresh_requirement_contract_valid(requirement: Any) -> bool:
+    if not isinstance(requirement, Mapping):
+        return False
+    fields = set(requirement)
+    if not fields or not fields.issubset(REFRESH_GAP_SCOPE_FIELDS):
+        return False
+    return all(
+        _is_canonical_identifier(requirement.get(field))
+        and (
+            field != "source_role"
+            or requirement.get(field) in PUBLIC_SEED_ROLES
+        )
+        for field in fields
+    )
+
+
+def _refresh_plan_contract_valid(
+    plan: Mapping[str, Any],
+    *,
+    current_corpus_digest: str,
+    checked_through: str,
+) -> bool:
+    if not isinstance(plan, Mapping) or set(plan) != REFRESH_PLAN_FIELDS:
+        return False
+    unsigned = {key: value for key, value in plan.items() if key != "plan_id"}
+    expected_plan_id = f"refresh-plan-sha256:{canonical_digest(unsigned)}"
+    max_age_seconds = plan.get("max_age_seconds")
+    requirements = plan.get("coverage_requirements")
+    treatment_ids = plan.get("treatment_ids")
+    treatment_population_sha256 = plan.get("treatment_population_sha256")
+    entries = plan.get("entries")
+    gaps = plan.get("coverage_gaps")
+    if (
+        plan.get("plan_id") != expected_plan_id
+        or not _aware_iso_datetime(plan.get("as_of"))
+        or isinstance(max_age_seconds, bool)
+        or not isinstance(max_age_seconds, int)
+        or max_age_seconds < 0
+        or plan.get("evidence_digest")
+        != f"corpus-evidence-sha256:{current_corpus_digest}"
+        or not isinstance(requirements, list)
+        or not requirements
+        or not isinstance(treatment_ids, list)
+        or treatment_ids != sorted(set(treatment_ids))
+        or not all(
+            _is_canonical_identifier(identifier)
+            for identifier in treatment_ids
+        )
+        or not _is_sha256(treatment_population_sha256)
+        or not isinstance(entries, list)
+        or not isinstance(gaps, list)
+    ):
+        return False
+    as_of = _parse_iso_datetime(str(plan["as_of"]))
+    if as_of > datetime.now(timezone.utc):
+        return False
+    if _aware_iso_datetime(checked_through):
+        checked = _parse_iso_datetime(checked_through)
+        if as_of != checked:
+            return False
+    if not all(
+        _refresh_entry_contract_valid(
+            entry,
+            as_of=as_of,
+            max_age_seconds=max_age_seconds,
+        )
+        for entry in entries
+    ):
+        return False
+    if not all(_refresh_requirement_contract_valid(item) for item in requirements):
+        return False
+    if not all(_refresh_gap_contract_valid(gap) for gap in gaps):
+        return False
+    requirement_digests = {canonical_digest(item) for item in requirements}
+    gap_scope_digests = {
+        canonical_digest(
+            {field: gap[field] for field in REFRESH_GAP_SCOPE_FIELDS if field in gap}
+        )
+        for gap in gaps
+    }
+    return (
+        len(requirement_digests) == len(requirements)
+        and gap_scope_digests.issubset(requirement_digests)
+        and len({entry["seed_id"] for entry in entries}) == len(entries)
+        and len({canonical_digest(gap) for gap in gaps}) == len(gaps)
+    )
 
 
 def _validate_stage_observation(observation: Mapping[str, Any]) -> list[str]:
@@ -1044,6 +1960,7 @@ def build_uncertainty_profile(
             pending_treatments,
             verified_treatments,
             rejected_treatments,
+            superseded_treatments,
             invalid_resolved_treatments,
             _,
         ) = (
@@ -1063,7 +1980,12 @@ def build_uncertainty_profile(
             authority_usable = True
         authority_dimension = _dimension(
             authority_state,
-            evidence_refs=[*pending_treatments, *verified_treatments, *rejected_treatments],
+            evidence_refs=[
+                *pending_treatments,
+                *verified_treatments,
+                *rejected_treatments,
+                *superseded_treatments,
+            ],
             unknowns=[*pending_treatments, *invalid_resolved_treatments],
             claim_effect=authority_effect,
             review_complete=authority_usable,
@@ -1237,9 +2159,15 @@ def build_coding_audit_plan(
 ) -> dict[str, Any]:
     """Freeze a deterministic independent-coding and exclusion-audit sample."""
 
-    if not _nonempty(plan_sha256):
-        raise ValueError("plan_sha256 is required")
-    if sample_size < 0 or exclusion_sample_size < 0:
+    if not _is_sha256(plan_sha256):
+        raise ValueError(
+            "Параметр --plan-sha256 должен содержать 64 "
+            "строчные шестнадцатеричные цифры."
+        )
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in (sample_size, exclusion_sample_size)
+    ):
         raise ValueError("sample sizes must be non-negative")
     screening_records = [
         dict(item) if isinstance(item, Mapping) else item
@@ -1259,6 +2187,11 @@ def build_coding_audit_plan(
     primary, duplicate_primary, invalid_primary_record_ids = _index_unique(
         sorted_primary_records,
         record_kind="primary",
+    )
+    invalid_primary_record_ids = sorted(
+        set(invalid_primary_record_ids)
+        | set(_invalid_coding_record_ids(primary))
+        | (set(candidates) - set(primary))
     )
     if duplicate_candidates:
         raise ValueError("duplicate screening candidates: " + ", ".join(duplicate_candidates))
@@ -1331,9 +2264,20 @@ def assess_coding_reliability(
         sorted_primary_records,
         record_kind="primary",
     )
+    current_invalid_primary_ids = sorted(
+        set(current_invalid_primary_ids) | set(_invalid_coding_record_ids(primary))
+    )
     audits, duplicate_audits, invalid_audit_record_ids = _index_unique(
         sorted_audit_records,
         record_kind="audit",
+    )
+    invalid_audit_record_ids = sorted(
+        set(invalid_audit_record_ids)
+        | {
+            identifier
+            for identifier, record in audits.items()
+            if not _coding_audit_record_contract_valid(record, identifier)
+        }
     )
     (
         adjudication_map,
@@ -1343,12 +2287,30 @@ def assess_coding_reliability(
         sorted_adjudication_records,
         record_kind="adjudication",
     )
+    invalid_adjudication_record_ids = sorted(
+        set(invalid_adjudication_record_ids)
+        | {
+            identifier
+            for identifier, record in adjudication_map.items()
+            if not _coding_adjudication_contract_valid(record, identifier)
+        }
+    )
     required = sorted(set(_unique_strings(audit_plan.get("required_candidate_ids", []))))
+    invalid_audit_record_ids = sorted(
+        set(invalid_audit_record_ids) | (set(audits) - set(required))
+    )
     current_primary_sha256 = canonical_digest(sorted_primary_records)
+    audit_plan_input_sha256 = canonical_digest(dict(audit_plan))
+    audit_decisions_sha256 = canonical_digest(sorted_audit_records)
+    adjudications_sha256 = canonical_digest(sorted_adjudication_records)
     plan_payload = {
         key: value for key, value in audit_plan.items() if key != "audit_plan_sha256"
     }
-    plan_digest_valid = audit_plan.get("audit_plan_sha256") == canonical_digest(plan_payload)
+    plan_contract_valid = _coding_audit_plan_contract_valid(audit_plan)
+    plan_digest_valid = (
+        _is_sha256(audit_plan.get("audit_plan_sha256"))
+        and audit_plan.get("audit_plan_sha256") == canonical_digest(plan_payload)
+    )
     plan_frozen = audit_plan.get("frozen") is True
 
     def plan_invalid_ids(field: str) -> list[str]:
@@ -1367,6 +2329,7 @@ def assess_coding_reliability(
     stale = (
         audit_plan.get("primary_coding_sha256") != current_primary_sha256
         or not plan_digest_valid
+        or not plan_contract_valid
         or not plan_frozen
         or bool(duplicate_primary)
     )
@@ -1378,9 +2341,12 @@ def assess_coding_reliability(
     audited: list[str] = []
     invalid_binding_ids: list[str] = []
     invalid_provenance_ids: list[str] = []
+    used_adjudication_ids: set[str] = set()
 
     if stale:
         unresolved.update(required)
+    if not plan_contract_valid:
+        unresolved.add("audit-plan-contract-invalid")
     unresolved.update(duplicate_audits)
     unresolved.update(duplicate_adjudications)
     unresolved.update(invalid_screening_record_ids)
@@ -1397,16 +2363,41 @@ def assess_coding_reliability(
             continue
         audited.append(identifier)
         primary_sha256 = canonical_digest(primary_record)
+        if identifier in invalid_audit_record_ids:
+            unresolved.add(identifier)
+            continue
         secondary = audit.get("secondary_coding")
         if not isinstance(secondary, Mapping):
             invalid_binding_ids.append(identifier)
             unresolved.add(identifier)
             continue
         secondary_record = dict(secondary)
+        if (
+            _candidate_id(secondary_record) != identifier
+            or secondary_record.get("candidate_id") != identifier
+        ):
+            invalid_binding_ids.append(identifier)
+            unresolved.add(identifier)
+            continue
         secondary_sha256 = canonical_digest(secondary_record)
         if (
             audit.get("primary_coding_sha256") != primary_sha256
             or audit.get("secondary_coding_sha256") != secondary_sha256
+        ):
+            invalid_binding_ids.append(identifier)
+            unresolved.add(identifier)
+            continue
+        if validate_coding_record(secondary_record):
+            invalid_audit_record_ids.append(identifier)
+            unresolved.add(identifier)
+            continue
+        if (
+            not _audit_coding_identity_valid(primary_record)
+            or not _audit_coding_identity_valid(secondary_record)
+            or any(
+                primary_record.get(field) != secondary_record.get(field)
+                for field in ("chain_id", "document_id", "codebook_version")
+            )
         ):
             invalid_binding_ids.append(identifier)
             unresolved.add(identifier)
@@ -1416,10 +2407,10 @@ def assess_coding_reliability(
         ):
             invalid_provenance_ids.append(identifier)
             unresolved.add(identifier)
-        primary_coder = primary_record.get("coder")
-        secondary_coder = secondary_record.get("coder")
-        if not _nonempty(primary_coder) or not _nonempty(secondary_coder) or (
-            str(primary_coder).strip() == str(secondary_coder).strip()
+        primary_coder = _canonical_reviewer(primary_record.get("coder"))
+        secondary_coder = _canonical_reviewer(secondary_record.get("coder"))
+        if primary_coder is None or secondary_coder is None or (
+            primary_coder == secondary_coder
         ):
             same_reviewer.append(identifier)
             unresolved.add(identifier)
@@ -1439,24 +2430,28 @@ def assess_coding_reliability(
             }
             adjudication = adjudication_map.get(identifier)
             if isinstance(adjudication, Mapping):
+                used_adjudication_ids.add(identifier)
                 resolved_fields = adjudication.get("resolved_fields")
-                adjudicator = adjudication.get("adjudicator")
+                adjudicator = _canonical_reviewer(adjudication.get("adjudicator"))
+                resolved_coding = dict(primary_record)
+                if isinstance(resolved_fields, Mapping):
+                    resolved_coding.update(resolved_fields)
                 adjudication_valid = (
-                    adjudication.get("primary_coding_sha256") == primary_sha256
+                    identifier not in invalid_adjudication_record_ids
+                    and adjudication.get("primary_coding_sha256") == primary_sha256
                     and adjudication.get("secondary_coding_sha256") == secondary_sha256
                     and isinstance(resolved_fields, Mapping)
-                    and set(differing_fields).issubset(resolved_fields)
-                    and _nonempty(adjudicator)
-                    and str(adjudicator).strip()
-                    not in {str(primary_coder).strip(), str(secondary_coder).strip()}
-                    and adjudication.get("human_review") == "approved"
-                    and _valid_iso(adjudication.get("reviewed_at"))
+                    and set(resolved_fields) == set(differing_fields)
+                    and adjudicator is not None
+                    and adjudicator not in {primary_coder, secondary_coder}
+                    and not validate_coding_record(resolved_coding)
+                    and _audit_coding_identity_valid(resolved_coding)
                 )
                 if adjudication_valid:
                     disagreement["resolved"] = True
                     disagreement["adjudication_sha256"] = canonical_digest(adjudication)
                 else:
-                    invalid_binding_ids.append(identifier)
+                    invalid_adjudication_record_ids.append(identifier)
             if not disagreement["resolved"]:
                 unresolved.add(identifier)
             field_disagreements.append(disagreement)
@@ -1483,16 +2478,35 @@ def assess_coding_reliability(
                 }
             )
 
+    invalid_adjudication_record_ids = sorted(
+        set(invalid_adjudication_record_ids)
+        | (set(adjudication_map) - used_adjudication_ids)
+    )
     unresolved.update(duplicate_primary)
     unresolved.update(invalid_binding_ids)
     unresolved.update(invalid_provenance_ids)
+    unresolved.update(invalid_audit_record_ids)
+    unresolved.update(invalid_adjudication_record_ids)
+    invalid_audit_record_ids = sorted(set(invalid_audit_record_ids))
     payload = {
         "schema_version": SCHEMA_VERSION,
-        "audit_plan_sha256": audit_plan.get("audit_plan_sha256"),
+        "audit_plan_input_sha256": audit_plan_input_sha256,
+        "audit_plan_sha256": (
+            audit_plan.get("audit_plan_sha256")
+            if _is_sha256(audit_plan.get("audit_plan_sha256"))
+            else None
+        ),
         "audit_plan_frozen": plan_frozen,
+        "audit_plan_contract_valid": plan_contract_valid,
         "audit_plan_digest_valid": plan_digest_valid,
-        "primary_coding_sha256": audit_plan.get("primary_coding_sha256"),
+        "primary_coding_sha256": (
+            audit_plan.get("primary_coding_sha256")
+            if _is_sha256(audit_plan.get("primary_coding_sha256"))
+            else None
+        ),
         "current_primary_coding_sha256": current_primary_sha256,
+        "audit_decisions_sha256": audit_decisions_sha256,
+        "adjudications_sha256": adjudications_sha256,
         "required_candidate_ids": required,
         "audited_candidate_ids": sorted(set(audited)),
         "missing_candidate_ids": sorted(set(missing)),
@@ -1509,6 +2523,7 @@ def assess_coding_reliability(
         "stale": stale,
         "complete": bool(required)
         and not stale
+        and plan_contract_valid
         and not missing
         and not same_reviewer
         and not invalid_binding_ids
@@ -1534,6 +2549,7 @@ def assess_prefiling_refresh(
     reviewer: str,
     reviewed_at: str,
     claim_ids: Iterable[str] = (),
+    live_corpus_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assess a bounded pre-filing refresh, including unresolved treatments."""
 
@@ -1543,12 +2559,29 @@ def assess_prefiling_refresh(
     ):
         if not _is_sha256(value):
             raise ValueError(f"{field} must be a lowercase SHA-256 digest")
-    if not _nonempty(reviewer):
-        raise ValueError("reviewer is required")
-    if not _valid_iso(reviewed_at):
-        raise ValueError("reviewed_at must be an ISO timestamp")
-    if not _valid_iso(checked_through) or not _valid_iso(filing_cutoff):
-        raise ValueError("checked_through and filing_cutoff must be ISO timestamps")
+    if not _is_sha256(subject_evidence_sha256):
+        raise ValueError(
+            "Параметр --subject-evidence-sha256 должен содержать 64 "
+            "строчные шестнадцатеричные цифры."
+        )
+    if not _is_canonical_identifier(reviewer):
+        raise ValueError(
+            "reviewer должен быть видимым каноническим идентификатором проверяющего"
+        )
+    if not all(
+        _valid_iso_datetime(value)
+        for value in (checked_through, filing_cutoff, reviewed_at)
+    ):
+        raise ValueError(
+            "Параметры --checked-through, --filing-cutoff и --reviewed-at "
+            "должны содержать дату и время в формате ISO 8601."
+        )
+
+    refresh_plan_contract_valid = _refresh_plan_contract_valid(
+        refresh_plan,
+        current_corpus_digest=current_corpus_digest,
+        checked_through=checked_through,
+    )
 
     raw_entries = refresh_plan.get("entries", [])
     entries: list[Mapping[str, Any]] = []
@@ -1568,12 +2601,29 @@ def assess_prefiling_refresh(
             f"refresh-entries-container-{canonical_digest(raw_entries)[:12]}"
         )
 
+    raw_requirements = refresh_plan.get("coverage_requirements")
+    coverage_requirements: list[dict[str, Any]] = []
+    malformed_coverage_requirement_ids: list[str] = []
+    if isinstance(raw_requirements, list):
+        for index, item in enumerate(raw_requirements, start=1):
+            if _refresh_requirement_contract_valid(item):
+                coverage_requirements.append(dict(item))
+            else:
+                malformed_coverage_requirement_ids.append(
+                    f"coverage-requirement-{index}-{canonical_digest(item)[:12]}"
+                )
+    else:
+        malformed_coverage_requirement_ids.append(
+            "coverage-requirements-container-"
+            + canonical_digest(raw_requirements)[:12]
+        )
+
     raw_gaps = refresh_plan.get("coverage_gaps", [])
     gaps: list[dict[str, Any]] = []
     malformed_coverage_gap_ids: list[str] = []
     if isinstance(raw_gaps, list):
         for index, item in enumerate(raw_gaps, start=1):
-            if isinstance(item, Mapping) and _nonempty(item.get("reason")):
+            if _refresh_gap_contract_valid(item):
                 gaps.append(dict(item))
             else:
                 malformed_coverage_gap_ids.append(
@@ -1583,14 +2633,36 @@ def assess_prefiling_refresh(
         malformed_coverage_gap_ids.append(
             f"coverage-gaps-container-{canonical_digest(raw_gaps)[:12]}"
         )
+    (
+        raw_treatment_items,
+        treatment_set_contract_valid,
+        treatment_set_sha256,
+        treatment_set_corpus_evidence_digest,
+        treatment_set_population_sha256,
+    ) = _treatment_set_contract(
+        treatments,
+        current_corpus_digest=current_corpus_digest,
+        expected_treatment_ids=refresh_plan.get("treatment_ids"),
+        expected_treatment_population_sha256=refresh_plan.get(
+            "treatment_population_sha256"
+        ),
+    )
     treatment_list = [
-        dict(item) if isinstance(item, Mapping) else item for item in treatments
+        dict(item) if isinstance(item, Mapping) else item
+        for item in raw_treatment_items
     ]
+    treatment_set_integrity_issue_ids = (
+        list(treatments.get("integrity_issue_ids", []))
+        if isinstance(treatments, Mapping)
+        and isinstance(treatments.get("integrity_issue_ids"), list)
+        else []
+    )
     treatment_digest_records = sorted(treatment_list, key=canonical_digest)
     (
         pending_treatment_ids,
         verified_treatment_ids,
         rejected_treatment_ids,
+        superseded_treatment_ids,
         invalid_resolved_treatment_ids,
         treatment_chronology_issue_ids,
     ) = _classify_treatments(
@@ -1604,14 +2676,99 @@ def assess_prefiling_refresh(
             if item.get("seed_id") or item.get("url") or item.get("reason")
         }
     )
-    claims = sorted(set(_unique_strings(claim_ids)))
+    raw_claim_ids = list(claim_ids)
+    if (
+        any(
+            not _is_canonical_identifier(claim_id)
+            for claim_id in raw_claim_ids
+        )
+        or len(set(raw_claim_ids)) != len(raw_claim_ids)
+    ):
+        raise ValueError(
+            "Каждый параметр --claim-id должен содержать уникальный непустой "
+            "канонический идентификатор."
+        )
+    claims = sorted(raw_claim_ids)
+    plan_payload = dict(refresh_plan)
+    raw_plan_as_of = refresh_plan.get("as_of")
+    raw_plan_max_age = refresh_plan.get("max_age_seconds")
+    raw_plan_evidence = refresh_plan.get("evidence_digest")
+    raw_plan_treatment_ids = refresh_plan.get("treatment_ids")
+    raw_plan_treatment_population_sha256 = refresh_plan.get(
+        "treatment_population_sha256"
+    )
+
+    binding = (
+        dict(live_corpus_binding)
+        if isinstance(live_corpus_binding, Mapping)
+        else {}
+    )
+    live_treatment_ids = binding.get("live_treatment_ids")
+    live_binding_issue_ids = binding.get("issue_ids")
+    live_corpus_binding_contract_valid = (
+        set(binding) == LIVE_CORPUS_BINDING_FIELDS
+        and binding.get("binding_version") == "1.0"
+        and isinstance(binding.get("verified"), bool)
+        and isinstance(binding.get("live_cache_stable"), bool)
+        and isinstance(binding.get("live_corpus_evidence_digest"), str)
+        and re.fullmatch(
+            r"corpus-evidence-sha256:[0-9a-f]{64}",
+            binding["live_corpus_evidence_digest"],
+        )
+        is not None
+        and (
+            binding.get("live_refresh_plan_sha256") is None
+            or _is_sha256(binding.get("live_refresh_plan_sha256"))
+        )
+        and (
+            binding.get("live_treatment_set_sha256") is None
+            or _is_sha256(binding.get("live_treatment_set_sha256"))
+        )
+        and _is_sha256(binding.get("live_treatment_population_sha256"))
+        and _unique_nonempty_string_list(live_treatment_ids)
+        and live_treatment_ids == sorted(live_treatment_ids)
+        and _unique_nonempty_string_list(live_binding_issue_ids)
+    )
+    live_corpus_binding_verified = bool(
+        live_corpus_binding_contract_valid
+        and binding.get("verified") is True
+        and binding.get("live_cache_stable") is True
+        and binding.get("issue_ids") == []
+        and binding.get("live_corpus_evidence_digest")
+        == f"corpus-evidence-sha256:{current_corpus_digest}"
+        and binding.get("live_refresh_plan_sha256")
+        == canonical_digest(dict(refresh_plan))
+        and binding.get("live_treatment_set_sha256") == treatment_set_sha256
+        and binding.get("live_treatment_population_sha256")
+        == raw_plan_treatment_population_sha256
+        and binding.get("live_treatment_population_sha256")
+        == treatment_set_population_sha256
+        and live_treatment_ids == raw_plan_treatment_ids
+    )
+    if live_corpus_binding_contract_valid:
+        normalized_live_binding_issues = list(live_binding_issue_ids)
+        if not live_corpus_binding_verified and not normalized_live_binding_issues:
+            normalized_live_binding_issues = ["live_corpus_binding_claim_invalid"]
+    elif live_corpus_binding is None:
+        normalized_live_binding_issues = ["live_corpus_binding_missing"]
+    else:
+        normalized_live_binding_issues = ["live_corpus_binding_contract_invalid"]
+
     reasons: list[str] = []
     material_change = baseline_corpus_digest != current_corpus_digest
-    checked_time = datetime.fromisoformat(checked_through.replace("Z", "+00:00"))
-    cutoff_time = datetime.fromisoformat(filing_cutoff.replace("Z", "+00:00"))
-    reviewed_time = datetime.fromisoformat(reviewed_at.replace("Z", "+00:00"))
+    checked_time = _parse_iso_datetime(checked_through)
+    cutoff_time = _parse_iso_datetime(filing_cutoff)
+    reviewed_time = _parse_iso_datetime(reviewed_at)
+    evaluation_time = datetime.now(timezone.utc)
+    timestamps_in_future = any(
+        value.utcoffset() is not None and value > evaluation_time
+        for value in (checked_time, reviewed_time)
+    )
     timezone_mismatch = (checked_time.utcoffset() is None) != (
         cutoff_time.utcoffset() is None
+    )
+    timezone_missing = any(
+        value.utcoffset() is None for value in (checked_time, cutoff_time, reviewed_time)
     )
     timing_valid = not timezone_mismatch and checked_time >= cutoff_time
     reviewed_timezone_mismatch = (reviewed_time.utcoffset() is None) != (
@@ -1624,15 +2781,38 @@ def assess_prefiling_refresh(
     if material_change:
         status = "material_change_requires_reanalysis"
         reasons.append("public_corpus_digest_changed")
-    elif malformed_refresh_entry_ids or malformed_coverage_gap_ids:
+    elif not refresh_plan_contract_valid:
+        status = "refresh_incomplete"
+        reasons.append("refresh_plan_contract_invalid")
+        if timestamps_in_future:
+            reasons.append("timestamp_in_future")
+        if malformed_refresh_entry_ids:
+            reasons.append("malformed_refresh_plan_entries")
+        if malformed_coverage_gap_ids:
+            reasons.append("malformed_coverage_gaps")
+        if malformed_coverage_requirement_ids:
+            reasons.append("malformed_coverage_requirements")
+    elif (
+        malformed_refresh_entry_ids
+        or malformed_coverage_requirement_ids
+        or malformed_coverage_gap_ids
+    ):
         status = "refresh_incomplete"
         if malformed_refresh_entry_ids:
             reasons.append("malformed_refresh_plan_entries")
+        if malformed_coverage_requirement_ids:
+            reasons.append("malformed_coverage_requirements")
         if malformed_coverage_gap_ids:
             reasons.append("malformed_coverage_gaps")
     elif stale_seed_ids:
         status = "refresh_incomplete"
         reasons.append("stale_or_unfetched_public_seeds")
+    elif not treatment_set_contract_valid:
+        status = "refresh_incomplete"
+        reasons.append("treatment_set_contract_invalid")
+    elif treatment_set_integrity_issue_ids:
+        status = "refresh_incomplete"
+        reasons.append("live_cache_integrity_invalid")
     elif pending_treatment_ids:
         status = "refresh_incomplete"
         reasons.append("pending_treatment_review")
@@ -1640,18 +2820,35 @@ def assess_prefiling_refresh(
             reasons.append("resolved_treatment_lacks_content_bound_human_review")
         if treatment_chronology_issue_ids:
             reasons.append("treatment_review_chronology_invalid")
+    elif timestamps_in_future:
+        status = "refresh_incomplete"
+        reasons.append("timestamp_in_future")
     elif timezone_mismatch:
         status = "refresh_incomplete"
         reasons.append("timestamp_timezone_mismatch")
     elif reviewed_timezone_mismatch:
         status = "refresh_incomplete"
         reasons.append("reviewed_at_timezone_mismatch")
+    elif timezone_missing:
+        status = "refresh_incomplete"
+        reasons.append("timestamp_timezone_missing")
     elif not reviewed_after_check:
         status = "refresh_incomplete"
         reasons.append("reviewed_at_before_checked_through")
     elif not timing_valid:
         status = "refresh_incomplete"
         reasons.append("checked_through_before_filing_cutoff")
+    elif not claims:
+        status = "refresh_incomplete"
+        reasons.append("claim_scope_missing")
+    elif not live_corpus_binding_verified:
+        status = "refresh_incomplete"
+        if live_corpus_binding is None:
+            reasons.append("live_corpus_binding_missing")
+        elif not live_corpus_binding_contract_valid:
+            reasons.append("live_corpus_binding_contract_invalid")
+        else:
+            reasons.append("live_corpus_binding_mismatch")
     elif gaps:
         status = "bounded_current_with_disclosed_gaps"
         reasons.append("unchanged_disclosed_coverage_gaps")
@@ -1663,27 +2860,111 @@ def assess_prefiling_refresh(
         "bounded_current_with_disclosed_gaps",
     }
     affected_claim_ids = [] if complete else claims
-    plan_payload = dict(refresh_plan)
     payload = {
         "schema_version": SCHEMA_VERSION,
         "baseline_corpus_digest": baseline_corpus_digest,
         "current_corpus_digest": current_corpus_digest,
         "subject_evidence_sha256": subject_evidence_sha256,
-        "refresh_plan_id": refresh_plan.get("plan_id"),
+        "refresh_plan_id": (
+            refresh_plan.get("plan_id")
+            if _nonempty(refresh_plan.get("plan_id"))
+            else None
+        ),
         "refresh_plan_sha256": canonical_digest(plan_payload),
+        "refresh_plan_contract_valid": refresh_plan_contract_valid,
+        "refresh_plan_as_of": (
+            raw_plan_as_of if _aware_iso_datetime(raw_plan_as_of) else None
+        ),
+        "refresh_plan_max_age_seconds": (
+            raw_plan_max_age
+            if isinstance(raw_plan_max_age, int)
+            and not isinstance(raw_plan_max_age, bool)
+            and raw_plan_max_age >= 0
+            else None
+        ),
+        "refresh_plan_evidence_digest": (
+            raw_plan_evidence
+            if isinstance(raw_plan_evidence, str)
+            and re.fullmatch(
+                r"corpus-evidence-sha256:[0-9a-f]{64}", raw_plan_evidence
+            )
+            else None
+        ),
+        "refresh_plan_treatment_ids": (
+            list(raw_plan_treatment_ids)
+            if isinstance(raw_plan_treatment_ids, list)
+            and raw_plan_treatment_ids == sorted(set(raw_plan_treatment_ids))
+            and all(
+                _is_canonical_identifier(identifier)
+                for identifier in raw_plan_treatment_ids
+            )
+            else []
+        ),
+        "refresh_plan_treatment_population_sha256": (
+            raw_plan_treatment_population_sha256
+            if _is_sha256(raw_plan_treatment_population_sha256)
+            else None
+        ),
+        "refresh_plan_coverage_requirements": coverage_requirements,
+        "refresh_plan_coverage_requirements_sha256": (
+            canonical_digest(coverage_requirements)
+            if coverage_requirements
+            and not malformed_coverage_requirement_ids
+            else None
+        ),
         "checked_through": checked_through,
         "filing_cutoff": filing_cutoff,
         "reviewer": reviewer,
         "reviewed_at": reviewed_at,
         "claim_ids": claims,
         "affected_claim_ids": affected_claim_ids,
+        "live_binding_version": binding.get("binding_version"),
+        "live_corpus_binding_contract_valid": live_corpus_binding_contract_valid,
+        "live_corpus_binding_verified": live_corpus_binding_verified,
+        "live_cache_stable": (
+            binding.get("live_cache_stable")
+            if isinstance(binding.get("live_cache_stable"), bool)
+            else False
+        ),
+        "live_corpus_evidence_digest": (
+            binding.get("live_corpus_evidence_digest")
+            if isinstance(binding.get("live_corpus_evidence_digest"), str)
+            else None
+        ),
+        "live_refresh_plan_sha256": (
+            binding.get("live_refresh_plan_sha256")
+            if _is_sha256(binding.get("live_refresh_plan_sha256"))
+            else None
+        ),
+        "live_treatment_set_sha256": (
+            binding.get("live_treatment_set_sha256")
+            if _is_sha256(binding.get("live_treatment_set_sha256"))
+            else None
+        ),
+        "live_treatment_population_sha256": (
+            binding.get("live_treatment_population_sha256")
+            if _is_sha256(binding.get("live_treatment_population_sha256"))
+            else None
+        ),
+        "live_treatment_ids": (
+            list(live_treatment_ids)
+            if _unique_nonempty_string_list(live_treatment_ids)
+            else []
+        ),
+        "live_binding_issue_ids": normalized_live_binding_issues,
+        "treatment_set_contract_valid": treatment_set_contract_valid,
+        "treatment_set_sha256": treatment_set_sha256,
+        "treatment_set_corpus_evidence_digest": treatment_set_corpus_evidence_digest,
+        "treatment_set_population_sha256": treatment_set_population_sha256,
         "treatments_sha256": canonical_digest(treatment_digest_records),
         "pending_treatment_ids": pending_treatment_ids,
         "verified_treatment_ids": verified_treatment_ids,
         "rejected_treatment_ids": rejected_treatment_ids,
+        "superseded_treatment_ids": superseded_treatment_ids,
         "treatment_chronology_issue_ids": treatment_chronology_issue_ids,
         "stale_seed_ids": stale_seed_ids,
         "malformed_refresh_entry_ids": malformed_refresh_entry_ids,
+        "malformed_coverage_requirement_ids": malformed_coverage_requirement_ids,
         "malformed_coverage_gap_ids": malformed_coverage_gap_ids,
         "coverage_gaps": gaps,
         "reasons": reasons,

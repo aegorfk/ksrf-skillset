@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 
+# Public read-only commands must not mutate a clean installed skill with bytecode
+# caches merely because the user asked for help or ran a quality gate.
+sys.dont_write_bytecode = True
+
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 LIB = SKILL_ROOT / "lib"
 LIB_PATH = str(LIB)

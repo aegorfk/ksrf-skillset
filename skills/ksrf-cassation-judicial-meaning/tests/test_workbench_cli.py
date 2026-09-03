@@ -601,11 +601,18 @@ class WorkbenchCliTests(unittest.TestCase):
             self.assertTrue(json.loads(stdout)["imported"])
 
             cache = root / "cache"
+            coverage_requirements = root / "coverage-requirements.json"
+            write_json(coverage_requirements, [{"court_id": "2kas"}])
             for argv in (
                 ["cache", "init", "--root", str(cache)],
                 ["cache", "register-seed", "--root", str(cache), "--url", "https://2kas.sudrf.ru/modules.php?name=sud_delo", "--role", "official_user_seed"],
                 ["cache", "search", "--root", str(cache), "--query", "премия"],
-                ["cache", "refresh-plan", "--root", str(cache), "--as-of", "2026-08-26T00:00:00Z", "--max-age-seconds", "86400"],
+                [
+                    "cache", "refresh-plan", "--root", str(cache),
+                    "--as-of", "2026-08-26T00:00:00Z",
+                    "--max-age-seconds", "86400",
+                    "--coverage-requirements", str(coverage_requirements),
+                ],
             ):
                 code, _, stderr = self.run_cli(argv)
                 self.assertEqual(0, code, stderr)
@@ -1036,7 +1043,10 @@ class WorkbenchCliTests(unittest.TestCase):
             target_identity_path = root / "target-identity.json"
             package = root / "package"
             raw_path.write_bytes("<html>Премия взыскана</html>".encode("utf-8"))
-            text_path.write_text("Суд взыскал премию работнику.", encoding="utf-8")
+            text_path.write_text(
+                "Суд взыскал премию работнику. Суд применил 23-П.",
+                encoding="utf-8",
+            )
             write_json(parser_path, {"adapter_id": "manual_public_import", "parser_version": "1"})
             write_json(
                 target_identity_path,
@@ -1059,6 +1069,9 @@ class WorkbenchCliTests(unittest.TestCase):
                     "--content-type", "text/html; charset=utf-8",
                     "--fetched-at", "2026-08-26T00:00:00Z",
                     "--parser-manifest", str(parser_path), "--text", str(text_path),
+                    "--document-id", "document-public",
+                    "--chain-id", "chain-public",
+                    "--query-lane", "higher_authority",
                 ]
             )
             self.assertEqual(0, code, stderr)
@@ -1091,7 +1104,7 @@ class WorkbenchCliTests(unittest.TestCase):
                     "--reviewer", "И.И. Иванов", "--quote", "Суд применил 23-П",
                     "--locator", "абзац 17", "--speaker", "court",
                     "--confirmed-target-authority-id", "ksrf-23p",
-                    "--target-identity-confirmed", "--reviewed-at", "2026-08-26T00:05:00Z",
+                    "--target-identity-confirmed",
                 ]
             )
             self.assertEqual(0, code, stderr)

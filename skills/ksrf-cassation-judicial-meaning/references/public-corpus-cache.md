@@ -49,7 +49,10 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --content-type application/pdf \
   --fetched-at 2026-08-27T10:00:00Z \
   --parser-manifest ./parser-manifest.json \
-  --text ./official-act.txt
+  --text ./official-act.txt \
+  --document-id 2kas-act-123 \
+  --chain-id 2kas:case-123 \
+  --query-lane higher_authority
 
 python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache search \
   --root ./cassation-public-cache \
@@ -57,7 +60,9 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --limit 20
 ```
 
-SQLite хранит seeds, observations, immutable snapshots, run pins, индексированный текст, воронку полного текста и treatment history. Поисковый hit возвращает snapshot/document/chain candidate, query lane, source URL/role и locator; это discovery evidence, пока не завершено юридическое полнотекстовое кодирование. Используется FTS5; при его отсутствии включается раскрытый детерминированный fallback, а при последующем появлении FTS5 тексты индексируются без повторной загрузки.
+SQLite хранит seeds, observations, immutable snapshots, run pins, индексированный текст, воронку полного текста и treatment history. Для акта, который будет источником treatment, вместе с `--text` явно передай канонические `--document-id`, `--chain-id` и `--query-lane`: quality-export должен связать review именно с этим индексированным полным текстом и судебной цепочкой. Поисковый hit возвращает snapshot/document/chain candidate, query lane, source URL/role и locator; это discovery evidence, пока не завершено юридическое полнотекстовое кодирование. Используется FTS5; при его отсутствии включается раскрытый детерминированный fallback, а при последующем появлении FTS5 тексты индексируются без повторной загрузки.
+
+`corpus_evidence_digest` связывает не только seeds и snapshots, но и множество уникальных пар `seed_id` ↔ `snapshot_id` из observations. Новая distinct-привязка snapshot к другому seed (включая seed другой source-role) материальна и меняет digest. Повторное получение тех же bytes тем же seed создаёт лишь ещё одно observation той же пары: различия только в `fetched_at`, `content_type` или parser metadata не меняют evidence digest. Эти metadata остаются в истории и могут влиять на планирование свежести, но не выдают идентичный re-fetch за новое содержание или новый source binding.
 
 ## 3. Воронка полного текста
 
@@ -76,7 +81,7 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --chain-id 2kas:case-123 \
   --status enumerated \
   --snapshot-id snapshot-sha256:<sha256> \
-  --source-role official_enumerator_observation \
+  --source-role official_user_seed \
   --court-id 2kas \
   --period-id post-2019 \
   --enumerator-id ksoyu_daily_v2
@@ -92,6 +97,8 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
 ```
 
 Повторяйте `record` для каждого реально достигнутого этапа. Отчёт показывает текущие состояния, переходы и разрезы по source role, court, period и enumerator; URL/PDF не подменяют число независимых одобренных цепочек.
+
+`source-role` должна совпадать с ролью seed, через observation которого получен effective snapshot. Если нужен `official_enumerator_observation`, сначала зарегистрируй и ingest именно seed этой роли. Подмена роли при funnel record или перенос роли на snapshot другого seed отклоняются.
 
 ## 4. Treatment: последующее обращение с авторитетной позицией
 
@@ -110,7 +117,17 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --snapshot-id snapshot-sha256:<sha256>
 ```
 
-Допустимые типы: `applies`, `follows`, `distinguishes`, `limits`, `rejects`, `does_not_reach`, `supersedes`, `unclear`. Candidate не имеет доказательственной силы. Для `verified` нужны совпадающий authority ID, подтверждённая structured identity, speaker именно `court`, точная цитата, locator, reviewer и ISO timestamp:
+Допустимые типы: `applies`, `follows`, `distinguishes`, `limits`, `rejects`, `does_not_reach`, `supersedes`, `unclear`. `source-chain-id`, `source-court-id`, `target-authority-id` и `target-kind` должны быть непустыми каноническими идентификаторами: без лишних пробелов и управляющих/форматирующих символов. Candidate не имеет доказательственной силы.
+
+Для `verified` одновременно нужны:
+
+- индексированный официальный полный текст, чей `snapshot_id` и `chain-id` совпадают с candidate;
+- совпадающий authority ID и вручную подтверждённая structured identity;
+- speaker именно `court`, точная найденная в индексированном тексте цитата и locator;
+- канонический reviewer и `reviewed-at` в полной форме RFC 3339 с секундами и часовым поясом, не в будущем и не раньше неизменяемого `created_at` candidate;
+- отсутствие `decision-reason`, потому что это не отклонение.
+
+Команда:
 
 ```bash
 KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
@@ -125,6 +142,28 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --confirmed-target-authority-id ksrf:23-p:2023 \
   --target-identity-confirmed \
   --reviewed-at 2026-08-27T11:00:00Z
+```
+
+Для `rejected` причина обязательна, но выдумывать цитату не нужно. Review всё равно требует индексированный официальный полный текст той же цепочки. Если цитата не используется, не передавай `--quote`, `--locator` и `--speaker`; если используется, она должна присутствовать в полном тексте, иметь locator и speaker `court`:
+
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment review \
+  --root ./cassation-public-cache \
+  --treatment-id treatment-sha256:<sha256> \
+  --decision rejected \
+  --reviewer "И.И. Иванов" \
+  --decision-reason 'Целевой акт не рассматривается судом в мотивировке' \
+  --reviewed-at 2026-08-27T11:00:00Z
+```
+
+После завершения review создай полный quality-export:
+
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment quality-export \
+  --root ./cassation-public-cache \
+  --output ./treatment-quality-set.json
 
 python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache treatment list \
   --root ./cassation-public-cache \
@@ -135,7 +174,11 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_mean
   --treatment-id treatment-sha256:<sha256>
 ```
 
-Review и его история неизменяемы. Новая оценка создаёт новый treatment; для явной замены используйте `--supersedes-treatment-id` при `discover`, не редактируйте прежнюю запись.
+Review и его история неизменяемы: сохранённый `review_decision` остаётся `verified` или `rejected`. Новая оценка создаёт новый treatment; для явной замены используй `--supersedes-treatment-id` при `discover`, не редактируй прежнюю запись. Replacement разрешён только для уже завершённой записи с теми же `source_chain_id` и `target_authority_id`, и у прежней записи может быть только один непосредственный replacement.
+
+Как только создан единственный replacement candidate, прежний treatment экспортируется с эффективным `status=superseded`, сохраняя исходный `review_decision` и его доказательства. Replacement остаётся `candidate`, поэтому prefiling блокируется до нового review. После него population содержит старый `superseded` и новый `verified` либо `rejected`. Ветка, цикл, отсутствующий predecessor, несовпадение взаимных ссылок или source/target identity, а также `reviewed_at < created_at` не разрешаются эвристически: quality-export сохраняет затронутые IDs как candidate/blocker.
+
+`quality-export` включает каждый treatment ID, включая candidate и resolved rows, которые не проходят content-bound проверку. Такой resolved row понижается в экспортируемый `candidate` с `quality_blockers`; он не исчезает из population. Envelope связан с текущим кешем полями `corpus_evidence_digest`, `treatment_population_sha256`, `integrity_issue_ids`, `treatment_ids` и `set_sha256` и предназначен для `quality prefiling-refresh`. Непустой `integrity_issue_ids` раскрывает повреждённый snapshot/index или нарушение ссылочной целостности и блокирует завершение. Consumer делит полную population ровно на четыре непересекающиеся группы: pending candidate, `verified`, `rejected`, `superseded`. Произвольный JSON-массив или `treatment list --verified-only` не является допустимым входом prefiling.
 
 ## 5. Run pins и переносимый public-only пакет
 
@@ -174,7 +217,13 @@ KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py" cache refresh-plan \
   --root ./cassation-public-cache \
   --as-of 2026-08-27T12:00:00Z \
-  --max-age-seconds 604800
+  --max-age-seconds 604800 \
+  --coverage-requirements ./coverage-requirements.json \
+  > ./refresh-plan.json
 ```
 
-`refresh-plan` только перечисляет устаревшие public seeds и раскрытые coverage requirements; он не запускает безграничную сеть и не обходит защиту. Повторное получение тех же bytes не меняет evidence digest; новый snapshot делает зависимый анализ потенциально устаревшим.
+`coverage-requirements.json` — непустой JSON-массив или JSONL. Каждый элемент задаёт хотя бы одно из измерений `court_id`, `period_id`, `enumerator_id`, `source_role`; другие поля, пустые/неканонические значения и неподдерживаемые source roles запрещены. Producer детерминированно удаляет дубликаты, сохраняет requirements в plan и создаёт `coverage_gap` только для точно заявленного scope, по которому нет позднего официального наблюдения: каждая попавшая в scope цепочка должна иметь стадию `full_text_extracted` или позднее, совпадающую официальную seed-role, допустимый официальный URL и целый snapshot; для `indexed` и следующих стадий нужен также целый индексированный текст. Одна успешная цепочка не скрывает blocked, раннюю, discovery-only или повреждённую соседнюю цепочку того же scope — gap остаётся.
+
+`refresh-plan` не запускает сеть и не обходит защиту. Помимо устаревших public seeds и раскрытых gaps, он фиксирует полный `treatment_ids`, `treatment_population_sha256` и текущий `evidence_digest`. Evidence digest теперь охватывает все treatment rows и всю review history, а не только verified records. Поэтому новый candidate, новое review-событие или новый snapshot делает прежний refresh/treatment pair потенциально устаревшим.
+
+Для prefiling сначала создай `treatment-quality-set.json`, затем, не изменяя кеш, `refresh-plan.json`. Оба producer-артефакта должны иметь одинаковые corpus/population bindings. Consumer требует `--corpus-root`, открывает существующий кеш без записи и заново строит оба артефакта в одной согласованной read transaction. При открытии и после чтения он сверяет SQLite 3 header, отсутствие `-wal`, `-shm`, `-journal` и статический fingerprint файла базы (device/inode, размер, `mtime_ns`, SHA-256 bytes); изменение означает TOCTOU и блокирует результат. Повреждение content-addressed object/index, symlink-компонент database/object-store или нарушение внешних ключей также блокируют проверку; для активной базы подготовь отдельную согласованную копию в `DELETE` mode. Полный вызов и коды `0`/`2`/`3` приведены в [руководстве quality-слоя](practice-quality.md#предподачная-актуальность-producer--consumer).

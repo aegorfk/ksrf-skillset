@@ -38,6 +38,10 @@ class HandoffWorkbenchTests(unittest.TestCase):
     fingerprint_sha256 = "c" * 64
     limitations = ["Только раскрытый наблюдаемый корпус."]
 
+    def test_portable_digest_rejects_non_finite_json_numbers(self):
+        with self.assertRaises(ValueError):
+            artifact_sha256({"score": float("nan")})
+
     @staticmethod
     def claim_bindings():
         return [
@@ -232,6 +236,56 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "review_complete": True,
         }
         chain = {**chain_payload, "evidence_sha256": artifact_sha256(chain_payload)}
+        audit_plan_payload = {
+            "schema_version": "1.0",
+            "plan_sha256": self.plan_sha256,
+            "screening_sha256": "7" * 64,
+            "primary_coding_sha256": "8" * 64,
+            "selection_method": "canonical_sha256_rank",
+            "sample_size": 1,
+            "exclusion_sample_size": 0,
+            "sample_candidate_ids": ["candidate-1"],
+            "exclusion_sample_candidate_ids": [],
+            "required_candidate_ids": ["candidate-1"],
+            "invalid_screening_record_ids": [],
+            "invalid_primary_record_ids": [],
+            "frozen": True,
+        }
+        audit_plan = {
+            **audit_plan_payload,
+            "audit_plan_sha256": artifact_sha256(audit_plan_payload),
+        }
+        reliability_payload = {
+            "schema_version": "1.0",
+            "audit_plan_input_sha256": artifact_sha256(audit_plan),
+            "audit_plan_sha256": audit_plan["audit_plan_sha256"],
+            "audit_plan_frozen": True,
+            "audit_plan_contract_valid": True,
+            "audit_plan_digest_valid": True,
+            "primary_coding_sha256": audit_plan["primary_coding_sha256"],
+            "current_primary_coding_sha256": audit_plan["primary_coding_sha256"],
+            "audit_decisions_sha256": "9" * 64,
+            "adjudications_sha256": artifact_sha256([]),
+            "required_candidate_ids": ["candidate-1"],
+            "audited_candidate_ids": ["candidate-1"],
+            "missing_candidate_ids": [],
+            "same_reviewer_candidate_ids": [],
+            "invalid_binding_candidate_ids": [],
+            "invalid_provenance_candidate_ids": [],
+            "invalid_screening_record_ids": [],
+            "invalid_primary_record_ids": [],
+            "invalid_audit_record_ids": [],
+            "invalid_adjudication_record_ids": [],
+            "field_disagreements": [],
+            "false_exclusion_diagnostics": [],
+            "unresolved_candidate_ids": [],
+            "stale": False,
+            "complete": True,
+        }
+        reliability = {
+            **reliability_payload,
+            "evidence_sha256": artifact_sha256(reliability_payload),
+        }
         dimensions = {
             name: {
                 "state": "reviewed",
@@ -270,64 +324,88 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "malformed_trajectory_refs": [],
             "input_sha256s": {
                 "applicant_relations": "1" * 64,
-                "coding_reliability": "2" * 64,
+                "coding_reliability": artifact_sha256(reliability),
                 "comparisons": "3" * 64,
                 "higher_authority_treatments": "4" * 64,
                 "position_cards": "5" * 64,
                 "source_reconciliation": "6" * 64,
                 "temporal_analysis": "7" * 64,
-                "trajectories": "8" * 64,
+                "trajectories": artifact_sha256(chain["trajectories"]),
             },
             "claim_limit": "bounded_observed_corpus",
         }
         profile = {**profile_payload, "profile_id": artifact_sha256(profile_payload)}
-        reliability_payload = {
-            "schema_version": "1.0",
-            "audit_plan_sha256": "7" * 64,
-            "audit_plan_frozen": True,
-            "audit_plan_digest_valid": True,
-            "primary_coding_sha256": "8" * 64,
-            "current_primary_coding_sha256": "8" * 64,
-            "required_candidate_ids": ["candidate-1"],
-            "audited_candidate_ids": ["candidate-1"],
-            "missing_candidate_ids": [],
-            "same_reviewer_candidate_ids": [],
-            "invalid_binding_candidate_ids": [],
-            "invalid_provenance_candidate_ids": [],
-            "invalid_screening_record_ids": [],
-            "invalid_primary_record_ids": [],
-            "invalid_audit_record_ids": [],
-            "invalid_adjudication_record_ids": [],
-            "field_disagreements": [],
-            "false_exclusion_diagnostics": [],
-            "unresolved_candidate_ids": [],
-            "stale": False,
-            "complete": True,
+        refresh_plan_payload = {
+            "as_of": "2026-08-26T11:40:00Z",
+            "max_age_seconds": 604800,
+            "evidence_digest": f"corpus-evidence-sha256:{'4' * 64}",
+            "treatment_ids": [],
+            "treatment_population_sha256": "7" * 64,
+            "coverage_requirements": [{"court_id": "2kas"}],
+            "entries": [],
+            "coverage_gaps": [],
         }
-        reliability = {
-            **reliability_payload,
-            "evidence_sha256": artifact_sha256(reliability_payload),
+        refresh_plan = {
+            "plan_id": (
+                "refresh-plan-sha256:"
+                + artifact_sha256(refresh_plan_payload)
+            ),
+            **refresh_plan_payload,
         }
         refresh_payload = {
             "schema_version": "1.0",
             "baseline_corpus_digest": "4" * 64,
             "current_corpus_digest": "4" * 64,
             "subject_evidence_sha256": bound_evidence_sha256,
-            "refresh_plan_id": "refresh-plan-1",
-            "refresh_plan_sha256": "5" * 64,
+            "refresh_plan_id": refresh_plan["plan_id"],
+            "refresh_plan_sha256": artifact_sha256(refresh_plan),
+            "refresh_plan_contract_valid": True,
+            "refresh_plan_as_of": refresh_plan["as_of"],
+            "refresh_plan_max_age_seconds": refresh_plan["max_age_seconds"],
+            "refresh_plan_evidence_digest": refresh_plan["evidence_digest"],
+            "refresh_plan_treatment_ids": refresh_plan["treatment_ids"],
+            "refresh_plan_treatment_population_sha256": refresh_plan[
+                "treatment_population_sha256"
+            ],
+            "refresh_plan_coverage_requirements": refresh_plan[
+                "coverage_requirements"
+            ],
+            "refresh_plan_coverage_requirements_sha256": artifact_sha256(
+                refresh_plan["coverage_requirements"]
+            ),
             "checked_through": "2026-08-26T11:40:00Z",
             "filing_cutoff": "2026-08-26T11:35:00Z",
             "reviewer": "И.И. Иванов",
             "reviewed_at": "2026-08-26T11:45:00Z",
             "claim_ids": ["claim-1"],
             "affected_claim_ids": [],
+            "live_binding_version": "1.0",
+            "live_corpus_binding_contract_valid": True,
+            "live_corpus_binding_verified": True,
+            "live_cache_stable": True,
+            "live_corpus_evidence_digest": (
+                f"corpus-evidence-sha256:{'4' * 64}"
+            ),
+            "live_refresh_plan_sha256": artifact_sha256(refresh_plan),
+            "live_treatment_set_sha256": "5" * 64,
+            "live_treatment_population_sha256": "7" * 64,
+            "live_treatment_ids": [],
+            "live_binding_issue_ids": [],
+            "treatment_set_contract_valid": True,
+            "treatment_set_sha256": "5" * 64,
+            "treatment_set_corpus_evidence_digest": (
+                f"corpus-evidence-sha256:{'4' * 64}"
+            ),
+            "treatment_set_population_sha256": "7" * 64,
             "treatments_sha256": "6" * 64,
             "pending_treatment_ids": [],
             "verified_treatment_ids": [],
             "rejected_treatment_ids": [],
+            "superseded_treatment_ids": [],
             "treatment_chronology_issue_ids": [],
             "stale_seed_ids": [],
             "malformed_refresh_entry_ids": [],
+            "malformed_coverage_requirement_ids": [],
             "malformed_coverage_gap_ids": [],
             "coverage_gaps": [],
             "reasons": [],
@@ -344,10 +422,35 @@ class HandoffWorkbenchTests(unittest.TestCase):
             for quality_type, artifact in (
                 ("chain_stage_propagation", chain),
                 ("uncertainty_profile", profile),
+                ("coding_audit_plan", audit_plan),
                 ("coding_reliability", reliability),
                 ("prefiling_refresh", refresh),
             )
         ]
+
+    @staticmethod
+    def quality_binding(envelope, quality_type):
+        return next(
+            item
+            for item in envelope["payload"]["quality_bindings"]
+            if item["quality_type"] == quality_type
+        )
+
+    @staticmethod
+    def rehash_quality_binding(binding, id_field):
+        artifact = binding["artifact"]
+        payload = {key: value for key, value in artifact.items() if key != id_field}
+        artifact[id_field] = artifact_sha256(payload)
+        binding["artifact_sha256"] = artifact_sha256(artifact)
+
+    def rehash_reliability_and_profile(self, envelope):
+        reliability = self.quality_binding(envelope, "coding_reliability")
+        self.rehash_quality_binding(reliability, "evidence_sha256")
+        profile = self.quality_binding(envelope, "uncertainty_profile")
+        profile["artifact"]["input_sha256s"]["coding_reliability"] = (
+            artifact_sha256(reliability["artifact"])
+        )
+        self.rehash_quality_binding(profile, "profile_id")
 
     def persist_trusted_source(self, workspace, envelope):
         selected = envelope["payload"]["selected_proofs"]
@@ -645,7 +748,14 @@ class HandoffWorkbenchTests(unittest.TestCase):
         self.assertIn("quality", " ".join(result["errors"]).lower())
 
     def test_prefiling_quality_rejects_missing_fields_and_overlapping_treatments(self):
-        for mutation in ("missing_field", "overlap", "malformed"):
+        for mutation in (
+            "missing_field",
+            "overlap",
+            "malformed",
+            "coverage_digest",
+            "undeclared_gap",
+            "treatment_set_digest",
+        ):
             with self.subTest(mutation=mutation):
                 envelope = copy.deepcopy(self.make_approved())
                 binding = next(
@@ -660,7 +770,24 @@ class HandoffWorkbenchTests(unittest.TestCase):
                     artifact["verified_treatment_ids"] = ["treatment-1"]
                     artifact["rejected_treatment_ids"] = ["treatment-1"]
                 else:
-                    artifact["verified_treatment_ids"] = [{"invented": True}]
+                    if mutation == "malformed":
+                        artifact["verified_treatment_ids"] = [{"invented": True}]
+                    elif mutation == "coverage_digest":
+                        artifact["refresh_plan_coverage_requirements_sha256"] = "9" * 64
+                    elif mutation == "undeclared_gap":
+                        artifact["coverage_gaps"] = [
+                            {
+                                "court_id": "foreign-court",
+                                "reason": "coverage_gap_not_observed",
+                                "action": "Проверить сегмент.",
+                            }
+                        ]
+                        artifact["status"] = "bounded_current_with_disclosed_gaps"
+                        artifact["reasons"] = ["unchanged_disclosed_coverage_gaps"]
+                    elif mutation == "treatment_set_digest":
+                        artifact["treatment_set_corpus_evidence_digest"] = (
+                            f"corpus-evidence-sha256:{'9' * 64}"
+                        )
                 refresh_payload = {
                     key: value for key, value in artifact.items() if key != "refresh_id"
                 }
@@ -671,6 +798,211 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 self.assertFalse(result["valid"])
                 self.assertEqual("incompatible", result["status"])
                 self.assertIn("prefiling_refresh", " ".join(result["errors"]))
+
+    def test_prefiling_quality_accepts_nonempty_superseded_partition(self):
+        envelope = copy.deepcopy(self.make_approved())
+        binding = self.quality_binding(envelope, "prefiling_refresh")
+        artifact = binding["artifact"]
+        treatment_ids = ["treatment-current", "treatment-superseded"]
+        artifact["refresh_plan_treatment_ids"] = treatment_ids
+        artifact["live_treatment_ids"] = treatment_ids
+        artifact["verified_treatment_ids"] = ["treatment-current"]
+        artifact["superseded_treatment_ids"] = ["treatment-superseded"]
+        self.rehash_quality_binding(binding, "refresh_id")
+        envelope["handoff_id"] = canonical_digest(envelope)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            self.persist_trusted_source(source, envelope)
+            result = check_handoff(
+                envelope,
+                expected_target="ksrf-complaint-cycle",
+                current_plan_sha256=self.plan_sha256,
+                current_evidence_sha256=self.evidence_sha256,
+                current_fingerprint_sha256=self.fingerprint_sha256,
+                current_maximum_permitted_claim="mixed_post_event",
+                trusted_source_workspace=source,
+            )
+
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_coding_audit_plan_rejects_impossible_counts_bool_duplicates_and_union(self):
+        mutations = {
+            "count below selected IDs": lambda artifact: artifact.__setitem__(
+                "sample_size", 0
+            ),
+            "boolean count": lambda artifact: artifact.__setitem__(
+                "sample_size", True
+            ),
+            "duplicate selected IDs": lambda artifact: artifact.update(
+                sample_size=2,
+                sample_candidate_ids=["candidate-1", "candidate-1"],
+            ),
+            "required IDs differ from sample union": lambda artifact: artifact.__setitem__(
+                "required_candidate_ids", ["candidate-2"]
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                envelope = copy.deepcopy(self.make_approved())
+                binding = self.quality_binding(envelope, "coding_audit_plan")
+                mutate(binding["artifact"])
+                self.rehash_quality_binding(binding, "audit_plan_sha256")
+                envelope["handoff_id"] = canonical_digest(envelope)
+
+                result = check_handoff(envelope)
+
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+                self.assertIn("coding_audit_plan", " ".join(result["errors"]))
+
+    def test_coding_reliability_rejects_unresolved_or_unmatched_disagreements(self):
+        mutations = {
+            "unresolved field disagreement": lambda artifact: artifact[
+                "field_disagreements"
+            ].append(
+                {
+                    "candidate_id": "candidate-1",
+                    "fields": ["label"],
+                    "primary_coding_sha256": "b" * 64,
+                    "secondary_coding_sha256": "c" * 64,
+                    "resolved": False,
+                    "adjudication_sha256": None,
+                }
+            ),
+            "false exclusion without label disagreement": lambda artifact: artifact.update(
+                field_disagreements=[
+                    {
+                        "candidate_id": "candidate-1",
+                        "fields": ["reasoning"],
+                        "primary_coding_sha256": "b" * 64,
+                        "secondary_coding_sha256": "c" * 64,
+                        "resolved": True,
+                        "adjudication_sha256": "d" * 64,
+                    }
+                ],
+                false_exclusion_diagnostics=[
+                    {
+                        "candidate_id": "candidate-1",
+                        "primary_label": "false_positive",
+                        "secondary_label": "core_merits",
+                        "resolved": True,
+                    }
+                ],
+            ),
+            "invented audited field": lambda artifact: artifact.update(
+                adjudications_sha256="e" * 64,
+                field_disagreements=[
+                    {
+                        "candidate_id": "candidate-1",
+                        "fields": ["invented"],
+                        "primary_coding_sha256": "b" * 64,
+                        "secondary_coding_sha256": "c" * 64,
+                        "resolved": True,
+                        "adjudication_sha256": "d" * 64,
+                    }
+                ],
+            ),
+            "nonempty adjudication digest without disagreements": lambda artifact: artifact.__setitem__(
+                "adjudications_sha256", "e" * 64
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                envelope = copy.deepcopy(self.make_approved())
+                reliability = self.quality_binding(
+                    envelope, "coding_reliability"
+                )["artifact"]
+                mutate(reliability)
+                self.rehash_reliability_and_profile(envelope)
+                envelope["handoff_id"] = canonical_digest(envelope)
+
+                result = check_handoff(envelope)
+
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+                self.assertIn("coding_reliability", " ".join(result["errors"]))
+
+    def test_prefiling_quality_rejects_changed_corpus_even_when_rehashed(self):
+        envelope = copy.deepcopy(self.make_approved())
+        binding = self.quality_binding(envelope, "prefiling_refresh")
+        binding["artifact"]["baseline_corpus_digest"] = "f" * 64
+        self.rehash_quality_binding(binding, "refresh_id")
+        envelope["handoff_id"] = canonical_digest(envelope)
+
+        result = check_handoff(envelope)
+
+        self.assertFalse(result["valid"])
+        self.assertEqual("incompatible", result["status"])
+        self.assertIn("prefiling_refresh", " ".join(result["errors"]))
+
+    def test_quality_bindings_require_coding_audit_plan(self):
+        envelope = copy.deepcopy(self.make_approved())
+        envelope["payload"]["quality_bindings"] = [
+            binding
+            for binding in envelope["payload"]["quality_bindings"]
+            if binding["quality_type"] != "coding_audit_plan"
+        ]
+        envelope["handoff_id"] = canonical_digest(envelope)
+
+        result = check_handoff(envelope)
+
+        self.assertFalse(result["valid"])
+        self.assertEqual("incompatible", result["status"])
+        self.assertIn("coding_audit_plan", " ".join(result["errors"]))
+
+    def test_reliability_must_match_bound_coding_audit_plan(self):
+        mutations = {
+            "audit plan input": lambda artifact: artifact.__setitem__(
+                "audit_plan_input_sha256", "f" * 64
+            ),
+            "audit plan ID": lambda artifact: artifact.__setitem__(
+                "audit_plan_sha256", "f" * 64
+            ),
+            "primary coding": lambda artifact: artifact.update(
+                primary_coding_sha256="f" * 64,
+                current_primary_coding_sha256="f" * 64,
+            ),
+            "required candidates": lambda artifact: artifact.update(
+                required_candidate_ids=["candidate-2"],
+                audited_candidate_ids=["candidate-2"],
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                envelope = copy.deepcopy(self.make_approved())
+                reliability = self.quality_binding(
+                    envelope, "coding_reliability"
+                )["artifact"]
+                mutate(reliability)
+                self.rehash_reliability_and_profile(envelope)
+                envelope["handoff_id"] = canonical_digest(envelope)
+
+                result = check_handoff(envelope)
+
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+                self.assertIn(
+                    "не связан с переданным coding_audit_plan",
+                    " ".join(result["errors"]),
+                )
+
+    def test_uncertainty_input_hashes_must_match_quality_artifacts(self):
+        for input_name in ("coding_reliability", "trajectories"):
+            with self.subTest(input_name=input_name):
+                envelope = copy.deepcopy(self.make_approved())
+                profile = self.quality_binding(
+                    envelope, "uncertainty_profile"
+                )
+                profile["artifact"]["input_sha256s"][input_name] = "f" * 64
+                self.rehash_quality_binding(profile, "profile_id")
+                envelope["handoff_id"] = canonical_digest(envelope)
+
+                result = check_handoff(envelope)
+
+                self.assertFalse(result["valid"])
+                self.assertEqual("incompatible", result["status"])
+                self.assertIn("uncertainty_profile", " ".join(result["errors"]))
 
     def test_duplicate_selected_ids_fail_runtime_like_schema(self):
         envelope = copy.deepcopy(self.make_approved())

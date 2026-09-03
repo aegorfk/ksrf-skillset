@@ -2,6 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/public-corpus-package.v1.json",
   "title": "Portable public cassation corpus package",
+  "contract_version": "1.1",
+  "x-runtime-invariants": [
+    "treatment status stores only the raw immutable candidate, verified or rejected review decision; superseded is derived by quality export",
+    "treatment and history times are aware RFC 3339 values with created_at <= reviewed_at <= import time",
+    "candidate history and decision history identities, payloads, reviewers and event times are content-bound",
+    "supersession is acyclic, single-successor, source and target preserving, and begins after the prior completed review"
+  ],
   "type": "object",
   "required": [
     "schema_version",
@@ -75,6 +82,11 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "aware_datetime": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+    },
     "nullable_string": {
       "type": ["string", "null"]
     },
@@ -226,7 +238,16 @@
           ]
         },
         "reason": {"$ref": "#/$defs/nullable_string"},
-        "source_role": {"$ref": "#/$defs/nullable_string"},
+        "source_role": {
+          "type": ["string", "null"],
+          "enum": [
+            "official_enumerator_observation",
+            "official_user_seed",
+            "official_authority_seed",
+            "discovery_only",
+            null
+          ]
+        },
         "court_id": {"$ref": "#/$defs/nullable_string"},
         "period_id": {"$ref": "#/$defs/nullable_string"},
         "enumerator_id": {"$ref": "#/$defs/nullable_string"},
@@ -263,11 +284,20 @@
           ]
         },
         "reason": {"$ref": "#/$defs/nullable_string"},
-        "source_role": {"$ref": "#/$defs/nullable_string"},
+        "source_role": {
+          "type": ["string", "null"],
+          "enum": [
+            "official_enumerator_observation",
+            "official_user_seed",
+            "official_authority_seed",
+            "discovery_only",
+            null
+          ]
+        },
         "court_id": {"$ref": "#/$defs/nullable_string"},
         "period_id": {"$ref": "#/$defs/nullable_string"},
         "enumerator_id": {"$ref": "#/$defs/nullable_string"},
-        "event_at": {"type": "string", "format": "date-time"},
+        "event_at": {"$ref": "#/$defs/aware_datetime"},
         "ordinal": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": false
@@ -380,10 +410,10 @@
         "quote": {"$ref": "#/$defs/nullable_string"},
         "locator": {"$ref": "#/$defs/nullable_string"},
         "speaker": {"$ref": "#/$defs/nullable_string"},
-        "created_at": {"type": "string", "format": "date-time"},
+        "created_at": {"$ref": "#/$defs/aware_datetime"},
         "reviewed_at": {
           "oneOf": [
-            {"type": "string", "format": "date-time"},
+            {"$ref": "#/$defs/aware_datetime"},
             {"type": "null"}
           ]
         },

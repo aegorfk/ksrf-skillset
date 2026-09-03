@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2326,6 +2327,36 @@ def _quality_result(args: argparse.Namespace, result: Mapping[str, Any]) -> int:
     return 0
 
 
+def _quality_gate_exit_code(result: Mapping[str, Any]) -> int:
+    return 0 if result.get("complete") is True else 3
+
+
+def _quality_gate_result(args: argparse.Namespace, result: Mapping[str, Any]) -> int:
+    _quality_result(args, result)
+    return _quality_gate_exit_code(result)
+
+
+def _quality_records(path_value: str, option: str) -> list[dict[str, Any]]:
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file():
+        raise ValueError(f"{option} должен указывать на существующий файл.")
+    if path.suffix.casefold() == ".jsonl":
+        return read_jsonl(path)
+    value = read_json(path)
+    if isinstance(value, list):
+        if not all(isinstance(item, dict) for item in value):
+            raise ValueError(f"{option}: JSON-массив должен содержать только объекты.")
+        return list(value)
+    if isinstance(value, dict):
+        if "items" in value:
+            raise ValueError(
+                f"{option} не принимает оболочку items; передайте "
+                "сам массив записей или JSONL после успешного сбора."
+            )
+        return [value]
+    raise ValueError(f"{option}: ожидался JSON-объект, массив объектов или JSONL.")
+
+
 def _optional_json(path_value: str | None) -> Any:
     if not path_value:
         return None
@@ -2398,34 +2429,63 @@ def cmd_quality_coding_reliability(args: argparse.Namespace) -> int:
         raise ValueError("--audit-plan должен содержать JSON-объект.")
     result = assess_coding_reliability(
         audit_plan,
-        _read_records(Path(args.primary_decisions).expanduser().resolve()),
-        _read_records(Path(args.audit_decisions).expanduser().resolve()),
+        _quality_records(args.primary_decisions, "--primary-decisions"),
+        _quality_records(args.audit_decisions, "--audit-decisions"),
         (
-            _read_records(Path(args.adjudications).expanduser().resolve())
+            _quality_records(args.adjudications, "--adjudications")
             if args.adjudications
             else []
         ),
     )
-    return _quality_result(args, result)
+    return _quality_gate_result(args, result)
 
 
 def cmd_quality_prefiling_refresh(args: argparse.Namespace) -> int:
     refresh_plan = read_json(Path(args.refresh_plan).expanduser().resolve())
     if not isinstance(refresh_plan, Mapping):
         raise ValueError("--refresh-plan должен содержать JSON-объект.")
+    corpus_prefix = "corpus-evidence-sha256:"
+    baseline_digest = args.baseline_corpus_digest.removeprefix(corpus_prefix)
+    current_digest = args.current_corpus_digest.removeprefix(corpus_prefix)
+    treatment_set = read_json(Path(args.treatments).expanduser().resolve())
+    if (
+        not isinstance(treatment_set, Mapping)
+        or set(treatment_set)
+        != {
+            "schema_version",
+            "export_type",
+            "corpus_evidence_digest",
+            "treatment_population_sha256",
+            "integrity_issue_ids",
+            "treatment_ids",
+            "items",
+            "set_sha256",
+        }
+    ):
+        raise ValueError(
+            "--treatments должен содержать полный JSON-экспорт команды "
+            "cache treatment quality-export."
+        )
+    with PublicCorpus.open_read_only(Path(args.corpus_root)) as corpus:
+        live_corpus_binding = corpus.verify_prefiling_inputs(
+            refresh_plan=refresh_plan,
+            treatment_set=treatment_set,
+            current_corpus_digest=current_digest,
+        )
     result = assess_prefiling_refresh(
-        baseline_corpus_digest=args.baseline_corpus_digest,
-        current_corpus_digest=args.current_corpus_digest,
+        baseline_corpus_digest=baseline_digest,
+        current_corpus_digest=current_digest,
         subject_evidence_sha256=args.subject_evidence_sha256,
         refresh_plan=refresh_plan,
-        treatments=_read_records(Path(args.treatments).expanduser().resolve()),
+        treatments=treatment_set,
         checked_through=args.checked_through,
         filing_cutoff=args.filing_cutoff,
         reviewer=args.reviewer,
         reviewed_at=args.reviewed_at,
         claim_ids=args.claim_id or [],
+        live_corpus_binding=live_corpus_binding,
     )
-    return _quality_result(args, result)
+    return _quality_gate_result(args, result)
 
 
 def _handoff_hashes(workspace: Path) -> tuple[str, str]:
@@ -2945,6 +3005,9 @@ def cmd_cache_ingest(args: argparse.Namespace) -> int:
             indexed = corpus.index_text(
                 result["snapshot_id"],
                 Path(args.text).expanduser().resolve().read_text(encoding="utf-8"),
+                document_id=args.document_id,
+                chain_candidate_id=args.chain_id,
+                query_lane=args.query_lane,
             )
             result["text_hash"] = indexed["text_hash"]
         result["evidence_digest"] = corpus.evidence_digest()
@@ -2996,10 +3059,19 @@ def cmd_cache_search(args: argparse.Namespace) -> int:
 
 
 def cmd_cache_refresh_plan(args: argparse.Namespace) -> int:
+    coverage_requirements = _quality_records(
+        args.coverage_requirements,
+        "--coverage-requirements",
+    )
+    if not coverage_requirements:
+        raise ValueError(
+            "--coverage-requirements должен содержать хотя бы один сегмент охвата."
+        )
     with PublicCorpus(Path(args.root).expanduser().resolve()) as corpus:
         result = corpus.plan_refresh(
             as_of=args.as_of,
             max_age_seconds=args.max_age_seconds,
+            coverage_requirements=coverage_requirements,
         )
     _print_json(result)
     return 0
@@ -3058,6 +3130,7 @@ def cmd_cache_treatment_review(args: argparse.Namespace) -> int:
             speaker=args.speaker,
             confirmed_target_authority_id=args.confirmed_target_authority_id,
             target_identity_confirmed=args.target_identity_confirmed,
+            decision_reason=args.decision_reason,
             reviewed_at=args.reviewed_at,
         )
     _print_json(result)
@@ -3075,6 +3148,15 @@ def cmd_cache_treatment_history(args: argparse.Namespace) -> int:
     with PublicCorpus(Path(args.root).expanduser().resolve()) as corpus:
         records = corpus.treatment_history(args.treatment_id)
     _print_json({"schema_version": "1.0", "count": len(records), "items": records})
+    return 0
+
+
+def cmd_cache_treatment_quality_export(args: argparse.Namespace) -> int:
+    output = Path(args.output).expanduser().resolve()
+    with PublicCorpus(Path(args.root).expanduser().resolve()) as corpus:
+        result = corpus.treatment_quality_export()
+    write_json(output, result)
+    _print_json(result)
     return 0
 
 
@@ -3504,9 +3586,19 @@ def build_parser() -> argparse.ArgumentParser:
     quality_audit_plan.add_argument("--output")
     quality_audit_plan.set_defaults(func=cmd_quality_coding_audit_plan)
 
+    quality_gate_exit_help = (
+        "Коды завершения проверки качества: 0 — ограниченная проверка "
+        "завершена (complete=true), в том числе с явно раскрытыми "
+        "ограничениями; 2 — ошибка параметров, входного файла или записи "
+        "результата; 3 — проверка неполна или устарела (complete=false). "
+        "При коде 3 полный JSON остаётся в стандартном выводе (stdout) и "
+        "записывается в --output, если путь указан. Код 0 не означает "
+        "юридическую готовность и не разрешает подачу жалобы."
+    )
     quality_reliability = quality_sub.add_parser(
         "coding-reliability",
         help="Проверить независимое кодирование и неразрешённые расхождения",
+        epilog=quality_gate_exit_help,
     )
     quality_reliability.add_argument("--audit-plan", required=True)
     quality_reliability.add_argument("--primary-decisions", required=True)
@@ -3518,29 +3610,69 @@ def build_parser() -> argparse.ArgumentParser:
     quality_refresh = quality_sub.add_parser(
         "prefiling-refresh",
         help="Проверить актуальность корпуса непосредственно перед подачей жалобы",
+        epilog=quality_gate_exit_help,
     )
-    quality_refresh.add_argument("--baseline-corpus-digest", required=True)
-    quality_refresh.add_argument("--current-corpus-digest", required=True)
+    corpus_digest_help = (
+        "SHA-256 корпуса: можно вставить как 64 hex-символа или прямо как "
+        "corpus-evidence-sha256:<64 hex> из cache init/refresh-plan."
+    )
+    quality_refresh.add_argument(
+        "--baseline-corpus-digest", required=True, help=corpus_digest_help
+    )
+    quality_refresh.add_argument(
+        "--current-corpus-digest", required=True, help=corpus_digest_help
+    )
     quality_refresh.add_argument("--subject-evidence-sha256", required=True)
-    quality_refresh.add_argument("--refresh-plan", required=True)
-    quality_refresh.add_argument("--treatments", required=True)
+    quality_refresh.add_argument(
+        "--refresh-plan",
+        required=True,
+        help="JSON-план из cache refresh-plan с явными сегментами охвата.",
+    )
+    quality_refresh.add_argument(
+        "--treatments",
+        required=True,
+        help=(
+            "Полный JSON-набор связей из cache treatment quality-export; "
+            "произвольный список не принимается."
+        ),
+    )
+    quality_refresh.add_argument(
+        "--corpus-root",
+        required=True,
+        help=(
+            "Существующая корневая папка того же публичного корпуса. "
+            "Проверка открывает её только для чтения и заново сверяет план, "
+            "полный набор связей и контрольную сумму."
+        ),
+    )
     quality_refresh.add_argument(
         "--checked-through",
         required=True,
-        help="Дата и время, по которые проверен корпус, в формате ISO 8601.",
+        help=(
+            "Дата и время, по которые проверен корпус: RFC 3339, "
+            "с секундами и часовым поясом."
+        ),
     )
     quality_refresh.add_argument(
         "--filing-cutoff",
         required=True,
-        help="Предельные дата и время подачи в формате ISO 8601.",
+        help=(
+            "Контрольный момент начала финального окна подготовки к подаче "
+            "(не процессуальный срок): RFC 3339, с секундами и часовым поясом."
+        ),
     )
     quality_refresh.add_argument("--reviewer", required=True)
     quality_refresh.add_argument(
         "--reviewed-at",
         required=True,
-        help="Дата и время ручной проверки в формате ISO 8601.",
+        help="Дата и время ручной проверки: RFC 3339, с секундами и часовым поясом.",
     )
-    quality_refresh.add_argument("--claim-id", action="append", default=[])
+    quality_refresh.add_argument(
+        "--claim-id",
+        action="append",
+        required=True,
+        help="Идентификатор требования; повторите параметр для каждого требования.",
+    )
     quality_refresh.add_argument("--output")
     quality_refresh.set_defaults(func=cmd_quality_prefiling_refresh)
 
@@ -3664,7 +3796,10 @@ def build_parser() -> argparse.ArgumentParser:
     cache_ingest.add_argument(
         "--fetched-at",
         required=True,
-        help="Дата и время получения снимка в формате ISO 8601.",
+        help=(
+            "Дата и время получения снимка: RFC 3339, с секундами и часовым "
+            "поясом; будущее время запрещено."
+        ),
     )
     cache_ingest.add_argument(
         "--parser-manifest",
@@ -3672,6 +3807,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Путь к JSON-файлу с описанием использованного парсера.",
     )
     cache_ingest.add_argument("--text")
+    cache_ingest.add_argument(
+        "--document-id",
+        help="Устойчивый идентификатор документа для индексируемого полного текста.",
+    )
+    cache_ingest.add_argument(
+        "--chain-id",
+        help="Идентификатор судебной цепочки для индексируемого полного текста.",
+    )
+    cache_ingest.add_argument(
+        "--query-lane",
+        help="Дорожка запроса, по которой найден индексируемый полный текст.",
+    )
     cache_ingest.set_defaults(func=cmd_cache_ingest)
     cache_pin = cache_sub.add_parser(
         "pin-run", help="Неизменяемо закрепить снимки за публичным запуском"
@@ -3710,9 +3857,20 @@ def build_parser() -> argparse.ArgumentParser:
     cache_refresh.add_argument(
         "--as-of",
         required=True,
-        help="Дата и время состояния корпуса в формате ISO 8601.",
+        help=(
+            "Дата и время состояния корпуса: RFC 3339, "
+            "с секундами и часовым поясом."
+        ),
     )
     cache_refresh.add_argument("--max-age-seconds", type=int, required=True)
+    cache_refresh.add_argument(
+        "--coverage-requirements",
+        required=True,
+        help=(
+            "JSON/JSONL с хотя бы одним явно проверяемым сегментом охвата: "
+            "court_id, period_id, enumerator_id и/или source_role."
+        ),
+    )
     cache_refresh.set_defaults(func=cmd_cache_refresh_plan)
 
     cache_funnel = cache_sub.add_parser(
@@ -3792,7 +3950,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     cache_treatment_discover.add_argument("--snapshot-id", required=True)
-    cache_treatment_discover.add_argument("--supersedes-treatment-id")
+    cache_treatment_discover.add_argument(
+        "--supersedes-treatment-id",
+        help=(
+            "ID ранее завершённой связи, которую заменяет новый кандидат. "
+            "С момента создания кандидата прежняя связь показывается как "
+            "superseded, а проверка перед подачей остаётся незавершённой до review."
+        ),
+    )
     cache_treatment_discover.set_defaults(func=cmd_cache_treatment_discover)
     cache_treatment_review = cache_treatment_sub.add_parser(
         "review", help="Неизменяемо подтвердить или отклонить кандидата"
@@ -3826,16 +3991,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Подтвердить, что проверяющий вручную сверил целевой судебный акт.",
     )
     cache_treatment_review.add_argument(
+        "--decision-reason",
+        help=(
+            "Причина отклонения кандидата; обязательна при --decision rejected."
+        ),
+    )
+    cache_treatment_review.add_argument(
         "--reviewed-at",
         help=(
-            "Дата и время ручной проверки в формате ISO 8601; по умолчанию "
-            "текущее время UTC."
+            "Дата и время ручной проверки: RFC 3339, с секундами и часовым "
+            "поясом; по умолчанию текущее время UTC."
         ),
     )
     cache_treatment_review.set_defaults(func=cmd_cache_treatment_review)
-    cache_treatment_list = cache_treatment_sub.add_parser("list", help="Показать связи")
+    cache_treatment_list = cache_treatment_sub.add_parser(
+        "list",
+        help=(
+            "Показать эффективное состояние связей; review_decision сохраняет "
+            "исходное неизменяемое решение проверяющего"
+        ),
+    )
     cache_treatment_list.add_argument("--root", required=True)
-    cache_treatment_list.add_argument("--verified-only", action="store_true")
+    cache_treatment_list.add_argument(
+        "--verified-only",
+        action="store_true",
+        help="Показать только активные verified-связи, исключив superseded.",
+    )
     cache_treatment_list.set_defaults(func=cmd_cache_treatment_list)
     cache_treatment_history = cache_treatment_sub.add_parser(
         "history", help="Показать неизменяемую историю проверки связи"
@@ -3843,6 +4024,27 @@ def build_parser() -> argparse.ArgumentParser:
     cache_treatment_history.add_argument("--root", required=True)
     cache_treatment_history.add_argument("--treatment-id", required=True)
     cache_treatment_history.set_defaults(func=cmd_cache_treatment_history)
+    cache_treatment_quality_export = cache_treatment_sub.add_parser(
+        "quality-export",
+        help=(
+            "Выгрузить полный привязанный к корпусу набор всех связей для "
+            "проверки перед подачей, включая pending и superseded"
+        ),
+    )
+    cache_treatment_quality_export.add_argument(
+        "--root", required=True, help="Корневая папка локального публичного корпуса."
+    )
+    cache_treatment_quality_export.add_argument(
+        "--output",
+        required=True,
+        help=(
+            "Файл полного набора: включает все ID, состояние корпуса, "
+            "контрольную сумму популяции и контрольную сумму набора."
+        ),
+    )
+    cache_treatment_quality_export.set_defaults(
+        func=cmd_cache_treatment_quality_export
+    )
 
     source = sub.add_parser("source", help="Сверить независимые маршруты официальных источников")
     source_sub = source.add_subparsers(dest="source_command", required=True)
@@ -3899,7 +4101,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return int(args.func(args))
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (
+        OSError,
+        TypeError,
+        ValueError,
+        RecursionError,
+        sqlite3.Error,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
 

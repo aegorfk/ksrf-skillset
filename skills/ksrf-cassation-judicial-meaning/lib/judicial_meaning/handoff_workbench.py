@@ -8,8 +8,9 @@ import os
 import re
 import tempfile
 import time
+import unicodedata
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence, TypeGuard
 
@@ -59,6 +60,7 @@ REQUIRED_QUALITY_TYPES = frozenset(
     {
         "chain_stage_propagation",
         "uncertainty_profile",
+        "coding_audit_plan",
         "coding_reliability",
         "prefiling_refresh",
     }
@@ -76,8 +78,40 @@ UNCERTAINTY_DIMENSIONS = frozenset(
         "coding_reliability",
     }
 )
+_EXCLUSION_LABELS = frozenset(
+    {"party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"}
+)
+_SUBSTANTIVE_LABELS = frozenset({"core_merits", "contextual"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _HTTP_RE = re.compile(r"^https?://", re.IGNORECASE)
+_RFC3339_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+    r"(?:[Zz]|[+-]\d{2}:\d{2})"
+)
+_REFRESH_PLAN_ID_RE = re.compile(r"^refresh-plan-sha256:[0-9a-f]{64}$")
+_REFRESH_GAP_SCOPE_FIELDS = frozenset(
+    {"court_id", "period_id", "enumerator_id", "source_role"}
+)
+_PUBLIC_SEED_ROLES = frozenset(
+    {
+        "official_enumerator_observation",
+        "official_user_seed",
+        "official_authority_seed",
+        "discovery_only",
+    }
+)
+_AUDITED_CODING_FIELDS = frozenset(
+    {
+        "label",
+        "speaker",
+        "norm_edition_id",
+        "reading_family",
+        "relation",
+        "reasoning_to_outcome",
+        "alternative_grounds",
+        "remedy",
+    }
+)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -86,6 +120,7 @@ def _canonical_bytes(value: Any) -> bytes:
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -103,14 +138,68 @@ def _is_nonempty(value: Any) -> TypeGuard[str]:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _is_timestamp(value: Any) -> bool:
-    if not _is_nonempty(value):
-        return False
+def _is_canonical_identifier(value: Any) -> TypeGuard[str]:
+    return (
+        _is_nonempty(value)
+        and value == " ".join(value.split())
+        and not any(
+            unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+            for character in value
+        )
+    )
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if (
+        not _is_nonempty(value)
+        or value != value.strip()
+        or _RFC3339_RE.fullmatch(value) is None
+    ):
+        return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        cleaned = value
+        normalized = cleaned[:-1] + "+00:00" if cleaned[-1:] in {"Z", "z"} else cleaned
+        parsed = datetime.fromisoformat(normalized)
     except ValueError:
+        return None
+    return parsed if parsed.utcoffset() is not None else None
+
+
+def _is_timestamp(value: Any) -> bool:
+    return _parse_timestamp(value) is not None
+
+
+def _refresh_gap_valid(value: Any) -> bool:
+    if not isinstance(value, Mapping):
         return False
-    return parsed.tzinfo is not None
+    allowed = _REFRESH_GAP_SCOPE_FIELDS | {"reason", "action"}
+    scope = set(value) & _REFRESH_GAP_SCOPE_FIELDS
+    return (
+        set(value).issubset(allowed)
+        and bool(scope)
+        and all(_is_canonical_identifier(value.get(field)) for field in scope)
+        and (
+            "source_role" not in scope
+            or value.get("source_role") in _PUBLIC_SEED_ROLES
+        )
+        and value.get("reason") == "coverage_gap_not_observed"
+        and _is_nonempty(value.get("action"))
+    )
+
+
+def _coverage_requirement_valid(value: Any) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    fields = set(value)
+    return (
+        bool(fields)
+        and fields.issubset(_REFRESH_GAP_SCOPE_FIELDS)
+        and all(_is_canonical_identifier(value.get(field)) for field in fields)
+        and (
+            "source_role" not in fields
+            or value.get("source_role") in _PUBLIC_SEED_ROLES
+        )
+    )
 
 
 def _digest(envelope: Mapping[str, Any]) -> str:
@@ -128,6 +217,14 @@ def _string_list(value: Any, *, allow_empty: bool) -> TypeGuard[list[str]]:
 
 def _unique_string_list(value: Any, *, allow_empty: bool) -> TypeGuard[list[str]]:
     return _string_list(value, allow_empty=allow_empty) and len(value) == len(set(value))
+
+
+def _canonical_unique_string_list(
+    value: Any, *, allow_empty: bool
+) -> TypeGuard[list[str]]:
+    return _unique_string_list(value, allow_empty=allow_empty) and all(
+        _is_canonical_identifier(item) for item in value
+    )
 
 
 def _question_errors(value: Any) -> list[str]:
@@ -944,22 +1041,50 @@ def _quality_artifact_errors(
         payload = {key: value for key, value in artifact.items() if key != "audit_plan_sha256"}
         if artifact.get("audit_plan_sha256") != artifact_sha256(payload):
             errors.append("quality coding_audit_plan: audit_plan_sha256 не соответствует artifact.")
+        sample_size = artifact.get("sample_size")
+        exclusion_sample_size = artifact.get("exclusion_sample_size")
+        sample_ids = artifact.get("sample_candidate_ids")
+        exclusion_ids = artifact.get("exclusion_sample_candidate_ids")
+        required_candidate_ids = artifact.get("required_candidate_ids")
+        plan_lists_valid = all(
+            _canonical_unique_string_list(artifact.get(field), allow_empty=True)
+            for field in (
+                "invalid_screening_record_ids", "invalid_primary_record_ids",
+                "sample_candidate_ids", "exclusion_sample_candidate_ids",
+                "required_candidate_ids",
+            )
+        )
         if (
-            artifact.get("plan_sha256") != plan_sha256
+            artifact.get("schema_version") != "1.0"
+            or artifact.get("plan_sha256") != plan_sha256
+            or not _is_sha256(artifact.get("plan_sha256"))
             or artifact.get("frozen") is not True
             or artifact.get("selection_method") != "canonical_sha256_rank"
             or not _is_sha256(artifact.get("screening_sha256"))
             or not _is_sha256(artifact.get("primary_coding_sha256"))
+            or isinstance(sample_size, bool)
+            or not isinstance(sample_size, int)
+            or sample_size < 0
+            or isinstance(exclusion_sample_size, bool)
+            or not isinstance(exclusion_sample_size, int)
+            or exclusion_sample_size < 0
+            or not plan_lists_valid
+            or len(sample_ids) > sample_size
+            or len(exclusion_ids) > exclusion_sample_size
+            or set(required_candidate_ids) != set(sample_ids) | set(exclusion_ids)
             or artifact.get("invalid_screening_record_ids") not in ([], ())
             or artifact.get("invalid_primary_record_ids") not in ([], ())
-            or not _unique_string_list(artifact.get("required_candidate_ids"), allow_empty=False)
+            or not required_candidate_ids
         ):
             errors.append("quality coding_audit_plan: план не заморожен или связан с иным планом.")
     elif quality_type == "coding_reliability":
         required = {
-            "schema_version", "audit_plan_sha256", "audit_plan_frozen",
-            "audit_plan_digest_valid", "primary_coding_sha256",
+            "schema_version", "audit_plan_input_sha256", "audit_plan_sha256",
+            "audit_plan_frozen",
+            "audit_plan_contract_valid", "audit_plan_digest_valid",
+            "primary_coding_sha256",
             "current_primary_coding_sha256", "required_candidate_ids",
+            "audit_decisions_sha256", "adjudications_sha256",
             "audited_candidate_ids", "missing_candidate_ids",
             "same_reviewer_candidate_ids", "invalid_binding_candidate_ids",
             "invalid_provenance_candidate_ids", "invalid_screening_record_ids",
@@ -973,12 +1098,89 @@ def _quality_artifact_errors(
         payload = {key: value for key, value in artifact.items() if key != "evidence_sha256"}
         if artifact.get("evidence_sha256") != artifact_sha256(payload):
             errors.append("quality coding_reliability: evidence_sha256 не соответствует artifact.")
+        required_ids = artifact.get("required_candidate_ids")
+        audited_ids = artifact.get("audited_candidate_ids")
+        required_ids_valid = _canonical_unique_string_list(
+            required_ids, allow_empty=False
+        )
+        audited_ids_valid = _canonical_unique_string_list(
+            audited_ids, allow_empty=False
+        )
+        required_id_set = set(required_ids) if required_ids_valid else set()
+        field_disagreements = artifact.get("field_disagreements")
+        disagreements_valid = isinstance(field_disagreements, list) and all(
+            isinstance(item, Mapping)
+            and set(item)
+            == {
+                "candidate_id", "fields", "primary_coding_sha256",
+                "secondary_coding_sha256", "resolved", "adjudication_sha256",
+            }
+            and _is_canonical_identifier(item.get("candidate_id"))
+            and _unique_string_list(item.get("fields"), allow_empty=False)
+            and set(item.get("fields", [])).issubset(_AUDITED_CODING_FIELDS)
+            and _is_sha256(item.get("primary_coding_sha256"))
+            and _is_sha256(item.get("secondary_coding_sha256"))
+            and item.get("resolved") is True
+            and _is_sha256(item.get("adjudication_sha256"))
+            for item in field_disagreements
+        )
+        disagreement_by_candidate = (
+            {str(item["candidate_id"]): item for item in field_disagreements}
+            if disagreements_valid
+            else {}
+        )
+        empty_adjudications_sha256 = artifact_sha256([])
+        adjudication_digest_shape_valid = (
+            not field_disagreements
+            and artifact.get("adjudications_sha256")
+            == empty_adjudications_sha256
+        ) or (
+            bool(field_disagreements)
+            and artifact.get("adjudications_sha256")
+            != empty_adjudications_sha256
+        )
+        disagreements_valid = (
+            disagreements_valid
+            and len(disagreement_by_candidate) == len(field_disagreements)
+            and set(disagreement_by_candidate).issubset(required_id_set)
+        )
+        false_exclusions = artifact.get("false_exclusion_diagnostics")
+        false_exclusions_valid = isinstance(false_exclusions, list) and all(
+            isinstance(item, Mapping)
+            and set(item)
+            == {
+                "candidate_id", "primary_label", "secondary_label", "resolved",
+            }
+            and _is_canonical_identifier(item.get("candidate_id"))
+            and item.get("primary_label") in _EXCLUSION_LABELS
+            and item.get("secondary_label") in _SUBSTANTIVE_LABELS
+            and item.get("resolved") is True
+            and str(item.get("candidate_id")) in required_id_set
+            and str(item.get("candidate_id")) in disagreement_by_candidate
+            and "label"
+            in disagreement_by_candidate[str(item.get("candidate_id"))].get("fields", [])
+            for item in false_exclusions
+        )
+        false_exclusion_ids = (
+            [str(item["candidate_id"]) for item in false_exclusions]
+            if false_exclusions_valid
+            else []
+        )
+        false_exclusions_valid = (
+            false_exclusions_valid
+            and len(false_exclusion_ids) == len(set(false_exclusion_ids))
+        )
         if (
-            not _is_sha256(artifact.get("audit_plan_sha256"))
+            not _is_sha256(artifact.get("audit_plan_input_sha256"))
+            or not _is_sha256(artifact.get("audit_plan_sha256"))
             or artifact.get("audit_plan_frozen") is not True
+            or artifact.get("audit_plan_contract_valid") is not True
             or artifact.get("audit_plan_digest_valid") is not True
             or not _is_sha256(artifact.get("primary_coding_sha256"))
             or not _is_sha256(artifact.get("current_primary_coding_sha256"))
+            or not _is_sha256(artifact.get("audit_decisions_sha256"))
+            or not _is_sha256(artifact.get("adjudications_sha256"))
+            or not adjudication_digest_shape_valid
             or artifact.get("primary_coding_sha256")
             != artifact.get("current_primary_coding_sha256")
             or artifact.get("complete") is not True
@@ -992,19 +1194,39 @@ def _quality_artifact_errors(
             or artifact.get("invalid_primary_record_ids") not in ([], ())
             or artifact.get("invalid_audit_record_ids") not in ([], ())
             or artifact.get("invalid_adjudication_record_ids") not in ([], ())
-            or not _unique_string_list(artifact.get("required_candidate_ids"), allow_empty=False)
-            or not _unique_string_list(artifact.get("audited_candidate_ids"), allow_empty=False)
+            or not required_ids_valid
+            or not audited_ids_valid
+            or set(required_ids) != set(audited_ids)
+            or not disagreements_valid
+            or not false_exclusions_valid
         ):
             errors.append("quality coding_reliability: независимая проверка не завершена.")
     elif quality_type == "prefiling_refresh":
         required = {
             "schema_version", "baseline_corpus_digest", "current_corpus_digest",
             "subject_evidence_sha256", "refresh_plan_id", "refresh_plan_sha256",
+            "refresh_plan_contract_valid", "refresh_plan_as_of",
+            "refresh_plan_max_age_seconds", "refresh_plan_evidence_digest",
+            "refresh_plan_treatment_ids",
+            "refresh_plan_treatment_population_sha256",
+            "refresh_plan_coverage_requirements",
+            "refresh_plan_coverage_requirements_sha256",
             "checked_through", "filing_cutoff", "reviewer", "reviewed_at",
-            "claim_ids", "affected_claim_ids", "treatments_sha256",
+            "claim_ids", "affected_claim_ids", "live_binding_version",
+            "live_corpus_binding_contract_valid",
+            "live_corpus_binding_verified", "live_cache_stable",
+            "live_corpus_evidence_digest", "live_refresh_plan_sha256",
+            "live_treatment_set_sha256",
+            "live_treatment_population_sha256", "live_treatment_ids",
+            "live_binding_issue_ids", "treatment_set_contract_valid",
+            "treatment_set_sha256", "treatment_set_corpus_evidence_digest",
+            "treatment_set_population_sha256",
+            "treatments_sha256",
             "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids",
+            "superseded_treatment_ids",
             "treatment_chronology_issue_ids", "stale_seed_ids",
-            "malformed_refresh_entry_ids", "malformed_coverage_gap_ids",
+            "malformed_refresh_entry_ids", "malformed_coverage_requirement_ids",
+            "malformed_coverage_gap_ids",
             "coverage_gaps", "reasons", "status", "complete", "refresh_id",
         }
         if set(artifact) != required:
@@ -1013,10 +1235,12 @@ def _quality_artifact_errors(
         if artifact.get("refresh_id") != artifact_sha256(payload):
             errors.append("quality prefiling_refresh: refresh_id не соответствует artifact.")
         refresh_claim_ids = artifact.get("claim_ids")
+        refresh_treatment_ids = artifact.get("refresh_plan_treatment_ids")
         treatment_list_values = [
             artifact.get("pending_treatment_ids"),
             artifact.get("verified_treatment_ids"),
             artifact.get("rejected_treatment_ids"),
+            artifact.get("superseded_treatment_ids"),
         ]
         treatment_lists_valid = all(
             _unique_string_list(value, allow_empty=True)
@@ -1029,33 +1253,137 @@ def _quality_artifact_errors(
                     treatment_sets.append(
                         {item for item in value if isinstance(item, str)}
                     )
-        treatments_disjoint = (
-            len(treatment_sets) == 3
-            and not (treatment_sets[0] & treatment_sets[1])
-            and not (treatment_sets[0] & treatment_sets[2])
-            and not (treatment_sets[1] & treatment_sets[2])
+        treatments_disjoint = len(treatment_sets) == 4 and not any(
+            left & right
+            for index, left in enumerate(treatment_sets)
+            for right in treatment_sets[index + 1 :]
+        )
+        refresh_plan_as_of = _parse_timestamp(artifact.get("refresh_plan_as_of"))
+        checked_through = _parse_timestamp(artifact.get("checked_through"))
+        filing_cutoff = _parse_timestamp(artifact.get("filing_cutoff"))
+        reviewed_at = _parse_timestamp(artifact.get("reviewed_at"))
+        evaluation_time = datetime.now(timezone.utc)
+        max_age_seconds = artifact.get("refresh_plan_max_age_seconds")
+        status = artifact.get("status")
+        coverage_gaps = artifact.get("coverage_gaps")
+        coverage_requirements = artifact.get("refresh_plan_coverage_requirements")
+        requirements_valid = (
+            isinstance(coverage_requirements, list)
+            and bool(coverage_requirements)
+            and all(
+                _coverage_requirement_valid(item)
+                for item in coverage_requirements
+            )
+            and len({artifact_sha256(item) for item in coverage_requirements})
+            == len(coverage_requirements)
+            and artifact.get("refresh_plan_coverage_requirements_sha256")
+            == artifact_sha256(coverage_requirements)
+        )
+        requirement_digests = (
+            {artifact_sha256(item) for item in coverage_requirements}
+            if requirements_valid
+            else set()
+        )
+        gap_scope_digests = (
+            {
+                artifact_sha256(
+                    {
+                        field: item[field]
+                        for field in _REFRESH_GAP_SCOPE_FIELDS
+                        if field in item
+                    }
+                )
+                for item in coverage_gaps
+                if isinstance(item, Mapping)
+            }
+            if isinstance(coverage_gaps, list)
+            else set()
+        )
+        reasons = artifact.get("reasons")
+        status_shape_valid = (
+            status == "current_no_material_change"
+            and coverage_gaps in ([], ())
+            and reasons in ([], ())
+        ) or (
+            status == "bounded_current_with_disclosed_gaps"
+            and isinstance(coverage_gaps, list)
+            and bool(coverage_gaps)
+            and all(_refresh_gap_valid(item) for item in coverage_gaps)
+            and len({artifact_sha256(item) for item in coverage_gaps})
+            == len(coverage_gaps)
+            and reasons == ["unchanged_disclosed_coverage_gaps"]
         )
         if (
             not _is_sha256(artifact.get("baseline_corpus_digest"))
             or not _is_sha256(artifact.get("current_corpus_digest"))
+            or artifact.get("baseline_corpus_digest")
+            != artifact.get("current_corpus_digest")
             or artifact.get("subject_evidence_sha256") != evidence_sha256
             or not _is_sha256(artifact.get("refresh_plan_sha256"))
+            or not isinstance(artifact.get("refresh_plan_id"), str)
+            or _REFRESH_PLAN_ID_RE.fullmatch(artifact.get("refresh_plan_id")) is None
+            or artifact.get("refresh_plan_contract_valid") is not True
+            or refresh_plan_as_of is None
+            or isinstance(max_age_seconds, bool)
+            or not isinstance(max_age_seconds, int)
+            or max_age_seconds < 0
+            or artifact.get("refresh_plan_evidence_digest")
+            != f"corpus-evidence-sha256:{artifact.get('current_corpus_digest')}"
+            or artifact.get("live_binding_version") != "1.0"
+            or artifact.get("live_corpus_binding_contract_valid") is not True
+            or artifact.get("live_corpus_binding_verified") is not True
+            or artifact.get("live_cache_stable") is not True
+            or artifact.get("live_corpus_evidence_digest")
+            != f"corpus-evidence-sha256:{artifact.get('current_corpus_digest')}"
+            or artifact.get("live_refresh_plan_sha256")
+            != artifact.get("refresh_plan_sha256")
+            or artifact.get("live_treatment_set_sha256")
+            != artifact.get("treatment_set_sha256")
+            or artifact.get("live_treatment_population_sha256")
+            != artifact.get("refresh_plan_treatment_population_sha256")
+            or artifact.get("live_treatment_ids") != refresh_treatment_ids
+            or artifact.get("live_binding_issue_ids") not in ([], ())
+            or not _canonical_unique_string_list(
+                refresh_treatment_ids, allow_empty=True
+            )
+            or refresh_treatment_ids != sorted(refresh_treatment_ids)
+            or not _is_sha256(
+                artifact.get("refresh_plan_treatment_population_sha256")
+            )
+            or not requirements_valid
+            or not gap_scope_digests.issubset(requirement_digests)
+            or artifact.get("treatment_set_contract_valid") is not True
+            or not _is_sha256(artifact.get("treatment_set_sha256"))
+            or artifact.get("treatment_set_corpus_evidence_digest")
+            != f"corpus-evidence-sha256:{artifact.get('current_corpus_digest')}"
+            or artifact.get("treatment_set_population_sha256")
+            != artifact.get("refresh_plan_treatment_population_sha256")
+            or set(refresh_treatment_ids)
+            != set().union(*treatment_sets)
             or not _is_sha256(artifact.get("treatments_sha256"))
             or artifact.get("complete") is not True
-            or artifact.get("status")
-            not in {"current_no_material_change", "bounded_current_with_disclosed_gaps"}
+            or not status_shape_valid
             or artifact.get("affected_claim_ids") not in ([], ())
             or artifact.get("pending_treatment_ids") not in ([], ())
             or artifact.get("treatment_chronology_issue_ids") not in ([], ())
             or artifact.get("stale_seed_ids") not in ([], ())
             or artifact.get("malformed_refresh_entry_ids") not in ([], ())
+            or artifact.get("malformed_coverage_requirement_ids") not in ([], ())
             or artifact.get("malformed_coverage_gap_ids") not in ([], ())
             or not treatments_disjoint
-            or not _unique_string_list(refresh_claim_ids, allow_empty=False)
+            or not _canonical_unique_string_list(
+                refresh_claim_ids, allow_empty=False
+            )
             or set(refresh_claim_ids) != claim_ids
-            or not _is_nonempty(artifact.get("reviewer"))
-            or not _is_timestamp(artifact.get("reviewed_at"))
-            or not _is_timestamp(artifact.get("checked_through"))
+            or not _is_canonical_identifier(artifact.get("reviewer"))
+            or reviewed_at is None
+            or checked_through is None
+            or filing_cutoff is None
+            or checked_through > evaluation_time
+            or reviewed_at > evaluation_time
+            or refresh_plan_as_of != checked_through
+            or reviewed_at < checked_through
+            or checked_through < filing_cutoff
         ):
             errors.append("quality prefiling_refresh: refresh не текущий или не охватывает claims.")
     return errors
@@ -1080,6 +1408,7 @@ def _quality_binding_errors(
         "prefiling_refresh",
     }
     seen_types: set[str] = set()
+    artifacts_by_type: dict[str, Mapping[str, Any]] = {}
     claim_ids = {
         str(item.get("claim_id"))
         for item in claim_bindings
@@ -1109,6 +1438,7 @@ def _quality_binding_errors(
             errors.append(f"Повторный quality binding типа {quality_type}.")
         elif isinstance(quality_type, str):
             seen_types.add(quality_type)
+            artifacts_by_type[quality_type] = artifact
         errors.extend(
             _quality_artifact_errors(
                 str(quality_type),
@@ -1122,6 +1452,44 @@ def _quality_binding_errors(
     missing_types = sorted(REQUIRED_QUALITY_TYPES - seen_types)
     if missing_types:
         errors.append("quality_bindings не содержит обязательные типы: " + ", ".join(missing_types) + ".")
+    audit_plan = artifacts_by_type.get("coding_audit_plan")
+    reliability = artifacts_by_type.get("coding_reliability")
+    if audit_plan is not None and reliability is not None:
+        if (
+            reliability.get("audit_plan_input_sha256") != artifact_sha256(audit_plan)
+            or reliability.get("audit_plan_sha256")
+            != audit_plan.get("audit_plan_sha256")
+            or reliability.get("primary_coding_sha256")
+            != audit_plan.get("primary_coding_sha256")
+            or reliability.get("required_candidate_ids")
+            != audit_plan.get("required_candidate_ids")
+        ):
+            errors.append(
+                "quality coding_reliability не связан с переданным coding_audit_plan."
+            )
+    profile = artifacts_by_type.get("uncertainty_profile")
+    propagation = artifacts_by_type.get("chain_stage_propagation")
+    if profile is not None and reliability is not None:
+        input_hashes = profile.get("input_sha256s")
+        if (
+            not isinstance(input_hashes, Mapping)
+            or input_hashes.get("coding_reliability")
+            != artifact_sha256(reliability)
+        ):
+            errors.append(
+                "quality uncertainty_profile не связан с coding_reliability."
+            )
+    if profile is not None and propagation is not None:
+        input_hashes = profile.get("input_sha256s")
+        trajectories = propagation.get("trajectories")
+        if (
+            not isinstance(input_hashes, Mapping)
+            or not isinstance(trajectories, list)
+            or input_hashes.get("trajectories") != artifact_sha256(trajectories)
+        ):
+            errors.append(
+                "quality uncertainty_profile не связан с chain_stage_propagation."
+            )
     return errors
 
 

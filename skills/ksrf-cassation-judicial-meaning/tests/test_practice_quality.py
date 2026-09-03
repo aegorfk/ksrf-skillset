@@ -13,6 +13,40 @@ except ImportError:
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = SKILL_ROOT / "schemas" / "practice-quality.v1.json"
+TREATMENT_SOURCE_FIELDS = (
+    "source_chain_id",
+    "source_court_id",
+    "target_authority_id",
+    "target_kind",
+    "target_identity",
+    "target_identity_confirmed",
+    "treatment_type",
+    "review_decision",
+    "snapshot_id",
+    "supersedes_treatment_id",
+    "superseded_by_treatment_id",
+    "speaker",
+    "document_id",
+    "document_sha256",
+    "text_sha256",
+    "source_role",
+    "official_url",
+    "quote",
+    "quote_locator",
+    "proposition",
+    "decision_reason",
+    "created_at",
+)
+
+
+def definition_validator(schema, name):
+    return Draft202012Validator(
+        {
+            "$schema": schema.get("$schema"),
+            "$ref": f"#/definitions/{name}",
+            "definitions": schema["definitions"],
+        }
+    )
 
 
 class PracticeQualityTests(unittest.TestCase):
@@ -71,6 +105,7 @@ class PracticeQualityTests(unittest.TestCase):
             "document_id": f"document-{candidate_id}",
             "label": label,
             "speaker": "court" if label in {"core_merits", "contextual"} else "unknown",
+            "proposition": "Проверенная позиция суда.",
             "norm_edition_id": "edition-1",
             "reading_family": "family-a" if label in {"core_merits", "contextual"} else "excluded",
             "relation": "supports" if label in {"core_merits", "contextual"} else "neutral",
@@ -82,6 +117,8 @@ class PracticeQualityTests(unittest.TestCase):
             "quote_verified": True,
             "full_text_reviewed": True,
             "coder": coder,
+            "codebook_version": "1.0",
+            "material_facts": ["проверяемый факт"],
             "human_review": "approved",
         }
 
@@ -107,18 +144,43 @@ class PracticeQualityTests(unittest.TestCase):
         *,
         status="verified",
     ):
+        treatment_type = "applies" if status == "verified" else "does_not_reach"
+        decision_reason = (
+            None if status == "verified" else "Связь не подтверждена полным текстом."
+        )
         source = {
+            "source_chain_id": "chain-reviewed",
+            "source_court_id": "2kas",
+            "target_authority_id": "authority-reviewed",
+            "target_kind": "constitutional_court_act",
+            "target_identity": {"act_number": "32-П"},
+            "target_identity_confirmed": True,
+            "treatment_type": treatment_type,
+            "review_decision": status,
+            "snapshot_id": f"snapshot-sha256:{'d' * 64}",
+            "supersedes_treatment_id": None,
+            "superseded_by_treatment_id": None,
+            "speaker": "court",
             "document_id": f"document-{treatment_id}",
             "document_sha256": "d" * 64,
+            "text_sha256": "e" * 64,
+            "source_role": "official_user_seed",
             "official_url": "https://2kas.sudrf.ru/modules.php?name=sud_delo&srv_num=1",
             "quote": "суд применил правовую позицию к спорному правоотношению",
             "quote_locator": "абзац 24, предложение 2",
-            "proposition": "Кассация применила позицию высшего суда.",
+            "proposition": api.treatment_quality_proposition(
+                status=status,
+                source_chain_id="chain-reviewed",
+                treatment_type=treatment_type,
+                target_authority_id="authority-reviewed",
+                decision_reason=decision_reason,
+            ),
+            "decision_reason": decision_reason,
+            "created_at": "2026-08-27T12:00:00Z",
         }
         return {
             "treatment_id": treatment_id,
             "status": status,
-            "treatment_type": "applies" if status == "verified" else "not_applicable",
             **source,
             "source_binding_sha256": api.canonical_digest(source),
             "reviewer": "П.П. Петров",
@@ -128,13 +190,95 @@ class PracticeQualityTests(unittest.TestCase):
             "full_text_reviewed": True,
         }
 
+    def treatment_set(
+        self,
+        api,
+        items,
+        *,
+        corpus_digest="a" * 64,
+        treatment_population_sha256="f" * 64,
+    ):
+        copied = copy.deepcopy(items)
+        if (
+            all(
+                isinstance(item, dict)
+                and isinstance(item.get("treatment_id"), str)
+                for item in copied
+            )
+            and len({item["treatment_id"] for item in copied}) == len(copied)
+        ):
+            copied.sort(key=lambda item: item["treatment_id"])
+        treatment_ids = [
+            item.get("treatment_id") if isinstance(item, dict) else None
+            for item in copied
+        ]
+        payload = {
+            "schema_version": "1.0",
+            "export_type": "public_corpus_treatment_quality_set",
+            "corpus_evidence_digest": f"corpus-evidence-sha256:{corpus_digest}",
+            "treatment_population_sha256": treatment_population_sha256,
+            "integrity_issue_ids": [],
+            "treatment_ids": treatment_ids,
+            "items": copied,
+        }
+        return {**payload, "set_sha256": api.canonical_digest(payload)}
+
+    def refresh_plan(
+        self,
+        api,
+        *,
+        as_of="2026-08-27T12:00:00Z",
+        max_age_seconds=7 * 24 * 60 * 60,
+        current_corpus_digest="a" * 64,
+        entries=None,
+        coverage_gaps=None,
+        coverage_requirements=None,
+        treatment_ids=None,
+        treatment_population_sha256="f" * 64,
+    ):
+        payload = {
+            "as_of": as_of,
+            "max_age_seconds": max_age_seconds,
+            "evidence_digest": f"corpus-evidence-sha256:{current_corpus_digest}",
+            "treatment_ids": copy.deepcopy(treatment_ids) if treatment_ids else [],
+            "treatment_population_sha256": treatment_population_sha256,
+            "coverage_requirements": (
+                copy.deepcopy(coverage_requirements)
+                if coverage_requirements is not None
+                else [{"court_id": "2kas"}]
+            ),
+            "entries": copy.deepcopy(entries) if entries is not None else [],
+            "coverage_gaps": (
+                copy.deepcopy(coverage_gaps) if coverage_gaps is not None else []
+            ),
+        }
+        return {
+            "plan_id": f"refresh-plan-sha256:{api.canonical_digest(payload)}",
+            **payload,
+        }
+
+    def live_binding(self, api, refresh_plan, treatment_set):
+        return {
+            "binding_version": "1.0",
+            "verified": True,
+            "live_cache_stable": True,
+            "live_corpus_evidence_digest": refresh_plan["evidence_digest"],
+            "live_refresh_plan_sha256": api.canonical_digest(refresh_plan),
+            "live_treatment_set_sha256": treatment_set["set_sha256"],
+            "live_treatment_population_sha256": refresh_plan[
+                "treatment_population_sha256"
+            ],
+            "live_treatment_ids": copy.deepcopy(refresh_plan["treatment_ids"]),
+            "issue_ids": [],
+        }
+
     def complete_reliability(self, api):
         candidates = [{"candidate_id": "candidate-reliability"}]
         primary = [self.primary("candidate-reliability")]
         plan = api.build_coding_audit_plan(
             candidates,
             primary,
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=1,
             exclusion_sample_size=0,
         )
@@ -690,14 +834,14 @@ class PracticeQualityTests(unittest.TestCase):
         plan = api.build_coding_audit_plan(
             candidates,
             primary,
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=2,
             exclusion_sample_size=1,
         )
         repeated = api.build_coding_audit_plan(
             list(reversed(candidates)),
             list(reversed(primary)),
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=2,
             exclusion_sample_size=1,
         )
@@ -727,7 +871,7 @@ class PracticeQualityTests(unittest.TestCase):
         plan = api.build_coding_audit_plan(
             candidates,
             primary,
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=1,
             exclusion_sample_size=1,
         )
@@ -751,6 +895,29 @@ class PracticeQualityTests(unittest.TestCase):
             "reviewed_at": "2026-08-27T14:00:00Z",
             "human_review": "approved",
         }
+        for malformed_timestamp in (
+            "2026-08-27T14:00Z",
+            "2026-W35-4T14:00:00Z",
+        ):
+            with self.subTest(malformed_timestamp=malformed_timestamp):
+                malformed_adjudication = copy.deepcopy(adjudication)
+                malformed_adjudication["reviewed_at"] = malformed_timestamp
+                malformed_result = api.assess_coding_reliability(
+                    plan,
+                    primary,
+                    [audit],
+                    [malformed_adjudication],
+                )
+                self.assertFalse(malformed_result["complete"])
+                self.assertEqual(
+                    ["candidate-1"],
+                    malformed_result["invalid_adjudication_record_ids"],
+                )
+                self.assertIn(
+                    "candidate-1",
+                    malformed_result["unresolved_candidate_ids"],
+                )
+
         resolved = api.assess_coding_reliability(
             plan, primary, [audit], [adjudication]
         )
@@ -776,7 +943,7 @@ class PracticeQualityTests(unittest.TestCase):
         plan = api.build_coding_audit_plan(
             candidates,
             [invalid_primary],
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=1,
             exclusion_sample_size=0,
         )
@@ -802,7 +969,7 @@ class PracticeQualityTests(unittest.TestCase):
         plan = api.build_coding_audit_plan(
             candidates,
             primary,
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=1,
             exclusion_sample_size=0,
         )
@@ -846,9 +1013,7 @@ class PracticeQualityTests(unittest.TestCase):
         del audit["secondary_coding"]["human_review"]
         audit["secondary_coding"]["quote_verified"] = False
         errors = list(
-            Draft202012Validator(
-                schema["definitions"]["coding_audit_decision"]
-            ).iter_errors(audit)
+            definition_validator(schema, "coding_audit_decision").iter_errors(audit)
         )
         self.assertTrue(errors, "secondary provenance must be schema-enforced")
 
@@ -952,22 +1117,33 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            "treatments": [],
+            "refresh_plan": self.refresh_plan(api),
+            "treatments": self.treatment_set(api, []),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
             "reviewed_at": "2026-08-27T12:10:00Z",
             "claim_ids": ["practice-claim-1"],
         }
+        base["live_corpus_binding"] = self.live_binding(
+            api, base["refresh_plan"], base["treatments"]
+        )
         current = api.assess_prefiling_refresh(**base)
         self.assertEqual("current_no_material_change", current["status"])
         self.assertTrue(current["complete"])
 
+        no_claim_scope = dict(base)
+        no_claim_scope["claim_ids"] = []
+        missing_scope = api.assess_prefiling_refresh(**no_claim_scope)
+        self.assertEqual("refresh_incomplete", missing_scope["status"])
+        self.assertFalse(missing_scope["complete"])
+        self.assertIn("claim_scope_missing", missing_scope["reasons"])
+
         pending_input = dict(base)
-        pending_input["treatments"] = [
-            {"treatment_id": "treatment-pending", "status": "candidate"}
-        ]
+        pending_input["treatments"] = self.treatment_set(
+            api,
+            [{"treatment_id": "treatment-pending", "status": "candidate"}],
+        )
         pending = api.assess_prefiling_refresh(**pending_input)
         self.assertEqual("refresh_incomplete", pending["status"])
         self.assertFalse(pending["complete"])
@@ -975,17 +1151,29 @@ class PracticeQualityTests(unittest.TestCase):
 
         changed_input = dict(base)
         changed_input["current_corpus_digest"] = "c" * 64
+        changed_input["refresh_plan"] = self.refresh_plan(
+            api,
+            current_corpus_digest="c" * 64,
+        )
         changed = api.assess_prefiling_refresh(**changed_input)
         self.assertEqual("material_change_requires_reanalysis", changed["status"])
         self.assertFalse(changed["complete"])
         self.assertEqual(["practice-claim-1"], changed["affected_claim_ids"])
 
         bounded_input = copy.deepcopy(base)
-        bounded_input["refresh_plan"] = {
-            "plan_id": "refresh-2",
-            "entries": [],
-            "coverage_gaps": [{"court_id": "2kas", "reason": "open_route"}],
-        }
+        bounded_input["refresh_plan"] = self.refresh_plan(
+            api,
+            coverage_gaps=[
+                {
+                    "court_id": "2kas",
+                    "reason": "coverage_gap_not_observed",
+                    "action": "Повторить ограниченный сбор из официального источника.",
+                }
+            ],
+        )
+        bounded_input["live_corpus_binding"] = self.live_binding(
+            api, bounded_input["refresh_plan"], bounded_input["treatments"]
+        )
         bounded = api.assess_prefiling_refresh(**bounded_input)
         self.assertEqual("bounded_current_with_disclosed_gaps", bounded["status"])
         self.assertTrue(bounded["complete"])
@@ -996,8 +1184,8 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            "treatments": [],
+            "refresh_plan": self.refresh_plan(api),
+            "treatments": self.treatment_set(api, []),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "",
@@ -1012,15 +1200,18 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
+            "refresh_plan": self.refresh_plan(
+                api, treatment_ids=["treatment-reviewed"]
+            ),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
             "reviewed_at": "2026-08-27T12:10:00Z",
+            "claim_ids": ["practice-claim-1"],
         }
         unidentified = api.assess_prefiling_refresh(
             **common,
-            treatments=[{"status": "candidate"}],
+            treatments=self.treatment_set(api, [{"status": "candidate"}]),
         )
         self.assertEqual("refresh_incomplete", unidentified["status"])
         self.assertFalse(unidentified["complete"])
@@ -1028,9 +1219,10 @@ class PracticeQualityTests(unittest.TestCase):
 
         unreviewed_resolved = api.assess_prefiling_refresh(
             **common,
-            treatments=[
-                {"treatment_id": "treatment-unbound", "status": "verified"}
-            ],
+            treatments=self.treatment_set(
+                api,
+                [{"treatment_id": "treatment-unbound", "status": "verified"}],
+            ),
         )
         self.assertEqual("refresh_incomplete", unreviewed_resolved["status"])
         self.assertFalse(unreviewed_resolved["complete"])
@@ -1039,9 +1231,15 @@ class PracticeQualityTests(unittest.TestCase):
             unreviewed_resolved["pending_treatment_ids"],
         )
 
+        reviewed_treatment_set = self.treatment_set(
+            api, [self.reviewed_treatment(api)]
+        )
         reviewed_resolved = api.assess_prefiling_refresh(
             **common,
-            treatments=[self.reviewed_treatment(api)],
+            treatments=reviewed_treatment_set,
+            live_corpus_binding=self.live_binding(
+                api, common["refresh_plan"], reviewed_treatment_set
+            ),
         )
         self.assertEqual("current_no_material_change", reviewed_resolved["status"])
         self.assertTrue(reviewed_resolved["complete"])
@@ -1052,7 +1250,10 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
+            "refresh_plan": self.refresh_plan(
+                api,
+                treatment_ids=["treatment-rejected", "treatment-verified"],
+            ),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1062,7 +1263,7 @@ class PracticeQualityTests(unittest.TestCase):
         rejected = self.reviewed_treatment(api, "treatment-rejected", status="rejected")
         result = api.assess_prefiling_refresh(
             **common,
-            treatments=[verified, rejected],
+            treatments=self.treatment_set(api, [verified, rejected]),
         )
         self.assertEqual(
             ["treatment-verified"], result.get("verified_treatment_ids", [])
@@ -1074,7 +1275,7 @@ class PracticeQualityTests(unittest.TestCase):
 
         reordered_result = api.assess_prefiling_refresh(
             **common,
-            treatments=[rejected, verified],
+            treatments=self.treatment_set(api, [rejected, verified]),
         )
         self.assertEqual(
             result.get("treatments_sha256"),
@@ -1085,23 +1286,118 @@ class PracticeQualityTests(unittest.TestCase):
         changed = copy.deepcopy(verified)
         changed["quote"] = "иной проверенный фрагмент акта"
         source = {
-            key: changed[key]
-            for key in (
-                "document_id",
-                "document_sha256",
-                "official_url",
-                "quote",
-                "quote_locator",
-                "proposition",
-            )
+            key: changed.get(key) for key in TREATMENT_SOURCE_FIELDS
         }
         changed["source_binding_sha256"] = api.canonical_digest(source)
         changed_result = api.assess_prefiling_refresh(
             **common,
-            treatments=[changed, rejected],
+            treatments=self.treatment_set(api, [changed, rejected]),
         )
         self.assertNotEqual(result.get("treatments_sha256"), changed_result.get("treatments_sha256"))
         self.assertNotEqual(result["refresh_id"], changed_result["refresh_id"])
+
+    def test_prefiling_refresh_partitions_superseded_treatment_graph(self):
+        api = self.api()
+        old = self.reviewed_treatment(api, "treatment-old")
+        replacement = self.reviewed_treatment(api, "treatment-replacement")
+        old["status"] = "superseded"
+        old["superseded_by_treatment_id"] = replacement["treatment_id"]
+        replacement["supersedes_treatment_id"] = old["treatment_id"]
+        replacement["created_at"] = "2026-08-27T12:06:00Z"
+        replacement["reviewed_at"] = "2026-08-27T12:07:00Z"
+        for item in (old, replacement):
+            source = {field: item[field] for field in TREATMENT_SOURCE_FIELDS}
+            item["source_binding_sha256"] = api.canonical_digest(source)
+        items = [old, replacement]
+        treatment_set = self.treatment_set(api, items)
+        plan = self.refresh_plan(
+            api,
+            treatment_ids=sorted(item["treatment_id"] for item in items),
+        )
+        result = api.assess_prefiling_refresh(
+            baseline_corpus_digest="a" * 64,
+            current_corpus_digest="a" * 64,
+            subject_evidence_sha256="b" * 64,
+            refresh_plan=plan,
+            treatments=treatment_set,
+            checked_through="2026-08-27T12:00:00Z",
+            filing_cutoff="2026-08-27T11:00:00Z",
+            reviewer="И.И. Иванов",
+            reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
+            live_corpus_binding=self.live_binding(api, plan, treatment_set),
+        )
+        self.assertTrue(result["complete"])
+        self.assertEqual(["treatment-old"], result["superseded_treatment_ids"])
+        self.assertEqual(
+            ["treatment-replacement"], result["verified_treatment_ids"]
+        )
+        self.assertEqual([], result["pending_treatment_ids"])
+
+    def test_forged_or_cyclic_supersession_fails_closed(self):
+        api = self.api()
+
+        isolated = self.reviewed_treatment(api, "treatment-isolated")
+        isolated["status"] = "superseded"
+        isolated["superseded_by_treatment_id"] = "treatment-missing"
+        isolated["source_binding_sha256"] = api.canonical_digest(
+            {field: isolated[field] for field in TREATMENT_SOURCE_FIELDS}
+        )
+        isolated_set = self.treatment_set(api, [isolated])
+        isolated_plan = self.refresh_plan(
+            api, treatment_ids=[isolated["treatment_id"]]
+        )
+        isolated_result = api.assess_prefiling_refresh(
+            baseline_corpus_digest="a" * 64,
+            current_corpus_digest="a" * 64,
+            subject_evidence_sha256="b" * 64,
+            refresh_plan=isolated_plan,
+            treatments=isolated_set,
+            checked_through="2026-08-27T12:00:00Z",
+            filing_cutoff="2026-08-27T11:00:00Z",
+            reviewer="И.И. Иванов",
+            reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
+            live_corpus_binding=self.live_binding(
+                api, isolated_plan, isolated_set
+            ),
+        )
+        self.assertFalse(isolated_result["complete"])
+        self.assertFalse(isolated_result["treatment_set_contract_valid"])
+
+        first = self.reviewed_treatment(api, "treatment-cycle-a")
+        second = self.reviewed_treatment(api, "treatment-cycle-b")
+        for item, prior, successor in (
+            (first, second["treatment_id"], second["treatment_id"]),
+            (second, first["treatment_id"], first["treatment_id"]),
+        ):
+            item["status"] = "superseded"
+            item["supersedes_treatment_id"] = prior
+            item["superseded_by_treatment_id"] = successor
+            item["created_at"] = "2026-08-27T12:05:00Z"
+            item["reviewed_at"] = "2026-08-27T12:05:00Z"
+            item["source_binding_sha256"] = api.canonical_digest(
+                {field: item[field] for field in TREATMENT_SOURCE_FIELDS}
+            )
+        cycle_set = self.treatment_set(api, [first, second])
+        cycle_plan = self.refresh_plan(
+            api, treatment_ids=sorted([first["treatment_id"], second["treatment_id"]])
+        )
+        cycle_result = api.assess_prefiling_refresh(
+            baseline_corpus_digest="a" * 64,
+            current_corpus_digest="a" * 64,
+            subject_evidence_sha256="b" * 64,
+            refresh_plan=cycle_plan,
+            treatments=cycle_set,
+            checked_through="2026-08-27T12:00:00Z",
+            filing_cutoff="2026-08-27T11:00:00Z",
+            reviewer="И.И. Иванов",
+            reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
+            live_corpus_binding=self.live_binding(api, cycle_plan, cycle_set),
+        )
+        self.assertFalse(cycle_result["complete"])
+        self.assertFalse(cycle_result["treatment_set_contract_valid"])
 
     def test_duplicate_treatment_ids_are_grouped_and_conflicts_stay_pending(self):
         api = self.api()
@@ -1109,7 +1405,7 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
+            "refresh_plan": self.refresh_plan(api),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1119,26 +1415,18 @@ class PracticeQualityTests(unittest.TestCase):
         rejected = self.reviewed_treatment(api, "treatment-duplicate", status="rejected")
         conflicting_status = api.assess_prefiling_refresh(
             **common,
-            treatments=[verified, rejected],
+            treatments=self.treatment_set(api, [verified, rejected]),
         )
 
         changed_source = copy.deepcopy(verified)
         changed_source["quote"] = "другой фрагмент того же идентификатора"
         source = {
-            key: changed_source[key]
-            for key in (
-                "document_id",
-                "document_sha256",
-                "official_url",
-                "quote",
-                "quote_locator",
-                "proposition",
-            )
+            key: changed_source.get(key) for key in TREATMENT_SOURCE_FIELDS
         }
         changed_source["source_binding_sha256"] = api.canonical_digest(source)
         conflicting_source = api.assess_prefiling_refresh(
             **common,
-            treatments=[verified, changed_source],
+            treatments=self.treatment_set(api, [verified, changed_source]),
         )
 
         for conflict in (conflicting_status, conflicting_source):
@@ -1162,10 +1450,10 @@ class PracticeQualityTests(unittest.TestCase):
 
         identical = api.assess_prefiling_refresh(
             **common,
-            treatments=[verified, copy.deepcopy(verified)],
+            treatments=self.treatment_set(api, [verified, copy.deepcopy(verified)]),
         )
-        self.assertTrue(identical["complete"])
-        self.assertEqual(["treatment-duplicate"], identical["verified_treatment_ids"])
+        self.assertFalse(identical["complete"])
+        self.assertIn("treatment_set_contract_invalid", identical["reasons"])
 
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
@@ -1173,6 +1461,7 @@ class PracticeQualityTests(unittest.TestCase):
                 "pending_treatment_ids",
                 "verified_treatment_ids",
                 "rejected_treatment_ids",
+                "superseded_treatment_ids",
             ],
             schema["definitions"]["prefiling_refresh"].get("x-pairwise-disjoint"),
         )
@@ -1183,7 +1472,7 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
+            "refresh_plan": self.refresh_plan(api),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1202,7 +1491,7 @@ class PracticeQualityTests(unittest.TestCase):
                 del treatment[missing_field]
                 result = api.assess_prefiling_refresh(
                     **common,
-                    treatments=[treatment],
+                    treatments=self.treatment_set(api, [treatment]),
                 )
                 self.assertEqual("refresh_incomplete", result["status"])
                 self.assertEqual(
@@ -1213,9 +1502,107 @@ class PracticeQualityTests(unittest.TestCase):
         wrong_binding["source_binding_sha256"] = "e" * 64
         result = api.assess_prefiling_refresh(
             **common,
-            treatments=[wrong_binding],
+            treatments=self.treatment_set(api, [wrong_binding]),
         )
         self.assertEqual("refresh_incomplete", result["status"])
+
+    def test_reviewed_treatment_requires_relation_provenance(self):
+        api = self.api()
+        common = {
+            "baseline_corpus_digest": "a" * 64,
+            "current_corpus_digest": "a" * 64,
+            "subject_evidence_sha256": "b" * 64,
+            "refresh_plan": self.refresh_plan(api),
+            "checked_through": "2026-08-27T12:00:00Z",
+            "filing_cutoff": "2026-08-27T11:00:00Z",
+            "reviewer": "И.И. Иванов",
+            "reviewed_at": "2026-08-27T12:10:00Z",
+        }
+        for missing_field in (
+            "source_chain_id",
+            "target_authority_id",
+            "treatment_type",
+            "speaker",
+        ):
+            with self.subTest(missing_field=missing_field):
+                treatment = self.reviewed_treatment(api)
+                del treatment[missing_field]
+                treatment["source_binding_sha256"] = api.canonical_digest(
+                    {
+                        field: treatment.get(field)
+                        for field in TREATMENT_SOURCE_FIELDS
+                    }
+                )
+                result = api.assess_prefiling_refresh(
+                    **common,
+                    treatments=self.treatment_set(api, [treatment]),
+                )
+                self.assertEqual("refresh_incomplete", result["status"])
+                self.assertFalse(result["complete"])
+                self.assertEqual(
+                    ["treatment-reviewed"], result["pending_treatment_ids"]
+                )
+
+    def test_reviewed_treatment_with_non_official_url_stays_pending(self):
+        api = self.api()
+        common = {
+            "baseline_corpus_digest": "a" * 64,
+            "current_corpus_digest": "a" * 64,
+            "subject_evidence_sha256": "b" * 64,
+            "refresh_plan": self.refresh_plan(api),
+            "checked_through": "2026-08-27T12:00:00Z",
+            "filing_cutoff": "2026-08-27T11:00:00Z",
+            "reviewer": "И.И. Иванов",
+            "reviewed_at": "2026-08-27T12:10:00Z",
+        }
+        for url in ("https://localhost/act", "https://example.com/act"):
+            with self.subTest(url=url):
+                treatment = self.reviewed_treatment(api)
+                treatment["official_url"] = url
+                treatment["source_binding_sha256"] = api.canonical_digest(
+                    {
+                        field: treatment.get(field)
+                        for field in TREATMENT_SOURCE_FIELDS
+                    }
+                )
+                result = api.assess_prefiling_refresh(
+                    **common,
+                    treatments=self.treatment_set(api, [treatment]),
+                )
+                self.assertEqual("refresh_incomplete", result["status"])
+                self.assertFalse(result["complete"])
+                self.assertEqual(
+                    ["treatment-reviewed"], result["pending_treatment_ids"]
+                )
+
+    def test_reviewed_treatment_with_discovery_source_role_stays_pending(self):
+        api = self.api()
+        treatment = self.reviewed_treatment(api)
+        treatment["source_role"] = "discovery_only"
+        treatment["source_binding_sha256"] = api.canonical_digest(
+            {
+                field: treatment.get(field)
+                for field in TREATMENT_SOURCE_FIELDS
+            }
+        )
+        result = api.assess_prefiling_refresh(
+            baseline_corpus_digest="a" * 64,
+            current_corpus_digest="a" * 64,
+            subject_evidence_sha256="b" * 64,
+            refresh_plan=self.refresh_plan(
+                api, treatment_ids=["treatment-reviewed"]
+            ),
+            treatments=self.treatment_set(api, [treatment]),
+            checked_through="2026-08-27T12:00:00Z",
+            filing_cutoff="2026-08-27T11:00:00Z",
+            reviewer="И.И. Иванов",
+            reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
+        )
+        self.assertEqual("refresh_incomplete", result["status"])
+        self.assertEqual(
+            ["treatment-reviewed"], result["pending_treatment_ids"]
+        )
 
     def test_malformed_prefiling_treatment_is_not_discarded(self):
         api = self.api()
@@ -1223,12 +1610,13 @@ class PracticeQualityTests(unittest.TestCase):
             baseline_corpus_digest="a" * 64,
             current_corpus_digest="a" * 64,
             subject_evidence_sha256="b" * 64,
-            refresh_plan={"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            treatments=[None],
+            refresh_plan=self.refresh_plan(api),
+            treatments=self.treatment_set(api, [None]),
             checked_through="2026-08-27T12:00:00Z",
             filing_cutoff="2026-08-27T11:00:00Z",
             reviewer="И.И. Иванов",
             reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
         )
         self.assertEqual("refresh_incomplete", result["status"])
         self.assertTrue(result["pending_treatment_ids"])
@@ -1239,7 +1627,7 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "treatments": [],
+            "treatments": self.treatment_set(api, []),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1247,7 +1635,7 @@ class PracticeQualityTests(unittest.TestCase):
         }
         malformed_entries = api.assess_prefiling_refresh(
             **common,
-            refresh_plan={"plan_id": "refresh-1", "entries": [None], "coverage_gaps": []},
+            refresh_plan=self.refresh_plan(api, entries=[None]),
         )
         self.assertEqual("refresh_incomplete", malformed_entries["status"])
         self.assertTrue(malformed_entries.get("malformed_refresh_entry_ids"))
@@ -1255,18 +1643,64 @@ class PracticeQualityTests(unittest.TestCase):
 
         malformed_gaps = api.assess_prefiling_refresh(
             **common,
-            refresh_plan={"plan_id": "refresh-1", "entries": [], "coverage_gaps": [None]},
+            refresh_plan=self.refresh_plan(api, coverage_gaps=[None]),
         )
         self.assertEqual("refresh_incomplete", malformed_gaps["status"])
         self.assertTrue(malformed_gaps.get("malformed_coverage_gap_ids"))
         self.assertIn("malformed_coverage_gaps", malformed_gaps["reasons"])
 
+        missing_scope = api.assess_prefiling_refresh(
+            **common,
+            refresh_plan=self.refresh_plan(api, coverage_requirements=[]),
+        )
+        self.assertEqual("refresh_incomplete", missing_scope["status"])
+        self.assertIn("refresh_plan_contract_invalid", missing_scope["reasons"])
+
+        undeclared_gap = api.assess_prefiling_refresh(
+            **common,
+            refresh_plan=self.refresh_plan(
+                api,
+                coverage_gaps=[
+                    {
+                        "court_id": "foreign-court",
+                        "reason": "coverage_gap_not_observed",
+                        "action": "Проверить сегмент.",
+                    }
+                ],
+            ),
+        )
+        self.assertEqual("refresh_incomplete", undeclared_gap["status"])
+        self.assertIn("refresh_plan_contract_invalid", undeclared_gap["reasons"])
+
+    def test_prefiling_treatment_set_must_equal_declared_cache_population(self):
+        api = self.api()
+        plan = self.refresh_plan(
+            api,
+            treatment_ids=["treatment-pending", "treatment-reviewed"],
+        )
+        omitted = self.treatment_set(api, [self.reviewed_treatment(api)])
+        result = api.assess_prefiling_refresh(
+            baseline_corpus_digest="a" * 64,
+            current_corpus_digest="a" * 64,
+            subject_evidence_sha256="b" * 64,
+            refresh_plan=plan,
+            treatments=omitted,
+            checked_through="2026-08-27T12:00:00Z",
+            filing_cutoff="2026-08-27T11:00:00Z",
+            reviewer="И.И. Иванов",
+            reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
+        )
+        self.assertEqual("refresh_incomplete", result["status"])
+        self.assertFalse(result["treatment_set_contract_valid"])
+        self.assertIn("treatment_set_contract_invalid", result["reasons"])
+
     def test_prefiling_corpus_digests_must_be_lowercase_sha256(self):
         api = self.api()
         common = {
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            "treatments": [],
+            "refresh_plan": self.refresh_plan(api),
+            "treatments": self.treatment_set(api, []),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1298,17 +1732,23 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
+            "refresh_plan": self.refresh_plan(api),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
             "reviewed_at": "2026-08-27T12:10:00Z",
+            "claim_ids": ["practice-claim-1"],
         }
         postdated = self.reviewed_treatment(api, "treatment-postdated")
         postdated["reviewed_at"] = "2026-08-27T12:11:00Z"
         postdated_result = api.assess_prefiling_refresh(
-            **common,
-            treatments=[postdated],
+            **{
+                **common,
+                "refresh_plan": self.refresh_plan(
+                    api, treatment_ids=["treatment-postdated"]
+                ),
+            },
+            treatments=self.treatment_set(api, [postdated]),
         )
         self.assertEqual("refresh_incomplete", postdated_result["status"])
         self.assertEqual(
@@ -1319,20 +1759,43 @@ class PracticeQualityTests(unittest.TestCase):
         mixed_timezone = self.reviewed_treatment(api, "treatment-naive")
         mixed_timezone["reviewed_at"] = "2026-08-27T12:05:00"
         mixed_result = api.assess_prefiling_refresh(
-            **common,
-            treatments=[mixed_timezone],
+            **{
+                **common,
+                "refresh_plan": self.refresh_plan(
+                    api, treatment_ids=["treatment-naive"]
+                ),
+            },
+            treatments=self.treatment_set(api, [mixed_timezone]),
         )
         self.assertEqual("refresh_incomplete", mixed_result["status"])
         self.assertEqual(
             ["treatment-naive"],
+            mixed_result.get("pending_treatment_ids", []),
+        )
+        self.assertEqual(
+            [],
             mixed_result.get("treatment_chronology_issue_ids", []),
+        )
+        self.assertIn(
+            "resolved_treatment_lacks_content_bound_human_review",
+            mixed_result["reasons"],
         )
 
         equal_time = self.reviewed_treatment(api, "treatment-equal")
         equal_time["reviewed_at"] = common["reviewed_at"]
+        equal_treatment_set = self.treatment_set(api, [equal_time])
+        equal_plan = self.refresh_plan(
+            api, treatment_ids=["treatment-equal"]
+        )
         equal_result = api.assess_prefiling_refresh(
-            **common,
-            treatments=[equal_time],
+            **{
+                **common,
+                "refresh_plan": equal_plan,
+            },
+            treatments=equal_treatment_set,
+            live_corpus_binding=self.live_binding(
+                api, equal_plan, equal_treatment_set
+            ),
         )
         self.assertTrue(equal_result["complete"])
 
@@ -1342,8 +1805,8 @@ class PracticeQualityTests(unittest.TestCase):
             "baseline_corpus_digest": "a" * 64,
             "current_corpus_digest": "a" * 64,
             "subject_evidence_sha256": "b" * 64,
-            "refresh_plan": {"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            "treatments": [],
+            "refresh_plan": self.refresh_plan(api),
+            "treatments": self.treatment_set(api, []),
             "checked_through": "2026-08-27T12:00:00Z",
             "filing_cutoff": "2026-08-27T11:00:00Z",
             "reviewer": "И.И. Иванов",
@@ -1369,8 +1832,8 @@ class PracticeQualityTests(unittest.TestCase):
                 baseline_corpus_digest="a" * 64,
                 current_corpus_digest="a" * 64,
                 subject_evidence_sha256="b" * 64,
-                refresh_plan={"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-                treatments=[],
+                refresh_plan=self.refresh_plan(api),
+                treatments=self.treatment_set(api, []),
                 checked_through="2026-08-27T12:00:00Z",
                 filing_cutoff="2026-08-27T11:00:00",
                 reviewer="И.И. Иванов",
@@ -1389,14 +1852,15 @@ class PracticeQualityTests(unittest.TestCase):
             baseline_corpus_digest="a" * 64,
             current_corpus_digest="a" * 64,
             subject_evidence_sha256="b" * 64,
-            refresh_plan={"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            treatments=[],
+            refresh_plan=self.refresh_plan(api),
+            treatments=self.treatment_set(api, []),
             checked_through="2026-08-27T12:00:00Z",
             filing_cutoff="2026-08-27T11:00:00Z",
             reviewer="И.И. Иванов",
             reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
         )
-        validator = Draft202012Validator(schema["definitions"]["prefiling_refresh"])
+        validator = definition_validator(schema, "prefiling_refresh")
         for status in ("refresh_incomplete", "material_change_requires_reanalysis"):
             with self.subTest(status=status):
                 tampered = copy.deepcopy(refresh)
@@ -1420,9 +1884,16 @@ class PracticeQualityTests(unittest.TestCase):
             "uncertainty_dimension",
             "uncertainty_profile",
             "coding_audit_plan",
+            "coding_alternative_ground",
             "coding_audit_decision",
             "coding_adjudication",
             "coding_reliability",
+            "coverage_requirement",
+            "refresh_plan_entry",
+            "coverage_gap",
+            "refresh_plan",
+            "treatment_quality_record",
+            "treatment_quality_set",
             "prefiling_refresh",
         }
         self.assertTrue(expected.issubset(definitions))
@@ -1456,30 +1927,131 @@ class PracticeQualityTests(unittest.TestCase):
         audit_plan = api.build_coding_audit_plan(
             candidates,
             primary,
-            plan_sha256="p" * 64,
+            plan_sha256="d" * 64,
             sample_size=1,
             exclusion_sample_size=0,
         )
         audit = self.secondary(api, primary[0])
         reliability = api.assess_coding_reliability(audit_plan, primary, [audit])
-        Draft202012Validator(definitions["coding_audit_plan"]).validate(audit_plan)
-        Draft202012Validator(definitions["coding_reliability"]).validate(reliability)
+        definition_validator(schema, "coding_audit_plan").validate(audit_plan)
+        definition_validator(schema, "coding_reliability").validate(reliability)
+
+        invented_disagreement = copy.deepcopy(reliability)
+        invented_disagreement["field_disagreements"] = [
+            {
+                "candidate_id": "candidate-1",
+                "fields": ["invented"],
+                "primary_coding_sha256": "b" * 64,
+                "secondary_coding_sha256": "c" * 64,
+                "resolved": True,
+                "adjudication_sha256": "d" * 64,
+            }
+        ]
+        invented_disagreement["adjudications_sha256"] = "e" * 64
+        unsigned = dict(invented_disagreement)
+        unsigned.pop("evidence_sha256")
+        invented_disagreement["evidence_sha256"] = api.canonical_digest(unsigned)
+        self.assertFalse(
+            api._coding_reliability_contract_valid(invented_disagreement)
+        )
+        self.assertTrue(
+            list(
+                definition_validator(
+                    schema, "coding_reliability"
+                ).iter_errors(invented_disagreement)
+            )
+        )
 
         refresh = api.assess_prefiling_refresh(
             baseline_corpus_digest="a" * 64,
             current_corpus_digest="a" * 64,
             subject_evidence_sha256="b" * 64,
-            refresh_plan={"plan_id": "refresh-1", "entries": [], "coverage_gaps": []},
-            treatments=[],
+            refresh_plan=self.refresh_plan(api),
+            treatments=self.treatment_set(api, []),
             checked_through="2026-08-27T12:00:00Z",
             filing_cutoff="2026-08-27T11:00:00Z",
             reviewer="И.И. Иванов",
             reviewed_at="2026-08-27T12:10:00Z",
+            claim_ids=["practice-claim-1"],
         )
-        Draft202012Validator(definitions["prefiling_refresh"]).validate(refresh)
+        definition_validator(schema, "prefiling_refresh").validate(refresh)
         root_validator = Draft202012Validator(schema)
-        for payload in (chain_result, profile, audit_plan, reliability, refresh):
+        refresh_plan = self.refresh_plan(api)
+        treatment_set = self.treatment_set(api, [])
+        candidate_treatment = {
+            "treatment_id": "treatment-candidate",
+            "status": "candidate",
+            "recorded_status": "candidate",
+            "quality_blockers": ["pending_review"],
+            "source_chain_id": "chain-1",
+            "target_authority_id": "authority-1",
+            "supersedes_treatment_id": None,
+            "superseded_by_treatment_id": None,
+            "created_at": "2026-08-27T11:00:00Z",
+        }
+        definition_validator(schema, "treatment_quality_record").validate(
+            candidate_treatment
+        )
+        for payload in (
+            chain_result,
+            profile,
+            audit_plan,
+            reliability,
+            refresh_plan,
+            treatment_set,
+            refresh,
+        ):
             root_validator.validate(payload)
+
+    def test_schema_rejects_runtime_invalid_audit_and_adjudication_shapes(self):
+        api = self.api()
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        validator = Draft202012Validator(schema)
+        primary = self.primary("candidate-schema-parity")
+        valid_audit = self.secondary(api, primary)
+        validator.validate(valid_audit)
+
+        extra_secondary = copy.deepcopy(valid_audit)
+        extra_secondary["secondary_coding"]["invented"] = True
+        extra_secondary["secondary_coding_sha256"] = api.canonical_digest(
+            extra_secondary["secondary_coding"]
+        )
+        self.assertTrue(list(validator.iter_errors(extra_secondary)))
+
+        malformed_ground = copy.deepcopy(valid_audit)
+        malformed_ground["secondary_coding"]["alternative_grounds"] = [
+            {"ground": "Иное основание без логического признака"}
+        ]
+        malformed_ground["secondary_coding_sha256"] = api.canonical_digest(
+            malformed_ground["secondary_coding"]
+        )
+        self.assertTrue(list(validator.iter_errors(malformed_ground)))
+
+        adjudication = {
+            "candidate_id": primary["candidate_id"],
+            "primary_coding_sha256": api.canonical_digest(primary),
+            "secondary_coding_sha256": valid_audit["secondary_coding_sha256"],
+            "resolved_fields": {"invented": "value"},
+            "adjudicator": "supervisor-c",
+            "reviewed_at": "2026-08-27T12:00:00Z",
+            "human_review": "approved",
+        }
+        self.assertTrue(list(validator.iter_errors(adjudication)))
+
+        multiline_adjudication = {
+            **adjudication,
+            "resolved_fields": {"reasoning_to_outcome": "Строка 1\nСтрока 2"},
+        }
+        self.assertFalse(
+            api._coding_adjudication_contract_valid(
+                multiline_adjudication,
+                primary["candidate_id"],
+            )
+        )
+        adjudication_validator = definition_validator(schema, "coding_adjudication")
+        self.assertTrue(
+            list(adjudication_validator.iter_errors(multiline_adjudication))
+        )
 
 
 if __name__ == "__main__":

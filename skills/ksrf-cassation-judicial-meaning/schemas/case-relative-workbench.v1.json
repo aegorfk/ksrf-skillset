@@ -3,7 +3,7 @@
   "$id": "https://github.com/aegorfk/ksrf-skillset/schemas/case-relative-workbench.v1.json",
   "title": "Case-relative cassation workbench artifact contracts",
   "description": "Versioned, fail-closed exchange contracts for case-relative cassation research. A conforming document MUST match exactly one root artifact definition.",
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "oneOf": [
     {"$ref": "#/definitions/casework_bundle"},
     {"$ref": "#/definitions/position_card"},
@@ -30,6 +30,12 @@
     "non_empty_string": {
       "type": "string",
       "minLength": 1
+    },
+    "canonical_visible_identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\s)(?!.*\\s$)(?!.*[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF]).+$",
+      "x-runtime-invariant": "NFKC-safe visible text with canonical whitespace; Cc, Cf, and Cs code points are rejected"
     },
     "sha256": {
       "type": "string",
@@ -1399,7 +1405,12 @@
       "additionalProperties": false
     },
     "coding_audit_plan": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "audit_plan_sha256 is the canonical digest of the exact remaining fields",
+        "required_candidate_ids is exactly the disjoint union of substantive and false-exclusion samples",
+        "sample sizes equal their canonical unique ID lists and every screening-frame candidate has a primary decision"
+      ],
       "type": "object",
       "required": [
         "schema_version", "plan_sha256", "screening_sha256",
@@ -1411,28 +1422,28 @@
       ],
       "properties": {
         "schema_version": {"$ref": "#/definitions/schema_version"},
-        "plan_sha256": {"$ref": "#/definitions/non_empty_string"},
+        "plan_sha256": {"$ref": "#/definitions/sha256"},
         "screening_sha256": {"$ref": "#/definitions/sha256"},
         "primary_coding_sha256": {"$ref": "#/definitions/sha256"},
         "selection_method": {"type": "string", "const": "canonical_sha256_rank"},
         "sample_size": {"type": "integer", "minimum": 0},
         "exclusion_sample_size": {"type": "integer", "minimum": 0},
         "sample_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "exclusion_sample_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "required_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_screening_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_primary_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "frozen": {"type": "boolean", "const": true},
         "audit_plan_sha256": {"$ref": "#/definitions/sha256"}
@@ -1440,12 +1451,21 @@
       "additionalProperties": false
     },
     "coding_reliability": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "audited_candidate_ids must equal required_candidate_ids exactly and all diagnostic identifier arrays must be unique canonical visible strings",
+        "each disagreement candidate_id must be required, unique, and bound to the exact primary and secondary coding digests",
+        "each false_exclusion_diagnostic must be unique and match a label field disagreement for the same candidate_id",
+        "a complete result requires every disagreement resolved by a digest-bound independent human adjudication and every invalid or unresolved array empty"
+      ],
       "type": "object",
       "required": [
-        "schema_version", "audit_plan_sha256", "audit_plan_frozen",
-        "audit_plan_digest_valid", "primary_coding_sha256",
+        "schema_version", "audit_plan_input_sha256", "audit_plan_sha256",
+        "audit_plan_frozen",
+        "audit_plan_contract_valid", "audit_plan_digest_valid",
+        "primary_coding_sha256",
         "current_primary_coding_sha256", "required_candidate_ids",
+        "audit_decisions_sha256", "adjudications_sha256",
         "audited_candidate_ids", "missing_candidate_ids",
         "same_reviewer_candidate_ids", "invalid_binding_candidate_ids",
         "invalid_provenance_candidate_ids", "invalid_screening_record_ids",
@@ -1456,44 +1476,48 @@
       ],
       "properties": {
         "schema_version": {"$ref": "#/definitions/schema_version"},
+        "audit_plan_input_sha256": {"$ref": "#/definitions/sha256"},
         "audit_plan_sha256": {"type": ["string", "null"]},
         "audit_plan_frozen": {"type": "boolean"},
+        "audit_plan_contract_valid": {"type": "boolean"},
         "audit_plan_digest_valid": {"type": "boolean"},
         "primary_coding_sha256": {"type": ["string", "null"]},
         "current_primary_coding_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_decisions_sha256": {"$ref": "#/definitions/sha256"},
+        "adjudications_sha256": {"$ref": "#/definitions/sha256"},
         "required_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "audited_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "missing_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "same_reviewer_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_binding_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_provenance_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_screening_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_primary_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_audit_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "invalid_adjudication_record_ids": {
           "type": "array", "uniqueItems": true,
-          "items": {"$ref": "#/definitions/non_empty_string"}
+          "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "field_disagreements": {
           "type": "array",
@@ -1504,8 +1528,18 @@
               "secondary_coding_sha256", "resolved", "adjudication_sha256"
             ],
             "properties": {
-              "candidate_id": {"type": "string"},
-              "fields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+              "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+              "fields": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "label", "speaker", "norm_edition_id", "reading_family",
+                    "relation", "reasoning_to_outcome", "alternative_grounds",
+                    "remedy"
+                  ]
+                }
+              },
               "primary_coding_sha256": {"$ref": "#/definitions/sha256"},
               "secondary_coding_sha256": {"$ref": "#/definitions/sha256"},
               "resolved": {"type": "boolean"},
@@ -1525,16 +1559,22 @@
             "type": "object",
             "required": ["candidate_id", "primary_label", "secondary_label", "resolved"],
             "properties": {
-              "candidate_id": {"type": "string"},
-              "primary_label": {"type": ["string", "null"]},
-              "secondary_label": {"type": ["string", "null"]},
+              "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+              "primary_label": {
+                "type": "string",
+                "enum": ["party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
+              },
+              "secondary_label": {
+                "type": "string",
+                "enum": ["core_merits", "contextual"]
+              },
               "resolved": {"type": "boolean"}
             },
             "additionalProperties": false
           }
         },
         "unresolved_candidate_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/canonical_visible_identifier"}
         },
         "stale": {"type": "boolean"},
         "complete": {"type": "boolean"},
@@ -1550,6 +1590,7 @@
             "properties": {
               "audit_plan_sha256": {"$ref": "#/definitions/sha256"},
               "audit_plan_frozen": {"const": true},
+              "audit_plan_contract_valid": {"const": true},
               "audit_plan_digest_valid": {"const": true},
               "primary_coding_sha256": {"$ref": "#/definitions/sha256"},
               "required_candidate_ids": {"minItems": 1},
@@ -1562,8 +1603,38 @@
               "invalid_primary_record_ids": {"maxItems": 0},
               "invalid_audit_record_ids": {"maxItems": 0},
               "invalid_adjudication_record_ids": {"maxItems": 0},
+              "field_disagreements": {
+                "items": {
+                  "properties": {
+                    "resolved": {"const": true},
+                    "adjudication_sha256": {"$ref": "#/definitions/sha256"}
+                  }
+                }
+              },
+              "false_exclusion_diagnostics": {
+                "items": {"properties": {"resolved": {"const": true}}}
+              },
               "unresolved_candidate_ids": {"maxItems": 0},
               "stale": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"field_disagreements": {"maxItems": 0}}},
+          "then": {
+            "properties": {
+              "adjudications_sha256": {
+                "const": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "adjudications_sha256": {
+                "not": {
+                  "const": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                }
+              }
             }
           }
         }
@@ -1571,19 +1642,43 @@
       "additionalProperties": false
     },
     "prefiling_refresh": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
       "x-pairwise-disjoint": [
-        "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids"
+        "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids",
+        "superseded_treatment_ids"
+      ],
+      "x-runtime-invariants": [
+        "refresh_plan_sha256 and refresh_plan_id must bind the exact closed refresh plan",
+        "coverage_gaps must be an exact subset of declared coverage_requirements and their digest must match",
+        "plan, treatment set and live read-only cache must have identical corpus, treatment ID and population bindings",
+        "pending, verified, rejected and superseded treatment IDs must be pairwise disjoint and their union must equal the complete treatment population",
+        "complete=true requires an exact verified live binding, empty blocking diagnostics and valid chronology"
       ],
       "type": "object",
       "required": [
         "schema_version", "baseline_corpus_digest", "current_corpus_digest",
         "subject_evidence_sha256", "refresh_plan_id", "refresh_plan_sha256",
+        "refresh_plan_contract_valid", "refresh_plan_as_of",
+        "refresh_plan_max_age_seconds", "refresh_plan_evidence_digest",
+        "refresh_plan_treatment_ids",
+        "refresh_plan_treatment_population_sha256",
+        "refresh_plan_coverage_requirements",
+        "refresh_plan_coverage_requirements_sha256",
         "checked_through", "filing_cutoff", "reviewer", "reviewed_at",
-        "claim_ids", "affected_claim_ids", "treatments_sha256",
+        "claim_ids", "affected_claim_ids", "live_binding_version",
+        "live_corpus_binding_contract_valid", "live_corpus_binding_verified",
+        "live_cache_stable", "live_corpus_evidence_digest",
+        "live_refresh_plan_sha256", "live_treatment_set_sha256",
+        "live_treatment_population_sha256", "live_treatment_ids",
+        "live_binding_issue_ids", "treatment_set_contract_valid",
+        "treatment_set_sha256", "treatment_set_corpus_evidence_digest",
+        "treatment_set_population_sha256",
+        "treatments_sha256",
         "pending_treatment_ids", "verified_treatment_ids", "rejected_treatment_ids",
+        "superseded_treatment_ids",
         "treatment_chronology_issue_ids", "stale_seed_ids",
-        "malformed_refresh_entry_ids", "malformed_coverage_gap_ids",
+        "malformed_refresh_entry_ids", "malformed_coverage_requirement_ids",
+        "malformed_coverage_gap_ids",
         "coverage_gaps", "reasons", "status", "complete", "refresh_id"
       ],
       "properties": {
@@ -1593,15 +1688,101 @@
         "subject_evidence_sha256": {"$ref": "#/definitions/sha256"},
         "refresh_plan_id": {"type": ["string", "null"]},
         "refresh_plan_sha256": {"$ref": "#/definitions/sha256"},
-        "checked_through": {"type": "string", "format": "date-time"},
-        "filing_cutoff": {"type": "string", "format": "date-time"},
-        "reviewer": {"$ref": "#/definitions/non_empty_string"},
-        "reviewed_at": {"type": "string", "format": "date-time"},
+        "refresh_plan_contract_valid": {"type": "boolean"},
+        "refresh_plan_as_of": {
+          "type": ["string", "null"], "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "refresh_plan_max_age_seconds": {"type": ["integer", "null"], "minimum": 0},
+        "refresh_plan_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "refresh_plan_treatment_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "refresh_plan_treatment_population_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "refresh_plan_coverage_requirements": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "court_id": {"$ref": "#/definitions/non_empty_string"},
+              "period_id": {"$ref": "#/definitions/non_empty_string"},
+              "enumerator_id": {"$ref": "#/definitions/non_empty_string"},
+              "source_role": {
+                "type": "string",
+                "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+              }
+            },
+            "anyOf": [
+              {"required": ["court_id"]}, {"required": ["period_id"]},
+              {"required": ["enumerator_id"]}, {"required": ["source_role"]}
+            ],
+            "additionalProperties": false
+          }
+        },
+        "refresh_plan_coverage_requirements_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "checked_through": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
+        "filing_cutoff": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
+        "reviewer": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})?$"
+        },
         "claim_ids": {
-          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
         },
         "affected_claim_ids": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
+        },
+        "live_binding_version": {"type": ["string", "null"], "enum": ["1.0", null]},
+        "live_corpus_binding_contract_valid": {"type": "boolean"},
+        "live_corpus_binding_verified": {"type": "boolean"},
+        "live_cache_stable": {"type": "boolean"},
+        "live_corpus_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "live_refresh_plan_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "live_treatment_set_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "live_treatment_population_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "live_treatment_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "live_binding_issue_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/non_empty_string"}
+        },
+        "treatment_set_contract_valid": {"type": "boolean"},
+        "treatment_set_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "treatment_set_corpus_evidence_digest": {
+          "type": ["string", "null"],
+          "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+        },
+        "treatment_set_population_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
         },
         "treatments_sha256": {"$ref": "#/definitions/sha256"},
         "pending_treatment_ids": {
@@ -1613,6 +1794,9 @@
         "rejected_treatment_ids": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
+        "superseded_treatment_ids": {
+          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+        },
         "treatment_chronology_issue_ids": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
@@ -1622,10 +1806,37 @@
         "malformed_refresh_entry_ids": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
+        "malformed_coverage_requirement_ids": {
+          "type": "array", "uniqueItems": true, "items": {"type": "string"}
+        },
         "malformed_coverage_gap_ids": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
-        "coverage_gaps": {"type": "array", "items": {"type": "object"}},
+        "coverage_gaps": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["reason", "action"],
+            "properties": {
+              "court_id": {"$ref": "#/definitions/non_empty_string"},
+              "period_id": {"$ref": "#/definitions/non_empty_string"},
+              "enumerator_id": {"$ref": "#/definitions/non_empty_string"},
+              "source_role": {
+                "type": "string",
+                "enum": ["official_enumerator_observation", "official_user_seed", "official_authority_seed", "discovery_only"]
+              },
+              "reason": {"type": "string", "const": "coverage_gap_not_observed"},
+              "action": {"$ref": "#/definitions/non_empty_string"}
+            },
+            "anyOf": [
+              {"required": ["court_id"]},
+              {"required": ["period_id"]},
+              {"required": ["enumerator_id"]},
+              {"required": ["source_role"]}
+            ],
+            "additionalProperties": false
+          }
+        },
         "reasons": {
           "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
@@ -1663,10 +1874,66 @@
           "then": {
             "properties": {
               "complete": {"const": true},
+              "refresh_plan_id": {
+                "type": "string",
+                "pattern": "^refresh-plan-sha256:[0-9a-f]{64}$"
+              },
+              "refresh_plan_contract_valid": {"const": true},
+              "refresh_plan_as_of": {
+                "type": "string", "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "refresh_plan_max_age_seconds": {"type": "integer", "minimum": 0},
+              "refresh_plan_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "refresh_plan_treatment_population_sha256": {
+                "$ref": "#/definitions/sha256"
+              },
+              "refresh_plan_coverage_requirements": {"minItems": 1},
+              "refresh_plan_coverage_requirements_sha256": {
+                "$ref": "#/definitions/sha256"
+              },
+              "claim_ids": {"minItems": 1},
+              "live_binding_version": {"const": "1.0"},
+              "live_corpus_binding_contract_valid": {"const": true},
+              "live_corpus_binding_verified": {"const": true},
+              "live_cache_stable": {"const": true},
+              "live_corpus_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "live_refresh_plan_sha256": {"$ref": "#/definitions/sha256"},
+              "live_treatment_set_sha256": {"$ref": "#/definitions/sha256"},
+              "live_treatment_population_sha256": {"$ref": "#/definitions/sha256"},
+              "live_binding_issue_ids": {"maxItems": 0},
+              "treatment_set_contract_valid": {"const": true},
+              "treatment_set_sha256": {"$ref": "#/definitions/sha256"},
+              "treatment_set_corpus_evidence_digest": {
+                "type": "string",
+                "pattern": "^corpus-evidence-sha256:[0-9a-f]{64}$"
+              },
+              "treatment_set_population_sha256": {
+                "$ref": "#/definitions/sha256"
+              },
+              "checked_through": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "filing_cutoff": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "reviewed_at": {
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+              },
               "pending_treatment_ids": {"maxItems": 0},
               "treatment_chronology_issue_ids": {"maxItems": 0},
               "stale_seed_ids": {"maxItems": 0},
               "malformed_refresh_entry_ids": {"maxItems": 0},
+              "malformed_coverage_requirement_ids": {"maxItems": 0},
               "malformed_coverage_gap_ids": {"maxItems": 0},
               "affected_claim_ids": {"maxItems": 0}
             }
@@ -1811,9 +2078,16 @@
         },
         "quality_bindings": {
           "type": "array",
-          "minItems": 4,
+          "minItems": 5,
           "uniqueItems": true,
-          "items": {"$ref": "#/definitions/handoff_quality_binding"}
+          "items": {"$ref": "#/definitions/handoff_quality_binding"},
+          "allOf": [
+            {"contains": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_audit_plan"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}}, "minContains": 1, "maxContains": 1}
+          ]
         }
       },
       "additionalProperties": false
@@ -1879,9 +2153,16 @@
         },
         "quality_bindings": {
           "type": "array",
-          "minItems": 4,
+          "minItems": 5,
           "uniqueItems": true,
-          "items": {"$ref": "#/definitions/handoff_quality_binding"}
+          "items": {"$ref": "#/definitions/handoff_quality_binding"},
+          "allOf": [
+            {"contains": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_audit_plan"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}}, "minContains": 1, "maxContains": 1}
+          ]
         }
       },
       "additionalProperties": false
@@ -2121,7 +2402,16 @@
           ]
         },
         "reason": {"type": ["string", "null"]}
-        ,"source_role": {"type": ["string", "null"]}
+        ,"source_role": {
+          "type": ["string", "null"],
+          "enum": [
+            "official_enumerator_observation",
+            "official_user_seed",
+            "official_authority_seed",
+            "discovery_only",
+            null
+          ]
+        }
         ,"court_id": {"type": ["string", "null"]}
         ,"period_id": {"type": ["string", "null"]}
         ,"enumerator_id": {"type": ["string", "null"]}
@@ -2147,7 +2437,11 @@
       "additionalProperties": false
     },
     "treatment_edge": {
-      "x-contract-version": "1.0",
+      "x-contract-version": "1.1",
+      "x-runtime-invariants": [
+        "status is the effective quality status while review_decision is the immutable human decision",
+        "supersession is derived from the complete reciprocal single-successor graph"
+      ],
       "type": "object",
       "required": [
         "treatment_id",
@@ -2169,7 +2463,17 @@
         "snapshot_id": {"$ref": "#/definitions/snapshot_id"},
         "status": {
           "type": "string",
-          "enum": ["candidate", "verified", "rejected"]
+          "enum": ["candidate", "verified", "rejected", "superseded"]
+        },
+        "review_decision": {
+          "type": ["string", "null"],
+          "enum": ["verified", "rejected", null]
+        },
+        "supersedes_treatment_id": {"type": ["string", "null"]},
+        "superseded_by_treatment_id": {"type": ["string", "null"]},
+        "created_at": {"type": ["string", "null"], "format": "date-time"},
+        "quality_blockers": {
+          "type": "array", "uniqueItems": true, "items": {"type": "string"}
         },
         "reviewer": {"type": ["string", "null"]},
         "quote": {"type": ["string", "null"]},
