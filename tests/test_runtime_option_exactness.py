@@ -389,7 +389,8 @@ class RuntimeOptionExactnessTests(unittest.TestCase):
                         self.assertEqual(completed.returncode, 0, completed.stderr)
                         self.assertEqual(
                             completed.stdout,
-                            "OK: adaptive KSRF research artifact is valid\n",
+                            "OK: базовая структура и ссылки соответствуют "
+                            "контракту; юридическая готовность не проверялась\n",
                         )
                         self.assertEqual(completed.stderr, "")
 

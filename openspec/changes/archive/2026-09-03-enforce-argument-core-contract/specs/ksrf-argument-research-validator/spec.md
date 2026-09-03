@@ -1,8 +1,5 @@
-# ksrf-argument-research-validator Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change make-argument-validator-total. Update Purpose after archive.
-## Requirements
 ### Requirement: Argument-research validation is total for JSON artifacts
 
 The installed `validate_argument_research.py` validator MUST return a

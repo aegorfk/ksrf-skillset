@@ -213,7 +213,7 @@ class ArgumentResearchValidatorTotalityTests(unittest.TestCase):
                 "findings[0] has invalid confidence",
                 "hypotheses[0] has invalid status",
                 "portfolio.human_approval is invalid",
-                "portfolio.principal_hypothesis_id must be a string or null",
+                "portfolio.principal_hypothesis_id must be a non-empty string or null",
                 "principal hypothesis requires human_approval=approved",
             ],
         )
@@ -290,6 +290,7 @@ class ArgumentResearchValidatorTotalityTests(unittest.TestCase):
             malformed = _fresh_artifact()
             finding = malformed["findings"][0]
             finding["finding_id"] = surrogate
+            finding["hypothesis_ids"] = [surrogate]
             malformed["findings"].append(dict(finding))
             hypothesis = malformed["hypotheses"][0]
             hypothesis["hypothesis_id"] = surrogate
@@ -394,7 +395,8 @@ class ArgumentResearchValidatorTotalityTests(unittest.TestCase):
                     self.assertEqual(valid.returncode, 0, valid.stderr)
                     self.assertEqual(
                         valid.stdout,
-                        "OK: adaptive KSRF research artifact is valid\n",
+                        "OK: базовая структура и ссылки соответствуют контракту; "
+                        "юридическая готовность не проверялась\n",
                     )
                     self.assertEqual(valid.stderr, "")
                     self.assertEqual(invalid.returncode, 2)

@@ -192,6 +192,10 @@ KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
 python3 "$KSRF_SKILLS_ROOT/ksrf-explore-arguments/scripts/validate_argument_research.py" path/to/research.json
 ```
 
+`OK` подтверждает только базовую структуру и существование ссылок в JSON.
+Содержательную достаточность, достоверность источников и готовность к подаче
+эта команда не оценивает.
+
 ## Ограничения
 
 - Не называй гипотезу правовой позицией КС РФ без проверенного официального источника.
