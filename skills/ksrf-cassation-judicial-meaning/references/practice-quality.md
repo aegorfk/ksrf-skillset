@@ -45,15 +45,50 @@
 
 ## Надёжность кодирования
 
-Сначала подготовь два специальных входа аудита и заморозь план независимой проверки. Это не прямые результаты обычных команд `screen` и `code`: они не добавляют audit-level `candidate_id`, а обычная coding-карточка имеет другой envelope. Прямая подстановка таких файлов будет отклонена.
+### 1. Подготовь первичные входы штатной командой
 
-`screening-candidates.jsonl` должен перечислять всю замороженную рамку отбора; минимальная строка — `{"candidate_id":"candidate-1"}`. `primary-decisions.jsonl` должен содержать для каждого такого ID ровно закрытую coding-запись из определения `coding_audit_decision.secondary_coding` в `schemas/practice-quality.v1.json`: candidate/chain/document IDs, label, speaker, proposition, quote/locator, norm edition, reasoning-to-outcome, reading family, relation, remedy, coder, codebook version, material facts, alternative grounds и три признака ручной проверки. Сопоставление исходного результата с `candidate_id` выполняется под человеческим контролем; пропущенный screening-кандидат попадает в `invalid_primary_record_ids` и блокирует завершение.
+После завершённых `screen` и одобренного человеком `code` создай новый каталог аудита:
 
-На момент этого релиза штатного producer для `screening-candidates.jsonl`, `primary-decisions.jsonl`, `audit-decisions.jsonl` и `adjudications.jsonl` нет. Это специальные входы именно закрытого audit-контракта: их готовят вручную под контролем человека, не переименовывая обычный вывод `screen`/`code` и не дописывая hashes после проверки.
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+JM="$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py"
+AUDIT_BUNDLE="./coding-audit-inputs"
+
+python3 "$JM" quality coding-audit-prepare \
+  --workspace ./research-workspace \
+  --sample-size 20 \
+  --exclusion-sample-size 10 \
+  --output-dir "$AUDIT_BUNDLE"
+```
+
+Команда работает без сети, не меняет исследовательский рабочий каталог и принимает только отсутствующий `--output-dir` вне workspace, но внутри уже существующего обычного каталога. Принадлежность к workspace проверяется и по пути, и по файловой идентичности родителей, поэтому иной регистр имени на macOS не позволяет записать пакет внутрь рабочей папки. Сначала команда проверяет SHA замороженного плана, совпадение каждого захваченного текста — включая не попавшие в отбор документы — с `text_sha256` и content-addressed `document_id`, заново применяет поисковые запросы к тем же полным текстам, требует полного сопоставления результатов отбора и одобренной первичной разметки по `chain_id + document_id`, а затем снова сверяет основную и каждую указанную альтернативную цитату с соответствующим текстом. Повторные записи источника одной пары объединяются только при одинаковом SHA полного текста и одинаковом повторно вычисленном наборе совпадений; иначе подготовка блокируется как неоднозначная. Перед публикацией runtime повторяет снимок всех входов, а каталог переносит атомарно с запретом замены даже при гонке. Любая ошибка оставляет рабочий каталог неизменным и не публикует частичный результат.
+
+В новом каталоге появятся ровно такие рабочие файлы:
+
+- `screening-candidates.audit.jsonl` — полная закрытая рамка с производными `audit-candidate-sha256:…`, SHA плана, исходными `source_ids` и повторно проверенными совпадениями;
+- `primary-decisions.audit.jsonl` — первичная разметка, спроецированная в точный 20-полевой audit-контракт и повторно проверенная по полному тексту;
+- `coding-audit-plan.json` — замороженные детерминированные выборки общей рамки и исключений;
+- `secondary-review-queue.jsonl` — идентичность кандидата и хеши содержимого для независимого проверяющего без метки, цитаты, вывода или другого содержательного ответа первого кодировщика;
+- `secondary-coding-template.jsonl` — только идентичность и версия справочника кодирования; все содержательные поля пусты, `human_review="pending"`, `quote_verified=false` и `full_text_reviewed=false`;
+- `coding-audit-inputs-manifest.json` — SHA исходного frozen-плана, screening, primary и реестра источников, SHA канонического реестра текстов, полная рамка и обязательная выборка кандидатов, размер и SHA каждого из пяти файлов содержимого, а также собственный `manifest_sha256`; поля `human_approval_created=false` и `legal_readiness=false` прямо запрещают считать пакет одобрением или готовностью жалобы.
+
+Рамка и первичные решения охватывают всех кандидатов; очередь и пустые шаблоны содержат только `required_candidate_ids` из замороженного audit-плана. Так независимый проверяющий получает ровно выбранную работу, а полнота исходного знаменателя остаётся проверяемой.
+
+Каталог — воспроизводимый первичный пакет, а не результат независимой проверки. Неизменённый `secondary-coding-template.jsonl` намеренно не проходит `coding-reliability`. Второй человек должен независимо прочитать полный текст, заполнить все поля, указать другого `coder`, проверить цитату и затем сформировать отдельный четырёхполевой `audit-decisions.jsonl`. При реальном расхождении отдельный человек готовит `adjudications.jsonl`. Команда подготовки не выполняет вторую разметку, разрешение расхождений, юридическое одобрение или подачу жалобы.
+
+### 2. Экспертный ручной путь остаётся совместимым
+
+Если уже есть точные специальные входы по контракту, `quality coding-audit-plan` продолжает работать как прежде. В этом пути `screening-candidates.jsonl` перечисляет всю замороженную рамку (минимальная строка — `{"candidate_id":"candidate-1"}`), а `primary-decisions.jsonl` содержит для каждого ID ровно закрытую запись кодирования из определения `coding_audit_decision.secondary_coding` в `schemas/practice-quality.v1.json`.
+
+Обычные результаты `screening-candidates.jsonl` и `coding-decisions.jsonl` не являются такими ручными audit-входами: в них нет производного audit-level `candidate_id`, а карточка кодирования имеет другую оболочку. Не переименовывай их и не дописывай SHA после проверки — используй штатную команду либо подготовь точные специальные записи под контролем человека.
 
 Во всех audit-digests используется одна канонизация: JSON кодируется в UTF-8 через `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)`, затем считается SHA-256 полученных bytes и записывается как 64 строчных hex-символа. Для digest JSONL runtime сначала сортирует прочитанные записи по каноническому SHA каждой записи, затем применяет ту же канонизацию к полученному JSON-массиву. Порядок ключей и пробелы исходного файла не влияют на digest; изменение значения влияет.
 
-После подготовки этих contract-specific файлов выполни:
+Исключение существует только для диагностики уже невалидного значения: escaped lone surrogate из синтаксически допустимого JSON невозможно закодировать в канонический UTF-8. Такая запись остаётся видимой в `invalid_*` и `unresolved_candidate_ids`, а для её сортировки и diagnostic ID используется детерминированный compact JSON с `ensure_ascii=true`. Этот служебный отпечаток не подтверждает переданный content hash и не может сделать запись допустимой или завершить аудит.
+
+`quality coding-reliability` читает план, primary, audit и adjudication как строгий UTF-8 JSON/JSONL: повторный ключ на любом уровне, `NaN`, `Infinity` или `-Infinity` дают ошибку входа `2`, а не результат проверки. Допустимые формы файлов не меняются: один объект, массив объектов или JSONL там, где они уже поддерживались.
+
+Для экспертного ручного пути выполни:
 
 ```bash
 KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
@@ -68,7 +103,7 @@ python3 "$JM" quality coding-audit-plan \
   --output ./coding-audit-plan.json
 ```
 
-`coding-audit-plan.json` связывает точный search-plan hash, канонический digest всех screening-кандидатов, digest полной первичной разметки, детерминированные SHA-выборки включённых карточек и отдельную выборку исключений. Secondary review не заменяет primary cards и должен называть того же `candidate_id`, что внешний audit record.
+`coding-audit-plan.json` связывает точный search-plan hash, канонический digest всех screening-кандидатов, digest полной первичной разметки, детерминированную общую выборку и отдельную выборку исключений. `sample_size` и `exclusion_sample_size` — независимые верхние пределы: фактический список короче, если соответствующая рамка меньше, а один кандидат может попасть в обе выборки. `required_candidate_ids` — их отсортированное объединение без повторов, а не сумма длин. Secondary review не заменяет primary cards и должен называть тот же `candidate_id`, что внешний audit record.
 
 Каждая строка `audit-decisions.jsonl` — объект ровно с четырьмя полями, без дополнительных ключей:
 
@@ -86,16 +121,18 @@ python3 "$JM" quality coding-audit-plan \
 
 Adjudication нужен только для фактического расхождения. `resolved_fields` должен содержать ровно все и только различавшиеся поля из закрытого набора `label`, `speaker`, `norm_edition_id`, `reading_family`, `relation`, `reasoning_to_outcome`, `alternative_grounds`, `remedy`; оба hashes должны совпадать с конкретной парой разметок, а adjudicator должен отличаться от обоих coders. Новые или неаудируемые поля, частичное разрешение и adjudication без расхождения блокируют завершение.
 
-После независимой разметки выполни:
+После независимой разметки выполни (для штатного пакета оставь plan и primary внутри него):
 
 ```bash
 python3 "$JM" quality coding-reliability \
-  --audit-plan ./coding-audit-plan.json \
-  --primary-decisions ./primary-decisions.jsonl \
+  --audit-plan "$AUDIT_BUNDLE/coding-audit-plan.json" \
+  --primary-decisions "$AUDIT_BUNDLE/primary-decisions.audit.jsonl" \
   --audit-decisions ./audit-decisions.jsonl \
   --adjudications ./adjudications.jsonl \
   --output ./coding-reliability.json
 ```
+
+При ручном пути замени первые две ссылки на свой `coding-audit-plan.json` и свой точный `primary-decisions.jsonl`.
 
 `coding-reliability.json` становится `complete=true`, только когда closed contract плана и его digest действительны, текущая primary-разметка совпадает с замороженной, второй coder действительно независим, вся frozen sample размечена полными coding records, а каждое существенное расхождение разрешено content-bound adjudication. `reviewed_at` adjudication должен быть полной датой и временем RFC 3339 с секундами и часовым поясом и не может находиться в будущем. Неполные, лишние, дублирующиеся, неканонические или связанные с другим candidate записи сохраняются в соответствующих `invalid_*` и `unresolved_candidate_ids`, а не имитируют согласие.
 

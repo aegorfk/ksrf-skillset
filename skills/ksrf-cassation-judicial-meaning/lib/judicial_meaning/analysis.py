@@ -234,6 +234,22 @@ def validate_coding_against_text(record: dict[str, Any], full_text: str) -> list
         normalised_text = " ".join(full_text.casefold().split())
         if normalised_quote and normalised_quote not in normalised_text:
             errors.append("Проверенная цитата не найдена в сохранённом полном тексте документа.")
+    else:
+        normalised_text = " ".join(full_text.casefold().split())
+    alternative_grounds = record.get("alternative_grounds")
+    if isinstance(alternative_grounds, list):
+        for index, ground in enumerate(alternative_grounds, start=1):
+            if not isinstance(ground, dict):
+                continue
+            ground_quote = ground.get("quote")
+            if not isinstance(ground_quote, str):
+                continue
+            normalised_ground_quote = " ".join(ground_quote.casefold().split())
+            if normalised_ground_quote and normalised_ground_quote not in normalised_text:
+                errors.append(
+                    "Проверенная цитата альтернативного основания "
+                    f"{index} не найдена в сохранённом полном тексте документа."
+                )
     return errors
 
 

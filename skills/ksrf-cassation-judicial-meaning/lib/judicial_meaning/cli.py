@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 import sys
+import tempfile
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -51,7 +56,9 @@ from .practice_quality import (
     assess_coding_reliability,
     assess_prefiling_refresh,
     build_coding_audit_plan,
+    build_native_coding_audit_inputs,
     build_uncertainty_profile,
+    canonical_digest,
 )
 from .reporting import derive_research_status, write_offline_report
 from .source_reconciliation import (
@@ -132,6 +139,7 @@ _RUSSIAN_METAVARS = {
     "notes": "ПРИМЕЧАНИЯ",
     "observations": "ФАЙЛ_НАБЛЮДЕНИЙ",
     "output": "ВЫХОДНОЙ_ФАЙЛ",
+    "output_dir": "НОВАЯ_ПАПКА_АУДИТА",
     "parser_manifest": "ФАЙЛ_МАНИФЕСТА_ПАРСЕРА",
     "payload": "ФАЙЛ_ДАННЫХ",
     "period_id": "ИДЕНТИФИКАТОР_ПЕРИОДА",
@@ -188,6 +196,31 @@ _RUSSIAN_METAVARS = {
     "verification": "ФАЙЛ_ПРОВЕРКИ",
     "workspace": "РАБОЧАЯ_ПАПКА",
 }
+
+
+class RussianHelpFormatter(argparse.HelpFormatter):
+    """Wrap prose without splitting executable names at their hyphens."""
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        normalized = self._whitespace_matcher.sub(" ", text).strip()
+        return textwrap.wrap(
+            normalized,
+            width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
+        normalized = self._whitespace_matcher.sub(" ", text).strip()
+        return "\n".join(
+            indent + line
+            for line in textwrap.wrap(
+                normalized,
+                width,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
 
 
 class RussianHelpArgumentParser(argparse.ArgumentParser):
@@ -293,7 +326,7 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     if not path.exists():
         return records
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
         if not line.strip():
             continue
         value = json.loads(line)
@@ -301,6 +334,77 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"{path}: строка {number} должна быть JSON-объектом")
         records.append(value)
     return records
+
+
+def _reject_json_constant(value: str) -> Any:
+    raise ValueError(f"Недопустимая JSON-константа {value}; NaN/Infinity запрещены.")
+
+
+def _closed_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"JSON-ключ {key!r} повторяется.")
+        result[key] = value
+    return result
+
+
+def _strict_json_loads(text: str, *, source: Path) -> Any:
+    try:
+        return json.loads(
+            text,
+            parse_constant=_reject_json_constant,
+            object_pairs_hook=_closed_json_object,
+        )
+    except (json.JSONDecodeError, UnicodeError, ValueError) as exc:
+        raise ValueError(f"{source}: неверный строгий JSON: {exc}") from exc
+
+
+def _strict_json_file(path: Path) -> tuple[Any, bytes]:
+    if not path.is_file():
+        raise ValueError(f"Не найден обязательный файл: {path}.")
+    content = path.read_bytes()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{path}: требуется корректный UTF-8.") from exc
+    return _strict_json_loads(text, source=path), content
+
+
+def _strict_jsonl_file(path: Path) -> tuple[list[dict[str, Any]], bytes]:
+    if not path.is_file():
+        raise ValueError(f"Не найден обязательный файл: {path}.")
+    content = path.read_bytes()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{path}: требуется корректный UTF-8.") from exc
+    records: list[dict[str, Any]] = []
+    for number, line in enumerate(text.split("\n"), start=1):
+        if not line.strip():
+            continue
+        value = _strict_json_loads(line, source=path)
+        if not isinstance(value, dict):
+            raise ValueError(f"{path}: строка {number} должна быть JSON-объектом.")
+        records.append(value)
+    return records, content
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _canonical_jsonl_bytes(records: Iterable[Mapping[str, Any]]) -> bytes:
+    return b"".join(_canonical_json_bytes(dict(record)) for record in records)
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
@@ -413,7 +517,7 @@ def _approval_evidence_sha256(workspace: Path) -> str:
     return _digest_existing(_approval_evidence_paths(workspace))
 
 
-def latest_plan(workspace: Path) -> dict[str, Any]:
+def _latest_plan_path(workspace: Path) -> Path:
     versions: list[tuple[int, Path]] = []
     for path in (workspace / "plans").glob("plan-v*.json"):
         try:
@@ -422,7 +526,84 @@ def latest_plan(workspace: Path) -> dict[str, Any]:
             continue
     if not versions:
         raise ValueError("Нет замороженного плана. Выполните `plan freeze`.")
-    return read_json(max(versions)[1])
+    return max(versions)[1]
+
+
+def latest_plan(workspace: Path) -> dict[str, Any]:
+    return read_json(_latest_plan_path(workspace))
+
+
+def _verified_frozen_plan(workspace: Path) -> tuple[dict[str, Any], bytes]:
+    plan_path = _latest_plan_path(workspace)
+    value, content = _strict_json_file(plan_path)
+    if not isinstance(value, dict):
+        raise ValueError(f"{plan_path}: замороженный план должен быть JSON-объектом.")
+    plan = dict(value)
+    plan_sha256 = plan.get("plan_sha256")
+    if plan.get("frozen") is not True or not isinstance(plan_sha256, str) or (
+        len(plan_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in plan_sha256)
+    ):
+        raise ValueError("Последний план не имеет действительной frozen SHA-256 привязки.")
+    unsigned = {
+        key: item for key, item in plan.items() if key not in {"frozen", "plan_sha256"}
+    }
+    plan_errors = validate_plan(unsigned)
+    if plan_errors:
+        raise ValueError("Последний замороженный план невалиден: " + "; ".join(plan_errors))
+    if canonical_digest(unsigned) != plan_sha256:
+        raise ValueError("SHA-256 последнего замороженного плана не совпадает с его содержимым.")
+    return plan, content
+
+
+def _captured_workspace_source_texts(
+    workspace: Path,
+    source_records: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    captured: list[dict[str, Any]] = []
+    for row_number, record in enumerate(source_records, start=1):
+        if record.get("kind") != "doc":
+            continue
+        text: str | None = None
+        inline_text = record.get("text")
+        if isinstance(inline_text, str) and inline_text.strip():
+            text = inline_text
+        else:
+            relpath = record.get("text_relpath")
+            if not isinstance(relpath, str) or not relpath.strip():
+                continue
+            relative = Path(relpath)
+            if relative.is_absolute():
+                raise ValueError(
+                    f"exports/sources.jsonl: строка {row_number} содержит абсолютный text_relpath."
+                )
+            try:
+                text_path = (workspace / relative).resolve(strict=True)
+                text_path.relative_to(workspace)
+            except (OSError, ValueError) as exc:
+                raise ValueError(
+                    f"exports/sources.jsonl: text_relpath строки {row_number} выходит за рабочую папку или отсутствует."
+                ) from exc
+            if not text_path.is_file():
+                raise ValueError(
+                    f"exports/sources.jsonl: text_relpath строки {row_number} не является файлом."
+                )
+            try:
+                text = text_path.read_bytes().decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValueError(
+                    f"exports/sources.jsonl: полный текст строки {row_number} не является UTF-8."
+                ) from exc
+        captured.append(
+            {
+                "source_id": record.get("source_id"),
+                "chain_id": record.get("chain_id"),
+                "document_id": record.get("document_id"),
+                "text_sha256": record.get("text_sha256"),
+                "text": text,
+            }
+        )
+    return captured
 
 
 def iter_input_files(inputs: list[str]) -> list[Path]:
@@ -2357,6 +2538,30 @@ def _quality_records(path_value: str, option: str) -> list[dict[str, Any]]:
     raise ValueError(f"{option}: ожидался JSON-объект, массив объектов или JSONL.")
 
 
+def _strict_quality_records(path_value: str, option: str) -> list[dict[str, Any]]:
+    """Read a human-authored quality input without ambiguous JSON semantics."""
+
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file():
+        raise ValueError(f"{option} должен указывать на существующий файл.")
+    if path.suffix.casefold() == ".jsonl":
+        records, _ = _strict_jsonl_file(path)
+        return records
+    value, _ = _strict_json_file(path)
+    if isinstance(value, list):
+        if not all(isinstance(item, dict) for item in value):
+            raise ValueError(f"{option}: JSON-массив должен содержать только объекты.")
+        return list(value)
+    if isinstance(value, dict):
+        if "items" in value:
+            raise ValueError(
+                f"{option} не принимает оболочку items; передайте "
+                "сам массив записей или JSONL после успешного сбора."
+            )
+        return [value]
+    raise ValueError(f"{option}: ожидался JSON-объект, массив объектов или JSONL.")
+
+
 def _optional_json(path_value: str | None) -> Any:
     if not path_value:
         return None
@@ -2423,16 +2628,272 @@ def cmd_quality_coding_audit_plan(args: argparse.Namespace) -> int:
     return _quality_result(args, result)
 
 
+def _atomic_rename_no_replace(source: Path, destination: Path) -> None:
+    """Atomically publish a directory while refusing an existing destination."""
+
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            renamex_np = libc.renamex_np
+        except AttributeError as exc:
+            raise OSError(
+                errno.ENOTSUP,
+                "Система не поддерживает атомарную публикацию без перезаписи.",
+            ) from exc
+        renamex_np.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        renamex_np.restype = ctypes.c_int
+        result = renamex_np(os.fsencode(source), os.fsencode(destination), 0x00000004)
+    elif sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            renameat2 = libc.renameat2
+        except AttributeError as exc:
+            raise OSError(
+                errno.ENOTSUP,
+                "Система не поддерживает атомарную публикацию без перезаписи.",
+            ) from exc
+        renameat2.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        renameat2.restype = ctypes.c_int
+        result = renameat2(
+            -100,
+            os.fsencode(source),
+            -100,
+            os.fsencode(destination),
+            0x00000001,
+        )
+    elif os.name == "nt":
+        os.rename(source, destination)
+        return
+    else:
+        raise OSError(
+            errno.ENOTSUP,
+            "Система не поддерживает атомарную публикацию без перезаписи.",
+        )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise FileExistsError(
+                error_number,
+                "Каталог audit-пакета уже существует; перезапись запрещена.",
+                destination,
+            )
+        raise OSError(error_number, os.strerror(error_number), destination)
+
+
+def _publish_new_audit_bundle(
+    destination: Path,
+    files: Mapping[str, bytes],
+) -> None:
+    if not destination.name or destination.name in {".", ".."}:
+        raise ValueError("--output-dir должен называть новую папку.")
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("--output-dir уже существует; перезапись audit-пакета запрещена.")
+    parent = destination.parent
+    if not parent.is_dir() or parent.is_symlink():
+        raise ValueError("Родитель --output-dir должен быть существующей обычной папкой.")
+
+    staging: Path | None = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=parent)
+    )
+    try:
+        for relative_path, content in files.items():
+            if Path(relative_path).name != relative_path:
+                raise AssertionError("audit bundle paths must be flat")
+            target = staging / relative_path
+            target.write_bytes(content)
+            if target.read_bytes() != content:
+                raise OSError(f"Не удалось проверить записанный audit-файл {relative_path}.")
+        if destination.exists() or destination.is_symlink():
+            raise ValueError(
+                "--output-dir появился во время подготовки; audit-пакет не опубликован."
+            )
+        _atomic_rename_no_replace(staging, destination)
+        staging = None
+    finally:
+        if staging is not None and staging.exists():
+            shutil.rmtree(staging)
+
+
+def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
+    workspace = Path(args.workspace).expanduser().resolve()
+    if not workspace.is_dir():
+        raise ValueError("--workspace должен указывать на существующую рабочую папку.")
+
+    raw_destination = Path(args.output_dir).expanduser()
+    if not raw_destination.is_absolute():
+        raw_destination = Path.cwd() / raw_destination
+    try:
+        destination_parent = raw_destination.parent.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("Родитель --output-dir должен существовать.") from exc
+    destination = destination_parent / raw_destination.name
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("--output-dir уже существует; перезапись audit-пакета запрещена.")
+    inside_workspace = False
+    try:
+        destination.relative_to(workspace)
+    except ValueError:
+        try:
+            inside_workspace = any(
+                os.path.samefile(ancestor, workspace)
+                for ancestor in (destination_parent, *destination_parent.parents)
+            )
+        except OSError as exc:
+            raise ValueError(
+                "Не удалось надёжно проверить, что --output-dir находится вне --workspace."
+            ) from exc
+    else:
+        inside_workspace = True
+    if inside_workspace:
+        raise ValueError(
+            "--output-dir должен находиться вне --workspace, чтобы рабочая папка не изменялась."
+        )
+
+    frozen_plan, plan_file_bytes = _verified_frozen_plan(workspace)
+    screening_path = workspace / "screening-candidates.jsonl"
+    primary_path = workspace / "coding-decisions.jsonl"
+    sources_path = workspace / "exports" / "sources.jsonl"
+    screening_records, screening_file_bytes = _strict_jsonl_file(screening_path)
+    primary_records, primary_file_bytes = _strict_jsonl_file(primary_path)
+    source_records, sources_file_bytes = _strict_jsonl_file(sources_path)
+    captured_sources = _captured_workspace_source_texts(workspace, source_records)
+
+    regenerated_screening: list[dict[str, Any]] = []
+    for source in captured_sources:
+        matches = screen_text(source["text"], frozen_plan["query_lanes"])
+        if matches:
+            regenerated_screening.append(
+                {
+                    "source_id": source["source_id"],
+                    "document_id": source["document_id"],
+                    "chain_id": source["chain_id"],
+                    "matches": matches,
+                    "status": "candidate_needs_full_text_review",
+                }
+            )
+    try:
+        saved_screening = sorted(screening_records, key=canonical_digest)
+        current_screening = sorted(regenerated_screening, key=canonical_digest)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("screening-candidates.jsonl содержит неканонический JSON.") from exc
+    if saved_screening != current_screening:
+        raise ValueError(
+            "screening-candidates.jsonl не совпадает с повторным отбором по "
+            "текущему замороженному плану и полным текстам."
+        )
+
+    bundle = build_native_coding_audit_inputs(
+        screening_records,
+        primary_records,
+        captured_sources,
+        plan_sha256=frozen_plan["plan_sha256"],
+        sample_size=args.sample_size,
+        exclusion_sample_size=args.exclusion_sample_size,
+    )
+
+    content_files: dict[str, bytes] = {
+        "screening-candidates.audit.jsonl": _canonical_jsonl_bytes(
+            bundle["screening_candidates"]
+        ),
+        "primary-decisions.audit.jsonl": _canonical_jsonl_bytes(
+            bundle["primary_decisions"]
+        ),
+        "coding-audit-plan.json": _canonical_json_bytes(bundle["audit_plan"]),
+        "secondary-review-queue.jsonl": _canonical_jsonl_bytes(
+            bundle["secondary_review_queue"]
+        ),
+        "secondary-coding-template.jsonl": _canonical_jsonl_bytes(
+            bundle["secondary_coding_templates"]
+        ),
+    }
+    file_entries = [
+        {
+            "path": name,
+            "bytes": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+        for name, content in content_files.items()
+    ]
+    audit_plan = bundle["audit_plan"]
+    unsigned_manifest = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_input_bundle",
+        "producer": "judicial_meaning.quality.coding_audit_prepare",
+        "plan_sha256": frozen_plan["plan_sha256"],
+        "source_plan_file_sha256": hashlib.sha256(plan_file_bytes).hexdigest(),
+        "source_screening_sha256": hashlib.sha256(screening_file_bytes).hexdigest(),
+        "source_primary_sha256": hashlib.sha256(primary_file_bytes).hexdigest(),
+        "source_sources_sha256": hashlib.sha256(sources_file_bytes).hexdigest(),
+        "source_text_inventory_sha256": bundle["source_text_inventory_sha256"],
+        "candidate_ids": [
+            record["candidate_id"] for record in bundle["screening_candidates"]
+        ],
+        "required_candidate_ids": audit_plan["required_candidate_ids"],
+        "secondary_review_state": "independent_secondary_required",
+        "human_approval_created": False,
+        "legal_readiness": False,
+        "files": file_entries,
+    }
+    manifest = {
+        **unsigned_manifest,
+        "manifest_sha256": canonical_digest(unsigned_manifest),
+    }
+
+    post_plan_value, post_plan_bytes = _strict_json_file(_latest_plan_path(workspace))
+    post_screening, post_screening_bytes = _strict_jsonl_file(screening_path)
+    post_primary, post_primary_bytes = _strict_jsonl_file(primary_path)
+    post_sources, post_sources_bytes = _strict_jsonl_file(sources_path)
+    post_captured_sources = _captured_workspace_source_texts(workspace, post_sources)
+    if (
+        post_plan_value != frozen_plan
+        or post_plan_bytes != plan_file_bytes
+        or post_screening != screening_records
+        or post_screening_bytes != screening_file_bytes
+        or post_primary != primary_records
+        or post_primary_bytes != primary_file_bytes
+        or post_sources != source_records
+        or post_sources_bytes != sources_file_bytes
+        or canonical_digest(post_captured_sources) != canonical_digest(captured_sources)
+    ):
+        raise ValueError(
+            "Рабочие входы изменились во время подготовки; audit-пакет не опубликован."
+        )
+    published_files = {
+        **content_files,
+        "coding-audit-inputs-manifest.json": _canonical_json_bytes(manifest),
+    }
+    _publish_new_audit_bundle(destination, published_files)
+    _print_json(
+        {
+            "artifact_type": manifest["artifact_type"],
+            "output_dir": str(destination),
+            "manifest_sha256": manifest["manifest_sha256"],
+            "candidate_count": len(manifest["candidate_ids"]),
+            "required_candidate_count": len(manifest["required_candidate_ids"]),
+            "secondary_review_state": manifest["secondary_review_state"],
+            "human_approval_created": False,
+            "legal_readiness": False,
+        }
+    )
+    return 0
+
+
 def cmd_quality_coding_reliability(args: argparse.Namespace) -> int:
-    audit_plan = read_json(Path(args.audit_plan).expanduser().resolve())
+    audit_plan, _ = _strict_json_file(Path(args.audit_plan).expanduser().resolve())
     if not isinstance(audit_plan, Mapping):
         raise ValueError("--audit-plan должен содержать JSON-объект.")
     result = assess_coding_reliability(
         audit_plan,
-        _quality_records(args.primary_decisions, "--primary-decisions"),
-        _quality_records(args.audit_decisions, "--audit-decisions"),
+        _strict_quality_records(args.primary_decisions, "--primary-decisions"),
+        _strict_quality_records(args.audit_decisions, "--audit-decisions"),
         (
-            _quality_records(args.adjudications, "--adjudications")
+            _strict_quality_records(args.adjudications, "--adjudications")
             if args.adjudications
             else []
         ),
@@ -3585,6 +4046,63 @@ def build_parser() -> argparse.ArgumentParser:
     quality_audit_plan.add_argument("--exclusion-sample-size", type=int, required=True)
     quality_audit_plan.add_argument("--output")
     quality_audit_plan.set_defaults(func=cmd_quality_coding_audit_plan)
+
+    quality_audit_prepare = quality_sub.add_parser(
+        "coding-audit-prepare",
+        help=(
+            "Подготовить из рабочей папки новый проверяемый пакет для "
+            "независимого аудита кодирования"
+        ),
+        epilog=(
+            "Команда без сетевого доступа повторно проверяет замороженный план, "
+            "screening-candidates.jsonl, первичную разметку и сохранённые полные "
+            "тексты. Она создаёт screening-candidates.audit.jsonl, "
+            "primary-decisions.audit.jsonl, coding-audit-plan.json, "
+            "secondary-review-queue.jsonl, secondary-coding-template.jsonl и "
+            "coding-audit-inputs-manifest.json. Папка --output-dir должна не "
+            "существовать: перезапись запрещена. Шаблон остаётся ожидающим "
+            "независимой вторичной проверки и сам не является её доказательством. "
+            "После отдельной ручной разметки и разрешения расхождений используйте "
+            "quality coding-reliability. Создание пакета не означает юридическую "
+            "готовность, одобрение или разрешение на подачу жалобы."
+        ),
+        formatter_class=RussianHelpFormatter,
+    )
+    quality_audit_prepare.add_argument(
+        "--workspace",
+        required=True,
+        help=(
+            "Существующая рабочая папка с замороженным планом, полным screening, "
+            "одобренной первичной разметкой и экспортом исходных текстов."
+        ),
+    )
+    quality_audit_prepare.add_argument(
+        "--sample-size",
+        type=int,
+        required=True,
+        help=(
+            "Максимум кандидатов общей детерминированной выборки; фактическое "
+            "число может быть меньше рамки."
+        ),
+    )
+    quality_audit_prepare.add_argument(
+        "--exclusion-sample-size",
+        type=int,
+        required=True,
+        help=(
+            "Максимум кандидатов проверки возможных ложных исключений; эта "
+            "выборка может пересекаться с общей."
+        ),
+    )
+    quality_audit_prepare.add_argument(
+        "--output-dir",
+        required=True,
+        help=(
+            "Новая отсутствующая папка для целиком опубликованного audit-пакета; "
+            "она должна быть вне --workspace, существующий путь не изменяется."
+        ),
+    )
+    quality_audit_prepare.set_defaults(func=cmd_quality_coding_audit_prepare)
 
     quality_gate_exit_help = (
         "Коды завершения проверки качества: 0 — ограниченная проверка "

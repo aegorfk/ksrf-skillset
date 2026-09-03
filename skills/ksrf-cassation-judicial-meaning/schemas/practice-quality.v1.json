@@ -12,7 +12,12 @@
     {"$ref": "#/definitions/chain_meaning_trajectory"},
     {"$ref": "#/definitions/chain_propagation_result"},
     {"$ref": "#/definitions/uncertainty_profile"},
+    {"$ref": "#/definitions/coding_audit_screening_frame_row"},
+    {"$ref": "#/definitions/coding_audit_review_queue_row"},
+    {"$ref": "#/definitions/coding_audit_pending_template"},
+    {"$ref": "#/definitions/coding_audit_inputs_manifest"},
     {"$ref": "#/definitions/coding_audit_plan"},
+    {"$ref": "#/definitions/coding_audit_completed_coding"},
     {"$ref": "#/definitions/coding_audit_decision"},
     {"$ref": "#/definitions/coding_adjudication"},
     {"$ref": "#/definitions/coding_reliability"},
@@ -32,6 +37,21 @@
       "minLength": 1,
       "pattern": "^(?![\\s\\S]*[\\u0000-\\u0008\\u000B-\\u000C\\u000E-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060\\uFEFF])(?=[\\s\\S]*\\S)[\\s\\S]+$",
       "x-runtime-invariant": "runtime rejects every Cf and Cs code point and every Cc code point except TAB, LF, and CR"
+    },
+    "coding_audit_candidate_id": {
+      "type": "string",
+      "pattern": "^audit-candidate-sha256:[0-9a-f]{64}$"
+    },
+    "coding_audit_document_id": {
+      "type": "string",
+      "pattern": "^document-sha256:[0-9a-f]{64}$"
+    },
+    "coding_audit_source_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "integer", "minimum": 1},
+      "x-runtime-invariant": "source IDs are sorted in strictly increasing numeric order"
     },
     "chain_stage_observation": {
       "x-contract-version": "1.0",
@@ -464,12 +484,204 @@
       },
       "additionalProperties": false
     },
+    "coding_audit_screening_match": {
+      "type": "object",
+      "required": ["lane", "query", "start", "end"],
+      "properties": {
+        "lane": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "query": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1}
+      },
+      "x-runtime-invariant": "start is strictly less than end and both offsets identify the recomputed query match in the bound full text",
+      "additionalProperties": false
+    },
+    "coding_audit_screening_frame_row": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "candidate_id is audit-candidate-sha256 plus the canonical SHA-256 of the exact object containing schema_version, plan_sha256, chain_id and document_id",
+        "document_id is document-sha256 plus the declared text_sha256 after the store NFC and whitespace normalization, so candidate identity is content-bound",
+        "source_ids are the sorted unique positive source IDs collapsed for the chain and document only when their full-text SHA-256 and recomputed matches are identical",
+        "matches are the exact non-empty screening result recomputed from the verified frozen plan and bound full text"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "candidate_id", "plan_sha256", "chain_id",
+        "document_id", "source_ids", "matches", "status"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "document_id": {"$ref": "#/definitions/coding_audit_document_id"},
+        "source_ids": {"$ref": "#/definitions/coding_audit_source_ids"},
+        "matches": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_screening_match"}
+        },
+        "status": {"type": "string", "const": "candidate_needs_full_text_review"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_review_queue_row": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "identity and source IDs equal the corresponding closed screening-frame row",
+        "source_text_sha256 is the canonical full-text digest shared by every collapsed source ID",
+        "primary_coding_sha256 is the canonical digest of the exact projected primary coding record",
+        "the closed row exposes no primary substantive coding answer"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "candidate_id", "chain_id", "document_id",
+        "source_ids", "source_text_sha256", "primary_coding_sha256",
+        "codebook_version", "review_state"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "document_id": {"$ref": "#/definitions/coding_audit_document_id"},
+        "source_ids": {"$ref": "#/definitions/coding_audit_source_ids"},
+        "source_text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "review_state": {"type": "string", "const": "independent_secondary_required"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_pending_template": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "identity and codebook fields equal the corresponding review-queue row",
+        "all substantive and reviewer fields remain null or empty until an independent human completes the record",
+        "this pending template intentionally fails the authoritative completed coding contract"
+      ],
+      "type": "object",
+      "required": [
+        "candidate_id", "chain_id", "document_id", "label", "speaker",
+        "proposition", "quote", "quote_locator", "norm_edition_id",
+        "reasoning_to_outcome", "reading_family", "relation", "remedy",
+        "coder", "codebook_version", "material_facts",
+        "alternative_grounds", "human_review", "quote_verified",
+        "full_text_reviewed"
+      ],
+      "properties": {
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "document_id": {"$ref": "#/definitions/coding_audit_document_id"},
+        "label": {"type": "null"},
+        "speaker": {"type": "null"},
+        "proposition": {"type": "null"},
+        "quote": {"type": "null"},
+        "quote_locator": {"type": "null"},
+        "norm_edition_id": {"type": "null"},
+        "reasoning_to_outcome": {"type": "null"},
+        "reading_family": {"type": "null"},
+        "relation": {"type": "null"},
+        "remedy": {"type": "null"},
+        "coder": {"type": "null"},
+        "codebook_version": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "material_facts": {"type": "array", "maxItems": 0},
+        "alternative_grounds": {"type": "array", "maxItems": 0},
+        "human_review": {"type": "string", "const": "pending"},
+        "quote_verified": {"type": "boolean", "const": false},
+        "full_text_reviewed": {"type": "boolean", "const": false}
+      },
+      "minProperties": 20,
+      "additionalProperties": false
+    },
+    "coding_audit_bundle_file": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "enum": [
+            "screening-candidates.audit.jsonl",
+            "primary-decisions.audit.jsonl",
+            "coding-audit-plan.json",
+            "secondary-review-queue.jsonl",
+            "secondary-coding-template.jsonl"
+          ]
+        },
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_inputs_manifest": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "candidate_ids are sorted and equal the complete audit screening-frame population",
+        "required_candidate_ids are sorted, are a subset of candidate_ids, and equal the frozen audit plan required_candidate_ids",
+        "files contains each of the five generated content files exactly once in the producer-declared deterministic order and excludes the manifest itself",
+        "source hashes bind the exact frozen plan, screening, primary and sources bytes plus the canonical candidate/source-text inventory",
+        "manifest_sha256 is the canonical digest of the exact remaining manifest fields"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "producer", "plan_sha256",
+        "source_plan_file_sha256",
+        "source_screening_sha256", "source_primary_sha256",
+        "source_sources_sha256", "source_text_inventory_sha256",
+        "candidate_ids", "required_candidate_ids", "secondary_review_state",
+        "human_approval_created", "legal_readiness", "files",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {"type": "string", "const": "coding_audit_input_bundle"},
+        "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_prepare"},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_plan_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_screening_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_primary_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_sources_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_text_inventory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "required_candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "secondary_review_state": {"type": "string", "const": "independent_secondary_required"},
+        "human_approval_created": {"type": "boolean", "const": false},
+        "legal_readiness": {"type": "boolean", "const": false},
+        "files": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_bundle_file"},
+          "allOf": [
+            {"contains": {"properties": {"path": {"const": "screening-candidates.audit.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "primary-decisions.audit.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "coding-audit-plan.json"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "secondary-review-queue.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"path": {"const": "secondary-coding-template.jsonl"}}, "required": ["path"]}, "minContains": 1, "maxContains": 1}
+          ]
+        },
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "coding_audit_plan": {
       "x-contract-version": "1.1",
       "x-runtime-invariants": [
         "audit_plan_sha256 is the canonical digest of the exact remaining fields",
-        "required_candidate_ids is exactly the disjoint union of substantive and false-exclusion samples",
-        "sample sizes equal their canonical unique ID lists and every screening-frame candidate has a primary decision"
+        "sample_size and exclusion_sample_size are independent maxima; the selected lists may overlap and may be shorter when their eligible frames are smaller",
+        "required_candidate_ids is the sorted set union of substantive and false-exclusion samples, without a disjointness requirement",
+        "every screening-frame candidate has a primary decision"
       ],
       "type": "object",
       "required": [
@@ -525,6 +737,65 @@
       },
       "additionalProperties": false
     },
+    "coding_audit_completed_coding": {
+      "x-contract-version": "1.1",
+      "type": "object",
+      "required": [
+        "candidate_id", "chain_id", "document_id", "label", "speaker",
+        "proposition", "quote", "quote_locator", "norm_edition_id",
+        "reasoning_to_outcome", "reading_family", "relation", "remedy",
+        "coder", "codebook_version", "material_facts",
+        "alternative_grounds", "human_review", "quote_verified",
+        "full_text_reviewed"
+      ],
+      "properties": {
+        "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "document_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "label": {
+          "type": "string",
+          "enum": ["core_merits", "contextual", "party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
+        },
+        "speaker": {"$ref": "#/definitions/visible_text"},
+        "proposition": {"$ref": "#/definitions/visible_text"},
+        "quote": {"$ref": "#/definitions/visible_text"},
+        "quote_locator": {"$ref": "#/definitions/visible_text"},
+        "norm_edition_id": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reasoning_to_outcome": {"$ref": "#/definitions/visible_text"},
+        "reading_family": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "relation": {
+          "type": "string",
+          "enum": ["supports", "adverse", "neutral", "distinguishes", "supersedes"]
+        },
+        "remedy": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "coder": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "codebook_version": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "material_facts": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/definitions/visible_text"}
+        },
+        "alternative_grounds": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/coding_alternative_ground"}
+        },
+        "human_review": {"type": "string", "const": "approved"},
+        "quote_verified": {"type": "boolean", "const": true},
+        "full_text_reviewed": {"type": "boolean", "const": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["label"],
+            "properties": {
+              "label": {"enum": ["core_merits", "contextual"]}
+            }
+          },
+          "then": {"properties": {"speaker": {"const": "court"}}}
+        }
+      ],
+      "minProperties": 20,
+      "additionalProperties": false
+    },
     "coding_audit_decision": {
       "x-contract-version": "1.1",
       "x-runtime-invariants": [
@@ -540,64 +811,7 @@
       "properties": {
         "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
         "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "secondary_coding": {
-          "type": "object",
-          "required": [
-            "candidate_id", "chain_id", "document_id", "label", "speaker",
-            "proposition", "quote", "quote_locator", "norm_edition_id",
-            "reasoning_to_outcome", "reading_family", "relation", "remedy",
-            "coder", "codebook_version", "material_facts",
-            "alternative_grounds", "human_review", "quote_verified",
-            "full_text_reviewed"
-          ],
-          "properties": {
-            "candidate_id": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "chain_id": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "document_id": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "label": {
-              "type": "string",
-              "enum": ["core_merits", "contextual", "party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
-            },
-            "speaker": {"$ref": "#/definitions/visible_text"},
-            "proposition": {"$ref": "#/definitions/visible_text"},
-            "quote": {"$ref": "#/definitions/visible_text"},
-            "quote_locator": {"$ref": "#/definitions/visible_text"},
-            "norm_edition_id": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "reasoning_to_outcome": {"$ref": "#/definitions/visible_text"},
-            "reading_family": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "relation": {
-              "type": "string",
-              "enum": ["supports", "adverse", "neutral", "distinguishes", "supersedes"]
-            },
-            "remedy": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "coder": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "codebook_version": {"$ref": "#/definitions/canonical_visible_identifier"},
-            "material_facts": {
-              "type": "array", "minItems": 1,
-              "items": {"$ref": "#/definitions/visible_text"}
-            },
-            "alternative_grounds": {
-              "type": "array",
-              "items": {"$ref": "#/definitions/coding_alternative_ground"}
-            },
-            "human_review": {"type": "string", "const": "approved"},
-            "quote_verified": {"type": "boolean", "const": true},
-            "full_text_reviewed": {"type": "boolean", "const": true}
-          },
-          "allOf": [
-            {
-              "if": {
-                "required": ["label"],
-                "properties": {
-                  "label": {"enum": ["core_merits", "contextual"]}
-                }
-              },
-              "then": {"properties": {"speaker": {"const": "court"}}}
-            }
-          ],
-          "minProperties": 20,
-          "additionalProperties": false
-        },
+        "secondary_coding": {"$ref": "#/definitions/coding_audit_completed_coding"},
         "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
       "additionalProperties": false

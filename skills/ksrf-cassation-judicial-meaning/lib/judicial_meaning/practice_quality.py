@@ -14,7 +14,7 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Sequence
 
-from .analysis import validate_coding_record
+from .analysis import validate_coding_against_text, validate_coding_record
 from .public_corpus import (
     OFFICIAL_EVIDENCE_SEED_ROLES,
     PUBLIC_SEED_ROLES,
@@ -95,6 +95,31 @@ AUDIT_CODING_RECORD_FIELDS = frozenset(
         "human_review",
         "quote_verified",
         "full_text_reviewed",
+    }
+)
+NATIVE_AUDIT_SCREENING_FIELDS = frozenset(
+    {
+        "schema_version",
+        "candidate_id",
+        "plan_sha256",
+        "chain_id",
+        "document_id",
+        "source_ids",
+        "matches",
+        "status",
+    }
+)
+NATIVE_AUDIT_QUEUE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "candidate_id",
+        "chain_id",
+        "document_id",
+        "source_ids",
+        "source_text_sha256",
+        "primary_coding_sha256",
+        "codebook_version",
+        "review_state",
     }
 )
 SUBSTANTIVE_LABELS = {"core_merits", "contextual"}
@@ -230,6 +255,22 @@ def canonical_digest(value: Any) -> str:
     """Return a stable SHA-256 over canonical UTF-8 JSON."""
 
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _diagnostic_digest(value: Any) -> str:
+    """Fingerprint malformed JSON values without promoting them to canonical data."""
+
+    try:
+        return canonical_digest(value)
+    except UnicodeEncodeError:
+        escaped = json.dumps(
+            value,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("ascii")
+        return hashlib.sha256(escaped).hexdigest()
 
 
 def _nonempty(value: Any) -> bool:
@@ -1000,13 +1041,13 @@ def _index_unique(
     for row_number, value in enumerate(values, start=1):
         if not isinstance(value, Mapping):
             invalid_records.append(
-                f"{record_kind}-record-{row_number}-{canonical_digest(value)[:16]}"
+                f"{record_kind}-record-{row_number}-{_diagnostic_digest(value)[:16]}"
             )
             continue
         identifier = _candidate_id(value)
         if identifier is None:
             invalid_records.append(
-                f"{record_kind}-record-{row_number}-{canonical_digest(dict(value))[:16]}"
+                f"{record_kind}-record-{row_number}-{_diagnostic_digest(dict(value))[:16]}"
             )
             continue
         if identifier in indexed:
@@ -1037,6 +1078,14 @@ def _unique_nonempty_string_list(value: Any) -> bool:
     return value == normalized and len(normalized) == len(set(normalized))
 
 
+def _unique_canonical_identifier_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and all(_is_canonical_identifier(item) for item in value)
+        and len(value) == len(set(value))
+    )
+
+
 def _coding_audit_plan_contract_valid(plan: Mapping[str, Any]) -> bool:
     """Validate the closed frozen-plan contract without an optional dependency."""
 
@@ -1051,7 +1100,7 @@ def _coding_audit_plan_contract_valid(plan: Mapping[str, Any]) -> bool:
         or plan.get("selection_method") != "canonical_sha256_rank"
         or plan.get("frozen") is not True
         or not _is_sha256(plan.get("audit_plan_sha256"))
-        or plan.get("audit_plan_sha256") != canonical_digest(unsigned)
+        or plan.get("audit_plan_sha256") != _diagnostic_digest(unsigned)
     ):
         return False
     for field in ("sample_size", "exclusion_sample_size"):
@@ -1065,7 +1114,7 @@ def _coding_audit_plan_contract_valid(plan: Mapping[str, Any]) -> bool:
         "exclusion_sample_candidate_ids",
         "required_candidate_ids",
     ):
-        if not _unique_nonempty_string_list(plan.get(field)):
+        if not _unique_canonical_identifier_list(plan.get(field)):
             return False
     sample = plan["sample_candidate_ids"]
     exclusion = plan["exclusion_sample_candidate_ids"]
@@ -1093,7 +1142,7 @@ def _coding_audit_record_contract_valid(
         and _audit_coding_identity_valid(secondary)
         and _is_sha256(record.get("secondary_coding_sha256"))
         and record.get("secondary_coding_sha256")
-        == canonical_digest(dict(secondary))
+        == _diagnostic_digest(dict(secondary))
     )
 
 
@@ -2239,6 +2288,346 @@ def build_coding_audit_plan(
     return {**payload, "audit_plan_sha256": canonical_digest(payload)}
 
 
+def _native_audit_candidate_id(
+    *, plan_sha256: str, chain_id: str, document_id: str
+) -> str:
+    """Derive an audit identity without depending on source order or storage IDs."""
+
+    identity = {
+        "schema_version": SCHEMA_VERSION,
+        "plan_sha256": plan_sha256,
+        "chain_id": chain_id,
+        "document_id": document_id,
+    }
+    return "audit-candidate-sha256:" + canonical_digest(identity)
+
+
+def _native_audit_match_valid(value: Any) -> bool:
+    if not isinstance(value, Mapping) or set(value) != {
+        "lane",
+        "query",
+        "start",
+        "end",
+    }:
+        return False
+    start = value.get("start")
+    end = value.get("end")
+    return (
+        _is_canonical_identifier(value.get("lane"))
+        and _is_canonical_identifier(value.get("query"))
+        and isinstance(start, int)
+        and not isinstance(start, bool)
+        and isinstance(end, int)
+        and not isinstance(end, bool)
+        and 0 <= start < end
+    )
+
+
+def build_native_coding_audit_inputs(
+    screening_candidates: Iterable[Any],
+    primary_decisions: Iterable[Any],
+    source_texts: Iterable[Any],
+    *,
+    plan_sha256: str,
+    sample_size: int,
+    exclusion_sample_size: int,
+) -> dict[str, Any]:
+    """Project one verified ordinary workspace into deterministic audit inputs.
+
+    File-system capture and re-screening belong to the CLI adapter. This pure
+    builder closes identities, validates primary coding against the supplied
+    text snapshot, and creates only visibly pending independent-review aids.
+    """
+
+    if not _is_sha256(plan_sha256):
+        raise ValueError("Хеш замороженного плана должен быть lowercase SHA-256.")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in (sample_size, exclusion_sample_size)
+    ):
+        raise ValueError("Размеры audit-выборок должны быть неотрицательными целыми числами.")
+    if sample_size == 0 and exclusion_sample_size == 0:
+        raise ValueError("Хотя бы одна audit-выборка должна иметь ненулевой максимум.")
+
+    sources_by_id: dict[int, dict[str, Any]] = {}
+    for row_number, value in enumerate(source_texts, start=1):
+        if not isinstance(value, Mapping) or set(value) != {
+            "source_id",
+            "chain_id",
+            "document_id",
+            "text_sha256",
+            "text",
+        }:
+            raise ValueError(
+                f"Снимок полного текста {row_number} имеет неверный закрытый формат."
+            )
+        source_id = value.get("source_id")
+        chain_id = value.get("chain_id")
+        document_id = value.get("document_id")
+        text_sha256 = value.get("text_sha256")
+        text = value.get("text")
+        if (
+            isinstance(source_id, bool)
+            or not isinstance(source_id, int)
+            or source_id < 1
+        ):
+            raise ValueError(f"У полного текста {row_number} неверный source_id.")
+        if source_id in sources_by_id:
+            raise ValueError(f"source_id {source_id} повторяется в реестре полных текстов.")
+        if not _is_canonical_identifier(chain_id) or not _is_canonical_identifier(
+            document_id
+        ):
+            raise ValueError(
+                f"У полного текста source_id={source_id} неканоническая identity."
+            )
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"У source_id={source_id} отсутствует полный текст.")
+        normalized_text = re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
+        expected_text_sha256 = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
+        if text_sha256 != expected_text_sha256:
+            raise ValueError(
+                f"У source_id={source_id} text_sha256 не совпадает с полным текстом."
+            )
+        if document_id != f"document-sha256:{expected_text_sha256}":
+            raise ValueError(
+                f"У source_id={source_id} document_id не связан с полным текстом."
+            )
+        sources_by_id[source_id] = dict(value)
+
+    screening_by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    seen_screening_source_ids: set[int] = set()
+    ordinary_screening_fields = {
+        "source_id",
+        "document_id",
+        "chain_id",
+        "matches",
+        "status",
+    }
+    for row_number, value in enumerate(screening_candidates, start=1):
+        if not isinstance(value, Mapping) or set(value) != ordinary_screening_fields:
+            raise ValueError(
+                f"Строка screening {row_number} имеет неверный закрытый формат."
+            )
+        source_id = value.get("source_id")
+        chain_id = value.get("chain_id")
+        document_id = value.get("document_id")
+        matches = value.get("matches")
+        if (
+            isinstance(source_id, bool)
+            or not isinstance(source_id, int)
+            or source_id < 1
+            or source_id in seen_screening_source_ids
+        ):
+            raise ValueError(
+                f"Строка screening {row_number} содержит неверный или повторный source_id."
+            )
+        seen_screening_source_ids.add(source_id)
+        if not _is_canonical_identifier(chain_id) or not _is_canonical_identifier(
+            document_id
+        ):
+            raise ValueError(
+                f"Строка screening source_id={source_id} имеет неканоническую identity."
+            )
+        if (
+            value.get("status") != "candidate_needs_full_text_review"
+            or not isinstance(matches, list)
+            or not matches
+            or not all(_native_audit_match_valid(match) for match in matches)
+            or len({canonical_digest(match) for match in matches}) != len(matches)
+        ):
+            raise ValueError(
+                f"Строка screening source_id={source_id} имеет неверные matches/status."
+            )
+        source = sources_by_id.get(source_id)
+        if source is None or (
+            source.get("chain_id"), source.get("document_id")
+        ) != (chain_id, document_id):
+            raise ValueError(
+                f"Строка screening source_id={source_id} не связана с тем же полным текстом."
+            )
+        screening_by_pair.setdefault((chain_id, document_id), []).append(dict(value))
+
+    if not screening_by_pair:
+        raise ValueError("Замороженная screening-рамка пуста.")
+
+    audit_screening: list[dict[str, Any]] = []
+    text_by_pair: dict[tuple[str, str], str] = {}
+    text_digest_by_pair: dict[tuple[str, str], str] = {}
+    source_ids_by_pair: dict[tuple[str, str], list[int]] = {}
+    for source_id, source in sources_by_id.items():
+        pair = (source["chain_id"], source["document_id"])
+        source_ids_by_pair.setdefault(pair, []).append(source_id)
+    for (chain_id, document_id), records in sorted(screening_by_pair.items()):
+        source_ids = sorted(record["source_id"] for record in records)
+        if source_ids != sorted(source_ids_by_pair.get((chain_id, document_id), [])):
+            raise ValueError(
+                "Реестр полных текстов содержит неразрешённый источник той же "
+                f"chain/document identity: {chain_id}/{document_id}."
+            )
+        texts = [sources_by_id[source_id]["text"] for source_id in source_ids]
+        text_digests = {
+            sources_by_id[source_id]["text_sha256"] for source_id in source_ids
+        }
+        match_digests = {canonical_digest(record["matches"]) for record in records}
+        if len(text_digests) != 1 or len(match_digests) != 1:
+            raise ValueError(
+                "Несколько источников одной chain/document identity содержат "
+                f"разные тексты или screening matches: {chain_id}/{document_id}."
+            )
+        candidate_id = _native_audit_candidate_id(
+            plan_sha256=plan_sha256,
+            chain_id=chain_id,
+            document_id=document_id,
+        )
+        audit_record = {
+            "schema_version": SCHEMA_VERSION,
+            "candidate_id": candidate_id,
+            "plan_sha256": plan_sha256,
+            "chain_id": chain_id,
+            "document_id": document_id,
+            "source_ids": source_ids,
+            "matches": records[0]["matches"],
+            "status": "candidate_needs_full_text_review",
+        }
+        if set(audit_record) != NATIVE_AUDIT_SCREENING_FIELDS:
+            raise AssertionError("unexpected native audit screening shape")
+        audit_screening.append(audit_record)
+        text_by_pair[(chain_id, document_id)] = texts[0]
+        text_digest_by_pair[(chain_id, document_id)] = next(iter(text_digests))
+
+    primary_by_pair: dict[tuple[str, str], dict[str, Any]] = {}
+    for row_number, value in enumerate(primary_decisions, start=1):
+        if not isinstance(value, Mapping):
+            raise ValueError(f"Строка primary coding {row_number} должна быть объектом.")
+        chain_id = value.get("chain_id")
+        document_id = value.get("document_id")
+        if not _is_canonical_identifier(chain_id) or not _is_canonical_identifier(
+            document_id
+        ):
+            raise ValueError(
+                f"Строка primary coding {row_number} имеет неканоническую identity."
+            )
+        pair = (chain_id, document_id)
+        if pair in primary_by_pair:
+            raise ValueError(
+                f"Primary coding повторяет chain/document identity: {chain_id}/{document_id}."
+            )
+        primary_by_pair[pair] = dict(value)
+
+    missing_primary = sorted(set(screening_by_pair) - set(primary_by_pair))
+    extra_primary = sorted(set(primary_by_pair) - set(screening_by_pair))
+    if missing_primary or extra_primary:
+        details: list[str] = []
+        if missing_primary:
+            details.append(
+                "нет primary coding для "
+                + ", ".join(f"{chain}/{document}" for chain, document in missing_primary)
+            )
+        if extra_primary:
+            details.append(
+                "лишний primary coding для "
+                + ", ".join(f"{chain}/{document}" for chain, document in extra_primary)
+            )
+        raise ValueError("Primary coding не совпадает со screening-рамкой: " + "; ".join(details))
+
+    projected_primary: list[dict[str, Any]] = []
+    primary_by_candidate: dict[str, dict[str, Any]] = {}
+    for screening_record in audit_screening:
+        candidate_id = screening_record["candidate_id"]
+        pair = (screening_record["chain_id"], screening_record["document_id"])
+        ordinary = primary_by_pair[pair]
+        supplied_candidate_id = ordinary.get("candidate_id")
+        if "candidate_id" in ordinary and supplied_candidate_id != candidate_id:
+            raise ValueError(
+                f"Primary coding {pair[0]}/{pair[1]} связан с чужим candidate_id."
+            )
+        projected = {
+            field: ordinary.get(field) for field in AUDIT_CODING_RECORD_FIELDS
+        }
+        projected["candidate_id"] = candidate_id
+        errors = validate_coding_against_text(projected, text_by_pair[pair])
+        if errors:
+            raise ValueError(
+                f"Primary coding {pair[0]}/{pair[1]} не прошёл проверку: "
+                + "; ".join(errors)
+            )
+        canonical_digest(projected)
+        projected_primary.append(projected)
+        primary_by_candidate[candidate_id] = projected
+
+    audit_screening.sort(key=lambda record: record["candidate_id"])
+    projected_primary.sort(key=lambda record: record["candidate_id"])
+    audit_plan = build_coding_audit_plan(
+        audit_screening,
+        projected_primary,
+        plan_sha256=plan_sha256,
+        sample_size=sample_size,
+        exclusion_sample_size=exclusion_sample_size,
+    )
+    if audit_plan["invalid_screening_record_ids"] or audit_plan[
+        "invalid_primary_record_ids"
+    ]:
+        raise ValueError("Производный audit-план содержит невалидные входные записи.")
+    required_candidate_ids = audit_plan["required_candidate_ids"]
+    if not required_candidate_ids:
+        raise ValueError("Заданные максимумы не выбрали ни одного audit-кандидата.")
+
+    secondary_queue: list[dict[str, Any]] = []
+    secondary_templates: list[dict[str, Any]] = []
+    source_text_inventory: list[dict[str, Any]] = []
+    for screening_record in audit_screening:
+        candidate_id = screening_record["candidate_id"]
+        pair = (screening_record["chain_id"], screening_record["document_id"])
+        source_text_inventory.append(
+            {
+                "candidate_id": candidate_id,
+                "source_ids": screening_record["source_ids"],
+                "source_text_sha256": text_digest_by_pair[pair],
+            }
+        )
+        if candidate_id not in required_candidate_ids:
+            continue
+        primary = primary_by_candidate[candidate_id]
+        queue_record = {
+            "schema_version": SCHEMA_VERSION,
+            "candidate_id": candidate_id,
+            "chain_id": pair[0],
+            "document_id": pair[1],
+            "source_ids": screening_record["source_ids"],
+            "source_text_sha256": text_digest_by_pair[pair],
+            "primary_coding_sha256": canonical_digest(primary),
+            "codebook_version": primary["codebook_version"],
+            "review_state": "independent_secondary_required",
+        }
+        if set(queue_record) != NATIVE_AUDIT_QUEUE_FIELDS:
+            raise AssertionError("unexpected native audit queue shape")
+        secondary_queue.append(queue_record)
+        template = {field: None for field in AUDIT_CODING_RECORD_FIELDS}
+        template.update(
+            {
+                "candidate_id": candidate_id,
+                "chain_id": pair[0],
+                "document_id": pair[1],
+                "codebook_version": primary["codebook_version"],
+                "material_facts": [],
+                "alternative_grounds": [],
+                "human_review": "pending",
+                "quote_verified": False,
+                "full_text_reviewed": False,
+            }
+        )
+        secondary_templates.append(template)
+
+    return {
+        "screening_candidates": audit_screening,
+        "primary_decisions": projected_primary,
+        "audit_plan": audit_plan,
+        "secondary_review_queue": secondary_queue,
+        "secondary_coding_templates": secondary_templates,
+        "source_text_inventory_sha256": canonical_digest(source_text_inventory),
+    }
+
+
 def assess_coding_reliability(
     audit_plan: Mapping[str, Any],
     primary_decisions: Iterable[Any],
@@ -2257,9 +2646,11 @@ def assess_coding_reliability(
     adjudication_records = [
         dict(item) if isinstance(item, Mapping) else item for item in adjudications
     ]
-    sorted_primary_records = sorted(primary_records, key=canonical_digest)
-    sorted_audit_records = sorted(audit_records, key=canonical_digest)
-    sorted_adjudication_records = sorted(adjudication_records, key=canonical_digest)
+    sorted_primary_records = sorted(primary_records, key=_diagnostic_digest)
+    sorted_audit_records = sorted(audit_records, key=_diagnostic_digest)
+    sorted_adjudication_records = sorted(
+        adjudication_records, key=_diagnostic_digest
+    )
     primary, duplicate_primary, current_invalid_primary_ids = _index_unique(
         sorted_primary_records,
         record_kind="primary",
@@ -2295,29 +2686,37 @@ def assess_coding_reliability(
             if not _coding_adjudication_contract_valid(record, identifier)
         }
     )
-    required = sorted(set(_unique_strings(audit_plan.get("required_candidate_ids", []))))
+    required = sorted(
+        {
+            identifier
+            for identifier in _unique_strings(
+                audit_plan.get("required_candidate_ids", [])
+            )
+            if _is_canonical_identifier(identifier)
+        }
+    )
     invalid_audit_record_ids = sorted(
         set(invalid_audit_record_ids) | (set(audits) - set(required))
     )
-    current_primary_sha256 = canonical_digest(sorted_primary_records)
-    audit_plan_input_sha256 = canonical_digest(dict(audit_plan))
-    audit_decisions_sha256 = canonical_digest(sorted_audit_records)
-    adjudications_sha256 = canonical_digest(sorted_adjudication_records)
+    current_primary_sha256 = _diagnostic_digest(sorted_primary_records)
+    audit_plan_input_sha256 = _diagnostic_digest(dict(audit_plan))
+    audit_decisions_sha256 = _diagnostic_digest(sorted_audit_records)
+    adjudications_sha256 = _diagnostic_digest(sorted_adjudication_records)
     plan_payload = {
         key: value for key, value in audit_plan.items() if key != "audit_plan_sha256"
     }
     plan_contract_valid = _coding_audit_plan_contract_valid(audit_plan)
     plan_digest_valid = (
         _is_sha256(audit_plan.get("audit_plan_sha256"))
-        and audit_plan.get("audit_plan_sha256") == canonical_digest(plan_payload)
+        and audit_plan.get("audit_plan_sha256") == _diagnostic_digest(plan_payload)
     )
     plan_frozen = audit_plan.get("frozen") is True
 
     def plan_invalid_ids(field: str) -> list[str]:
         value = audit_plan.get(field)
-        if not isinstance(value, list) or not all(_nonempty(item) for item in value):
+        if not _unique_canonical_identifier_list(value):
             return [f"audit-plan-{field}-invalid"]
-        return sorted(set(_unique_strings(value)))
+        return sorted(value)
 
     invalid_screening_record_ids = plan_invalid_ids(
         "invalid_screening_record_ids"
@@ -2362,7 +2761,7 @@ def assess_coding_reliability(
             unresolved.add(identifier)
             continue
         audited.append(identifier)
-        primary_sha256 = canonical_digest(primary_record)
+        primary_sha256 = _diagnostic_digest(primary_record)
         if identifier in invalid_audit_record_ids:
             unresolved.add(identifier)
             continue
@@ -2379,7 +2778,7 @@ def assess_coding_reliability(
             invalid_binding_ids.append(identifier)
             unresolved.add(identifier)
             continue
-        secondary_sha256 = canonical_digest(secondary_record)
+        secondary_sha256 = _diagnostic_digest(secondary_record)
         if (
             audit.get("primary_coding_sha256") != primary_sha256
             or audit.get("secondary_coding_sha256") != secondary_sha256
@@ -2449,7 +2848,9 @@ def assess_coding_reliability(
                 )
                 if adjudication_valid:
                     disagreement["resolved"] = True
-                    disagreement["adjudication_sha256"] = canonical_digest(adjudication)
+                    disagreement["adjudication_sha256"] = _diagnostic_digest(
+                        adjudication
+                    )
                 else:
                     invalid_adjudication_record_ids.append(identifier)
             if not disagreement["resolved"]:
@@ -2534,7 +2935,7 @@ def assess_coding_reliability(
         and not invalid_adjudication_record_ids
         and not unresolved,
     }
-    return {**payload, "evidence_sha256": canonical_digest(payload)}
+    return {**payload, "evidence_sha256": _diagnostic_digest(payload)}
 
 
 def assess_prefiling_refresh(
@@ -2985,6 +3386,7 @@ __all__ = [
     "assess_coding_reliability",
     "assess_prefiling_refresh",
     "build_coding_audit_plan",
+    "build_native_coding_audit_inputs",
     "build_uncertainty_profile",
     "canonical_digest",
 ]
