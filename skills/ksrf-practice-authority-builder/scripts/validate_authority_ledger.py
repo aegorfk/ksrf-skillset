@@ -44,6 +44,10 @@ SENSITIVE_QUERY_KEYS = {
 class _RussianArgumentParser(argparse.ArgumentParser):
     """Render stable argparse help scaffolding in Russian."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
+
     def format_help(self) -> str:
         localized = [
             (action, action.metavar)

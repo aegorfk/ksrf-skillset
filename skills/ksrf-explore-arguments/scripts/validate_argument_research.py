@@ -135,6 +135,10 @@ def validate(payload: dict[str, Any]) -> list[str]:
 class _RussianArgumentParser(argparse.ArgumentParser):
     """Показывать стандартные элементы справки argparse по-русски."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
+
     def format_help(self) -> str:
         return (
             super()
@@ -172,7 +176,16 @@ def main() -> int:
     if len(sys.argv) != 2:
         print("usage: validate_argument_research.py PATH", file=sys.stderr)
         return 2
-    path = Path(sys.argv[1])
+    raw_path = sys.argv[1]
+    option_token = raw_path.partition("=")[0]
+    if (
+        option_token.startswith("--")
+        and len(option_token) > 2
+        and option_token != "--help"
+        and "--help".startswith(option_token)
+    ):
+        _build_help_parser().error(f"неизвестный параметр: {raw_path}")
+    path = Path(raw_path)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:

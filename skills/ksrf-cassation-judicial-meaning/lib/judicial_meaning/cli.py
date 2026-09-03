@@ -190,7 +190,11 @@ _RUSSIAN_METAVARS = {
 
 
 class RussianHelpArgumentParser(argparse.ArgumentParser):
-    """Render Russian help without changing parse-time diagnostics or contracts."""
+    """Render Russian help and require exact option names."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
         positional_heading = (

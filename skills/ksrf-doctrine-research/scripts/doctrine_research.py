@@ -84,6 +84,10 @@ class _RussianArgumentParser(argparse.ArgumentParser):
         "approved_query_plan_hash": "ХЕШ",
     }
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
+
     def format_usage(self) -> str:
         suppressed = [
             action

@@ -1547,7 +1547,7 @@ def iter_files(paths: list[Path], exclude_patterns: list[str] | None = None) -> 
 
 
 class _RussianArgumentParser(argparse.ArgumentParser):
-    """Показывать справку argparse по-русски, не меняя выполнение команды."""
+    """Показывать русскую справку и требовать точные имена параметров."""
 
     _HELP_METAVARS = {
         "paths": "ПУТЬ",
@@ -1556,6 +1556,10 @@ class _RussianArgumentParser(argparse.ArgumentParser):
         "tessdata_dir": "ПАПКА",
         "exclude": "ШАБЛОН",
     }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
         localized = [

@@ -3541,7 +3541,7 @@ class _RussianHelpFormatter(argparse.HelpFormatter):
 
 
 class _RussianArgumentParser(argparse.ArgumentParser):
-    """Показывать русскую справку, не меняя usage и ошибки выполнения."""
+    """Показывать русскую справку и требовать точные имена параметров."""
 
     _HELP_METAVARS = {
         "command": "КОМАНДА",
@@ -3574,6 +3574,10 @@ class _RussianArgumentParser(argparse.ArgumentParser):
         "corpus_cutoff": "ДАТА",
         "stage": "ЭТАП",
     }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
         positional_heading = (

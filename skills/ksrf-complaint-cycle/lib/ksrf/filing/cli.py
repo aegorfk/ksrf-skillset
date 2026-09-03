@@ -74,7 +74,7 @@ class CLIUsageError(ValueError):
 
 
 class _RussianArgumentParser(argparse.ArgumentParser):
-    """Показывать справку argparse по-русски, не меняя выполнение команд."""
+    """Показывать русскую справку и требовать точные имена параметров."""
 
     _HELP_METAVARS = {
         "command": "КОМАНДА",
@@ -87,6 +87,10 @@ class _RussianArgumentParser(argparse.ArgumentParser):
         "action": "ДЕЙСТВИЕ",
         "payload": "ФАЙЛ",
     }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
 
     def format_help(self) -> str:
         localized = [

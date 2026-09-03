@@ -4023,7 +4023,8 @@ def main(
     stderr: TextIO | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(
-        description="Проверить canonical KSRF skills и собрать безопасный publish manifest."
+        description="Проверить canonical KSRF skills и собрать безопасный publish manifest.",
+        allow_abbrev=False,
     )
     parser.add_argument(
         "--skills-root",
