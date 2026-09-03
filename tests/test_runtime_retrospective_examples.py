@@ -20,6 +20,7 @@ SKILL_ROOT = REPO / "skills" / "ksrf-explore-arguments"
 OWNER = SKILL_ROOT / "SKILL.md"
 EXAMPLES = {
     "275": SKILL_ROOT / "references" / "example-275-o-p-2007.md",
+    "33": SKILL_ROOT / "references" / "example-33-p-2026.md",
     "37": SKILL_ROOT / "references" / "example-37-p-2024.md",
     "44": SKILL_ROOT / "references" / "example-44-p-2026.md",
     "52": SKILL_ROOT / "references" / "example-52-p-2024.md",
@@ -30,19 +31,24 @@ PUBLIC_DOCS = {
     "sources": REPO / "docs" / "KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md",
 }
 EVAL = SKILL_ROOT / "evals" / "evals.json"
-EVAL_SHA256 = "0202046bcf4ac56e6c1155d90f9756216806e0bbe172e55a660dfd9686994394"
+EVAL_SHA256 = "8227ccc21791c402057651fc6740d8f69e8d3ed9dabf1d7793c45863e55f665f"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        206,
-        30_527,
-        "b87533422879cb89ef335695339b9b9d8ad3ad9f61a7801fd48fc09d1212ec8a",
+        207,
+        30_871,
+        "f32475b121d300734381b98826a39174076e8cf4a88c37b6e08744a7f5020a1a",
     ),
     EXAMPLES["275"]: (
         136,
         19_392,
         "82bde507e71d0e5a09d76a598517d0ddcb687d2e643e5d6ade542b5a44508d07",
+    ),
+    EXAMPLES["33"]: (
+        149,
+        23_934,
+        "c848cbb694a2b45810ebf1236c8a16ae95247cbcbe485c3aa3ac3233e4d68818",
     ),
     EXAMPLES["37"]: (
         123,
@@ -116,6 +122,28 @@ CASE_SURFACE = {
             "`reserve relief`:",
             "КС РФ отказал в принятии жалобы",
             "формальный отказ нельзя автоматически маркировать",
+        ),
+    },
+    "33": {
+        "sha": "42eae9f2330adf520c1bfc1a454da52b93e17e8965db09672a045232c7cd6cec",
+        "urls": (
+            "https://www.klgd.ru/administration/",
+            "https://www.ksrf.ru/doc/KSRFDecision909841.pdf",
+        ),
+        "hypotheses": ("H1.", "H2.", "H3.", "H4."),
+        "facts": (),
+        "gate_rows": 0,
+        "result_points": 7,
+        "checklist_points": 8,
+        "markers": (
+            "Администрация городского округа «Город Калининград»",
+            "Елены Ивановны Дятловой",
+            "пункт 32 части 1 статьи 16",
+            "подпункт «б» пункта 3",
+            "№ 71-КАС24-82-КЗ",
+            "метаданные PDF не используются как достаточное основание",
+            "пересмотру",
+            "право требовать последующего возмещения",
         ),
     },
     "37": {
@@ -275,7 +303,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
 
         for wording in FORBIDDEN_RUNTIME_WORDING:
             self.assertNotIn(wording.casefold(), self.owner.casefold())
-        self.assertIn("четыре ретроспективных двухпроходных разбора", self.owner)
+        self.assertIn("пять ретроспективных двухпроходных разборов", self.owner)
 
     def test_case_specific_legal_and_source_surface_is_preserved(self) -> None:
         for name, expected in CASE_SURFACE.items():
@@ -464,14 +492,14 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Каталог `evals/` проверяется отдельно и не входит в пользовательскую установку",
             "заранее зафиксированный вход без известного исхода",
-            "Четыре ретроспективные карточки не являются такими прогонами",
+            "Пять ретроспективных карточек не являются такими прогонами",
         ):
             self.assertIn(wording, docs["readme"])
 
         for wording in (
             "Служебные файлы проверки остаются только в исходном репозитории",
             "не устанавливаются пользователю",
-            "Четыре пользовательские карточки — ретроспективные двухпроходные разборы",
+            "Пять пользовательских карточек — ретроспективные двухпроходные разборы",
             "Для активного дела без последующего акта КС РФ работа на этом останавливается",
         ):
             self.assertIn(wording, docs["methodology"])
@@ -479,7 +507,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Служебные `evals.json` и `trigger-evals.json` остаются в исходном репозитории",
             "не устанавливаются пользователю",
-            "Четыре опубликованные карточки — не такие прогоны",
+            "Пять опубликованных карточек — не такие прогоны",
             "В активном новом деле без последующего акта КС РФ",
             "В историческом деле второй проход допустим только по официальному полному тексту",
         ):

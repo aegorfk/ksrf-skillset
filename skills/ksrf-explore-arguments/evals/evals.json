@@ -88,6 +88,17 @@
         "The portfolio separates the substantive exception carrier from provisions governing an absent or wanted person, requires proof of intentional active concealment rather than a search label, and treats detention as discretionary and individualized rather than automatic.",
         "Every statutory and plenary source is time-versioned against the challenged decisions; later clarification is not retroactively attributed to an earlier court, and review, set-off, compensation or a favorable individual outcome are not predicted."
       ]
+    },
+    {
+      "id": 9,
+      "prompt": "Муниципалитет обязали бессрочно и регулярно очищать за счёт местного бюджета акваторию федерального водного объекта, не переданного в пользование. Суды выводят обязанность из общих норм о благоустройстве, окружающей среде и отходах. В одном разделе проекта случайно добавлена норма, отсутствующая в заголовке и просьбе. После решений появился новый закон с функционально похожей нормой. Не ищи последующий акт КС РФ. Построй портфель.",
+      "expected_output": "Public-power allocation portfolio with separate ongoing, delegated and urgent routes, resource coverage and temporal norm control.",
+      "files": [],
+      "expectations": [
+        "The output separates own municipal powers, an ongoing state power delegated by law with resources, and an urgent participation route; it does not infer a permanent duty from territory, ownership or a general public benefit alone.",
+        "The portfolio maps the legal basis for delegation, material and financial coverage, the urgent factual trigger, documented expenses, possible reimbursement and the municipality's own causal contribution rather than promising full repayment.",
+        "QA detects the inconsistent roster of challenged provisions across the heading, subject, application and prayer, time-versions the applied rule and its later successor, and keeps constitutional meaning, review and reimbursement as separate possible outcomes."
+      ]
     }
   ]
 }

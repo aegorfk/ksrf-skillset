@@ -231,6 +231,17 @@
         "The public record links each lawyer profile, the law office and the official final act, states that the complaint source is private and that no exact public complaint URL was established.",
         "The DOCX, extracted text, local path and reconstructive derivatives remain excluded; professional profile pages are not mislabeled as complaint sources."
       ]
+    },
+    {
+      "id": 22,
+      "prompt": "Проект утверждает: федеральная собственность исключает любое участие муниципалитета. Он не разделяет регулярную уборку и неотложную ликвидацию, не проверяет передачу полномочий и ресурсов, обещает полный возврат расходов, а список норм различается между заголовком, предметом и просьбой; позднюю норму нового закона называет применённой судами. Поставь QA и предложи исправление.",
+      "expected_output": "Blocking QA for overbroad ownership logic, mixed duty regimes, unsupported reimbursement and an inconsistent norm roster.",
+      "files": [],
+      "expectations": [
+        "QA blocks the absolute ownership thesis and requires separate analysis of own municipal power, delegated ongoing state power and fact-triggered urgent participation.",
+        "The correction connects delegation to material and financial coverage, treats reimbursement and the municipality's causal contribution as separately proven issues, and does not promise full repayment.",
+        "QA reconciles the exact roster of challenged provisions across the heading, subject, judicial application and prayer, and distinguishes the rule applied in the case from its later functional successor and from separate outcomes such as constitutional meaning, review and reimbursement."
+      ]
     }
   ]
 }
