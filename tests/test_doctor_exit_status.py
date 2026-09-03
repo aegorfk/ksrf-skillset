@@ -14,6 +14,29 @@ PYTHON = sys.executable
 KSRF = Path("ksrf-complaint-cycle/scripts/ksrf.py")
 DOCTOR = Path("ksrf-complaint-cycle/scripts/ksrf_setup_doctor.py")
 
+DOCTOR_HELP_REQUIRED = (
+    "Коды завершения диагностики:",
+    (
+        "0 — основные возможности готовы (ready) либо работа возможна "
+        "с показанными ограничениями (degraded)"
+    ),
+    (
+        "2 — некорректные параметры либо файл описания возможностей "
+        "не найден или повреждён"
+    ),
+    (
+        "3 — есть блокирующие пробелы (blocked) либо итоговое состояние "
+        "отчёта не распознано"
+    ),
+    (
+        "При коде 3 полный отчёт с причинами и следующим действием остаётся "
+        "в стандартном выводе (stdout)"
+    ),
+    "Диагностика ничего не устанавливает и не исправляет автоматически",
+    "Ни один код не подтверждает юридическую готовность жалобы",
+    "не разрешает её подачу или передачу документов",
+)
+
 
 def _manifest(*, requirement: str, blocking: bool, path: Path) -> dict[str, object]:
     return {
@@ -249,6 +272,50 @@ class DoctorExitStatusTests(unittest.TestCase):
                 self.assertEqual(completed.returncode, 0, completed.stderr)
                 self.assertEqual(completed.stderr, "")
                 self.assertEqual(json.loads(completed.stdout), [0, 0, 3, 3, 3])
+
+    def test_help_explains_exit_contract_from_both_launchers(self) -> None:
+        for location, skills_root in self._locations():
+            for launcher, prefix in self._launchers():
+                for help_flag in ("--help", "-h"):
+                    with self.subTest(
+                        location=location,
+                        launcher=launcher,
+                        help_flag=help_flag,
+                    ):
+                        completed = self._run(
+                            skills_root / launcher,
+                            [*prefix, help_flag],
+                        )
+                        self.assertEqual(completed.returncode, 0, completed.stderr)
+                        self.assertEqual(completed.stderr, "")
+                        normalized = " ".join(completed.stdout.split())
+                        for required in DOCTOR_HELP_REQUIRED:
+                            self.assertIn(required, normalized)
+
+    def test_installed_help_contract_works_with_supported_legacy_python(self) -> None:
+        legacy_python = Path("/usr/bin/python3")
+        if not legacy_python.is_file():
+            self.skipTest("Системный Python не установлен")
+        for launcher, prefix in self._launchers():
+            with self.subTest(launcher=launcher):
+                completed = subprocess.run(
+                    [
+                        str(legacy_python),
+                        str(self.installed / launcher),
+                        *prefix,
+                        "--help",
+                    ],
+                    cwd=self.root,
+                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(completed.stderr, "")
+                normalized = " ".join(completed.stdout.split())
+                for required in DOCTOR_HELP_REQUIRED:
+                    self.assertIn(required, normalized)
 
     def _locations(self) -> tuple[tuple[str, Path], ...]:
         return (
