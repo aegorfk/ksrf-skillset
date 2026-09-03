@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-03T07:21:19Z",
+  "generated_at": "2026-09-03T08:01:24Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "aca6853e05dbc9b4673d43f678dd280b12b4f50a",
+  "remote_base_commit": "2f26adec40b6696c3222f07deadf76f86c510190",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 238,
-  "total_bytes": 8253054,
-  "tree_sha256": "b1e1bfb091d7996ef96d2f28c7ec96c7cfd261c9192e3ad9f58774401809b0f8",
+  "total_bytes": 8256937,
+  "tree_sha256": "d860326399bc456d7cf2ef2babdf80ec399563e4f89ae29499a145278c3bd840",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -88,8 +88,8 @@
     {
       "name": "ksrf-echr-argumentation",
       "files": 9,
-      "bytes": 78216,
-      "tree_sha256": "db9258475e7a5b164a0d814203d3799c3bc04e74ab91c66825816b61d1408ee6"
+      "bytes": 82099,
+      "tree_sha256": "881fabbef3ac32f881cdc14513a9034c69f775c958cc839eddc0efad04af7c47"
     },
     {
       "name": "ksrf-exhaustion-planner",

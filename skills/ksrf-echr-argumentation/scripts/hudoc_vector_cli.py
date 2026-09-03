@@ -18,6 +18,24 @@ EXPECTED_PRIVACY = "hudoc-knowledge-privacy-sanitizer-v2"
 REPOSITORY_ENV = "HUDOC_KS_PARSER_REPO"
 DIRECT_CLI_ENV = "HUDOC_VECTOR_CLI"
 CLI_RELATIVE_PATH = Path("scripts/hudoc_vector_search.py")
+BOOTSTRAP_HELP = """Использование: hudoc_vector_cli.py [-h | --help]
+
+Справка по первоначальной настройке команды гибридного поиска HUDOC.
+Переменные запуска не заданы; внешний движок и его индекс не входят в пакет
+навыков и не проверялись.
+
+Настройте один из вариантов:
+  HUDOC_VECTOR_CLI=/полный/путь/scripts/hudoc_vector_search.py
+  HUDOC_KS_PARSER_REPO=/полный/путь/к/ks_parser
+
+Требуемые версии: hudoc-vector-indexer-v2 + hudoc-vector-evaluator-v2 +
+hudoc-knowledge-indexer-v3.8 + hudoc-research-extractive-v7 +
+hudoc-knowledge-privacy-sanitizer-v2.
+Автопоиск по HOME и текущему Git-репозиторию отключён.
+После настройки снова запустите --help: совместимый движок покажет свои параметры.
+Код 0 этой справки не подтверждает доступность движка, покрытие или актуальность
+корпуса, юридическую силу результатов либо готовность материалов для жалобы.
+"""
 
 
 def _append_unique(values: list[Path], candidate: Path) -> None:
@@ -137,6 +155,14 @@ def is_expected_version(cli: Path) -> bool:
 
 
 def main() -> None:
+    if (
+        DIRECT_CLI_ENV not in os.environ
+        and REPOSITORY_ENV not in os.environ
+        and sys.argv[1:] in (["-h"], ["--help"])
+    ):
+        print(BOOTSTRAP_HELP, end="")
+        return
+
     mode, candidate_paths, configured = candidates()
     for cli in candidate_paths:
         try:

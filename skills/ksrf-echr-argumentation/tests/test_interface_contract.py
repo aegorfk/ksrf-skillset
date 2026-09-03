@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
+import importlib.util
+from io import StringIO
 import json
 import os
 import subprocess
@@ -7,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
@@ -22,9 +26,247 @@ RESOLVER_SPECS = (
         "scripts/hudoc_vector_search.py",
     ),
 )
+BOOTSTRAP_HELP = {
+    "hudoc_kb_cli.py": """Использование: hudoc_kb_cli.py [-h | --help]
+
+Справка по первоначальной настройке команды базы знаний HUDOC.
+Переменные запуска не заданы; внешний движок и его индекс не входят в пакет
+навыков и не проверялись.
+
+Настройте один из вариантов:
+  HUDOC_KB_CLI=/полный/путь/scripts/hudoc_knowledge_base.py
+  HUDOC_KS_PARSER_REPO=/полный/путь/к/ks_parser
+
+Требуемые версии: hudoc-knowledge-indexer-v3.8 +
+hudoc-research-extractive-v7 + hudoc-knowledge-privacy-sanitizer-v2.
+Автопоиск по HOME и текущему Git-репозиторию отключён.
+После настройки снова запустите --help: совместимый движок покажет свои параметры.
+Код 0 этой справки не подтверждает доступность движка, покрытие или актуальность
+корпуса, юридическую силу результатов либо готовность материалов для жалобы.
+""",
+    "hudoc_vector_cli.py": """Использование: hudoc_vector_cli.py [-h | --help]
+
+Справка по первоначальной настройке команды гибридного поиска HUDOC.
+Переменные запуска не заданы; внешний движок и его индекс не входят в пакет
+навыков и не проверялись.
+
+Настройте один из вариантов:
+  HUDOC_VECTOR_CLI=/полный/путь/scripts/hudoc_vector_search.py
+  HUDOC_KS_PARSER_REPO=/полный/путь/к/ks_parser
+
+Требуемые версии: hudoc-vector-indexer-v2 + hudoc-vector-evaluator-v2 +
+hudoc-knowledge-indexer-v3.8 + hudoc-research-extractive-v7 +
+hudoc-knowledge-privacy-sanitizer-v2.
+Автопоиск по HOME и текущему Git-репозиторию отключён.
+После настройки снова запустите --help: совместимый движок покажет свои параметры.
+Код 0 этой справки не подтверждает доступность движка, покрытие или актуальность
+корпуса, юридическую силу результатов либо готовность материалов для жалобы.
+""",
+}
+UNCONFIGURED_ERROR = {
+    "hudoc_kb_cli.py": (
+        "Движок HUDOC knowledge CLI не настроен и не входит в пакет skills. "
+        "Укажите HUDOC_KB_CLI (точный путь к scripts/hudoc_knowledge_base.py) "
+        "или HUDOC_KS_PARSER_REPO (корень ks_parser). Автопоиск по HOME и "
+        "текущему git-репозиторию отключён.\n"
+    ),
+    "hudoc_vector_cli.py": (
+        "Движок HUDOC vector CLI не настроен и не входит в пакет skills. "
+        "Укажите HUDOC_VECTOR_CLI (точный путь к scripts/hudoc_vector_search.py) "
+        "или HUDOC_KS_PARSER_REPO (корень ks_parser). Автопоиск по HOME и "
+        "текущему git-репозиторию отключён.\n"
+    ),
+}
 
 
 class HudocSkillInterfaceContractTest(unittest.TestCase):
+    def test_fully_unconfigured_resolvers_offer_exact_bootstrap_help(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            foreign_cwd = root / "foreign cwd"
+            home.mkdir()
+            foreign_cwd.mkdir()
+            environment = self._isolated_environment(home)
+
+            for resolver, _, _ in RESOLVER_SPECS:
+                for help_flag in ("-h", "--help"):
+                    with self.subTest(resolver=resolver, help_flag=help_flag):
+                        result = self._run_resolver(
+                            resolver,
+                            environment=environment,
+                            cwd=foreign_cwd,
+                            arguments=(help_flag,),
+                        )
+
+                        self.assertEqual(result.returncode, 0)
+                        self.assertEqual(result.stdout, BOOTSTRAP_HELP[resolver])
+                        self.assertEqual(result.stderr, "")
+
+    def test_bootstrap_help_stops_before_discovery_or_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "home"
+            home.mkdir()
+            environment = self._isolated_environment(home)
+
+            for resolver, _, _ in RESOLVER_SPECS:
+                module = self._load_resolver(resolver)
+                for help_flag in ("-h", "--help"):
+                    with self.subTest(resolver=resolver, help_flag=help_flag):
+                        stdout = StringIO()
+                        stderr = StringIO()
+                        sentinels = (
+                            mock.patch.object(
+                                module,
+                                "candidates",
+                                side_effect=AssertionError("candidate discovery ran"),
+                            ),
+                            mock.patch.object(
+                                module,
+                                "configured_path",
+                                side_effect=AssertionError("configuration read ran"),
+                            ),
+                            mock.patch.object(
+                                module,
+                                "repository_worktrees",
+                                side_effect=AssertionError("git discovery ran"),
+                            ),
+                            mock.patch.object(
+                                module,
+                                "module_version",
+                                side_effect=AssertionError("version file read ran"),
+                            ),
+                            mock.patch.object(
+                                module,
+                                "is_expected_version",
+                                side_effect=AssertionError("version gate ran"),
+                            ),
+                            mock.patch.object(
+                                module.subprocess,
+                                "run",
+                                side_effect=AssertionError("subprocess ran"),
+                            ),
+                            mock.patch.object(
+                                module.os,
+                                "chdir",
+                                side_effect=AssertionError("cwd changed"),
+                            ),
+                            mock.patch.object(
+                                module.os,
+                                "execve",
+                                side_effect=AssertionError("exec ran"),
+                            ),
+                        )
+                        with ExitStack() as stack:
+                            stack.enter_context(
+                                mock.patch.dict(os.environ, environment, clear=True)
+                            )
+                            stack.enter_context(
+                                mock.patch.object(
+                                    sys,
+                                    "argv",
+                                    [str(SKILL_ROOT / "scripts" / resolver), help_flag],
+                                )
+                            )
+                            stack.enter_context(redirect_stdout(stdout))
+                            stack.enter_context(redirect_stderr(stderr))
+                            for sentinel in sentinels:
+                                stack.enter_context(sentinel)
+                            result = module.main()
+
+                        self.assertIsNone(result)
+                        self.assertEqual(stdout.getvalue(), BOOTSTRAP_HELP[resolver])
+                        self.assertEqual(stderr.getvalue(), "")
+
+    def test_unconfigured_nonexact_help_remains_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            cwd = root / "cwd"
+            home.mkdir()
+            cwd.mkdir()
+            environment = self._isolated_environment(home)
+            argument_sets = (
+                (),
+                ("status",),
+                ("--he",),
+                ("--help=x",),
+                ("--help", "status"),
+                ("status", "--help"),
+                ("-h", "status"),
+                ("--help", "--help"),
+            )
+
+            for resolver, _, _ in RESOLVER_SPECS:
+                for arguments in argument_sets:
+                    with self.subTest(resolver=resolver, arguments=arguments):
+                        result = self._run_resolver(
+                            resolver,
+                            environment=environment,
+                            cwd=cwd,
+                            arguments=arguments,
+                        )
+
+                        self.assertEqual(result.returncode, 1)
+                        self.assertEqual(result.stdout, "")
+                        self.assertEqual(result.stderr, UNCONFIGURED_ERROR[resolver])
+
+    def test_present_blank_configuration_is_not_masked_by_bootstrap_help(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+
+            for resolver, direct_env, _ in RESOLVER_SPECS:
+                for variable in (direct_env, "HUDOC_KS_PARSER_REPO"):
+                    for blank in ("", " \t"):
+                        with self.subTest(
+                            resolver=resolver,
+                            variable=variable,
+                            blank=blank,
+                        ):
+                            environment = self._isolated_environment(home)
+                            environment[variable] = blank
+                            result = self._run_resolver(
+                                resolver,
+                                environment=environment,
+                                cwd=home,
+                            )
+
+                            self.assertEqual(result.returncode, 1)
+                            self.assertEqual(result.stdout, "")
+                            self.assertIn(
+                                f"{variable} задан, но значение пусто",
+                                result.stderr,
+                            )
+                            self.assertNotIn("первоначальной настройке", result.stderr)
+
+    def test_other_resolver_variable_does_not_block_bootstrap_help(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+            for resolver, _, _ in RESOLVER_SPECS:
+                environment = self._isolated_environment(home)
+                unrelated = (
+                    "HUDOC_VECTOR_CLI"
+                    if resolver == "hudoc_kb_cli.py"
+                    else "HUDOC_KB_CLI"
+                )
+                environment[unrelated] = "/unrelated/configuration"
+
+                result = self._run_resolver(
+                    resolver,
+                    environment=environment,
+                    cwd=home,
+                )
+
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, BOOTSTRAP_HELP[resolver])
+                self.assertEqual(result.stderr, "")
+
     def test_resolvers_discover_version_checked_cli_from_configured_repository_worktree(
         self,
     ) -> None:
@@ -108,7 +350,10 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             for resolver, direct_env, _ in RESOLVER_SPECS:
                 with self.subTest(resolver=resolver):
                     result = self._run_resolver(
-                        resolver, environment=environment, cwd=repository
+                        resolver,
+                        environment=environment,
+                        cwd=repository,
+                        arguments=(),
                     )
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.stdout, "")
@@ -133,7 +378,10 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
             for resolver, direct_env, _ in RESOLVER_SPECS:
                 with self.subTest(resolver=resolver):
                     result = self._run_resolver(
-                        resolver, environment=environment, cwd=unrelated_cwd
+                        resolver,
+                        environment=environment,
+                        cwd=unrelated_cwd,
+                        arguments=(),
                     )
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.stdout, "")
@@ -237,6 +485,32 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
                     self.assertEqual(
                         payload["argv"], ["--probe", "value with spaces"]
                     )
+
+    def test_compatible_direct_cli_receives_help_flags_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "direct repository"
+            home = root / "home"
+            home.mkdir()
+            self._write_fake_repository(repository, record_runtime_context=True)
+
+            for resolver, direct_env, relative_cli in RESOLVER_SPECS:
+                for arguments in (("-h",), ("--help",), ("--help", "extra")):
+                    with self.subTest(resolver=resolver, arguments=arguments):
+                        environment = self._isolated_environment(home)
+                        environment[direct_env] = str(repository / relative_cli)
+                        environment["HUDOC_KS_PARSER_REPO"] = " \t"
+                        result = self._run_resolver(
+                            resolver,
+                            environment=environment,
+                            cwd=home,
+                            arguments=arguments,
+                        )
+
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        payload = json.loads(result.stdout)
+                        self.assertEqual(payload["argv"], list(arguments))
+                        self.assertEqual(payload["cwd"], str(repository.resolve()))
 
     def test_resolvers_fail_closed_for_pre_v7_research_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -423,8 +697,26 @@ class HudocSkillInterfaceContractTest(unittest.TestCase):
         self.assertIn("hudoc-vector-indexer-v2", knowledge)
         self.assertIn("hudoc-vector-evaluator-v2", knowledge)
 
+    def test_reference_explains_bootstrap_and_delegated_help_boundary(self) -> None:
+        knowledge = self._read("references/local-hudoc-knowledge-base.md")
+
+        self.assertIn("справку по первоначальной настройке", knowledge)
+        self.assertIn("только когда обе переменные настройки отсутствуют", knowledge)
+        self.assertIn("после настройки передаётся совместимому движку", knowledge)
+        self.assertIn("не подтверждает доступность движка", knowledge)
+
     def _read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def _load_resolver(self, name: str):
+        spec = importlib.util.spec_from_file_location(
+            f"ksrf_hudoc_resolver_{name.replace('.', '_')}",
+            SKILL_ROOT / "scripts" / name,
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     def _run_resolver(
         self,
