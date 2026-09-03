@@ -501,6 +501,11 @@ def _render_pending(payload: Mapping[str, Any]) -> str:
     )
 
 
+def _doctor_exit_code(report: Mapping[str, Any]) -> int:
+    state = report.get("state")
+    return 0 if isinstance(state, str) and state in {"ready", "degraded"} else 3
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -510,6 +515,7 @@ def main(
     output = sys.stdout if stdout is None else stdout
     errors = sys.stderr if stderr is None else stderr
     parser = build_parser()
+    exit_code = 0
     try:
         args = parser.parse_args(argv)
         if args.command == "start":
@@ -534,6 +540,7 @@ def main(
                 allow_network=args.allow_network,
             )
             rendered = render_doctor_report(payload)
+            exit_code = _doctor_exit_code(payload)
         elif args.command == "matter" and args.matter_command == "init":
             payload = _initialize_with_inputs(args)
             rendered = _render_initialized(payload)
@@ -596,7 +603,7 @@ def main(
             _emit_json(payload, output)
         else:
             output.write(rendered)
-        return 0
+        return exit_code
     except (CLIUsageError, ContractError, MatterWorkspaceError) as exc:
         errors.write(f"Ошибка: {exc}\n")
         return 2
