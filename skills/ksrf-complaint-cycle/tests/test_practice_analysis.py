@@ -23,6 +23,11 @@ SCHEMA_PATH = (
     / "schemas"
     / "practice-analysis.v1.json"
 )
+CASSATION_LIB = (
+    SCRIPT_PATH.parents[2]
+    / "ksrf-cassation-judicial-meaning"
+    / "lib"
+)
 
 
 def _load_runtime():
@@ -1750,7 +1755,7 @@ class TestAdversarialIntegrityAndCoverage(PracticeAnalysisTestCase):
             now="2026-08-27T10:10:00Z",
         )
         self.assertEqual(validation_request, request)
-        with mock.patch.dict("os.environ", {"PYTHONPATH": ""}):
+        with mock.patch.dict("os.environ", {"PYTHONPATH": str(CASSATION_LIB)}):
             attachment = practice.attach_run(
                 validation_workspace,
                 request_id=validation_request["handoff_id"],
@@ -2003,7 +2008,7 @@ class TestAdversarialIntegrityAndCoverage(PracticeAnalysisTestCase):
         _write_json(legacy_path, legacy)
         legacy_bytes = legacy_path.read_bytes()
 
-        with mock.patch.dict("os.environ", {"PYTHONPATH": ""}):
+        with mock.patch.dict("os.environ", {"PYTHONPATH": str(CASSATION_LIB)}):
             legacy_attachment = practice.attach_run(
                 self.workspace,
                 request_id=legacy["handoff_id"],
