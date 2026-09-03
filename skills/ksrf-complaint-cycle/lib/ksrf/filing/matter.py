@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
@@ -40,6 +41,10 @@ ARTIFACT_PATHS = {
     "release_artifacts": "release",
     "audit_events": "audit/events",
 }
+
+DIRECTORY_ARTIFACT_KEYS = frozenset(
+    {"input_registry", "input_objects", "release_artifacts", "audit_events"}
+)
 
 LEDGER_TITLES = {
     "source_evidence": "Реестр доказательств по источникам",
@@ -115,6 +120,157 @@ def _workspace_path(value: str | Path) -> Path:
     return Path(value).expanduser().absolute()
 
 
+def _path_metadata(path: Path) -> os.stat_result | None:
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise MatterWorkspaceError(
+            f"Рабочая папка небезопасна: не удалось проверить путь {path}: {exc}."
+        ) from exc
+
+
+def _resolved_for_preflight(path: Path) -> Path:
+    try:
+        return path.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise MatterWorkspaceError(
+            f"Рабочая папка небезопасна: не удалось разрешить путь {path}: {exc}."
+        ) from exc
+
+
+def _preflight_route(
+    workspace: Path,
+    resolved_workspace: Path,
+    *,
+    label: str,
+    relative: str,
+) -> os.stat_result | None:
+    relative_path = Path(relative)
+    if (
+        relative_path.is_absolute()
+        or not relative_path.parts
+        or ".." in relative_path.parts
+    ):
+        raise MatterWorkspaceError(
+            f"Рабочая папка небезопасна: путь {label} не является внутренним."
+        )
+
+    candidate = workspace / relative_path
+    current = workspace
+    endpoint_metadata: os.stat_result | None = None
+    for index, component in enumerate(relative_path.parts):
+        current = current / component
+        metadata = _path_metadata(current)
+        if metadata is None:
+            break
+        if stat.S_ISLNK(metadata.st_mode):
+            raise MatterWorkspaceError(
+                f"Рабочая папка небезопасна: путь {label} проходит через "
+                f"символическую ссылку {current}."
+            )
+        is_endpoint = index == len(relative_path.parts) - 1
+        if not is_endpoint and not stat.S_ISDIR(metadata.st_mode):
+            raise MatterWorkspaceError(
+                f"Рабочая папка небезопасна: компонент {current} пути {label} "
+                "не является каталогом."
+            )
+        if is_endpoint:
+            endpoint_metadata = metadata
+
+    resolved_candidate = _resolved_for_preflight(candidate)
+    try:
+        resolved_candidate.relative_to(resolved_workspace)
+    except ValueError as exc:
+        raise MatterWorkspaceError(
+            f"Рабочая папка небезопасна: путь {label} выходит за пределы дела."
+        ) from exc
+    return endpoint_metadata
+
+
+def _directory_has_entries(path: Path, *, label: str) -> bool:
+    try:
+        with os.scandir(path) as entries:
+            return next(entries, None) is not None
+    except OSError as exc:
+        raise MatterWorkspaceError(
+            f"Рабочая папка небезопасна: не удалось проверить каталог {label}: {exc}."
+        ) from exc
+
+
+def _preflight_initialization_layout(workspace: Path) -> bool:
+    """Проверить статический layout до чтения manifest и первой записи."""
+
+    workspace_metadata = _path_metadata(workspace)
+    if workspace_metadata is not None:
+        if stat.S_ISLNK(workspace_metadata.st_mode):
+            raise MatterWorkspaceError(
+                "Рабочая папка небезопасна: сам путь является символической ссылкой."
+            )
+        if not stat.S_ISDIR(workspace_metadata.st_mode):
+            raise MatterWorkspaceError(
+                "Рабочая папка должна быть обычным каталогом."
+            )
+    resolved_workspace = _resolved_for_preflight(workspace)
+
+    route_metadata: dict[str, os.stat_result | None] = {}
+    route_metadata["matter_manifest"] = _preflight_route(
+        workspace,
+        resolved_workspace,
+        label="matter.json",
+        relative="matter.json",
+    )
+    for key, relative in ARTIFACT_PATHS.items():
+        route_metadata[key] = _preflight_route(
+            workspace,
+            resolved_workspace,
+            label=key,
+            relative=relative,
+        )
+
+    manifest_metadata = route_metadata["matter_manifest"]
+    manifest_present = manifest_metadata is not None
+    if manifest_present and not stat.S_ISREG(manifest_metadata.st_mode):
+        raise MatterWorkspaceError(
+            "Рабочая папка небезопасна: matter.json должен быть обычным файлом."
+        )
+
+    for key in DIRECTORY_ARTIFACT_KEYS:
+        metadata = route_metadata[key]
+        if metadata is not None and not stat.S_ISDIR(metadata.st_mode):
+            raise MatterWorkspaceError(
+                f"Рабочая папка небезопасна: путь {key} должен быть каталогом."
+            )
+    if manifest_present:
+        for key in LEDGER_TITLES:
+            metadata = route_metadata[key]
+            if metadata is not None and not stat.S_ISREG(metadata.st_mode):
+                raise MatterWorkspaceError(
+                    f"Рабочая папка небезопасна: реестр {key} должен быть обычным файлом."
+                )
+        return True
+
+    for key in DIRECTORY_ARTIFACT_KEYS:
+        metadata = route_metadata[key]
+        if metadata is not None and _directory_has_entries(
+            workspace / ARTIFACT_PATHS[key],
+            label=key,
+        ):
+            raise MatterWorkspaceError(
+                f"Каталог {key} уже содержит данные без matter.json; "
+                "данные оставлены без изменений."
+            )
+    for key in LEDGER_TITLES:
+        if route_metadata[key] is not None:
+            ledger_path = workspace / ARTIFACT_PATHS[key]
+            raise MatterWorkspaceError(
+                f"Путь {ledger_path} уже существует без matter.json; "
+                "данные оставлены без изменений."
+            )
+    return False
+
+
 def _empty_ledger(matter_id: str, ledger_name: str, created_at: str) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -173,7 +329,7 @@ def initialize_matter(
     workspace = _workspace_path(destination)
     manifest_path = workspace / "matter.json"
 
-    if manifest_path.exists():
+    if _preflight_initialization_layout(workspace):
         existing = load_matter(workspace)
         if existing["matter_id"] != matter_id:
             raise MatterWorkspaceError(
@@ -350,7 +506,6 @@ def load_matter(workspace: str | Path) -> dict[str, Any]:
             "Контракт рабочей папки повреждён: пути артефактов не совпадают с безопасным контрактом."
         )
     resolved_root = root.resolve()
-    directory_keys = {"input_registry", "input_objects", "release_artifacts", "audit_events"}
     for key, relative in ARTIFACT_PATHS.items():
         candidate = root / relative
         resolved = candidate.resolve(strict=False)
@@ -358,7 +513,7 @@ def load_matter(workspace: str | Path) -> dict[str, Any]:
             raise MatterWorkspaceError(
                 f"Контракт рабочей папки повреждён: путь {key} выходит за пределы дела."
             )
-        if key in directory_keys:
+        if key in DIRECTORY_ARTIFACT_KEYS:
             if not candidate.is_dir():
                 raise MatterWorkspaceError(
                     f"Контракт рабочей папки повреждён: каталог {key} отсутствует."
