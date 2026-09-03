@@ -77,6 +77,17 @@
         "The principal option frames the sequential witness-to-specialist transition as a normative structural risk to impartial evidence rather than a request to reassess one participant's credibility, while constitutional rights are tied to the mechanism instead of merely listed.",
         "A distinct reserve option tests a systemic constitutional meaning that prohibits the incompatible transition and addresses admissibility of resulting evidence; acquittal, rehearing outcome and insufficiency of all remaining evidence are not inferred automatically."
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "Обвиняемому в преступлении небольшой тяжести, за которое с учётом правил назначения наказания лишение свободы невозможно, заочно избрали заключение под стражу. Он объявлен в розыск; суды называют его скрывшимся, но материалы о причинах отсутствия и активных действиях не приведены. Проект жалобы считает предел возможного наказания абсолютным, оспаривает сразу норму об исключительных основаниях заключения под стражу, процедуру заочного решения и общую норму о мерах к разыскиваемому лицу. В подтверждение он ссылается на формулу постановления Пленума, появившуюся после первых судебных актов. Не ищи последующий акт КС РФ. Построй outcome-blind портфель.",
+      "expected_output": "Two-sided coercive-measure portfolio with trigger proof, temporal authority and nonautomaticity checks.",
+      "files": [],
+      "expectations": [
+        "The output states the ordinary punishment-severity comparator but also develops a distinct adverse hypothesis that intentional obstruction of justice may support a narrow coercive exception with an independent procedural purpose and countervailing rights.",
+        "The portfolio separates the substantive exception carrier from provisions governing an absent or wanted person, requires proof of intentional active concealment rather than a search label, and treats detention as discretionary and individualized rather than automatic.",
+        "Every statutory and plenary source is time-versioned against the challenged decisions; later clarification is not retroactively attributed to an earlier court, and review, set-off, compensation or a favorable individual outcome are not predicted."
+      ]
     }
   ]
 }

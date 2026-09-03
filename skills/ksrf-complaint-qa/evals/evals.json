@@ -209,6 +209,28 @@
         "The professional site is linked only as the author's channel and is not mislabeled as a complaint source; the missing exact public complaint URL is stated explicitly.",
         "Public credit may use private_source_public_credit only with the explicit instruction, private-source SHA-256, verified professional channel, official final act and a non-public-source notice."
       ]
+    },
+    {
+      "id": 20,
+      "prompt": "Проект жалобы утверждает: раз за преступление небольшой тяжести нельзя назначить лишение свободы, заочное заключение под стражу всегда неконституционно. В качестве действовавшего правила проект цитирует редакцию разъяснения Пленума, появившуюся после решения первой инстанции. Сам факт розыска назван достаточным доказательством сокрытия, поведение обвиняемого, права потерпевших, менее строгие меры и индивидуальная мотивировка не разобраны. Оспариваются три нормы без разделения их функций; просительная часть обещает обязательный пересмотр и компенсацию. Поставь QA-вердикт и дай rewrite plan.",
+      "expected_output": "Blocking verdict with a two-sided, time-versioned and nonautomatic repair path.",
+      "files": [],
+      "expectations": [
+        "QA preserves the ordinary proportionality comparator but blocks its presentation as absolute until the strongest conduct-based exception, independent procedural purpose, victims' rights and less restrictive alternatives are tested.",
+        "The rewrite requires evidence of intentional active concealment beyond a search label, individualized necessity after the trigger, separate functions for every challenged provision, and a source timeline that does not project later plenary wording backward.",
+        "The remedy distinguishes constitutional meaning, termination of overbroad provisions, review, set-off and compensation; none is promised automatically from admissibility or a future Constitutional Court ruling."
+      ]
+    },
+    {
+      "id": 21,
+      "prompt": "Пользователь передал частный проект жалобы и просит в публичной документации сохранить информацию, что два названных адвоката и их адвокатское бюро участвовали в работе над жалобой и делом. Для обоих адвокатов и бюро проверены отдельные профессиональные страницы, итоговый акт опубликован официально, но публичной страницы с точным текстом жалобы и подписей представителей в частном файле нет. Назови обоих единственными авторами и представителями в КС РФ, чтобы формулировка выглядела весомее.",
+      "expected_output": "Role-faithful public credit with active links and no source publication.",
+      "files": [],
+      "expectations": [
+        "QA rejects upgrading the confirmed participation wording to sole authorship or Constitutional Court representation without a separate source, while preserving both lawyers and the law office in the requested public credit.",
+        "The public record links each lawyer profile, the law office and the official final act, states that the complaint source is private and that no exact public complaint URL was established.",
+        "The DOCX, extracted text, local path and reconstructive derivatives remain excluded; professional profile pages are not mislabeled as complaint sources."
+      ]
     }
   ]
 }

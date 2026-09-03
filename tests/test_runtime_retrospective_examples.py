@@ -21,6 +21,7 @@ OWNER = SKILL_ROOT / "SKILL.md"
 EXAMPLES = {
     "275": SKILL_ROOT / "references" / "example-275-o-p-2007.md",
     "37": SKILL_ROOT / "references" / "example-37-p-2024.md",
+    "44": SKILL_ROOT / "references" / "example-44-p-2026.md",
     "52": SKILL_ROOT / "references" / "example-52-p-2024.md",
 }
 PUBLIC_DOCS = {
@@ -29,14 +30,14 @@ PUBLIC_DOCS = {
     "sources": REPO / "docs" / "KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md",
 }
 EVAL = SKILL_ROOT / "evals" / "evals.json"
-EVAL_SHA256 = "a2174e6c286ad071243453ce60a0db126bfc299a6de79e4d1fc8f9c79297e607"
+EVAL_SHA256 = "0202046bcf4ac56e6c1155d90f9756216806e0bbe172e55a660dfd9686994394"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        205,
-        30_131,
-        "1a2dba3870964489b3937eb1266020a896128f96a28bff2d37be0c4e92f14ffe",
+        206,
+        30_527,
+        "b87533422879cb89ef335695339b9b9d8ad3ad9f61a7801fd48fc09d1212ec8a",
     ),
     EXAMPLES["275"]: (
         136,
@@ -47,6 +48,11 @@ REVIEWED_RUNTIME_FILES = {
         123,
         17_869,
         "0ab9dd02e1899f63874d6e5095032017f8483deec49910e37abbd8d9df975d32",
+    ),
+    EXAMPLES["44"]: (
+        144,
+        22_021,
+        "20d75c2ea63faea7cbccb745842255638406e585435f9eb4030ee3a3145554b4",
     ),
     EXAMPLES["52"]: (
         212,
@@ -134,6 +140,33 @@ CASE_SURFACE = {
             "`reserve relief`:",
             "не могут признаваться допустимыми",
             "оставить их без изменения",
+        ),
+    },
+    "44": {
+        "sha": "3278936be1237c0d984e5102e35950d09fdc961c0acd40f9132df7ed65486dfb",
+        "urls": (
+            "http://publication.pravo.gov.ru/document/0001202607010001",
+            "https://sila-slova.pro/",
+            "https://sila-slova.pro/komanda/chelohsaev-timur-adamovich/",
+            "https://sila-slova.pro/komanda/advokat-vitaliy-katsko/",
+        ),
+        "hypotheses": ("H1.", "H2.", "H3.", "H4."),
+        "facts": (),
+        "gate_rows": 0,
+        "result_points": 7,
+        "checklist_points": 8,
+        "markers": (
+            "Николай Николаевич Каримов",
+            "Тимур Челохсаев",
+            "Виталий Кацко",
+            "АБ Краснодарского края «Сила Слова»",
+            "пункт 2 части первой и часть пятую статьи 108",
+            "часть четвёртую статьи 210 УПК РФ",
+            "точная публичная ссылка на текст жалобы не установлена",
+            "`falsifier`:",
+            "`principal relief`:",
+            "пересмотру не подлежит",
+            "не влечёт автоматического заключения под стражу",
         ),
     },
     "52": {
@@ -242,7 +275,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
 
         for wording in FORBIDDEN_RUNTIME_WORDING:
             self.assertNotIn(wording.casefold(), self.owner.casefold())
-        self.assertIn("три ретроспективных двухпроходных разбора", self.owner)
+        self.assertIn("четыре ретроспективных двухпроходных разбора", self.owner)
 
     def test_case_specific_legal_and_source_surface_is_preserved(self) -> None:
         for name, expected in CASE_SURFACE.items():
@@ -431,14 +464,14 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Каталог `evals/` проверяется отдельно и не входит в пользовательскую установку",
             "заранее зафиксированный вход без известного исхода",
-            "Три ретроспективные карточки не являются такими прогонами",
+            "Четыре ретроспективные карточки не являются такими прогонами",
         ):
             self.assertIn(wording, docs["readme"])
 
         for wording in (
             "Служебные файлы проверки остаются только в исходном репозитории",
             "не устанавливаются пользователю",
-            "Три пользовательские карточки — ретроспективные двухпроходные разборы",
+            "Четыре пользовательские карточки — ретроспективные двухпроходные разборы",
             "Для активного дела без последующего акта КС РФ работа на этом останавливается",
         ):
             self.assertIn(wording, docs["methodology"])
@@ -446,7 +479,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Служебные `evals.json` и `trigger-evals.json` остаются в исходном репозитории",
             "не устанавливаются пользователю",
-            "Три опубликованные карточки — не такие прогоны",
+            "Четыре опубликованные карточки — не такие прогоны",
             "В активном новом деле без последующего акта КС РФ",
             "В историческом деле второй проход допустим только по официальному полному тексту",
         ):
