@@ -9,15 +9,21 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from validate_ksrf_skillset import (
-    BINARY_RUNTIME_SUFFIXES,
-    TEXT_SUFFIXES,
-    is_runtime_artifact,
-    is_source_only_artifact,
-    parse_runtime_json_strict,
-    runtime_local_coordinate_markers,
-    runtime_maintainer_workflow_markers,
-)
+_previous_dont_write_bytecode = sys.dont_write_bytecode
+sys.dont_write_bytecode = True
+try:
+    from validate_ksrf_skillset import (
+        BINARY_RUNTIME_SUFFIXES,
+        TEXT_SUFFIXES,
+        is_runtime_artifact,
+        is_source_only_artifact,
+        parse_runtime_json_strict,
+        runtime_local_coordinate_markers,
+        runtime_maintainer_workflow_markers,
+    )
+finally:
+    sys.dont_write_bytecode = _previous_dont_write_bytecode
+del _previous_dont_write_bytecode
 
 
 SKILLS_ROOT = Path(__file__).resolve().parents[2]
@@ -79,6 +85,20 @@ UID_CONSUMERS = (
 OFFLINE_VERIFIER_RELATIVE = Path(
     "ksrf-complaint-cycle/scripts/verify_offline_self_containment.py"
 )
+HELP_TEXT = """Использование: verify_offline_self_containment.py [-h | --help]
+
+Проверить без сети автономность установленного набора навыков КС РФ,
+который содержит этот скрипт.
+
+Параметры:
+  -h, --help  показать эту справку и выйти
+
+Для проверки явно выбранной папки используйте из доверенной копии репозитория:
+  ./install.sh --verify --target ПУТЬ
+"""
+ARGUMENT_ERROR_TEXT = """Использование: verify_offline_self_containment.py [-h | --help]
+verify_offline_self_containment.py: ошибка: допустим запуск без параметров либо ровно с одним флагом -h или --help.
+"""
 
 
 def validate_uid_scenarios(errors: list[str], uid_scenarios: Path) -> None:
@@ -448,7 +468,15 @@ def validate_offline_self_containment(
         ]
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments:
+        if arguments in (["-h"], ["--help"]):
+            print(HELP_TEXT, end="")
+            return 0
+        print(ARGUMENT_ERROR_TEXT, end="", file=sys.stderr)
+        return 2
+
     errors = validate_offline_self_containment(SKILLS_ROOT)
     if errors:
         print("Offline self-containment verification failed:")
