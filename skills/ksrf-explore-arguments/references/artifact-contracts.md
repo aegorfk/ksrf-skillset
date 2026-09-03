@@ -9,6 +9,7 @@
 - [ConstitutionalIssueOption](#constitutionalissueoption)
 - [AdmissibilityMatrix и локальный маршрут](#admissibilitymatrix-и-локальный-маршрут)
 - [KSRFRouteRecommendation](#ksrfrouterecommendation)
+- [Проверка JSON-артефакта](#проверка-json-артефакта)
 - [Case isolation](#case-isolation)
 
 ## ResearchFinding
@@ -148,6 +149,19 @@ python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf.py" admissibility s
 - `human_decision=pending`, `human_legal_review_required=true`, `legal_assessment_automated=false`, `filing_authority=false`, `filing_performed=false`.
 
 `GO_TO_KSRF` означает только машинно согласованную рекомендацию перейти к юридической проверке, а не прогноз принятия и не разрешение подать жалобу. Юрист отдельно проверяет вывод, человек отдельно принимает решение, подписывает и подаёт документы. `Unknown` требует `FIX_FIRST` или `ABSTAIN_PENDING_RECORD`, но не автоматически `NO_GO_KSRF`. Неустранимый fail или чисто фактический спор позволяют `NO_GO_KSRF` сразу после admissibility без выдуманного issue option.
+
+## Проверка JSON-артефакта
+
+`validate_argument_research.py` не исправляет и не преобразует вход
+автоматически. Ошибки структуры корректного JSON возвращаются кодом `1` как
+строки `ERROR:` с точным полем или индексом; проверка продолжает собирать
+независимые ошибки и не должна завершаться Python traceback. Ошибка чтения,
+кодировки UTF-8, синтаксиса JSON или ограничений декодера возвращается кодом
+`2` в stderr.
+
+Код `0` и строка `OK:` означают только соответствие исследовательского
+артефакта машинному контракту. Они не подтверждают готовность жалобы,
+достоверность источников или одобрение выбранной стратегии.
 
 ## Case isolation
 

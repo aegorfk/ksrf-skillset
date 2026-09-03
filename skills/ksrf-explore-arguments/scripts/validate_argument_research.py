@@ -51,7 +51,37 @@ def missing_fields(item: dict[str, Any], required: set[str]) -> list[str]:
     return sorted(required - item.keys())
 
 
-def validate(payload: dict[str, Any]) -> list[str]:
+def diagnostic_identifier(value: str) -> str:
+    return json.dumps(value, ensure_ascii=True)[1:-1]
+
+
+def validated_id_set(
+    item: dict[str, Any],
+    field: str,
+    *,
+    path: str,
+    errors: list[str],
+) -> set[str]:
+    value = item.get(field, [])
+    if not isinstance(value, list):
+        errors.append(f"{path}.{field} must be an array")
+        return set()
+
+    identifiers: set[str] = set()
+    for index, identifier in enumerate(value):
+        if not isinstance(identifier, str) or not identifier.strip():
+            errors.append(
+                f"{path}.{field}[{index}] must be a non-empty string"
+            )
+            continue
+        identifiers.add(identifier)
+    return identifiers
+
+
+def validate(payload: Any) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["root must be an object"]
+
     errors: list[str] = []
     case_id = payload.get("case_id")
     findings = payload.get("findings", [])
@@ -80,17 +110,25 @@ def validate(payload: dict[str, Any]) -> list[str]:
         finding_id = finding.get("finding_id")
         if isinstance(finding_id, str):
             if finding_id in finding_ids:
-                errors.append(f"duplicate finding_id: {finding_id}")
+                errors.append(
+                    f"duplicate finding_id: {diagnostic_identifier(finding_id)}"
+                )
             finding_ids.add(finding_id)
         if finding.get("case_id") != case_id:
             errors.append(f"findings[{index}] crosses case scope")
-        if finding.get("relation") not in RELATIONS:
+        relation = finding.get("relation")
+        if not isinstance(relation, str) or relation not in RELATIONS:
             errors.append(f"findings[{index}] has invalid relation")
-        if finding.get("verification_status") not in VERIFICATION:
+        verification_status = finding.get("verification_status")
+        if (
+            not isinstance(verification_status, str)
+            or verification_status not in VERIFICATION
+        ):
             errors.append(f"findings[{index}] has invalid verification_status")
-        if finding.get("confidence") not in CONFIDENCE:
+        confidence = finding.get("confidence")
+        if not isinstance(confidence, str) or confidence not in CONFIDENCE:
             errors.append(f"findings[{index}] has invalid confidence")
-        if finding.get("verification_status") == "verified" and not finding.get("locator"):
+        if verification_status == "verified" and not finding.get("locator"):
             errors.append(f"findings[{index}] verified without locator")
 
     hypothesis_ids: set[str] = set()
@@ -103,29 +141,52 @@ def validate(payload: dict[str, Any]) -> list[str]:
         hypothesis_id = hypothesis.get("hypothesis_id")
         if isinstance(hypothesis_id, str):
             if hypothesis_id in hypothesis_ids:
-                errors.append(f"duplicate hypothesis_id: {hypothesis_id}")
+                errors.append(
+                    "duplicate hypothesis_id: "
+                    f"{diagnostic_identifier(hypothesis_id)}"
+                )
             hypothesis_ids.add(hypothesis_id)
-        if hypothesis.get("status") not in HYPOTHESIS_STATUS:
+        status = hypothesis.get("status")
+        if not isinstance(status, str) or status not in HYPOTHESIS_STATUS:
             errors.append(f"hypotheses[{index}] has invalid status")
-        referenced = set(hypothesis.get("supporting_finding_ids", [])) | set(
-            hypothesis.get("adverse_finding_ids", [])
+        referenced = validated_id_set(
+            hypothesis,
+            "supporting_finding_ids",
+            path=f"hypotheses[{index}]",
+            errors=errors,
+        ) | validated_id_set(
+            hypothesis,
+            "adverse_finding_ids",
+            path=f"hypotheses[{index}]",
+            errors=errors,
         )
         unknown = sorted(referenced - finding_ids)
         if unknown:
             errors.append(f"hypotheses[{index}] references unknown findings: {unknown}")
 
     approval = portfolio.get("human_approval")
-    if approval not in APPROVAL:
+    if not isinstance(approval, str) or approval not in APPROVAL:
         errors.append("portfolio.human_approval is invalid")
     principal = portfolio.get("principal_hypothesis_id")
-    if principal is not None and principal not in hypothesis_ids:
-        errors.append("portfolio principal references unknown hypothesis")
+    if principal is not None:
+        if not isinstance(principal, str):
+            errors.append(
+                "portfolio.principal_hypothesis_id must be a string or null"
+            )
+        elif principal not in hypothesis_ids:
+            errors.append("portfolio principal references unknown hypothesis")
     if approval != "approved" and principal is not None:
         errors.append("principal hypothesis requires human_approval=approved")
     if approval == "approved" and not portfolio.get("approved_by"):
         errors.append("approved portfolio requires approved_by")
     for key in ("reserve_hypothesis_ids", "experimental_hypothesis_ids", "rejected_hypothesis_ids"):
-        unknown = sorted(set(portfolio.get(key, [])) - hypothesis_ids)
+        references = validated_id_set(
+            portfolio,
+            key,
+            path="portfolio",
+            errors=errors,
+        )
+        unknown = sorted(references - hypothesis_ids)
         if unknown:
             errors.append(f"portfolio.{key} references unknown hypotheses: {unknown}")
 
@@ -188,12 +249,9 @@ def main() -> int:
     path = Path(raw_path)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         print(f"invalid input: {exc}", file=sys.stderr)
         return 2
-    if not isinstance(payload, dict):
-        print("root must be an object", file=sys.stderr)
-        return 1
     errors = validate(payload)
     if errors:
         for error in errors:
