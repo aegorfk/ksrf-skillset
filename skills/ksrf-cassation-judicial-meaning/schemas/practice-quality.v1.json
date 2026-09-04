@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/practice-quality.v1.json",
   "title": "Practice quality contracts",
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "$defs": {
     "trajectory": {"$ref": "#/definitions/chain_meaning_trajectory"},
     "dimension": {"$ref": "#/definitions/uncertainty_dimension"}
@@ -23,6 +23,9 @@
     {"$ref": "#/definitions/coding_audit_completed_coding"},
     {"$ref": "#/definitions/coding_audit_decision"},
     {"$ref": "#/definitions/coding_audit_review_import_receipt"},
+    {"$ref": "#/definitions/coding_review_resolution"},
+    {"$ref": "#/definitions/resolved_review_decision"},
+    {"$ref": "#/definitions/coding_audit_finalization_receipt"},
     {"$ref": "#/definitions/coding_adjudication"},
     {"$ref": "#/definitions/coding_reliability"},
     {"$ref": "#/definitions/refresh_plan"},
@@ -1236,8 +1239,263 @@
       },
       "additionalProperties": false
     },
+    "coding_review_resolution": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "exactly one row is permitted for each candidate appearing in either verified import difference map and no row is permitted for an agreement-only candidate",
+        "difference_fields is always the exact ordered union; successful finalization additionally requires field_resolutions to cover that union exactly, while readable partial choices remain schema-valid incomplete input",
+        "primary and secondary choices copy the exact digest-bound value; a custom value must pass the authoritative field and final coding contracts",
+        "the receipt and coding digests are prebindings, while the pseudonym, reviewed_at, and review booleans are declarations rather than authenticated evidence"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "import_receipt_sha256", "candidate_id",
+        "difference_fields", "primary_coding_sha256",
+        "secondary_coding_sha256", "field_resolutions",
+        "reviewer_pseudonym", "reviewed_at", "human_review",
+        "full_text_reviewed", "quote_locators_reviewed",
+        "final_coding_approved"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "import_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "difference_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_review_difference_field"}
+        },
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "field_resolutions": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/coding_review_field_resolution"}
+        },
+        "reviewer_pseudonym": {"$ref": "#/definitions/canonical_visible_identifier"},
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "human_review": {"type": "string", "const": "approved"},
+        "full_text_reviewed": {"type": "boolean", "const": true},
+        "quote_locators_reviewed": {"type": "boolean", "const": true},
+        "final_coding_approved": {"type": "boolean", "const": true}
+      },
+      "additionalProperties": false
+    },
+    "coding_review_difference_field": {
+      "type": "string",
+      "enum": [
+        "label", "speaker", "norm_edition_id", "reading_family",
+        "relation", "reasoning_to_outcome", "alternative_grounds", "remedy",
+        "proposition", "quote", "quote_locator", "material_facts"
+      ]
+    },
+    "coding_review_field_resolution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["field", "choice"],
+          "properties": {
+            "field": {"$ref": "#/definitions/coding_review_difference_field"},
+            "choice": {"type": "string", "enum": ["primary", "secondary"]}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["field", "choice", "value"],
+          "properties": {
+            "field": {"$ref": "#/definitions/coding_review_difference_field"},
+            "choice": {"type": "string", "const": "custom"},
+            "value": {}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "resolved_review_decision": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "rows are emitted in frozen required-candidate order and final_coding_sha256 is the canonical digest of final_coding",
+        "difference_fields and value-free field_choices are exact and ordered; resolution_sha256 is null only for an imported agreement row",
+        "final coding is derived from the exact primary coding plus the bound field choices and is revalidated against the candidate packet text"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "import_receipt_sha256", "candidate_id",
+        "difference_fields", "primary_coding_sha256",
+        "secondary_coding_sha256", "field_choices", "resolution_sha256",
+        "final_coding", "final_coding_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "import_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+        "difference_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_review_difference_field"}
+        },
+        "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "field_choices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "choice"],
+            "properties": {
+              "field": {"$ref": "#/definitions/coding_review_difference_field"},
+              "choice": {"type": "string", "enum": ["primary", "secondary", "custom"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "resolution_sha256": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "final_coding": {"$ref": "#/definitions/coding_audit_completed_coding"},
+        "final_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_finalization_receipt": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "receipt_sha256 is the canonical digest of the exact remaining receipt fields",
+        "both expected digests are operator-retained inputs and must equal the fully revalidated native bundle and import receipt",
+        "required_difference_pairs, resolved_candidate_ids, and resolved_field_populations form an exact value-free bijection over both imported difference maps",
+        "all four output files are canonical and their exact bytes are bound by the receipt; the receipt itself contains no packet text, quote, selected value, person label, person-attributable timestamp, or absolute input path",
+        "quote_locator_review_declared is a human declaration and quote_locator_verified remains false; no digest or declaration authenticates a person, review event, legal conclusion, publication, or filing authority"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "producer",
+        "bundle_contract_version", "plan_sha256", "audit_plan_sha256",
+        "codebook_version", "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256", "audit_plan_file_sha256",
+        "primary_decisions_file_sha256", "review_packet_sha256",
+        "codebook_sha256", "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256", "audit_decisions_file_sha256",
+        "resolutions_present", "resolutions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256", "coding_reliability_file_sha256",
+        "candidate_ids", "required_difference_pairs", "resolved_candidate_ids",
+        "resolved_field_populations", "final_coding_sha256",
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "quote_locator_review_declared", "quote_locator_verified",
+        "reliability_complete", "source_workspace_reverified",
+        "reviewer_identity_authenticated", "human_review_authenticated",
+        "independence_verified", "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe", "legal_readiness", "receipt_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {"type": "string", "const": "coding_audit_finalization_receipt"},
+        "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_finalize"},
+        "bundle_contract_version": {"type": "string", "enum": ["1.1", "1.2"]},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "source_bundle_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_source_bundle_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_bundle_manifest_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_plan_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "primary_decisions_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "review_packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coding_brief_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_import_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_audit_import_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_import_receipt_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_decisions_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "resolutions_present": {"type": "boolean"},
+        "resolutions_file_sha256": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "resolutions_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "resolved_review_decisions_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "adjudications_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coding_reliability_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "required_difference_pairs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "field"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "field": {"$ref": "#/definitions/coding_review_difference_field"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "resolved_candidate_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "resolved_field_populations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "fields"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "fields": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {"$ref": "#/definitions/coding_review_difference_field"}
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "final_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "difference_resolution_bijection_verified": {"type": "boolean", "const": true},
+        "final_quote_literal_presence_verified": {"type": "boolean", "const": true},
+        "final_quote_normalized_presence_verified": {"type": "boolean", "const": true},
+        "quote_locator_review_declared": {"type": "boolean"},
+        "quote_locator_verified": {"type": "boolean", "const": false},
+        "reliability_complete": {"type": "boolean", "const": true},
+        "source_workspace_reverified": {"type": "boolean", "const": false},
+        "reviewer_identity_authenticated": {"type": "boolean", "const": false},
+        "human_review_authenticated": {"type": "boolean", "const": false},
+        "independence_verified": {"type": "boolean", "const": false},
+        "receipt_authenticated": {"type": "boolean", "const": false},
+        "norm_edition_temporal_applicability_verified": {"type": "boolean", "const": false},
+        "publication_safe": {"type": "boolean", "const": false},
+        "legal_readiness": {"type": "boolean", "const": false},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"resolutions_present": {"const": true}}},
+          "then": {"properties": {"resolutions_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+          "else": {"properties": {"resolutions_file_sha256": {"type": "null"}}}
+        }
+      ],
+      "additionalProperties": false
+    },
     "coding_adjudication": {
-      "x-contract-version": "1.1",
+      "x-contract-version": "1.2",
       "x-runtime-invariants": [
         "resolved_fields are overlaid on the digest-bound primary coding and the resulting complete coding must pass the authoritative coding validator",
         "a substantive resolved label requires the resulting speaker to be court",
@@ -1261,14 +1519,14 @@
               "type": "string",
               "enum": ["core_merits", "contextual", "party_only", "mentioned_only", "quoted_not_adopted", "false_positive", "unclear"]
             },
-            "speaker": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "speaker": {"$ref": "#/definitions/visible_text"},
             "norm_edition_id": {"$ref": "#/definitions/canonical_visible_identifier"},
             "reading_family": {"$ref": "#/definitions/canonical_visible_identifier"},
             "relation": {
               "type": "string",
               "enum": ["supports", "adverse", "neutral", "distinguishes", "supersedes"]
             },
-            "reasoning_to_outcome": {"$ref": "#/definitions/canonical_visible_identifier"},
+            "reasoning_to_outcome": {"$ref": "#/definitions/visible_text"},
             "alternative_grounds": {
               "type": "array",
               "items": {"$ref": "#/definitions/coding_alternative_ground"}

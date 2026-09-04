@@ -1431,7 +1431,7 @@ class PracticeQualityExitStatusTests(unittest.TestCase):
                     self.assertEqual(completed.stdout, "")
                     if name == "missing-claim-id":
                         self.assertIn(
-                            "the following arguments are required: --claim-id",
+                            "не указаны обязательные аргументы: --claim-id",
                             completed.stderr,
                         )
                     else:

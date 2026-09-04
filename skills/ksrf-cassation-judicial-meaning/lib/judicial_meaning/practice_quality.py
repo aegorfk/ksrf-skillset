@@ -7,6 +7,7 @@ the CLI can persist their content-bound results without hiding side effects.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -234,6 +235,90 @@ CODING_RELIABILITY_FIELDS = frozenset(
         "evidence_sha256",
     }
 )
+CODING_REVIEW_RESOLUTION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "import_receipt_sha256",
+        "candidate_id",
+        "difference_fields",
+        "primary_coding_sha256",
+        "secondary_coding_sha256",
+        "field_resolutions",
+        "reviewer_pseudonym",
+        "reviewed_at",
+        "human_review",
+        "full_text_reviewed",
+        "quote_locators_reviewed",
+        "final_coding_approved",
+    }
+)
+CODING_REVIEW_FIELD_RESOLUTION_FIELDS = frozenset({"field", "choice"})
+CODING_REVIEW_CUSTOM_FIELD_RESOLUTION_FIELDS = frozenset(
+    {"field", "choice", "value"}
+)
+RESOLVED_REVIEW_DECISION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "import_receipt_sha256",
+        "candidate_id",
+        "difference_fields",
+        "primary_coding_sha256",
+        "secondary_coding_sha256",
+        "field_choices",
+        "resolution_sha256",
+        "final_coding",
+        "final_coding_sha256",
+    }
+)
+CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "producer",
+        "bundle_contract_version",
+        "plan_sha256",
+        "audit_plan_sha256",
+        "codebook_version",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "review_packet_sha256",
+        "secondary_coding_file_sha256",
+        "secondary_coding_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_decisions_file_sha256",
+        "candidate_ids",
+        "audited_fields",
+        "non_audited_content_fields",
+        "audited_field_agreement_candidate_ids",
+        "audited_field_disagreement_candidate_ids",
+        "non_audited_content_difference_candidate_ids",
+        "audited_field_differences",
+        "non_audited_content_differences",
+        "non_audited_content_review_required",
+        "adjudication_required",
+        "expected_secondary_coder_label_sha256",
+        "secondary_coder_label_precommit_verified",
+        "returned_quote_literal_presence_verified",
+        "quote_locator_verified",
+        "secondary_coder_label_differs_from_each_sampled_primary_label",
+        "single_secondary_coder_label",
+        "bundle_internal_consistency_verified",
+        "expected_manifest_digest_match_verified",
+        "norm_edition_allowlist_membership_verified",
+        "source_workspace_reverified",
+        "reviewer_packet_use_attested",
+        "norm_edition_temporal_applicability_verified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "publication_safe",
+        "legal_readiness",
+        "receipt_sha256",
+    }
+)
 REFRESH_PLAN_FIELDS = frozenset(
     {
         "plan_id",
@@ -406,6 +491,65 @@ def _audit_coding_identity_valid(record: Mapping[str, Any]) -> bool:
             "codebook_version",
         )
     ) and _canonical_reviewer(record.get("coder")) is not None
+
+
+def _coding_visible_text(value: Any) -> bool:
+    """Mirror the authoritative coding text predicate without importing internals."""
+
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and not any(
+            unicodedata.category(character) in {"Cf", "Cs"}
+            or (
+                unicodedata.category(character) == "Cc"
+                and character not in {"\t", "\n", "\r"}
+            )
+            for character in value
+        )
+    )
+
+
+def _coding_adjudication_field_value_valid(field: str, value: Any) -> bool:
+    """Validate each audited value no more narrowly than completed coding does."""
+
+    if field == "label":
+        return isinstance(value, str) and value in SUBSTANTIVE_LABELS | EXCLUSION_LABELS
+    if field in {"speaker", "reasoning_to_outcome"}:
+        return _coding_visible_text(value)
+    if field in {"norm_edition_id", "reading_family", "remedy"}:
+        return _is_canonical_identifier(value)
+    if field == "relation":
+        return isinstance(value, str) and value in {
+            "supports",
+            "adverse",
+            "neutral",
+            "distinguishes",
+            "supersedes",
+        }
+    if field == "alternative_grounds":
+        permitted_fields = {
+            "ground",
+            "independently_sufficient",
+            "quote",
+            "quote_locator",
+        }
+        return isinstance(value, list) and all(
+            isinstance(item, dict)
+            and set(item).issubset(permitted_fields)
+            and _coding_visible_text(item.get("ground"))
+            and isinstance(item.get("independently_sufficient"), bool)
+            and (
+                item.get("quote") is None
+                or _coding_visible_text(item.get("quote"))
+            )
+            and (
+                item.get("quote_locator") is None
+                or _coding_visible_text(item.get("quote_locator"))
+            )
+            for item in value
+        )
+    return False
 
 
 def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
@@ -1194,8 +1338,8 @@ def _coding_adjudication_contract_valid(
         and bool(resolved_fields)
         and set(resolved_fields).issubset(AUDITED_CODING_FIELDS)
         and all(
-            not isinstance(value, str) or _is_canonical_identifier(value)
-            for value in resolved_fields.values()
+            _coding_adjudication_field_value_valid(field, value)
+            for field, value in resolved_fields.items()
         )
         and _canonical_reviewer(record.get("adjudicator")) is not None
         and _aware_iso_datetime(reviewed_at)
@@ -3086,6 +3230,824 @@ def build_native_coding_review_import(
     }
 
 
+def build_native_coding_audit_finalization(
+    audit_plan: Mapping[str, Any],
+    primary_decisions: Iterable[Any],
+    secondary_review_materials: Iterable[Any],
+    audit_decisions: Iterable[Any],
+    import_receipt: Mapping[str, Any],
+    resolutions: Iterable[Any] | None = None,
+    *,
+    expected_import_receipt_sha256: str,
+    norm_edition_ids: Iterable[str],
+) -> dict[str, Any]:
+    """Derive one final coding state from an exact native audit import.
+
+    This is the side-effect-free half of native finalization.  The caller owns
+    descriptor-held capture, byte-level receipt bindings, and atomic publication.
+    Invalid contracts raise ``ValueError``.  A well-formed but unfinished review
+    returns ``complete=False`` with candidate/field identifiers only.
+    """
+
+    if not isinstance(audit_plan, Mapping) or not _coding_audit_plan_contract_valid(
+        audit_plan
+    ):
+        raise ValueError("Замороженный план аудита имеет неверный закрытый контракт.")
+    if audit_plan.get("invalid_screening_record_ids") or audit_plan.get(
+        "invalid_primary_record_ids"
+    ):
+        raise ValueError("План аудита содержит недопустимые входные записи.")
+    required_candidate_ids = list(audit_plan["required_candidate_ids"])
+    if not required_candidate_ids or any(
+        not _is_native_audit_candidate_id(candidate_id)
+        for candidate_id in required_candidate_ids
+    ):
+        raise ValueError(
+            "План аудита не содержит канонический набор обязательных кандидатов."
+        )
+
+    if not _is_sha256(expected_import_receipt_sha256):
+        raise ValueError(
+            "Ожидаемая контрольная сумма квитанции импорта должна быть "
+            "строчным SHA-256."
+        )
+    if not isinstance(import_receipt, Mapping) or set(import_receipt) != (
+        CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS
+    ):
+        raise ValueError("Квитанция импорта имеет неверный закрытый контракт.")
+    receipt = dict(import_receipt)
+    receipt_sha256 = receipt.get("receipt_sha256")
+    unsigned_receipt = {
+        key: value for key, value in receipt.items() if key != "receipt_sha256"
+    }
+    try:
+        calculated_receipt_sha256 = canonical_digest(unsigned_receipt)
+    except (TypeError, ValueError, UnicodeEncodeError) as exc:
+        raise ValueError("Квитанция импорта не является каноническим JSON.") from exc
+    if (
+        not _is_sha256(receipt_sha256)
+        or receipt_sha256 != calculated_receipt_sha256
+        or receipt_sha256 != expected_import_receipt_sha256
+    ):
+        raise ValueError(
+            "Квитанция импорта не совпадает с отдельно сохранённой "
+            "контрольной суммой."
+        )
+
+    if isinstance(norm_edition_ids, (str, bytes, Mapping)):
+        raise ValueError("Список допустимых редакций норм имеет неверный формат.")
+    try:
+        allowed_norm_editions = list(norm_edition_ids)
+    except TypeError as exc:
+        raise ValueError("Список допустимых редакций норм имеет неверный формат.") from exc
+    if (
+        not allowed_norm_editions
+        or not all(_is_canonical_identifier(value) for value in allowed_norm_editions)
+        or len(allowed_norm_editions) != len(set(allowed_norm_editions))
+    ):
+        raise ValueError("Список допустимых редакций норм пуст или неканоничен.")
+    allowed_norm_edition_set = set(allowed_norm_editions)
+
+    def closed_index(
+        values: Iterable[Any],
+        *,
+        record_kind: str,
+        fields: frozenset[str],
+    ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        if isinstance(values, (str, bytes, Mapping)):
+            raise ValueError(f"Набор {record_kind} имеет неверный формат.")
+        try:
+            supplied_values = list(values)
+        except TypeError as exc:
+            raise ValueError(f"Набор {record_kind} имеет неверный формат.") from exc
+        records: list[dict[str, Any]] = []
+        indexed: dict[str, dict[str, Any]] = {}
+        for row_number, value in enumerate(supplied_values, start=1):
+            if not isinstance(value, Mapping) or set(value) != fields:
+                raise ValueError(
+                    f"Строка {record_kind} {row_number} имеет неверный закрытый формат."
+                )
+            record = dict(value)
+            candidate_id = record.get("candidate_id")
+            if not _is_native_audit_candidate_id(candidate_id):
+                raise ValueError(
+                    f"Строка {record_kind} {row_number} имеет "
+                    "неканонический candidate_id."
+                )
+            if candidate_id in indexed:
+                raise ValueError(f"Набор {record_kind} повторяет candidate_id.")
+            try:
+                canonical_digest(record)
+            except (TypeError, ValueError, UnicodeEncodeError) as exc:
+                raise ValueError(
+                    f"Строка {record_kind} {row_number} не является "
+                    "каноническим JSON."
+                ) from exc
+            records.append(record)
+            indexed[candidate_id] = record
+        return records, indexed
+
+    primary_records, primary_by_candidate = closed_index(
+        primary_decisions,
+        record_kind="первичной разметки",
+        fields=AUDIT_CODING_RECORD_FIELDS,
+    )
+    if not set(required_candidate_ids).issubset(primary_by_candidate):
+        raise ValueError(
+            "Первичная разметка не содержит всех кандидатов замороженной выборки."
+        )
+    for record in primary_records:
+        try:
+            errors = validate_coding_record(record)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Первичная разметка имеет неверные типы полей.") from exc
+        if errors or not _audit_coding_identity_valid(record):
+            raise ValueError(
+                "Первичная разметка не завершена или неканонична: "
+                + "; ".join(errors or ["неверные идентификаторы"])
+            )
+        if record.get("norm_edition_id") not in allowed_norm_edition_set:
+            raise ValueError(
+                "Первичная разметка ссылается на редакцию вне проверенного списка."
+            )
+    sorted_primary_records = sorted(primary_records, key=canonical_digest)
+    if canonical_digest(sorted_primary_records) != audit_plan.get(
+        "primary_coding_sha256"
+    ):
+        raise ValueError(
+            "Первичная разметка не совпадает с замороженным планом аудита."
+        )
+
+    material_records, material_by_candidate = closed_index(
+        secondary_review_materials,
+        record_kind="материалов проверки",
+        fields=NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS,
+    )
+    audit_records, audit_by_candidate = closed_index(
+        audit_decisions,
+        record_kind="решений импорта",
+        fields=CODING_AUDIT_DECISION_FIELDS,
+    )
+    expected_population = set(required_candidate_ids)
+    if set(material_by_candidate) != expected_population:
+        raise ValueError(
+            "Материалы проверки не совпадают с замороженной выборкой."
+        )
+    if set(audit_by_candidate) != expected_population or [
+        record["candidate_id"] for record in audit_records
+    ] != required_candidate_ids:
+        raise ValueError(
+            "Решения импорта не совпадают с замороженной выборкой или её порядком."
+        )
+
+    codebook_version = receipt.get("codebook_version")
+    if (
+        not isinstance(codebook_version, str)
+        or codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS
+    ):
+        raise ValueError(
+            "Версия справочника кодирования в квитанции не поддерживается."
+        )
+    secondary_records: list[dict[str, Any]] = []
+    audited_field_differences: list[dict[str, Any]] = []
+    non_audited_content_differences: list[dict[str, Any]] = []
+    audited_agreement_ids: list[str] = []
+    audited_disagreement_ids: list[str] = []
+    non_audited_difference_ids: list[str] = []
+    secondary_coder_sha256: str | None = None
+
+    for candidate_id in required_candidate_ids:
+        primary = primary_by_candidate[candidate_id]
+        material = material_by_candidate[candidate_id]
+        audit = audit_by_candidate[candidate_id]
+        if not _coding_audit_record_contract_valid(audit, candidate_id):
+            raise ValueError("Решение импорта имеет неверный закрытый контракт.")
+        secondary_value = audit.get("secondary_coding")
+        if not isinstance(secondary_value, Mapping):
+            raise ValueError("Решение импорта не содержит вторичную разметку.")
+        secondary = dict(secondary_value)
+        secondary_records.append(secondary)
+        primary_sha256 = canonical_digest(primary)
+        secondary_sha256 = canonical_digest(secondary)
+        if (
+            audit.get("primary_coding_sha256") != primary_sha256
+            or audit.get("secondary_coding_sha256") != secondary_sha256
+        ):
+            raise ValueError("Решение импорта связано с другой разметкой.")
+        if any(
+            secondary.get(field) != primary.get(field)
+            for field in ("candidate_id", "chain_id", "document_id", "codebook_version")
+        ) or primary.get("codebook_version") != codebook_version:
+            raise ValueError(
+                "Первичная и вторичная разметки имеют разные обязательные привязки."
+            )
+        if candidate_id != _native_audit_candidate_id(
+            plan_sha256=audit_plan["plan_sha256"],
+            chain_id=primary["chain_id"],
+            document_id=primary["document_id"],
+        ):
+            raise ValueError("candidate_id не связан с планом и документом.")
+        if secondary.get("norm_edition_id") not in allowed_norm_edition_set:
+            raise ValueError(
+                "Вторичная разметка ссылается на редакцию вне проверенного списка."
+            )
+        try:
+            secondary_errors = validate_coding_record(secondary)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Вторичная разметка имеет неверные типы полей.") from exc
+        if secondary_errors or not _audit_coding_identity_valid(secondary):
+            raise ValueError(
+                "Вторичная разметка не завершена или неканонична: "
+                + "; ".join(secondary_errors or ["неверные идентификаторы"])
+            )
+        primary_coder = _canonical_reviewer(primary.get("coder"))
+        secondary_coder = _canonical_reviewer(secondary.get("coder"))
+        if (
+            primary_coder is None
+            or secondary_coder is None
+            or primary_coder == secondary_coder
+        ):
+            raise ValueError(
+                "Метки первичного и вторичного кодировщиков не различаются."
+            )
+        current_secondary_coder_sha256 = hashlib.sha256(
+            secondary_coder.encode("utf-8")
+        ).hexdigest()
+        if secondary_coder_sha256 is None:
+            secondary_coder_sha256 = current_secondary_coder_sha256
+        elif secondary_coder_sha256 != current_secondary_coder_sha256:
+            raise ValueError("В импортированной выборке больше одного второго кодировщика.")
+
+        text = material.get("text")
+        if (
+            material.get("schema_version") != SCHEMA_VERSION
+            or material.get("candidate_id") != candidate_id
+            or material.get("chain_id") != primary.get("chain_id")
+            or material.get("document_id") != primary.get("document_id")
+            or not _is_captured_full_text(text)
+        ):
+            raise ValueError("Материал проверки имеет неверные привязки или текст.")
+        packet_text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        normalized_text = re.sub(
+            r"\s+", " ", unicodedata.normalize("NFC", text)
+        ).strip()
+        source_text_sha256 = hashlib.sha256(
+            normalized_text.encode("utf-8")
+        ).hexdigest()
+        if (
+            material.get("packet_text_sha256") != packet_text_sha256
+            or material.get("source_text_sha256") != source_text_sha256
+        ):
+            raise ValueError("Хеш текста материала проверки не совпадает.")
+        for label, coding in (("Первичная", primary), ("Вторичная", secondary)):
+            text_errors = validate_coding_against_text(coding, text)
+            if text_errors:
+                raise ValueError(
+                    f"{label} разметка не прошла повторную проверку текста: "
+                    + "; ".join(text_errors)
+                )
+            quote = coding.get("quote")
+            if not isinstance(quote, str) or quote not in text:
+                raise ValueError(
+                    f"{label} основная цитата не является буквальной подстрокой."
+                )
+            for ground_number, ground in enumerate(
+                coding.get("alternative_grounds", []), start=1
+            ):
+                ground_quote = ground.get("quote")
+                if ground_quote is not None and ground_quote not in text:
+                    raise ValueError(
+                        f"{label} цитата альтернативного основания "
+                        f"{ground_number} не является буквальной подстрокой."
+                    )
+
+        differing_audited_fields = [
+            field
+            for field in AUDITED_CODING_FIELDS
+            if primary.get(field) != secondary.get(field)
+        ]
+        differing_non_audited_fields = [
+            field
+            for field in NON_AUDITED_CODING_CONTENT_FIELDS
+            if primary.get(field) != secondary.get(field)
+        ]
+        if differing_audited_fields:
+            audited_disagreement_ids.append(candidate_id)
+            audited_field_differences.append(
+                {"candidate_id": candidate_id, "fields": differing_audited_fields}
+            )
+        else:
+            audited_agreement_ids.append(candidate_id)
+        if differing_non_audited_fields:
+            non_audited_difference_ids.append(candidate_id)
+            non_audited_content_differences.append(
+                {
+                    "candidate_id": candidate_id,
+                    "fields": differing_non_audited_fields,
+                }
+            )
+
+    expected_true_receipt_fields = (
+        "returned_quote_literal_presence_verified",
+        "secondary_coder_label_differs_from_each_sampled_primary_label",
+        "single_secondary_coder_label",
+        "bundle_internal_consistency_verified",
+        "expected_manifest_digest_match_verified",
+        "norm_edition_allowlist_membership_verified",
+    )
+    expected_false_receipt_fields = (
+        "secondary_coder_label_precommit_verified",
+        "quote_locator_verified",
+        "source_workspace_reverified",
+        "reviewer_packet_use_attested",
+        "norm_edition_temporal_applicability_verified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "publication_safe",
+        "legal_readiness",
+    )
+    receipt_hash_fields = (
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "review_packet_sha256",
+        "secondary_coding_file_sha256",
+        "secondary_coding_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_decisions_file_sha256",
+        "expected_secondary_coder_label_sha256",
+    )
+    if (
+        receipt.get("schema_version") != SCHEMA_VERSION
+        or receipt.get("artifact_type") != "coding_audit_review_import_receipt"
+        or receipt.get("producer")
+        != "judicial_meaning.quality.coding_audit_review_import"
+        or not isinstance(receipt.get("bundle_contract_version"), str)
+        or receipt.get("bundle_contract_version") not in {"1.1", "1.2"}
+        or receipt.get("plan_sha256") != audit_plan.get("plan_sha256")
+        or receipt.get("audit_plan_sha256")
+        != audit_plan.get("audit_plan_sha256")
+        or receipt.get("candidate_ids") != required_candidate_ids
+        or receipt.get("audited_fields") != list(AUDITED_CODING_FIELDS)
+        or receipt.get("non_audited_content_fields")
+        != list(NON_AUDITED_CODING_CONTENT_FIELDS)
+        or receipt.get("audited_field_agreement_candidate_ids")
+        != audited_agreement_ids
+        or receipt.get("audited_field_disagreement_candidate_ids")
+        != audited_disagreement_ids
+        or receipt.get("non_audited_content_difference_candidate_ids")
+        != non_audited_difference_ids
+        or receipt.get("audited_field_differences") != audited_field_differences
+        or receipt.get("non_audited_content_differences")
+        != non_audited_content_differences
+        or receipt.get("non_audited_content_review_required")
+        is not bool(non_audited_difference_ids)
+        or receipt.get("adjudication_required")
+        is not bool(audited_disagreement_ids)
+        or receipt.get("expected_secondary_coder_label_sha256")
+        != secondary_coder_sha256
+        or receipt.get("source_bundle_manifest_sha256")
+        != receipt.get("expected_source_bundle_manifest_sha256")
+        or any(receipt.get(field) is not True for field in expected_true_receipt_fields)
+        or any(receipt.get(field) is not False for field in expected_false_receipt_fields)
+        or any(not _is_sha256(receipt.get(field)) for field in receipt_hash_fields)
+    ):
+        raise ValueError(
+            "Квитанция импорта не совпадает с планом, решениями или "
+            "обязательными границами проверки."
+        )
+    secondary_records_in_digest_order = sorted(
+        secondary_records, key=canonical_digest
+    )
+    if receipt.get("secondary_coding_sha256") != canonical_digest(
+        secondary_records_in_digest_order
+    ):
+        raise ValueError(
+            "Квитанция импорта не совпадает со вторичной разметкой."
+        )
+
+    audited_fields_by_candidate = {
+        item["candidate_id"]: list(item["fields"])
+        for item in audited_field_differences
+    }
+    non_audited_fields_by_candidate = {
+        item["candidate_id"]: list(item["fields"])
+        for item in non_audited_content_differences
+    }
+    difference_fields_by_candidate: dict[str, list[str]] = {}
+    required_difference_pairs: list[dict[str, str]] = []
+    for candidate_id in required_candidate_ids:
+        fields = audited_fields_by_candidate.get(candidate_id, []) + (
+            non_audited_fields_by_candidate.get(candidate_id, [])
+        )
+        if fields:
+            difference_fields_by_candidate[candidate_id] = fields
+            required_difference_pairs.extend(
+                {"candidate_id": candidate_id, "field": field} for field in fields
+            )
+
+    def incomplete_result(
+        *,
+        missing_pairs: list[dict[str, str]],
+        field_populations: list[dict[str, Any]],
+        resolved_candidate_ids: list[str],
+    ) -> dict[str, Any]:
+        return {
+            "complete": False,
+            "incomplete_reason": "resolution_incomplete",
+            "candidate_ids": required_candidate_ids,
+            "required_difference_pairs": required_difference_pairs,
+            "missing_difference_pairs": missing_pairs,
+            "resolved_candidate_ids": resolved_candidate_ids,
+            "resolved_field_populations": field_populations,
+            "resolved_review_decisions": [],
+            "resolved_review_decisions_sha256": None,
+            "adjudications": [],
+            "adjudications_sha256": None,
+            "coding_reliability": None,
+            "final_coding_sha256": None,
+            "difference_resolution_bijection_verified": False,
+            "final_quote_literal_presence_verified": False,
+            "final_quote_normalized_presence_verified": False,
+            "quote_locator_review_declared": False,
+            "quote_locator_verified": False,
+            "reliability_complete": False,
+        }
+
+    if not required_difference_pairs:
+        if resolutions is not None:
+            raise ValueError(
+                "Файл решений нельзя передавать, когда обе карты различий пусты."
+            )
+        resolution_by_candidate: dict[str, dict[str, Any]] = {}
+        resolved_field_populations: list[dict[str, Any]] = []
+    else:
+        if resolutions is None:
+            return incomplete_result(
+                missing_pairs=required_difference_pairs,
+                field_populations=[],
+                resolved_candidate_ids=[],
+            )
+        if isinstance(resolutions, (str, bytes, Mapping)):
+            raise ValueError("Набор решений имеет неверный формат.")
+        try:
+            resolution_records = list(resolutions)
+        except TypeError as exc:
+            raise ValueError("Набор решений имеет неверный формат.") from exc
+        resolution_by_candidate = {}
+        covered_fields_by_candidate: dict[str, list[str]] = {}
+        for row_number, value in enumerate(resolution_records, start=1):
+            if not isinstance(value, Mapping) or set(value) != (
+                CODING_REVIEW_RESOLUTION_FIELDS
+            ):
+                raise ValueError(
+                    f"Строка решений {row_number} имеет неверный закрытый формат."
+                )
+            row = dict(value)
+            try:
+                canonical_digest(row)
+            except (TypeError, ValueError, UnicodeEncodeError) as exc:
+                raise ValueError(
+                    f"Строка решений {row_number} не является каноническим JSON."
+                ) from exc
+            candidate_id = row.get("candidate_id")
+            if not _is_native_audit_candidate_id(candidate_id):
+                raise ValueError(
+                    f"Строка решений {row_number} имеет неканонический candidate_id."
+                )
+            expected_fields = difference_fields_by_candidate.get(candidate_id)
+            if expected_fields is None:
+                raise ValueError(
+                    f"Строка решений {row_number} относится к лишнему кандидату."
+                )
+            if candidate_id in resolution_by_candidate:
+                raise ValueError("Набор решений повторяет candidate_id.")
+            primary = primary_by_candidate[candidate_id]
+            audit = audit_by_candidate[candidate_id]
+            secondary = audit["secondary_coding"]
+            reviewer = _canonical_reviewer(row.get("reviewer_pseudonym"))
+            primary_coder = _canonical_reviewer(primary.get("coder"))
+            secondary_coder = _canonical_reviewer(secondary.get("coder"))
+            reviewed_at = row.get("reviewed_at")
+            if (
+                row.get("schema_version") != SCHEMA_VERSION
+                or row.get("import_receipt_sha256") != receipt_sha256
+                or row.get("difference_fields") != expected_fields
+                or row.get("primary_coding_sha256")
+                != audit.get("primary_coding_sha256")
+                or row.get("secondary_coding_sha256")
+                != audit.get("secondary_coding_sha256")
+                or reviewer is None
+                or not _is_canonical_identifier(row.get("reviewer_pseudonym"))
+                or reviewer in {primary_coder, secondary_coder}
+                or not _aware_iso_datetime(reviewed_at)
+                or _parse_iso_datetime(str(reviewed_at)) > datetime.now(timezone.utc)
+                or row.get("human_review") != "approved"
+                or row.get("full_text_reviewed") is not True
+                or row.get("quote_locators_reviewed") is not True
+                or row.get("final_coding_approved") is not True
+            ):
+                raise ValueError(
+                    f"Строка решений {row_number} имеет неверные привязки, "
+                    "псевдоним, время или декларации."
+                )
+            field_resolutions = row.get("field_resolutions")
+            if not isinstance(field_resolutions, list):
+                raise ValueError(
+                    f"Строка решений {row_number} имеет неверный список полей."
+                )
+            covered_fields: list[str] = []
+            for field_number, field_resolution in enumerate(
+                field_resolutions, start=1
+            ):
+                if not isinstance(field_resolution, Mapping):
+                    raise ValueError(
+                        f"Выбор поля {field_number} в строке {row_number} "
+                        "должен быть объектом."
+                    )
+                variant = dict(field_resolution)
+                choice = variant.get("choice")
+                expected_variant_fields = (
+                    CODING_REVIEW_CUSTOM_FIELD_RESOLUTION_FIELDS
+                    if choice == "custom"
+                    else CODING_REVIEW_FIELD_RESOLUTION_FIELDS
+                )
+                if (
+                    not isinstance(choice, str)
+                    or choice not in {"primary", "secondary", "custom"}
+                    or set(variant) != expected_variant_fields
+                ):
+                    raise ValueError(
+                        f"Выбор поля {field_number} в строке {row_number} "
+                        "имеет неверный закрытый вариант."
+                    )
+                field = variant.get("field")
+                if field not in expected_fields or field in covered_fields:
+                    raise ValueError(
+                        f"Выбор поля {field_number} в строке {row_number} "
+                        "лишний или повторяется."
+                    )
+                if choice == "custom":
+                    custom_probe = copy.deepcopy(primary)
+                    custom_probe[field] = copy.deepcopy(variant["value"])
+                    custom_probe["coder"] = row["reviewer_pseudonym"]
+                    custom_probe["human_review"] = "approved"
+                    custom_probe["full_text_reviewed"] = True
+                    custom_probe["quote_verified"] = True
+                    # Isolate the selected field from the only cross-field rule
+                    # in the authoritative coding validator.  The complete
+                    # composite is validated again after every choice is known.
+                    if (
+                        field == "label"
+                        and isinstance(variant["value"], str)
+                        and variant["value"] in SUBSTANTIVE_LABELS
+                    ):
+                        custom_probe["speaker"] = "court"
+                    elif field == "speaker" and variant["value"] != "court":
+                        custom_probe["label"] = "false_positive"
+                    try:
+                        custom_errors = validate_coding_record(custom_probe)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            f"Пользовательское значение поля {field} в строке "
+                            f"{row_number} имеет неверный JSON-тип."
+                        ) from exc
+                    if (
+                        custom_errors
+                        or not _audit_coding_identity_valid(custom_probe)
+                        or custom_probe.get("norm_edition_id")
+                        not in allowed_norm_edition_set
+                    ):
+                        raise ValueError(
+                            f"Пользовательское значение поля {field} в строке "
+                            f"{row_number} не соответствует контракту разметки."
+                        )
+                    text = material_by_candidate[candidate_id]["text"]
+                    if field == "quote" and (
+                        not isinstance(variant["value"], str)
+                        or variant["value"] not in text
+                    ):
+                        raise ValueError(
+                            f"Пользовательская цитата в строке {row_number} "
+                            "не является буквальной подстрокой."
+                        )
+                    if field == "alternative_grounds":
+                        for ground in variant["value"]:
+                            ground_quote = ground.get("quote")
+                            if ground_quote is not None and ground_quote not in text:
+                                raise ValueError(
+                                    "Пользовательская цитата альтернативного "
+                                    f"основания в строке {row_number} не является "
+                                    "буквальной подстрокой."
+                                )
+                covered_fields.append(field)
+            expected_covered_order = [
+                field for field in expected_fields if field in covered_fields
+            ]
+            if covered_fields != expected_covered_order:
+                raise ValueError(
+                    f"Выборы полей в строке {row_number} нарушают порядок контракта."
+                )
+            resolution_by_candidate[candidate_id] = row
+            covered_fields_by_candidate[candidate_id] = covered_fields
+
+        resolved_field_populations = [
+            {
+                "candidate_id": candidate_id,
+                "fields": covered_fields_by_candidate[candidate_id],
+            }
+            for candidate_id in required_candidate_ids
+            if candidate_id in covered_fields_by_candidate
+        ]
+        missing_difference_pairs = [
+            pair
+            for pair in required_difference_pairs
+            if pair["field"]
+            not in covered_fields_by_candidate.get(pair["candidate_id"], [])
+        ]
+        resolved_candidate_ids = [
+            candidate_id
+            for candidate_id in required_candidate_ids
+            if candidate_id in difference_fields_by_candidate
+            and covered_fields_by_candidate.get(candidate_id)
+            == difference_fields_by_candidate[candidate_id]
+        ]
+        if missing_difference_pairs:
+            return incomplete_result(
+                missing_pairs=missing_difference_pairs,
+                field_populations=resolved_field_populations,
+                resolved_candidate_ids=resolved_candidate_ids,
+            )
+
+    final_codings: list[dict[str, Any]] = []
+    resolved_review_decisions: list[dict[str, Any]] = []
+    adjudications: list[dict[str, Any]] = []
+    for candidate_id in required_candidate_ids:
+        primary = primary_by_candidate[candidate_id]
+        audit = audit_by_candidate[candidate_id]
+        secondary = audit["secondary_coding"]
+        difference_fields = difference_fields_by_candidate.get(candidate_id, [])
+        row = resolution_by_candidate.get(candidate_id)
+        final_coding = copy.deepcopy(primary)
+        field_choices: list[dict[str, str]] = []
+        resolution_sha256: str | None = None
+        if difference_fields:
+            if row is None:
+                raise AssertionError("полная карта решений потеряла обязательную строку")
+            variants = {
+                variant["field"]: variant for variant in row["field_resolutions"]
+            }
+            for field in difference_fields:
+                variant = variants[field]
+                choice = variant["choice"]
+                if choice == "primary":
+                    selected_value = primary[field]
+                elif choice == "secondary":
+                    selected_value = secondary[field]
+                else:
+                    selected_value = variant["value"]
+                final_coding[field] = copy.deepcopy(selected_value)
+                field_choices.append({"field": field, "choice": choice})
+            final_coding["coder"] = row["reviewer_pseudonym"]
+            final_coding["human_review"] = "approved"
+            final_coding["full_text_reviewed"] = True
+            final_coding["quote_verified"] = True
+            resolution_sha256 = canonical_digest(row)
+
+        if (
+            set(final_coding) != AUDIT_CODING_RECORD_FIELDS
+            or final_coding.get("candidate_id") != candidate_id
+            or final_coding.get("chain_id") != primary.get("chain_id")
+            or final_coding.get("document_id") != primary.get("document_id")
+            or final_coding.get("codebook_version") != codebook_version
+            or final_coding.get("norm_edition_id") not in allowed_norm_edition_set
+        ):
+            raise ValueError(
+                f"Итоговая разметка кандидата {candidate_id} нарушает привязки."
+            )
+        try:
+            final_errors = validate_coding_record(final_coding)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Итоговая разметка кандидата {candidate_id} имеет неверные типы полей."
+            ) from exc
+        if final_errors or not _audit_coding_identity_valid(final_coding):
+            raise ValueError(
+                f"Итоговая разметка кандидата {candidate_id} недопустима: "
+                + "; ".join(final_errors or ["неверные идентификаторы"])
+            )
+        text = material_by_candidate[candidate_id]["text"]
+        final_text_errors = validate_coding_against_text(final_coding, text)
+        if final_text_errors:
+            raise ValueError(
+                f"Итоговая разметка кандидата {candidate_id} не прошла "
+                "нормализованную проверку текста: "
+                + "; ".join(final_text_errors)
+            )
+        quote = final_coding.get("quote")
+        if not isinstance(quote, str) or quote not in text:
+            raise ValueError(
+                f"Итоговая основная цитата кандидата {candidate_id} "
+                "не является буквальной подстрокой."
+            )
+        for ground_number, ground in enumerate(
+            final_coding.get("alternative_grounds", []), start=1
+        ):
+            ground_quote = ground.get("quote")
+            if ground_quote is not None and ground_quote not in text:
+                raise ValueError(
+                    "Итоговая цитата альтернативного основания "
+                    f"{ground_number} кандидата {candidate_id} не является "
+                    "буквальной подстрокой."
+                )
+        final_coding_sha256 = canonical_digest(final_coding)
+        final_codings.append(final_coding)
+        resolved_decision = {
+            "schema_version": SCHEMA_VERSION,
+            "import_receipt_sha256": receipt_sha256,
+            "candidate_id": candidate_id,
+            "difference_fields": difference_fields,
+            "primary_coding_sha256": audit["primary_coding_sha256"],
+            "secondary_coding_sha256": audit["secondary_coding_sha256"],
+            "field_choices": field_choices,
+            "resolution_sha256": resolution_sha256,
+            "final_coding": final_coding,
+            "final_coding_sha256": final_coding_sha256,
+        }
+        if set(resolved_decision) != RESOLVED_REVIEW_DECISION_FIELDS:
+            raise AssertionError("неожиданный формат итогового решения проверки")
+        resolved_review_decisions.append(resolved_decision)
+
+        audited_difference_fields = audited_fields_by_candidate.get(candidate_id, [])
+        if audited_difference_fields:
+            if row is None:
+                raise AssertionError("полная карта решений потеряла арбитражную строку")
+            adjudication = {
+                "candidate_id": candidate_id,
+                "primary_coding_sha256": audit["primary_coding_sha256"],
+                "secondary_coding_sha256": audit["secondary_coding_sha256"],
+                "resolved_fields": {
+                    field: copy.deepcopy(final_coding[field])
+                    for field in audited_difference_fields
+                },
+                "adjudicator": row["reviewer_pseudonym"],
+                "reviewed_at": row["reviewed_at"],
+                "human_review": "approved",
+            }
+            if not _coding_adjudication_contract_valid(adjudication, candidate_id):
+                raise ValueError(
+                    f"Производный арбитраж кандидата {candidate_id} недопустим."
+                )
+            adjudications.append(adjudication)
+
+    adjudications.sort(key=canonical_digest)
+    coding_reliability = assess_coding_reliability(
+        audit_plan,
+        primary_records,
+        audit_records,
+        adjudications,
+    )
+    reliability_complete = coding_reliability.get("complete") is True
+    resolved_candidate_ids = [
+        candidate_id
+        for candidate_id in required_candidate_ids
+        if candidate_id in difference_fields_by_candidate
+    ]
+    resolved_field_populations = [
+        {
+            "candidate_id": candidate_id,
+            "fields": difference_fields_by_candidate[candidate_id],
+        }
+        for candidate_id in resolved_candidate_ids
+    ]
+    return {
+        "complete": reliability_complete,
+        "incomplete_reason": None if reliability_complete else "reliability_unresolved",
+        "candidate_ids": required_candidate_ids,
+        "required_difference_pairs": required_difference_pairs,
+        "missing_difference_pairs": [],
+        "resolved_candidate_ids": resolved_candidate_ids,
+        "resolved_field_populations": resolved_field_populations,
+        "resolved_review_decisions": resolved_review_decisions,
+        "resolved_review_decisions_sha256": canonical_digest(
+            resolved_review_decisions
+        ),
+        "adjudications": adjudications,
+        "adjudications_sha256": canonical_digest(adjudications),
+        "coding_reliability": coding_reliability,
+        "final_coding_sha256": canonical_digest(final_codings),
+        "difference_resolution_bijection_verified": True,
+        "final_quote_literal_presence_verified": True,
+        "final_quote_normalized_presence_verified": True,
+        "quote_locator_review_declared": bool(required_difference_pairs),
+        "quote_locator_verified": False,
+        "reliability_complete": reliability_complete,
+    }
+
+
 def assess_coding_reliability(
     audit_plan: Mapping[str, Any],
     primary_decisions: Iterable[Any],
@@ -3836,8 +4798,14 @@ def assess_prefiling_refresh(
 
 
 __all__ = [
+    "AUDIT_CODING_RECORD_FIELDS",
     "AUDITED_CODING_FIELDS",
+    "CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS",
+    "CODING_REVIEW_CUSTOM_FIELD_RESOLUTION_FIELDS",
+    "CODING_REVIEW_FIELD_RESOLUTION_FIELDS",
+    "CODING_REVIEW_RESOLUTION_FIELDS",
     "NON_AUDITED_CODING_CONTENT_FIELDS",
+    "RESOLVED_REVIEW_DECISION_FIELDS",
     "CHAIN_STAGES",
     "CHAIN_TREATMENTS",
     "UNCERTAINTY_DIMENSIONS",
@@ -3845,6 +4813,7 @@ __all__ = [
     "assess_coding_reliability",
     "assess_prefiling_refresh",
     "build_coding_audit_plan",
+    "build_native_coding_audit_finalization",
     "build_native_coding_audit_inputs",
     "build_native_coding_review_import",
     "build_uncertainty_profile",

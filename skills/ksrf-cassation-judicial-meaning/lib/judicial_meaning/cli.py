@@ -60,6 +60,8 @@ from .handoff_workbench import (
 from .public_corpus import PublicCorpus
 from .practice_quality import (
     AUDIT_CODING_RECORD_FIELDS,
+    AUDITED_CODING_FIELDS,
+    CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS,
     CODING_AUDIT_PLAN_FIELDS,
     NATIVE_AUDIT_QUEUE_FIELDS,
     NATIVE_AUDIT_SCREENING_FIELDS,
@@ -70,9 +72,11 @@ from .practice_quality import (
     assess_prefiling_refresh,
     build_coding_audit_plan,
     build_native_coding_audit_inputs,
+    build_native_coding_audit_finalization,
     build_native_coding_review_import,
     build_uncertainty_profile,
     canonical_digest,
+    NON_AUDITED_CODING_CONTENT_FIELDS,
 )
 from .reporting import derive_research_status, write_offline_report
 from .source_reconciliation import (
@@ -105,6 +109,7 @@ _RUSSIAN_METAVARS = {
     "applicant_relations": "ФАЙЛ_СВЯЗЕЙ_С_ДЕЛОМ_ЗАЯВИТЕЛЯ",
     "as_of": "ДАТА_И_ВРЕМЯ_ISO",
     "audit_decisions": "ФАЙЛ_РЕШЕНИЙ_АУДИТА",
+    "audit_import": "ПАПКА_ШТАТНОГО_ИМПОРТА",
     "audit_plan": "ФАЙЛ_ПЛАНА_АУДИТА",
     "baseline_corpus_digest": "ИСХОДНЫЙ_ХЕШ_КОРПУСА",
     "bundle": "ПАПКА_ПАКЕТА",
@@ -130,6 +135,7 @@ _RUSSIAN_METAVARS = {
     "exclusion_sample_size": "РАЗМЕР_ВЫБОРКИ_ИСКЛЮЧЕНИЙ",
     "executed_query_ids": "ФАЙЛ_ИДЕНТИФИКАТОРОВ_ЗАПРОСОВ",
     "expected_target": "ОЖИДАЕМЫЙ_ПОЛУЧАТЕЛЬ",
+    "expected_import_receipt_sha256": "СОХРАНЁННЫЙ_SHA256_КВИТАНЦИИ_ИМПОРТА",
     "expected_manifest_sha256": "СОХРАНЁННЫЙ_SHA256_МАНИФЕСТА",
     "expected_secondary_coder": "ОЖИДАЕМАЯ_МЕТКА_КОДИРОВЩИКА",
     "fetched_at": "ДАТА_И_ВРЕМЯ_ISO",
@@ -262,6 +268,61 @@ class RussianHelpArgumentParser(argparse.ArgumentParser):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["allow_abbrev"] = False
         super().__init__(*args, **kwargs)
+
+    def format_usage(self) -> str:
+        return super().format_usage().replace("usage:", "Использование:", 1)
+
+    @staticmethod
+    def _translate_parse_error(message: str) -> str:
+        patterns = (
+            (
+                r"^the following arguments are required: (.+)$",
+                "не указаны обязательные аргументы: {0}",
+            ),
+            (r"^unrecognized arguments: (.+)$", "неизвестные аргументы: {0}"),
+            (
+                r"^argument (.+): expected one argument$",
+                "аргумент {0}: требуется одно значение",
+            ),
+            (
+                r"^argument (.+): expected at least one argument$",
+                "аргумент {0}: требуется хотя бы одно значение",
+            ),
+            (
+                r"^one of the arguments (.+) is required$",
+                "нужно указать один из аргументов: {0}",
+            ),
+            (
+                r"^argument (.+): not allowed with argument (.+)$",
+                "аргумент {0} нельзя использовать вместе с аргументом {1}",
+            ),
+            (
+                r"^argument (.+): invalid choice: (.+) \(choose from (.+)\)$",
+                "аргумент {0}: недопустимое значение {1} (допустимы: {2})",
+            ),
+            (
+                r"^argument (.+): invalid (.+) value: (.+)$",
+                "аргумент {0}: недопустимое значение {2}",
+            ),
+            (
+                r"^ambiguous option: (.+) could match (.+)$",
+                "неоднозначный параметр {0}; возможные варианты: {1}",
+            ),
+        )
+        for pattern, template in patterns:
+            match = re.fullmatch(pattern, message)
+            if match is not None:
+                return template.format(*match.groups())
+        if re.search(r"[А-Яа-яЁё]", message) is not None:
+            return message
+        return (
+            "не удалось разобрать параметры команды; проверьте их имена и "
+            "значения через --help"
+        )
+
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        self.exit(2, f"{self.prog}: ошибка: {self._translate_parse_error(message)}\n")
 
     def format_help(self) -> str:
         positional_heading = (
@@ -469,6 +530,17 @@ _AUDIT_IMPORT_FILE_LIMITS = {
     "secondary-review-queue.jsonl": 64 * 1024 * 1024,
 }
 _AUDIT_IMPORT_SECONDARY_LIMIT = 64 * 1024 * 1024
+_AUDIT_FINALIZATION_RESOLUTIONS_LIMIT = 64 * 1024 * 1024
+_AUDIT_REVIEW_IMPORT_PATHS = frozenset(
+    {
+        "audit-decisions.jsonl",
+        "coding-audit-review-import-receipt.json",
+    }
+)
+_AUDIT_REVIEW_IMPORT_FILE_LIMITS = {
+    "audit-decisions.jsonl": 64 * 1024 * 1024,
+    "coding-audit-review-import-receipt.json": 8 * 1024 * 1024,
+}
 _AUDIT_IMPORT_CODEBOOK_LIMIT = 2 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_MEMBER_LIMIT = 192 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_TOTAL_LIMIT = 256 * 1024 * 1024
@@ -496,6 +568,8 @@ def _stable_file_identity(value: os.stat_result) -> tuple[int, ...]:
         value.st_ino,
         stat.S_IFMT(value.st_mode),
         stat.S_IMODE(value.st_mode),
+        value.st_uid,
+        value.st_gid,
         value.st_nlink,
         value.st_size,
         value.st_mtime_ns,
@@ -509,6 +583,8 @@ def _stable_directory_identity(value: os.stat_result) -> tuple[int, ...]:
         value.st_ino,
         stat.S_IFMT(value.st_mode),
         stat.S_IMODE(value.st_mode),
+        value.st_uid,
+        value.st_gid,
         value.st_mtime_ns,
         value.st_ctime_ns,
     )
@@ -710,6 +786,334 @@ def _capture_audit_bundle(path: Path) -> dict[str, Any]:
         return _capture_audit_bundle_at(parent_descriptor, bundle_name)
     finally:
         os.close(parent_descriptor)
+
+
+def _capture_audit_review_import_descriptor(descriptor: int) -> dict[str, Any]:
+    """Capture an exact native Release15 import without following mutable names."""
+
+    directory_stat = os.fstat(descriptor)
+    effective_uid = (
+        os.geteuid()
+        if hasattr(os, "geteuid")
+        else os.getuid()
+        if hasattr(os, "getuid")
+        else directory_stat.st_uid
+    )
+    if (
+        not stat.S_ISDIR(directory_stat.st_mode)
+        or stat.S_IMODE(directory_stat.st_mode) != 0o700
+        or (os.name == "posix" and directory_stat.st_uid != effective_uid)
+    ):
+        raise ValueError(
+            "--audit-import должен быть приватной папкой штатного импорта с режимом 0700."
+        )
+    _assert_darwin_fd_has_no_extended_acl(
+        descriptor,
+        object_label="Каталог штатного импорта решений аудита",
+    )
+    directory_identity = _stable_directory_identity(directory_stat)
+    names = _bounded_directory_names(
+        descriptor,
+        maximum_entries=len(_AUDIT_REVIEW_IMPORT_PATHS),
+        label="--audit-import",
+    )
+    if set(names) != _AUDIT_REVIEW_IMPORT_PATHS:
+        raise ValueError(
+            "--audit-import должен содержать ровно audit-decisions.jsonl и "
+            "coding-audit-review-import-receipt.json."
+        )
+    files: dict[str, dict[str, Any]] = {}
+    for name in sorted(names):
+        try:
+            path_stat = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(path_stat.st_mode)
+                or path_stat.st_nlink != 1
+                or stat.S_IMODE(path_stat.st_mode) != 0o600
+                or (os.name == "posix" and path_stat.st_uid != effective_uid)
+            ):
+                raise ValueError(
+                    f"{name}: требуется приватный обычный файл режима 0600 без "
+                    "жёстких ссылок."
+                )
+            child = os.open(name, _no_follow_open_flags(), dir_fd=descriptor)
+        except OSError as exc:
+            raise ValueError(f"{name}: файл импорта отсутствует или небезопасен.") from exc
+        try:
+            _assert_darwin_fd_has_no_extended_acl(
+                child,
+                object_label="Файл штатного импорта решений аудита",
+            )
+            content, identity = _read_bounded_regular_fd(
+                child,
+                label=name,
+                byte_limit=_AUDIT_REVIEW_IMPORT_FILE_LIMITS[name],
+                path_stat=path_stat,
+            )
+        finally:
+            os.close(child)
+        files[name] = {"content": content, "identity": identity}
+    if _stable_directory_identity(os.fstat(descriptor)) != directory_identity:
+        raise ValueError("--audit-import изменился во время чтения.")
+    return {"directory_identity": directory_identity, "files": files}
+
+
+def _capture_private_native_audit_bundle_at(
+    parent_descriptor: int,
+    bundle_name: str,
+) -> dict[str, Any]:
+    """Revalidate the modes, owner and ACLs promised by the native publisher."""
+
+    capture = _capture_audit_bundle_at(parent_descriptor, bundle_name)
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(bundle_name, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise ValueError("--bundle нельзя повторно открыть безопасно.") from exc
+    try:
+        directory_stat = os.fstat(descriptor)
+        effective_uid = (
+            os.geteuid()
+            if hasattr(os, "geteuid")
+            else os.getuid()
+            if hasattr(os, "getuid")
+            else directory_stat.st_uid
+        )
+        if (
+            not stat.S_ISDIR(directory_stat.st_mode)
+            or stat.S_IMODE(directory_stat.st_mode) != 0o700
+            or (os.name == "posix" and directory_stat.st_uid != effective_uid)
+            or _stable_directory_identity(directory_stat)
+            != capture["directory_identity"]
+        ):
+            raise ValueError(
+                "--bundle должен быть приватной папкой штатного пакета с режимом 0700."
+            )
+        _assert_darwin_fd_has_no_extended_acl(
+            descriptor,
+            object_label="Каталог штатного пакета аудита",
+        )
+        for name, captured in capture["files"].items():
+            child_stat = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(child_stat.st_mode)
+                or child_stat.st_nlink != 1
+                or stat.S_IMODE(child_stat.st_mode) != 0o600
+                or (os.name == "posix" and child_stat.st_uid != effective_uid)
+                or _stable_file_identity(child_stat) != captured["identity"]
+            ):
+                raise ValueError(
+                    f"{name}: файл штатного пакета должен иметь режим 0600, "
+                    "одного владельца и не иметь жёстких ссылок."
+                )
+            child = os.open(name, _no_follow_open_flags(), dir_fd=descriptor)
+            try:
+                _assert_darwin_fd_has_no_extended_acl(
+                    child,
+                    object_label="Файл штатного пакета аудита",
+                )
+                if _stable_file_identity(os.fstat(child)) != captured["identity"]:
+                    raise ValueError(f"{name}: файл пакета изменился при проверке ACL.")
+            finally:
+                os.close(child)
+        if _stable_directory_identity(os.fstat(descriptor)) != capture[
+            "directory_identity"
+        ]:
+            raise ValueError("--bundle изменился во время проверки приватности.")
+    finally:
+        os.close(descriptor)
+    return capture
+
+
+def _capture_audit_review_import_at(
+    parent_descriptor: int,
+    import_name: str,
+) -> dict[str, Any]:
+    if not import_name or Path(import_name).name != import_name:
+        raise ValueError("--audit-import имеет небезопасное имя папки.")
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    try:
+        path_stat = os.stat(
+            import_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        descriptor = os.open(import_name, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise ValueError(
+            "--audit-import должен быть существующей безопасной соседней папкой."
+        ) from exc
+    try:
+        directory_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(directory_stat.st_mode)
+            or path_stat.st_dev != directory_stat.st_dev
+            or path_stat.st_ino != directory_stat.st_ino
+        ):
+            raise ValueError("--audit-import изменился во время открытия.")
+        capture = _capture_audit_review_import_descriptor(descriptor)
+        final_path_stat = os.stat(
+            import_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            final_path_stat.st_dev != directory_stat.st_dev
+            or final_path_stat.st_ino != directory_stat.st_ino
+        ):
+            raise ValueError("--audit-import перемещён или заменён во время чтения.")
+        return capture
+    finally:
+        os.close(descriptor)
+
+
+def _capture_private_finalization_resolutions_at(
+    parent_descriptor: int,
+    resolutions_name: str,
+) -> dict[str, Any]:
+    """Capture one private sibling resolution file through the held parent."""
+
+    if not resolutions_name or Path(resolutions_name).name != resolutions_name:
+        raise ValueError("--resolutions имеет небезопасное имя файла.")
+    effective_uid = (
+        os.geteuid()
+        if hasattr(os, "geteuid")
+        else os.getuid()
+        if hasattr(os, "getuid")
+        else None
+    )
+    try:
+        path_stat = os.stat(
+            resolutions_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(path_stat.st_mode)
+            or path_stat.st_nlink != 1
+            or stat.S_IMODE(path_stat.st_mode) != 0o600
+            or (
+                os.name == "posix"
+                and effective_uid is not None
+                and path_stat.st_uid != effective_uid
+            )
+        ):
+            raise ValueError(
+                "--resolutions должен быть приватным обычным файлом режима 0600 "
+                "текущего пользователя без жёстких ссылок."
+            )
+        descriptor = os.open(
+            resolutions_name,
+            _no_follow_open_flags(),
+            dir_fd=parent_descriptor,
+        )
+    except OSError as exc:
+        raise ValueError(
+            "--resolutions должен быть существующим безопасным соседним файлом."
+        ) from exc
+    try:
+        _assert_darwin_fd_has_no_extended_acl(
+            descriptor,
+            object_label="Файл решений по расхождениям",
+        )
+        content, identity = _read_bounded_regular_fd(
+            descriptor,
+            label="--resolutions",
+            byte_limit=_AUDIT_FINALIZATION_RESOLUTIONS_LIMIT,
+            path_stat=path_stat,
+        )
+        final_descriptor_stat = os.fstat(descriptor)
+        if (
+            stat.S_IMODE(final_descriptor_stat.st_mode) != 0o600
+            or (
+                os.name == "posix"
+                and effective_uid is not None
+                and final_descriptor_stat.st_uid != effective_uid
+            )
+            or _stable_file_identity(final_descriptor_stat) != identity
+        ):
+            raise ValueError("--resolutions изменился во время проверки приватности.")
+    finally:
+        os.close(descriptor)
+    try:
+        final_path_stat = os.stat(
+            resolutions_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+    except OSError as exc:
+        raise ValueError("--resolutions перемещён или заменён во время чтения.") from exc
+    if _stable_file_identity(final_path_stat) != identity:
+        raise ValueError("--resolutions перемещён или заменён во время чтения.")
+    return {"content": content, "identity": identity}
+
+
+def _resolve_private_finalization_resolutions(
+    raw_value: str,
+    *,
+    parent_descriptor: int,
+) -> tuple[str, dict[str, Any]]:
+    raw_resolutions = Path(raw_value).expanduser()
+    if not raw_resolutions.is_absolute():
+        raw_resolutions = Path.cwd() / raw_resolutions
+    resolutions_name = raw_resolutions.name
+    if not resolutions_name or resolutions_name in {".", ".."}:
+        raise ValueError("--resolutions должен называть отдельный файл.")
+    try:
+        resolutions_parent = raw_resolutions.parent.resolve(strict=True)
+        resolutions_parent_stat = os.stat(
+            resolutions_parent,
+            follow_symlinks=False,
+        )
+    except OSError as exc:
+        raise ValueError("Родитель --resolutions должен существовать.") from exc
+    held_parent_stat = os.fstat(parent_descriptor)
+    if (
+        resolutions_parent_stat.st_dev != held_parent_stat.st_dev
+        or resolutions_parent_stat.st_ino != held_parent_stat.st_ino
+    ):
+        raise ValueError(
+            "--resolutions должен быть приватным соседним файлом рядом с "
+            "--bundle, --audit-import и --output-dir."
+        )
+    return resolutions_name, _capture_private_finalization_resolutions_at(
+        parent_descriptor,
+        resolutions_name,
+    )
+
+
+def _resolve_existing_audit_import(
+    raw_value: str,
+    *,
+    parent_descriptor: int,
+    bundle_name: str,
+) -> tuple[str, dict[str, Any]]:
+    raw_import = Path(raw_value).expanduser()
+    if not raw_import.is_absolute():
+        raw_import = Path.cwd() / raw_import
+    import_name = raw_import.name
+    if not import_name or import_name in {".", ".."} or import_name == bundle_name:
+        raise ValueError(
+            "--bundle и --audit-import должны называть две разные соседние папки."
+        )
+    try:
+        import_parent = raw_import.parent.resolve(strict=True)
+        import_parent_stat = os.stat(import_parent, follow_symlinks=False)
+    except OSError as exc:
+        raise ValueError("Родитель --audit-import должен существовать.") from exc
+    held_parent_stat = os.fstat(parent_descriptor)
+    if (
+        import_parent_stat.st_dev != held_parent_stat.st_dev
+        or import_parent_stat.st_ino != held_parent_stat.st_ino
+    ):
+        raise ValueError(
+            "--bundle, --audit-import и --output-dir должны быть соседними папками "
+            "одного фактического родителя."
+        )
+    return import_name, _capture_audit_review_import_at(
+        parent_descriptor,
+        import_name,
+    )
 
 
 def _assert_json_resource_limits(value: Any, *, label: str) -> None:
@@ -4513,6 +4917,11 @@ def _assert_published_audit_bundle(
         files
     ):
         raise ValueError("Не задана точная идентичность всех файлов публикации.")
+    effective_uid = (
+        (os.geteuid() if hasattr(os, "geteuid") else os.getuid())
+        if os.name == "posix"
+        else None
+    )
     try:
         path_stat = os.stat(
             destination_name,
@@ -4525,6 +4934,7 @@ def _assert_published_audit_bundle(
         not stat.S_ISDIR(path_stat.st_mode)
         or (path_stat.st_dev, path_stat.st_ino) != expected_directory_identity
         or stat.S_IMODE(path_stat.st_mode) != 0o700
+        or (effective_uid is not None and path_stat.st_uid != effective_uid)
     ):
         raise ValueError("Опубликованный каталог перемещён или заменён.")
 
@@ -4548,6 +4958,7 @@ def _assert_published_audit_bundle(
             or (opened_stat.st_dev, opened_stat.st_ino)
             != expected_directory_identity
             or stat.S_IMODE(opened_stat.st_mode) != 0o700
+            or (effective_uid is not None and opened_stat.st_uid != effective_uid)
         ):
             raise ValueError("Опубликованный каталог перемещён или заменён.")
         directory_identity = _stable_directory_identity(opened_stat)
@@ -4569,6 +4980,10 @@ def _assert_published_audit_bundle(
                     not stat.S_ISREG(child_stat.st_mode)
                     or child_stat.st_nlink != 1
                     or stat.S_IMODE(child_stat.st_mode) != 0o600
+                    or (
+                        effective_uid is not None
+                        and child_stat.st_uid != effective_uid
+                    )
                     or child_stat.st_size != len(expected_content)
                     or (
                         expected_file_identities is not None
@@ -4613,6 +5028,10 @@ def _assert_published_audit_bundle(
                 ) from exc
             if (
                 _stable_file_identity(final_child_stat) != child_identity
+                or (
+                    effective_uid is not None
+                    and final_child_stat.st_uid != effective_uid
+                )
                 or observed_content != expected_content
             ):
                 raise ValueError("Содержимое опубликованного файла изменено.")
@@ -4630,6 +5049,13 @@ def _assert_published_audit_bundle(
             or (final_path_stat.st_dev, final_path_stat.st_ino)
             != expected_directory_identity
             or stat.S_IMODE(final_path_stat.st_mode) != 0o700
+            or (
+                effective_uid is not None
+                and (
+                    final_opened_stat.st_uid != effective_uid
+                    or final_path_stat.st_uid != effective_uid
+                )
+            )
         ):
             raise ValueError("Опубликованный каталог изменён во время проверки.")
     finally:
@@ -4754,8 +5180,9 @@ def _publication_confirmation_delivery_error(
         "получите одну полную строку JSON и побайтно сравните оба каталога. Для "
         "пакета аудита сохраните manifest_sha256 только из успешного повторного "
         "стандартного вывода по независимому каналу; не восстанавливайте этот якорь "
-        "из первого пакета. Для импорта используйте контрольную сумму квитанции и "
-        "флаги дальнейших действий только из полного успешного повторного вывода "
+        "из первого пакета. Для импорта или финализации используйте контрольную "
+        "сумму соответствующей квитанции и флаги дальнейших действий только из "
+        "полного успешного повторного вывода "
         "после совпадения каталогов."
     )
 
@@ -4783,8 +5210,9 @@ def _publication_finalization_uncertain_error(
         "получите одну полную строку JSON и побайтно сравните оба каталога. Для "
         "пакета аудита сохраните manifest_sha256 только из успешного повторного "
         "стандартного вывода по независимому каналу; не восстанавливайте этот якорь "
-        "из первого пакета. Для импорта используйте контрольную сумму квитанции и "
-        "флаги дальнейших действий только из полного успешного повторного вывода "
+        "из первого пакета. Для импорта или финализации используйте контрольную "
+        "сумму соответствующей квитанции и флаги дальнейших действий только из "
+        "полного успешного повторного вывода "
         "после совпадения каталогов."
     )
 
@@ -4905,6 +5333,9 @@ def _publish_new_audit_bundle(
             raise ValueError("Родитель --output-dir изменился во время открытия.")
     try:
         verified_parent_stat = _assert_safe_publication_parent(parent_descriptor)
+        effective_uid = (
+            verified_parent_stat.st_uid if os.name == "posix" else None
+        )
         publication_parent_identity = (
             verified_parent_stat.st_dev,
             verified_parent_stat.st_ino,
@@ -4956,13 +5387,29 @@ def _publish_new_audit_bundle(
         if (
             not stat.S_ISDIR(opened_staging_stat.st_mode)
             or opened_staging_stat.st_nlink < 1
+            or (
+                effective_uid is not None
+                and opened_staging_stat.st_uid != effective_uid
+            )
         ):
             raise OSError("Не удалось безопасно открыть временную папку публикации.")
+        os.fchmod(staging_descriptor, 0o700)
         _assert_darwin_fd_has_no_extended_acl(
             staging_descriptor,
             object_label="Временная папка публикации",
         )
-        os.fchmod(staging_descriptor, 0o700)
+        secured_staging_stat = os.fstat(staging_descriptor)
+        if (
+            not stat.S_ISDIR(secured_staging_stat.st_mode)
+            or (secured_staging_stat.st_dev, secured_staging_stat.st_ino)
+            != staging_identity
+            or stat.S_IMODE(secured_staging_stat.st_mode) != 0o700
+            or (
+                effective_uid is not None
+                and secured_staging_stat.st_uid != effective_uid
+            )
+        ):
+            raise OSError("Временная папка публикации не стала приватной.")
         for relative_path, content in files.items():
             if Path(relative_path).name != relative_path:
                 raise AssertionError("Пути файлов пакета аудита должны быть плоскими.")
@@ -4982,21 +5429,43 @@ def _publish_new_audit_bundle(
                 created_stat.st_dev,
                 created_stat.st_ino,
             )
-            if not stat.S_ISREG(created_stat.st_mode) or created_stat.st_nlink != 1:
+            if (
+                not stat.S_ISREG(created_stat.st_mode)
+                or created_stat.st_nlink != 1
+                or (
+                    effective_uid is not None
+                    and created_stat.st_uid != effective_uid
+                )
+            ):
                 raise OSError(
                     f"Не удалось безопасно создать файл аудита {relative_path}."
                 )
+            os.fchmod(descriptor, 0o600)
             _assert_darwin_fd_has_no_extended_acl(
                 descriptor,
                 object_label="Созданный файл пакета аудита",
             )
+            secured_file_stat = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(secured_file_stat.st_mode)
+                or secured_file_stat.st_nlink != 1
+                or (secured_file_stat.st_dev, secured_file_stat.st_ino)
+                != created_file_identities[relative_path]
+                or stat.S_IMODE(secured_file_stat.st_mode) != 0o600
+                or (
+                    effective_uid is not None
+                    and secured_file_stat.st_uid != effective_uid
+                )
+            ):
+                raise OSError(
+                    f"Созданный файл аудита {relative_path} не стал приватным."
+                )
             offset = 0
             while offset < len(content):
                 written = os.write(descriptor, content[offset:])
                 if written <= 0:
                     raise OSError(f"Не удалось записать файл аудита {relative_path}.")
                 offset += written
-            os.fchmod(descriptor, 0o600)
             os.fsync(descriptor)
             target_stat = os.stat(
                 relative_path, dir_fd=staging_descriptor, follow_symlinks=False
@@ -5019,7 +5488,14 @@ def _publish_new_audit_bundle(
                 )
             finally:
                 os.close(verification_descriptor)
-            if written_content != content or stat.S_IMODE(target_stat.st_mode) != 0o600:
+            if (
+                written_content != content
+                or stat.S_IMODE(target_stat.st_mode) != 0o600
+                or (
+                    effective_uid is not None
+                    and target_stat.st_uid != effective_uid
+                )
+            ):
                 raise OSError(f"Не удалось проверить записанный файл аудита {relative_path}.")
         _fsync_directory(staging_descriptor)
         staging_entry_stat = os.stat(
@@ -5030,6 +5506,15 @@ def _publish_new_audit_bundle(
             not stat.S_ISDIR(staging_entry_stat.st_mode)
             or staging_entry_stat.st_dev != staging_descriptor_stat.st_dev
             or staging_entry_stat.st_ino != staging_descriptor_stat.st_ino
+            or stat.S_IMODE(staging_entry_stat.st_mode) != 0o700
+            or stat.S_IMODE(staging_descriptor_stat.st_mode) != 0o700
+            or (
+                effective_uid is not None
+                and (
+                    staging_entry_stat.st_uid != effective_uid
+                    or staging_descriptor_stat.st_uid != effective_uid
+                )
+            )
             or set(
                 _bounded_directory_names(
                     staging_descriptor,
@@ -5623,6 +6108,140 @@ def _secure_codebook_capture(codebook_version: str) -> dict[str, Any]:
     return capture
 
 
+def _load_native_coding_review_import(
+    capture: Mapping[str, Any],
+    *,
+    bundle: Mapping[str, Any],
+    expected_import_receipt_sha256: str,
+) -> dict[str, Any]:
+    files = capture.get("files")
+    if not isinstance(files, Mapping) or set(files) != _AUDIT_REVIEW_IMPORT_PATHS:
+        raise ValueError("Внутренний снимок --audit-import неполон.")
+
+    def file_bytes(name: str) -> bytes:
+        item = files.get(name)
+        if not isinstance(item, Mapping) or not isinstance(item.get("content"), bytes):
+            raise ValueError(f"Внутренний снимок {name} повреждён.")
+        content = item["content"]
+        if len(content) > _AUDIT_REVIEW_IMPORT_FILE_LIMITS[name]:
+            raise ValueError(f"{name}: файл превышает безопасный предел.")
+        return content
+
+    receipt_content = file_bytes("coding-audit-review-import-receipt.json")
+    receipt_value = _strict_json_bytes(
+        receipt_content,
+        label="coding-audit-review-import-receipt.json",
+    )
+    if (
+        not isinstance(receipt_value, Mapping)
+        or set(receipt_value) != CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS
+    ):
+        raise ValueError("Квитанция импорта имеет неверный закрытый формат.")
+    receipt = dict(receipt_value)
+    if _canonical_json_bytes(receipt) != receipt_content:
+        raise ValueError("Квитанция импорта не является каноническим JSON.")
+    unsigned_receipt = {
+        key: value for key, value in receipt.items() if key != "receipt_sha256"
+    }
+    if receipt.get("receipt_sha256") != canonical_digest(unsigned_receipt):
+        raise ValueError("Собственная контрольная сумма квитанции импорта не совпадает.")
+    if not _is_lower_sha256(expected_import_receipt_sha256):
+        raise ValueError(
+            "--expected-import-receipt-sha256 должен содержать 64 строчные "
+            "шестнадцатеричные цифры."
+        )
+    if receipt["receipt_sha256"] != expected_import_receipt_sha256:
+        raise ValueError(
+            "Квитанция импорта не совпадает с отдельно сохранённым ожидаемым SHA-256."
+        )
+
+    manifest = bundle["manifest"]
+    audit_plan = bundle["audit_plan"]
+    required_candidate_ids = audit_plan.get("required_candidate_ids")
+    fixed_contract = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_review_import_receipt",
+        "producer": "judicial_meaning.quality.coding_audit_review_import",
+        "bundle_contract_version": manifest["bundle_contract_version"],
+        "plan_sha256": manifest["plan_sha256"],
+        "audit_plan_sha256": audit_plan["audit_plan_sha256"],
+        "codebook_version": manifest["codebook_version"],
+        "source_bundle_manifest_sha256": manifest["manifest_sha256"],
+        "expected_source_bundle_manifest_sha256": manifest["manifest_sha256"],
+        "source_bundle_manifest_file_sha256": hashlib.sha256(
+            bundle["manifest_content"]
+        ).hexdigest(),
+        "review_packet_sha256": hashlib.sha256(
+            bundle["review_packet_content"]
+        ).hexdigest(),
+        "codebook_sha256": manifest["codebook_sha256"],
+        "coding_brief_file_sha256": manifest["coding_brief_file_sha256"],
+        "candidate_ids": required_candidate_ids,
+        "audited_fields": list(AUDITED_CODING_FIELDS),
+        "non_audited_content_fields": list(NON_AUDITED_CODING_CONTENT_FIELDS),
+        "secondary_coder_label_precommit_verified": False,
+        "returned_quote_literal_presence_verified": True,
+        "quote_locator_verified": False,
+        "secondary_coder_label_differs_from_each_sampled_primary_label": True,
+        "single_secondary_coder_label": True,
+        "bundle_internal_consistency_verified": True,
+        "expected_manifest_digest_match_verified": True,
+        "norm_edition_allowlist_membership_verified": True,
+        "source_workspace_reverified": False,
+        "reviewer_packet_use_attested": False,
+        "norm_edition_temporal_applicability_verified": False,
+        "reviewer_identity_authenticated": False,
+        "human_review_authenticated": False,
+        "independence_verified": False,
+        "receipt_authenticated": False,
+        "publication_safe": False,
+        "legal_readiness": False,
+    }
+    if any(receipt.get(key) != value for key, value in fixed_contract.items()):
+        raise ValueError(
+            "Квитанция импорта не связана с точным пакетом либо имеет неверные "
+            "границы доказанного."
+        )
+    for field in (
+        "secondary_coding_file_sha256",
+        "secondary_coding_sha256",
+        "audit_decisions_file_sha256",
+        "expected_secondary_coder_label_sha256",
+    ):
+        if not _is_lower_sha256(receipt.get(field)):
+            raise ValueError(f"Квитанция импорта содержит неверное поле {field}.")
+
+    audit_decisions_content = file_bytes("audit-decisions.jsonl")
+    audit_decisions = _strict_jsonl_bytes(
+        audit_decisions_content,
+        label="audit-decisions.jsonl",
+    )
+    if _canonical_jsonl_bytes(audit_decisions) != audit_decisions_content:
+        raise ValueError("audit-decisions.jsonl не является каноническим JSONL.")
+    if receipt["audit_decisions_file_sha256"] != hashlib.sha256(
+        audit_decisions_content
+    ).hexdigest():
+        raise ValueError(
+            "Квитанция импорта не совпадает с точными байтами audit-decisions.jsonl."
+        )
+    audited_differences = receipt.get("audited_field_differences")
+    content_differences = receipt.get("non_audited_content_differences")
+    if (
+        not isinstance(audited_differences, list)
+        or not isinstance(content_differences, list)
+        or receipt.get("adjudication_required") is not bool(audited_differences)
+        or receipt.get("non_audited_content_review_required")
+        is not bool(content_differences)
+    ):
+        raise ValueError("Карты расхождений квитанции импорта неканоничны.")
+    return {
+        "receipt": receipt,
+        "receipt_content": receipt_content,
+        "audit_decisions": audit_decisions,
+        "audit_decisions_content": audit_decisions_content,
+    }
+
+
 def cmd_quality_coding_audit_review_import(args: argparse.Namespace) -> int:
     raw_bundle = Path(args.bundle).expanduser()
     if not raw_bundle.is_absolute():
@@ -5877,6 +6496,488 @@ def _cmd_quality_coding_audit_review_import(
         {
             "audit-decisions.jsonl": audit_decisions_content,
             "coding-audit-review-import-receipt.json": receipt_content,
+        },
+        parent_descriptor=parent_descriptor,
+        publication_state=publication_state,
+    )
+    return confirmation_line, published_directory_identity
+
+
+def cmd_quality_coding_audit_finalize(args: argparse.Namespace) -> int:
+    raw_bundle = Path(args.bundle).expanduser()
+    if not raw_bundle.is_absolute():
+        raw_bundle = Path.cwd() / raw_bundle
+    parent_descriptor, bundle_name, opened_bundle_capture = (
+        _open_audit_bundle_parent(raw_bundle)
+    )
+    publication_state: list[_PublishedCommandRecord] = []
+    delivery_state: list[str] = []
+    parent_close_attempted = False
+    try:
+        destination = _resolve_new_import_output(
+            args.output_dir,
+            bundle_parent_descriptor=parent_descriptor,
+        )
+        import_name, import_capture = _resolve_existing_audit_import(
+            args.audit_import,
+            parent_descriptor=parent_descriptor,
+            bundle_name=bundle_name,
+        )
+        if destination.name in {bundle_name, import_name}:
+            raise ValueError(
+                "--bundle, --audit-import и --output-dir должны называть три "
+                "разные соседние папки."
+            )
+        bundle_capture = _capture_private_native_audit_bundle_at(
+            parent_descriptor,
+            bundle_name,
+        )
+        if bundle_capture != opened_bundle_capture:
+            raise ValueError("--bundle изменился во время начальной проверки.")
+        parent_stat = os.fstat(parent_descriptor)
+        result_line, published_directory_identity = (
+            _cmd_quality_coding_audit_finalize(
+                args,
+                destination=destination,
+                parent_descriptor=parent_descriptor,
+                bundle_name=bundle_name,
+                bundle_capture=bundle_capture,
+                import_name=import_name,
+                import_capture=import_capture,
+                publication_state=publication_state,
+            )
+        )
+        parent_identity = (parent_stat.st_dev, parent_stat.st_ino)
+        parent_close_attempted = True
+        _close_command_parent_descriptor(parent_descriptor)
+        if published_directory_identity is None:
+            _write_stdout_line(result_line)
+            return 3
+        _deliver_published_confirmation(
+            result_line,
+            parent_identity=parent_identity,
+            destination_name=destination.name,
+            published_directory_identity=published_directory_identity,
+            delivery_state=delivery_state,
+        )
+        return _complete_published_command()
+    except BaseException as exc:
+        if not parent_close_attempted:
+            parent_close_attempted = True
+            try:
+                _close_command_parent_descriptor(parent_descriptor)
+            except BaseException:
+                pass
+        if isinstance(exc, _PublicationRecoveryError):
+            raise
+        recovery_error = _postpublication_command_error(
+            publication_state,
+            delivery_state,
+        )
+        if recovery_error is not None:
+            raise recovery_error from exc
+        raise
+
+
+def _value_free_reliability_diagnostics(value: Any) -> dict[str, Any]:
+    """Project an unresolved reliability report without coding/person values."""
+
+    if not isinstance(value, Mapping):
+        raise ValueError("Неполный отчёт надёжности имеет неверный формат.")
+
+    def safe_ids(field: str) -> list[str]:
+        items = value.get(field)
+        if not isinstance(items, list) or not all(
+            isinstance(item, str)
+            and (
+                _is_native_audit_candidate_id(item)
+                or item.startswith("audit-plan-")
+            )
+            for item in items
+        ):
+            raise ValueError(
+                "Неполный отчёт надёжности содержит небезопасную диагностику."
+            )
+        return list(items)
+
+    disagreement_population: list[dict[str, Any]] = []
+    disagreements = value.get("field_disagreements")
+    if not isinstance(disagreements, list):
+        raise ValueError("Неполный отчёт надёжности не содержит карту расхождений.")
+    for disagreement in disagreements:
+        if not isinstance(disagreement, Mapping):
+            raise ValueError("Карта расхождений надёжности имеет неверный формат.")
+        candidate_id = disagreement.get("candidate_id")
+        fields = disagreement.get("fields")
+        if (
+            not _is_native_audit_candidate_id(candidate_id)
+            or not isinstance(fields, list)
+            or not all(field in AUDITED_CODING_FIELDS for field in fields)
+            or not isinstance(disagreement.get("resolved"), bool)
+        ):
+            raise ValueError("Карта расхождений надёжности неканонична.")
+        disagreement_population.append(
+            {
+                "candidate_id": candidate_id,
+                "fields": list(fields),
+                "resolved": disagreement["resolved"],
+            }
+        )
+
+    false_exclusions = value.get("false_exclusion_diagnostics")
+    if not isinstance(false_exclusions, list) or not all(
+        isinstance(item, Mapping)
+        and _is_native_audit_candidate_id(item.get("candidate_id"))
+        for item in false_exclusions
+    ):
+        raise ValueError("Диагностика ложных исключений имеет неверный формат.")
+    evidence_sha256 = value.get("evidence_sha256")
+    if not _is_lower_sha256(evidence_sha256):
+        raise ValueError("Неполный отчёт надёжности не имеет точной контрольной суммы.")
+
+    id_fields = (
+        "required_candidate_ids",
+        "audited_candidate_ids",
+        "missing_candidate_ids",
+        "same_reviewer_candidate_ids",
+        "invalid_binding_candidate_ids",
+        "invalid_provenance_candidate_ids",
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "invalid_audit_record_ids",
+        "invalid_adjudication_record_ids",
+        "unresolved_candidate_ids",
+    )
+    return {
+        "evidence_sha256": evidence_sha256,
+        **{field: safe_ids(field) for field in id_fields},
+        "field_disagreements": disagreement_population,
+        "false_exclusion_candidate_ids": [
+            item["candidate_id"] for item in false_exclusions
+        ],
+        "stale": value.get("stale") is True,
+        "complete": False,
+    }
+
+
+def _cmd_quality_coding_audit_finalize(
+    args: argparse.Namespace,
+    *,
+    destination: Path,
+    parent_descriptor: int,
+    bundle_name: str,
+    bundle_capture: Mapping[str, Any],
+    import_name: str,
+    import_capture: Mapping[str, Any],
+    publication_state: list[_PublishedCommandRecord],
+) -> tuple[str, tuple[int, int] | None]:
+    manifest_preview = _strict_json_bytes(
+        bundle_capture["files"]["coding-audit-inputs-manifest.json"]["content"],
+        label="coding-audit-inputs-manifest.json",
+    )
+    if not isinstance(manifest_preview, Mapping):
+        raise ValueError("coding-audit-inputs-manifest.json должен содержать объект.")
+    codebook_version = manifest_preview.get("codebook_version")
+    if not isinstance(codebook_version, str):
+        raise ValueError("Манифест не содержит версию справочника кодирования.")
+    codebook_capture = _secure_codebook_capture(codebook_version)
+    bundle = _load_native_coding_audit_bundle(
+        bundle_capture,
+        expected_manifest_sha256=args.expected_manifest_sha256,
+        installed_codebook_content=codebook_capture["content"],
+    )
+    imported = _load_native_coding_review_import(
+        import_capture,
+        bundle=bundle,
+        expected_import_receipt_sha256=args.expected_import_receipt_sha256,
+    )
+
+    resolutions_capture: dict[str, Any] | None = None
+    resolutions: list[dict[str, Any]] | None = None
+    resolutions_name: str | None = None
+    if args.resolutions is not None:
+        resolutions_name, resolutions_capture = (
+            _resolve_private_finalization_resolutions(
+                args.resolutions,
+                parent_descriptor=parent_descriptor,
+            )
+        )
+        input_identities = {
+            item["identity"][:2]
+            for capture in (bundle_capture, import_capture)
+            for item in capture["files"].values()
+        }
+        if resolutions_capture["identity"][:2] in input_identities:
+            raise ValueError(
+                "--resolutions должен быть отдельным файлом, а не файлом пакета "
+                "или штатного импорта."
+            )
+        resolutions = _strict_jsonl_bytes(
+            resolutions_capture["content"],
+            label="--resolutions",
+        )
+
+    coding_brief = bundle["packet"]["coding_brief"]
+    norm_editions = coding_brief.get("norm_editions")
+    if not isinstance(norm_editions, list):
+        raise ValueError("CODING-BRIEF.json не содержит допустимые редакции норм.")
+    norm_edition_ids = [
+        edition.get("id")
+        for edition in norm_editions
+        if isinstance(edition, Mapping)
+    ]
+    result = build_native_coding_audit_finalization(
+        bundle["audit_plan"],
+        bundle["primary"],
+        bundle["packet"]["review_materials"],
+        imported["audit_decisions"],
+        imported["receipt"],
+        resolutions,
+        expected_import_receipt_sha256=args.expected_import_receipt_sha256,
+        norm_edition_ids=norm_edition_ids,
+    )
+    required_result_fields = {
+        "complete",
+        "incomplete_reason",
+        "candidate_ids",
+        "required_difference_pairs",
+        "missing_difference_pairs",
+        "resolved_review_decisions",
+        "resolved_review_decisions_sha256",
+        "adjudications",
+        "adjudications_sha256",
+        "coding_reliability",
+        "final_coding_sha256",
+        "resolved_candidate_ids",
+        "resolved_field_populations",
+        "quote_locator_review_declared",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "difference_resolution_bijection_verified",
+        "quote_locator_verified",
+        "reliability_complete",
+    }
+    if not isinstance(result, Mapping) or not required_result_fields.issubset(result):
+        raise ValueError("Внутренняя финализация вернула неполный результат.")
+
+    current_bundle_capture = _capture_private_native_audit_bundle_at(
+        parent_descriptor,
+        bundle_name,
+    )
+    current_import_capture = _capture_audit_review_import_at(
+        parent_descriptor,
+        import_name,
+    )
+    current_codebook_capture = _secure_codebook_capture(codebook_version)
+    current_resolutions_capture = (
+        _capture_private_finalization_resolutions_at(
+            parent_descriptor,
+            resolutions_name,
+        )
+        if resolutions_capture is not None and resolutions_name is not None
+        else None
+    )
+    if (
+        current_bundle_capture != bundle_capture
+        or current_import_capture != import_capture
+        or current_codebook_capture != codebook_capture
+        or current_resolutions_capture != resolutions_capture
+    ):
+        raise ValueError(
+            "Входы изменились во время финализации; итоговая папка не опубликована."
+        )
+
+    if result.get("complete") is not True:
+        incomplete_reason = result.get("incomplete_reason")
+        if incomplete_reason == "resolution_incomplete":
+            variable_diagnostics = {
+                "missing_difference_pairs": result["missing_difference_pairs"],
+            }
+        elif incomplete_reason == "reliability_unresolved":
+            variable_diagnostics = {
+                "reliability_complete": False,
+                "reliability_diagnostics": _value_free_reliability_diagnostics(
+                    result.get("coding_reliability")
+                ),
+            }
+        else:
+            raise ValueError(
+                "Внутренняя финализация вернула неизвестную причину неполноты."
+            )
+        incomplete_line = _json_output_line(
+            {
+                "artifact_type": "coding_audit_finalization_incomplete",
+                "complete": False,
+                "incomplete_reason": incomplete_reason,
+                **variable_diagnostics,
+                "output_created": False,
+                "publication_safe": False,
+                "legal_readiness": False,
+            }
+        )
+        return incomplete_line, None
+
+    if (
+        result.get("missing_difference_pairs") != []
+        or result.get("candidate_ids")
+        != bundle["audit_plan"]["required_candidate_ids"]
+        or result.get("difference_resolution_bijection_verified") is not True
+        or result.get("final_quote_literal_presence_verified") is not True
+        or result.get("final_quote_normalized_presence_verified") is not True
+        or not isinstance(result.get("coding_reliability"), Mapping)
+        or result["coding_reliability"].get("complete") is not True
+        or result.get("reliability_complete") is not True
+        or result.get("quote_locator_verified") is not False
+        or not isinstance(result.get("resolved_review_decisions"), list)
+        or not isinstance(result.get("adjudications"), list)
+        or not _is_lower_sha256(result.get("final_coding_sha256"))
+    ):
+        raise ValueError(
+            "Внутренняя финализация не подтвердила все обязательные технические проверки."
+        )
+
+    resolved_content = _canonical_jsonl_bytes(result["resolved_review_decisions"])
+    adjudications_content = _canonical_jsonl_bytes(result["adjudications"])
+    reliability_content = _canonical_json_bytes(result["coding_reliability"])
+    if (
+        result.get("resolved_review_decisions_sha256")
+        != canonical_digest(result["resolved_review_decisions"])
+        or result.get("adjudications_sha256")
+        != canonical_digest(result["adjudications"])
+        or result["final_coding_sha256"]
+        != canonical_digest(
+            [
+                decision.get("final_coding")
+                for decision in result["resolved_review_decisions"]
+                if isinstance(decision, Mapping)
+            ]
+        )
+    ):
+        raise ValueError("Внутренние контрольные суммы финализации не совпадают.")
+    manifest = bundle["manifest"]
+    import_receipt = imported["receipt"]
+    resolutions_present = resolutions_capture is not None
+    resolutions_file_sha256 = (
+        hashlib.sha256(resolutions_capture["content"]).hexdigest()
+        if resolutions_capture is not None
+        else None
+    )
+    resolutions_state_sha256 = canonical_digest(
+        {
+            "present": resolutions_present,
+            "file_sha256": resolutions_file_sha256,
+        }
+    )
+    unsigned_receipt = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_finalization_receipt",
+        "producer": "judicial_meaning.quality.coding_audit_finalize",
+        "bundle_contract_version": manifest["bundle_contract_version"],
+        "plan_sha256": manifest["plan_sha256"],
+        "audit_plan_sha256": bundle["audit_plan"]["audit_plan_sha256"],
+        "codebook_version": codebook_version,
+        "source_bundle_manifest_sha256": manifest["manifest_sha256"],
+        "expected_source_bundle_manifest_sha256": args.expected_manifest_sha256,
+        "source_bundle_manifest_file_sha256": hashlib.sha256(
+            bundle["manifest_content"]
+        ).hexdigest(),
+        "audit_plan_file_sha256": hashlib.sha256(
+            bundle_capture["files"]["coding-audit-plan.json"]["content"]
+        ).hexdigest(),
+        "primary_decisions_file_sha256": hashlib.sha256(
+            bundle_capture["files"]["primary-decisions.audit.jsonl"]["content"]
+        ).hexdigest(),
+        "review_packet_sha256": hashlib.sha256(
+            bundle["review_packet_content"]
+        ).hexdigest(),
+        "codebook_sha256": manifest["codebook_sha256"],
+        "coding_brief_file_sha256": manifest["coding_brief_file_sha256"],
+        "audit_import_receipt_sha256": import_receipt["receipt_sha256"],
+        "expected_audit_import_receipt_sha256": args.expected_import_receipt_sha256,
+        "audit_import_receipt_file_sha256": hashlib.sha256(
+            imported["receipt_content"]
+        ).hexdigest(),
+        "audit_decisions_file_sha256": hashlib.sha256(
+            imported["audit_decisions_content"]
+        ).hexdigest(),
+        "resolutions_present": resolutions_present,
+        "resolutions_file_sha256": resolutions_file_sha256,
+        "resolutions_state_sha256": resolutions_state_sha256,
+        "resolved_review_decisions_file_sha256": hashlib.sha256(
+            resolved_content
+        ).hexdigest(),
+        "adjudications_file_sha256": hashlib.sha256(
+            adjudications_content
+        ).hexdigest(),
+        "coding_reliability_file_sha256": hashlib.sha256(
+            reliability_content
+        ).hexdigest(),
+        "candidate_ids": result["candidate_ids"],
+        "required_difference_pairs": result["required_difference_pairs"],
+        "resolved_candidate_ids": result["resolved_candidate_ids"],
+        "resolved_field_populations": result["resolved_field_populations"],
+        "final_coding_sha256": result["final_coding_sha256"],
+        "difference_resolution_bijection_verified": True,
+        "final_quote_literal_presence_verified": True,
+        "final_quote_normalized_presence_verified": True,
+        "quote_locator_review_declared": result["quote_locator_review_declared"],
+        "quote_locator_verified": False,
+        "reliability_complete": True,
+        "source_workspace_reverified": False,
+        "reviewer_identity_authenticated": False,
+        "human_review_authenticated": False,
+        "independence_verified": False,
+        "receipt_authenticated": False,
+        "norm_edition_temporal_applicability_verified": False,
+        "publication_safe": False,
+        "legal_readiness": False,
+    }
+    receipt = {
+        **unsigned_receipt,
+        "receipt_sha256": canonical_digest(unsigned_receipt),
+    }
+    receipt_content = _canonical_json_bytes(receipt)
+    confirmation_line = _json_output_line(
+        {
+            "artifact_type": receipt["artifact_type"],
+            "receipt_sha256": receipt["receipt_sha256"],
+            "output_files": [
+                "resolved-review-decisions.jsonl",
+                "adjudications.jsonl",
+                "coding-reliability.json",
+                "coding-audit-finalization-receipt.json",
+            ],
+            "candidate_count": len(receipt["candidate_ids"]),
+            "required_difference_pair_count": len(
+                receipt["required_difference_pairs"]
+            ),
+            "resolved_candidate_ids": receipt["resolved_candidate_ids"],
+            "resolved_field_populations": receipt["resolved_field_populations"],
+            "difference_resolution_bijection_verified": True,
+            "final_quote_literal_presence_verified": True,
+            "final_quote_normalized_presence_verified": True,
+            "quote_locator_review_declared": receipt[
+                "quote_locator_review_declared"
+            ],
+            "quote_locator_verified": False,
+            "reliability_complete": True,
+            "source_workspace_reverified": False,
+            "reviewer_identity_authenticated": False,
+            "human_review_authenticated": False,
+            "independence_verified": False,
+            "receipt_authenticated": False,
+            "norm_edition_temporal_applicability_verified": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+        }
+    )
+    published_directory_identity = _publish_new_audit_bundle(
+        destination,
+        {
+            "resolved-review-decisions.jsonl": resolved_content,
+            "adjudications.jsonl": adjudications_content,
+            "coding-reliability.json": reliability_content,
+            "coding-audit-finalization-receipt.json": receipt_content,
         },
         parent_descriptor=parent_descriptor,
         publication_state=publication_state,
@@ -7351,6 +8452,137 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     quality_audit_import.set_defaults(func=cmd_quality_coding_audit_review_import)
+
+    quality_audit_finalize = quality_sub.add_parser(
+        "coding-audit-finalize",
+        help=(
+            "Штатно разрешить все расхождения импорта и закрыть техническую "
+            "проверку кодирования"
+        ),
+        epilog=(
+            "Полная цепочка: coding-audit-prepare -> независимый возврат JSONL -> "
+            "coding-audit-review-import -> ручное разрешение отмеченных расхождений, "
+            "если они есть -> coding-audit-finalize. Передайте два SHA-256 именно "
+            "из отдельно сохранённого стандартного вывода успешных prepare и import; "
+            "не считывайте ожидаемые значения обратно из проверяемых папок. "
+            "--bundle, --audit-import и новая отсутствующая --output-dir должны быть "
+            "тремя разными соседними папками одного фактического приватного родителя. "
+            "Если обе карты расхождений импорта пусты, --resolutions нужно опустить. "
+            "Иначе --resolutions должен быть соседним приватным обычным файлом "
+            "текущего пользователя: режим 0600, одна жёсткая ссылка и, на macOS, "
+            "ни одной расширенной ACL. Передайте строгий UTF-8 JSONL: по одной "
+            "закрытой строке на каждого "
+            "кандидата с полями schema_version, import_receipt_sha256, candidate_id, "
+            "difference_fields, primary_coding_sha256, secondary_coding_sha256, "
+            "field_resolutions, reviewer_pseudonym, reviewed_at, human_review, "
+            "full_text_reviewed, quote_locators_reviewed и final_coding_approved. "
+            "difference_fields и field_resolutions обязаны покрывать все и только "
+            "поля обеих карт в опубликованном порядке. Каждый field_resolutions "
+            "имеет field и choice=primary|secondary либо choice=custom с единственным "
+            "дополнительным полем value. reviewed_at — время RFC 3339 с секундами и "
+            "часовым поясом, не в будущем; псевдоним должен отличаться от обеих меток "
+            "кодировщиков. receipt_sha256 берётся из успешного stdout импорта; "
+            "candidate_id и упорядоченные поля — из двух карт его квитанции; "
+            "индивидуальные primary_coding_sha256 и secondary_coding_sha256 — из "
+            "строки кандидата в audit-decisions.jsonl. Первичное значение сверяйте "
+            "с primary-decisions.audit.jsonl, вторичное — с вложенным secondary_coding. "
+            "Псевдоним и флаги — заявления пользователя, а не "
+            "аутентификация личности, авторства, независимости, чтения пакета или "
+            "самого факта проверки. Финальная 20-полевая запись выводится из точных "
+            "primary/secondary/custom choices, а не принимается целиком. Основная "
+            "цитата и каждая цитата alternative_grounds проверяются буквально и "
+            "нормализованно по точному тексту пакета. Это не проверяет истинность "
+            "proposition, отбор material_facts, достаточность мотивировки, юридическую "
+            "правильность, временную применимость нормы или смысл локатора; "
+            "quote_locator_verified всегда false. Решения расхождений и "
+            "coding-reliability строятся из одного снимка. Самостоятельная команда "
+            "coding-reliability остаётся экспертным совместимым путём, но её отчёт "
+            "без штатной квитанции не закрывает расхождения Release15. Код 3 означает "
+            "читаемую, но неполную или неразрешённую проверку: публикуемая папка не "
+            "создаётся. При resolution_incomplete переменная часть stdout содержит "
+            "только отсутствующие candidate_id/field; при reliability_unresolved — "
+            "контрольную сумму и безопасную проекцию причин без значений разметки и "
+            "меток людей. "
+            "Код 2 означает неверный контракт/хеш, небезопасное состояние файловой "
+            "системы или ошибку ввода-вывода. Код 0 требует точного complete=true и "
+            "атомарно создаёт ровно resolved-review-decisions.jsonl, "
+            "adjudications.jsonl, coding-reliability.json и "
+            "coding-audit-finalization-receipt.json. Родитель должен принадлежать "
+            "текущему пользователю и запрещать запись группе/остальным; итоговая "
+            "папка имеет 0700, файлы 0600. На macOS у родителя, временной/итоговой "
+            "папки и файлов не допускается ни одной расширенной ACL, включая deny и "
+            "ненаследуемую запись; chmod сам по себе не доказывает отсутствие ACL, а "
+            "для Linux проверка ACL не заявляется. После создания временной папки "
+            "ничего автоматически не удаляется. При любой неопределённости сохраните "
+            "входы и все объекты, остановите автоматику и передайте системному "
+            "администратору полную строку с device/inode для учёта всех имён и жёстких "
+            "ссылок. Не повторяйте ту же папку назначения. После исправления сбоя повторите "
+            "неизменные входы в новую отсутствующую соседнюю папку, получите нормальный "
+            "полный stdout и побайтно сравните две четырёхфайловые папки. Пустой, "
+            "частичный или выглядящий полным stdout прерванной команды недействителен. "
+            "После кода 0 сохраните receipt_sha256 только из полного успешного stdout "
+            "отдельно от итоговой папки; при сбое подтверждения берите его лишь из "
+            "успешного повтора после побайтного сравнения. Квитанция и stdout не "
+            "раскрывают тексты, выбранные значения, метки людей, "
+            "время их действий или абсолютные входные пути. Код 0 — только ограниченное "
+            "техническое закрытие, не аутентифицированная проверка, не юридическое "
+            "одобрение, не свежесть права, не разрешение публикации или подачи."
+            "\n\nПример команды:\n"
+            "  python3 \"$JM\" quality coding-audit-finalize \\\n"
+            "    --bundle \"$AUDIT_BUNDLE\" \\\n"
+            "    --expected-manifest-sha256 \"$EXPECTED_MANIFEST_SHA256\" \\\n"
+            "    --audit-import \"$AUDIT_IMPORT\" \\\n"
+            "    --expected-import-receipt-sha256 \"$EXPECTED_IMPORT_RECEIPT_SHA256\" \\\n"
+            "    --resolutions \"$RESOLUTIONS\" \\\n"
+            "    --output-dir \"$FINALIZATION\""
+        ),
+        formatter_class=RussianExampleHelpFormatter,
+    )
+    quality_audit_finalize.add_argument(
+        "--bundle",
+        required=True,
+        help="Точная приватная папка штатного пакета coding-audit-prepare.",
+    )
+    quality_audit_finalize.add_argument(
+        "--expected-manifest-sha256",
+        required=True,
+        help=(
+            "Отдельно сохранённый manifest_sha256 из полного успешного stdout "
+            "coding-audit-prepare."
+        ),
+    )
+    quality_audit_finalize.add_argument(
+        "--audit-import",
+        required=True,
+        help=(
+            "Точная приватная двухфайловая папка успешного "
+            "coding-audit-review-import."
+        ),
+    )
+    quality_audit_finalize.add_argument(
+        "--expected-import-receipt-sha256",
+        required=True,
+        help=(
+            "Отдельно сохранённый receipt_sha256 из полного успешного stdout "
+            "coding-audit-review-import."
+        ),
+    )
+    quality_audit_finalize.add_argument(
+        "--resolutions",
+        help=(
+            "Соседний приватный файл 0600 со строгим ограниченным JSONL полного "
+            "ручного разрешения обеих карт; опустите только когда обе карты пусты."
+        ),
+    )
+    quality_audit_finalize.add_argument(
+        "--output-dir",
+        required=True,
+        help=(
+            "Новая отсутствующая соседняя папка для четырёх файлов финализации; "
+            "перезапись запрещена."
+        ),
+    )
+    quality_audit_finalize.set_defaults(func=cmd_quality_coding_audit_finalize)
 
     quality_gate_exit_help = (
         "Коды завершения проверки качества: 0 — ограниченная проверка "

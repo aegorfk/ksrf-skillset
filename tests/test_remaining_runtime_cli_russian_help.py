@@ -108,14 +108,14 @@ EXPECTED_PROGRAM_LABELS = {
 }
 
 EXPECTED_ROUTE_COUNTS = {
-    "judicial": 66,
+    "judicial": 67,
     "ksrf": 21,
     "practice": 18,
     "autocollect": 1,
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "222f9eb6d1a6b165c58fd996dd4bc8395ba1e96155c855952120a5cb63b9193e",
+    "judicial": "3c662353f856e9dd0c2ed8d638e46110418b619c19ee9e404d504ac190a60531",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "4a3637d2d26d9d972ba7cdd27d67c9f92be3955b5a3cdd9ba363ab15790cd2e7",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
@@ -1190,7 +1190,7 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
         ).hexdigest()
         self.assertEqual(
             digest,
-            "8874b462abc212ab31c10a9de06745bc81fc25eb68576eb81f2dfd1a8f64b84d",
+            "29bd35eb9807fcaeef9348c6c4dfa34481584940804d7a667c256d809c12902d",
         )
 
 

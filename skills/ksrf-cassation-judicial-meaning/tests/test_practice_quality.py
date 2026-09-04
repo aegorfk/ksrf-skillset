@@ -2003,7 +2003,7 @@ class PracticeQualityTests(unittest.TestCase):
         ):
             root_validator.validate(payload)
 
-    def test_schema_rejects_runtime_invalid_audit_and_adjudication_shapes(self):
+    def test_schema_matches_runtime_audit_and_adjudication_shapes(self):
         api = self.api()
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         validator = Draft202012Validator(schema)
@@ -2042,16 +2042,14 @@ class PracticeQualityTests(unittest.TestCase):
             **adjudication,
             "resolved_fields": {"reasoning_to_outcome": "Строка 1\nСтрока 2"},
         }
-        self.assertFalse(
+        self.assertTrue(
             api._coding_adjudication_contract_valid(
                 multiline_adjudication,
                 primary["candidate_id"],
             )
         )
         adjudication_validator = definition_validator(schema, "coding_adjudication")
-        self.assertTrue(
-            list(adjudication_validator.iter_errors(multiline_adjudication))
-        )
+        adjudication_validator.validate(multiline_adjudication)
 
 
 if __name__ == "__main__":
