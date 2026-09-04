@@ -19,6 +19,7 @@ from install_skillset import copy_skillset  # noqa: E402
 SKILL_ROOT = REPO / "skills" / "ksrf-explore-arguments"
 OWNER = SKILL_ROOT / "SKILL.md"
 EXAMPLES = {
+    "22": SKILL_ROOT / "references" / "example-22-p-2021.md",
     "275": SKILL_ROOT / "references" / "example-275-o-p-2007.md",
     "33": SKILL_ROOT / "references" / "example-33-p-2026.md",
     "37": SKILL_ROOT / "references" / "example-37-p-2024.md",
@@ -30,15 +31,31 @@ PUBLIC_DOCS = {
     "methodology": REPO / "docs" / "KSRF_SKILLS_METHODOLOGY.md",
     "sources": REPO / "docs" / "KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md",
 }
+AUTHORS = REPO / "docs" / "KSRF_ANALYZED_AUTHORS.md"
+NORM_MAP = (
+    REPO
+    / "skills"
+    / "ksrf-complaint-facts-demands"
+    / "references"
+    / "norm-application-defect-map.md"
+)
+QA_SKILL = REPO / "skills" / "ksrf-complaint-qa" / "SKILL.md"
 EVAL = SKILL_ROOT / "evals" / "evals.json"
-EVAL_SHA256 = "8227ccc21791c402057651fc6740d8f69e8d3ed9dabf1d7793c45863e55f665f"
+EVAL_SHA256 = "908064c36f2861daee3c8c4d3f63ff0984d5f43ba194649efd6cbd7868d78ab8"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
+QA_EVAL = REPO / "skills" / "ksrf-complaint-qa" / "evals" / "evals.json"
+QA_EVAL_SHA256 = "b8b7220f54d9ff1a54c1e67300be8735f38914c22188c67b05cec750931e43b4"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        207,
-        30_871,
-        "f32475b121d300734381b98826a39174076e8cf4a88c37b6e08744a7f5020a1a",
+        208,
+        31_232,
+        "2cf875226cd7eed7f086a788d68d12944fcb5eb97a223c709e77014839d5aff4",
+    ),
+    EXAMPLES["22"]: (
+        135,
+        24_095,
+        "b2afb472ab99a9cc51398256ac05f07ed40fc2bd94244fb06c3dedeaa96d8e68",
     ),
     EXAMPLES["275"]: (
         136,
@@ -98,6 +115,32 @@ COMMON_HEADINGS = (
 )
 
 CASE_SURFACE = {
+    "22": {
+        "sha": "13865fccea652571e7625b4fc407ccdacf696321fb7ea43bee87366a48b2611c",
+        "urls": (
+            "https://prodoctorov.ru/info/legal-case/3/",
+            "https://companies.rbc.ru/news/0FqyrMQM55/ekspert-medroket-provela-zanyatie-po-zaschite-reputatsii-dlya-studentov-kubgu/",
+            "https://doc.ksrf.ru/decision/KSRFDecision535809.pdf",
+        ),
+        "hypotheses": ("H1.", "H2.", "H3.", "H4.", "H5."),
+        "facts": (),
+        "gate_rows": 0,
+        "result_points": 7,
+        "checklist_points": 9,
+        "markers": (
+            "ООО «МедРейтинг»",
+            "Сергеем Ростиславовичем Федосовым",
+            "Тамары Сергеевны Тимошенко",
+            "пункта 8 части 1 статьи 6 Федерального закона № 152-ФЗ",
+            "№ 14-КГ19-15",
+            "метаданных документа не используются как достаточное основание",
+            "`principal`:",
+            "`reserve`:",
+            "`experimental`:",
+            "систематическом злоупотреблении",
+            "ступенчатый способ защиты",
+        ),
+    },
     "275": {
         "sha": "f318b6b353830146aa30270762c713c3250fd635832561cf8661e9fa03cb7ac7",
         "urls": (
@@ -303,7 +346,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
 
         for wording in FORBIDDEN_RUNTIME_WORDING:
             self.assertNotIn(wording.casefold(), self.owner.casefold())
-        self.assertIn("пять ретроспективных двухпроходных разборов", self.owner)
+        self.assertIn("шесть ретроспективных двухпроходных разборов", self.owner)
 
     def test_case_specific_legal_and_source_surface_is_preserved(self) -> None:
         for name, expected in CASE_SURFACE.items():
@@ -492,14 +535,14 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Каталог `evals/` проверяется отдельно и не входит в пользовательскую установку",
             "заранее зафиксированный вход без известного исхода",
-            "Пять ретроспективных карточек не являются такими прогонами",
+            "Шесть ретроспективных карточек не являются такими прогонами",
         ):
             self.assertIn(wording, docs["readme"])
 
         for wording in (
             "Служебные файлы проверки остаются только в исходном репозитории",
             "не устанавливаются пользователю",
-            "Пять пользовательских карточек — ретроспективные двухпроходные разборы",
+            "Шесть пользовательских карточек — ретроспективные двухпроходные разборы",
             "Для активного дела без последующего акта КС РФ работа на этом останавливается",
         ):
             self.assertIn(wording, docs["methodology"])
@@ -507,7 +550,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Служебные `evals.json` и `trigger-evals.json` остаются в исходном репозитории",
             "не устанавливаются пользователю",
-            "Пять опубликованных карточек — не такие прогоны",
+            "Шесть опубликованных карточек — не такие прогоны",
             "В активном новом деле без последующего акта КС РФ",
             "В историческом деле второй проход допустим только по официальному полному тексту",
         ):
@@ -521,8 +564,11 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         ):
             self.assertNotIn(retired_claim.casefold(), combined.casefold())
 
-    def test_eval_is_unchanged_source_only_and_cleanroom_excludes_it(self) -> None:
+    def test_source_evals_are_digest_bound_and_cleanroom_excludes_them(self) -> None:
         self.assertEqual(hashlib.sha256(EVAL.read_bytes()).hexdigest(), EVAL_SHA256)
+        self.assertEqual(
+            hashlib.sha256(QA_EVAL.read_bytes()).hexdigest(), QA_EVAL_SHA256
+        )
         self.assertEqual(
             hashlib.sha256(TRIGGER_EVAL.read_bytes()).hexdigest(),
             TRIGGER_EVAL_SHA256,
@@ -545,6 +591,46 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
                 installed = installed_skill / path.relative_to(SKILL_ROOT)
                 with self.subTest(path=path.name):
                     self.assertEqual(installed.read_bytes(), path.read_bytes())
+
+    def test_medrating_method_and_public_credit_are_role_bound(self) -> None:
+        norm_map = NORM_MAP.read_text(encoding="utf-8")
+        qa_skill = QA_SKILL.read_text(encoding="utf-8")
+        sources = PUBLIC_DOCS["sources"].read_text(encoding="utf-8")
+        authors = AUTHORS.read_text(encoding="utf-8")
+
+        for marker in (
+            "## DataPublicationBalanceMatrix",
+            "Категории данных",
+            "Систематическое злоупотребление",
+            "Ступенчатый способ защиты",
+            "ABSTAIN_DATA_PUBLICATION_BALANCE",
+        ):
+            self.assertIn(marker, norm_map)
+        for marker in (
+            "DataPublicationBalanceMatrix",
+            "статус распространителя",
+            "ступенчатый способ защиты",
+            "систематического злоупотребления",
+        ):
+            self.assertIn(marker, qa_skill)
+
+        for marker in (
+            "ООО «МедРейтинг»",
+            "Сергеем Ростиславовичем Федосовым",
+            "https://prodoctorov.ru/info/legal-case/3/",
+            "https://doc.ksrf.ru/decision/KSRFDecision535809.pdf",
+        ):
+            self.assertIn(marker, sources)
+        for marker in (
+            "Тамара Сергеевна Тимошенко",
+            "Способы защиты деловой репутации",
+            "https://companies.rbc.ru/news/0FqyrMQM55/ekspert-medroket-provela-zanyatie-po-zaschite-reputatsii-dlya-studentov-kubgu/",
+        ):
+            self.assertIn(marker, authors)
+
+        combined = "\n".join((sources, authors))
+        self.assertNotIn("автор жалобы — Сергей Ростиславович Федосов", combined)
+        self.assertNotIn("публичный текст жалобы", section(sources, "## Публичные жалобы и связанные акты КС РФ").split("ООО «МедРейтинг»", 1)[1].split("\n", 1)[0])
 
 
 if __name__ == "__main__":

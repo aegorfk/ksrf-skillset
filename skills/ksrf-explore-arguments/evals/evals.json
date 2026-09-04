@@ -99,6 +99,17 @@
         "The portfolio maps the legal basis for delegation, material and financial coverage, the urgent factual trigger, documented expenses, possible reimbursement and the municipality's own causal contribution rather than promising full repayment.",
         "QA detects the inconsistent roster of challenged provisions across the heading, subject, application and prayer, time-versions the applied rule and its later successor, and keeps constitutional meaning, review and reimbursement as separate possible outcomes."
       ]
+    },
+    {
+      "id": 10,
+      "prompt": "Зарегистрированное сетевое издание публикует профиль врача и отзывы пациентов. Имя, должность, образование и квалификация ранее размещены медицинской организацией, но спорный отзыв содержит одновременно оценку качества приёма, проверяемое утверждение о факте и резкую формулировку. После обращения врача площадка не разделила эти элементы и удалила весь профиль со всеми отзывами. Не ищи последующий акт КС РФ. Построй портфель конституционно-правовой проблемы и вариантов результата.",
+      "expected_output": "Source- and content-decomposed data-publication portfolio with moderation triggers and graduated remedies.",
+      "files": [],
+      "expectations": [
+        "The output separately establishes the publisher's status and legal basis, exact data categories, lawful source, currentness, professional-purpose link and countervailing privacy, reputation, information and health interests instead of inferring unrestricted reuse from prior publication.",
+        "The portfolio separates profile data, evaluative opinion, verifiable allegation, insulting or obviously unlawful content and private-life material, and maps each class to a concrete moderation trigger, evidence request and temporary or final response.",
+        "Principal and reserve remedies progress from dispute marking or temporary restriction through verification, correction, item-specific deletion and rebuttal; complete profile removal remains contingent on separately proven systematic abuse or systematic moderation failure and inadequacy of lesser measures."
+      ]
     }
   ]
 }

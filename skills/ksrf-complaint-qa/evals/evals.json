@@ -242,6 +242,17 @@
         "The correction connects delegation to material and financial coverage, treats reimbursement and the municipality's causal contribution as separately proven issues, and does not promise full repayment.",
         "QA reconciles the exact roster of challenged provisions across the heading, subject, judicial application and prayer, and distinguishes the rule applied in the case from its later functional successor and from separate outcomes such as constitutional meaning, review and reimbursement."
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "Проект жалобы утверждает: сведения о враче однажды законно опубликованы, поэтому сетевое издание вправе бессрочно распространять любые данные и отзывы без согласия; статус площадки, точные категории данных, источник, актуальность и вид сообщений не разобраны. После одного требования удалить спорное утверждение проект просит признать недопустимым любое ограничение публикации и восстановить весь профиль автоматически. Модерация, временное ограничение доступа, проверка, ответ, опровержение, частичное удаление, права врача и систематичность нарушений не исследованы. Поставь QA-вердикт и предложи исправление.",
+      "expected_output": "Blocking QA with exact data, status, content-class, moderation and graduated-remedy repair.",
+      "files": [],
+      "expectations": [
+        "QA blocks the inference that prior lawful disclosure authorizes unlimited reuse and requires the exact publisher status, legal basis, data categories, source, currentness, purpose and professional/private boundary for each contested item.",
+        "The repair classifies profile data and each user statement, distinguishes evaluation, verifiable allegation, insult, obvious illegality and private-life content, and reconstructs the request, evidence, temporary response, verification and final moderation decision.",
+        "The prayer is narrowed to the proven harmful meaning and uses graduated remedies; full profile restoration or removal, case review and factual outcome remain separate, while the broadest measure requires systematic-abuse evidence and inadequacy of lesser protection."
+      ]
     }
   ]
 }
