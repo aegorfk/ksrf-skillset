@@ -122,6 +122,7 @@ _RUSSIAN_METAVARS = {
     "claim_id": "ИДЕНТИФИКАТОР_ТРЕБОВАНИЯ",
     "codebook_version": "ВЕРСИЯ_СПРАВОЧНИКА_КОДИРОВАНИЯ",
     "coding_reliability": "ФАЙЛ_НАДЁЖНОСТИ_КОДИРОВАНИЯ",
+    "coding_audit_finalization_receipt": "ФАЙЛ_КВИТАНЦИИ_ФИНАЛИЗАЦИИ",
     "comparison": "ФАЙЛ_СОПОСТАВЛЕНИЯ",
     "comparisons": "ФАЙЛ_СОПОСТАВЛЕНИЙ",
     "confirmed_at": "ДАТА_И_ВРЕМЯ_ISO",
@@ -136,6 +137,7 @@ _RUSSIAN_METAVARS = {
     "executed_query_ids": "ФАЙЛ_ИДЕНТИФИКАТОРОВ_ЗАПРОСОВ",
     "expected_target": "ОЖИДАЕМЫЙ_ПОЛУЧАТЕЛЬ",
     "expected_import_receipt_sha256": "СОХРАНЁННЫЙ_SHA256_КВИТАНЦИИ_ИМПОРТА",
+    "expected_finalization_receipt_sha256": "СОХРАНЁННЫЙ_SHA256_ФИНАЛИЗАЦИИ",
     "expected_manifest_sha256": "СОХРАНЁННЫЙ_SHA256_МАНИФЕСТА",
     "expected_secondary_coder": "ОЖИДАЕМАЯ_МЕТКА_КОДИРОВЩИКА",
     "fetched_at": "ДАТА_И_ВРЕМЯ_ISO",
@@ -4553,6 +4555,16 @@ def cmd_quality_uncertainty_profile(args: argparse.Namespace) -> int:
         isinstance(item, Mapping) for item in trajectories
     ):
         raise ValueError("--trajectories должен содержать массив trajectories.")
+    finalization_receipt_path = getattr(
+        args, "coding_audit_finalization_receipt", None
+    )
+    expected_finalization_receipt_sha256 = getattr(
+        args, "expected_finalization_receipt_sha256", None
+    )
+    native_relation_requested = bool(
+        finalization_receipt_path
+        or expected_finalization_receipt_sha256 is not None
+    )
     result = build_uncertainty_profile(
         fingerprint_sha256=args.fingerprint_sha256,
         position_cards=_read_records(Path(args.position_cards).expanduser().resolve()),
@@ -4561,7 +4573,20 @@ def cmd_quality_uncertainty_profile(args: argparse.Namespace) -> int:
         temporal_analysis=_optional_json(args.temporal_analysis),
         trajectories=trajectories,
         source_reconciliation=_optional_json(args.source_reconciliation),
-        coding_reliability=_optional_json(args.coding_reliability),
+        coding_reliability=_optional_private_quality_json(
+            args.coding_reliability,
+            "--coding-reliability",
+            strict=native_relation_requested,
+            require_canonical=native_relation_requested,
+        ),
+        coding_audit_finalization_receipt=_optional_private_quality_json(
+            finalization_receipt_path,
+            "--coding-audit-finalization-receipt",
+            strict=True,
+        ),
+        expected_finalization_receipt_sha256=(
+            expected_finalization_receipt_sha256
+        ),
         higher_authority_treatments=(
             _read_records(Path(args.higher_authority_treatments).expanduser().resolve())
             if args.higher_authority_treatments
@@ -7122,6 +7147,8 @@ def _load_v2_request(path_value: str) -> dict[str, Any]:
 
 
 def _quality_artifact_type(value: Mapping[str, Any]) -> str:
+    if value.get("artifact_type") == "coding_audit_finalization_receipt":
+        return "coding_audit_finalization_receipt"
     if "profile_id" in value and "dimensions" in value:
         return "uncertainty_profile"
     if "refresh_id" in value and "status" in value:
@@ -7135,18 +7162,112 @@ def _quality_artifact_type(value: Mapping[str, Any]) -> str:
     raise ValueError("Не удалось определить тип practice-quality артефакта.")
 
 
-def _load_quality_bindings(path_values: Iterable[str]) -> list[dict[str, Any]]:
+def _read_private_quality_json(
+    path_value: str,
+    option: str,
+    *,
+    strict: bool = False,
+    require_canonical: bool = False,
+) -> tuple[dict[str, Any], bytes]:
+    """Read private quality input once and keep diagnostics value-free."""
+
+    try:
+        path = Path(path_value).expanduser().resolve()
+        content = path.read_bytes()
+        text_value = content.decode("utf-8")
+        value = (
+            json.loads(
+                text_value,
+                parse_constant=_reject_json_constant,
+                object_pairs_hook=_closed_json_object,
+            )
+            if strict
+            else json.loads(text_value)
+        )
+        if not isinstance(value, dict):
+            raise ValueError("not-an-object")
+        if require_canonical and content != _canonical_json_bytes(value):
+            raise ValueError("non-canonical")
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        ValueError,
+        RecursionError,
+    ):
+        raise ValueError(f"{option}: не удалось прочитать канонический JSON.") from None
+    return value, content
+
+
+def _optional_private_quality_json(
+    path_value: str | None,
+    option: str,
+    *,
+    strict: bool = False,
+    require_canonical: bool = False,
+) -> Any:
+    """Read private quality input without echoing its path or contents on failure."""
+
+    if not path_value:
+        return None
+    value, _ = _read_private_quality_json(
+        path_value,
+        option,
+        strict=strict,
+        require_canonical=require_canonical,
+    )
+    return value
+
+
+def _load_quality_bindings(
+    path_values: Iterable[str],
+    *,
+    expected_finalization_receipt_sha256: str | None = None,
+) -> list[dict[str, Any]]:
     bindings: list[dict[str, Any]] = []
     for path_value in path_values:
-        artifact = read_json(Path(path_value).expanduser().resolve())
-        if not isinstance(artifact, dict):
-            raise ValueError("--quality-binding должен содержать JSON-объект.")
-        bindings.append(
-            {
-                "quality_type": _quality_artifact_type(artifact),
-                "artifact_sha256": artifact_sha256(artifact),
-                "artifact": artifact,
-            }
+        artifact, content = _read_private_quality_json(
+            path_value,
+            "--quality-binding",
+            strict=True,
+        )
+        quality_type = _quality_artifact_type(artifact)
+        if (
+            quality_type == "coding_reliability"
+            and content != _canonical_json_bytes(artifact)
+        ):
+            raise ValueError(
+                "--quality-binding: coding-reliability должен сохранять точные "
+                "канонические байты финализатора с одним завершающим LF."
+            )
+        binding = {
+            "quality_type": quality_type,
+            "artifact_sha256": artifact_sha256(artifact),
+            "artifact": artifact,
+        }
+        if quality_type == "coding_audit_finalization_receipt":
+            if expected_finalization_receipt_sha256 is None:
+                raise ValueError(
+                    "Квитанция финализации требует отдельно сохранённый внешний "
+                    "SHA-256 из успешного coding-audit-finalize."
+                )
+            if not _is_lower_sha256(expected_finalization_receipt_sha256):
+                raise ValueError(
+                    "--expected-finalization-receipt-sha256 должен быть "
+                    "строчным SHA-256 из 64 шестнадцатеричных знаков."
+                )
+            binding["expected_receipt_sha256"] = (
+                expected_finalization_receipt_sha256
+            )
+        bindings.append(binding)
+    receipt_count = sum(
+        item["quality_type"] == "coding_audit_finalization_receipt"
+        for item in bindings
+    )
+    if expected_finalization_receipt_sha256 is not None and receipt_count != 1:
+        raise ValueError(
+            "--expected-finalization-receipt-sha256 требует ровно одну "
+            "квитанцию финализации среди --quality-binding."
         )
     return sorted(
         bindings,
@@ -7281,7 +7402,12 @@ def _build_reviewed_handoff_payload(
         "maximum_permitted_claim": maximum_permitted_claim,
         "limitations": limitations,
     }
-    quality_bindings = _load_quality_bindings(getattr(args, "quality_binding", []) or [])
+    quality_bindings = _load_quality_bindings(
+        getattr(args, "quality_binding", []) or [],
+        expected_finalization_receipt_sha256=getattr(
+            args, "expected_finalization_receipt_sha256", None
+        ),
+    )
     if quality_bindings:
         common["quality_bindings"] = quality_bindings
     if args.payload_type == "authority_cards":
@@ -7362,6 +7488,13 @@ def cmd_handoff_create(args: argparse.Namespace) -> int:
         )
     if args.payload_type == "unproven_research_questions" and not args.payload:
         raise ValueError("unproven_research_questions требует --payload.")
+    if (
+        args.payload_type == "unproven_research_questions"
+        and getattr(args, "expected_finalization_receipt_sha256", None) is not None
+    ):
+        raise ValueError(
+            "Непроверенный handoff не принимает внешний SHA-256 финализации."
+        )
     if args.payload_type != "unproven_research_questions" and args.payload:
         raise ValueError(
             "Проверенный handoff нельзя создавать из произвольного --payload; "
@@ -8120,6 +8253,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Описать источники неопределённости практики без сводной числовой оценки"
         ),
+        description=(
+            "Описать источники неопределённости практики без сводной числовой "
+            "оценки. Успешная проверка нативной надёжности подтверждает только "
+            "техническую цепочку файлов."
+        ),
+        epilog=(
+            "Она не подтверждает личность или независимость проверяющего, "
+            "юридическую правильность, актуальность права, разрешение на "
+            "публикацию, одобрение результата или готовность к подаче."
+        ),
     )
     quality_uncertainty.add_argument("--fingerprint-sha256", required=True)
     quality_uncertainty.add_argument("--position-cards", required=True)
@@ -8129,6 +8272,21 @@ def build_parser() -> argparse.ArgumentParser:
     quality_uncertainty.add_argument("--temporal-analysis")
     quality_uncertainty.add_argument("--source-reconciliation")
     quality_uncertainty.add_argument("--coding-reliability")
+    quality_uncertainty.add_argument(
+        "--coding-audit-finalization-receipt",
+        help=(
+            "Файл coding-audit-finalization-receipt.json; используется только "
+            "вместе с отдельно сохранённым SHA-256 успешного coding-audit-finalize."
+        ),
+    )
+    quality_uncertainty.add_argument(
+        "--expected-finalization-receipt-sha256",
+        help=(
+            "Внешний SHA-256, отдельно сохранённый из обычного успешного "
+            "вывода coding-audit-finalize; это самохеш квитанции, а не хеш её "
+            "полного JSON, и его нельзя восстанавливать из квитанции."
+        ),
+    )
     quality_uncertainty.add_argument("--higher-authority-treatments")
     quality_uncertainty.add_argument("--output")
     quality_uncertainty.set_defaults(func=cmd_quality_uncertainty_profile)
@@ -8686,6 +8844,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Создать пакет передачи, связанный с точными версиями исходных файлов"
         ),
+        description=(
+            "Создать пакет передачи, связанный с точными версиями исходных "
+            "файлов. Успешная проверка подтверждает только техническую цепочку "
+            "файлов."
+        ),
+        epilog=(
+            "Она не подтверждает личность или независимость проверяющего, "
+            "юридическую правильность, актуальность права, разрешение на "
+            "публикацию, одобрение результата или готовность к подаче."
+        ),
     )
     handoff_create.add_argument("--workspace", required=True)
     handoff_create.add_argument("--target-skill", required=True)
@@ -8731,6 +8899,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Путь к JSON-файлу проверки качества практики; параметр можно повторить."
         ),
     )
+    handoff_create.add_argument(
+        "--expected-finalization-receipt-sha256",
+        help=(
+            "Внешний SHA-256, отдельно сохранённый из обычного успешного "
+            "вывода coding-audit-finalize; требуется для единственной квитанции "
+            "финализации среди --quality-binding. Это самохеш квитанции, тогда "
+            "как artifact_sha256 связывает её полный JSON; значение не берётся "
+            "из проверяемого файла."
+        ),
+    )
     handoff_create.add_argument("--limitations")
     handoff_create.add_argument("--limitation", action="append", default=[])
     handoff_create.add_argument("--run-id")
@@ -8743,7 +8921,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     handoff_create.add_argument("--output")
     handoff_create.set_defaults(func=cmd_handoff_create)
-    handoff_check = handoff_sub.add_parser("check", help="Проверить пакет передачи и его хеши")
+    handoff_check_description = (
+        "Проверить пакет передачи и его хеши. Для reviewed-пакета команда "
+        "проверяет шесть quality bindings: внешний самохеш квитанции уже должен "
+        "быть внесён отдельным параметром handoff create, а artifact_sha256 "
+        "связывает полный JSON квитанции. Отсутствующее внешнее значение не "
+        "восстанавливается из проверяемого файла."
+    )
+    handoff_check = handoff_sub.add_parser(
+        "check",
+        help=handoff_check_description,
+        description=handoff_check_description,
+    )
     handoff_check.add_argument("--input", required=True)
     handoff_check.add_argument(
         "--source-workspace",
@@ -8753,8 +8942,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     handoff_check.add_argument("--expected-target", required=True)
     handoff_check.set_defaults(func=cmd_handoff_check)
+    handoff_import_description = (
+        "Без повторов добавить пакет передачи во входящий реестр. Reviewed-пакет "
+        "принимается только с шестью связанными quality-артефактами; внешний "
+        "самохеш квитанции переносится из отдельного параметра handoff create и "
+        "не восстанавливается из проверяемого файла."
+    )
     handoff_import = handoff_sub.add_parser(
-        "import", help="Без повторов добавить пакет передачи во входящий реестр"
+        "import",
+        help=handoff_import_description,
+        description=handoff_import_description,
     )
     handoff_import.add_argument("--input", required=True)
     handoff_import.add_argument("--ledger", required=True)

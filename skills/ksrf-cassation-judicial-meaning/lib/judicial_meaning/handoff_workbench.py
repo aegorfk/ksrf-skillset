@@ -62,6 +62,7 @@ REQUIRED_QUALITY_TYPES = frozenset(
         "uncertainty_profile",
         "coding_audit_plan",
         "coding_reliability",
+        "coding_audit_finalization_receipt",
         "prefiling_refresh",
     }
 )
@@ -100,16 +101,88 @@ _PUBLIC_SEED_ROLES = frozenset(
         "discovery_only",
     }
 )
-_AUDITED_CODING_FIELDS = frozenset(
+_AUDITED_CODING_FIELD_ORDER = (
+    "label",
+    "speaker",
+    "norm_edition_id",
+    "reading_family",
+    "relation",
+    "reasoning_to_outcome",
+    "alternative_grounds",
+    "remedy",
+)
+_AUDITED_CODING_FIELDS = frozenset(_AUDITED_CODING_FIELD_ORDER)
+_CODING_REVIEW_DIFFERENCE_FIELD_ORDER = _AUDITED_CODING_FIELD_ORDER + (
+    "proposition",
+    "quote",
+    "quote_locator",
+    "material_facts",
+)
+_CODING_REVIEW_DIFFERENCE_FIELDS = frozenset(
+    _CODING_REVIEW_DIFFERENCE_FIELD_ORDER
+)
+_CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS = frozenset(
     {
-        "label",
-        "speaker",
-        "norm_edition_id",
-        "reading_family",
-        "relation",
-        "reasoning_to_outcome",
-        "alternative_grounds",
-        "remedy",
+        "schema_version",
+        "artifact_type",
+        "producer",
+        "bundle_contract_version",
+        "plan_sha256",
+        "audit_plan_sha256",
+        "codebook_version",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_present",
+        "resolutions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "candidate_ids",
+        "required_difference_pairs",
+        "resolved_candidate_ids",
+        "resolved_field_populations",
+        "final_coding_sha256",
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "quote_locator_review_declared",
+        "quote_locator_verified",
+        "reliability_complete",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+        "receipt_sha256",
+    }
+)
+_CODING_RELIABILITY_ORIGIN_FIELDS = frozenset(
+    {
+        "status",
+        "reason_codes",
+        "expected_receipt_sha256",
+        "reliability_contract_valid",
+        "receipt_contract_valid",
+        "receipt_self_digest_valid",
+        "external_receipt_digest_valid",
+        "reliability_file_digest_valid",
+        "audit_plan_digest_valid",
+        "candidate_population_valid",
+        "usable_for_claim",
     }
 )
 
@@ -130,8 +203,21 @@ def artifact_sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _canonical_json_file_sha256(value: Any) -> str:
+    """Hash canonical JSON bytes as written by the native finalizer."""
+
+    return hashlib.sha256(_canonical_bytes(value) + b"\n").hexdigest()
+
+
 def _is_sha256(value: Any) -> TypeGuard[str]:
     return isinstance(value, str) and _SHA256_RE.fullmatch(value) is not None
+
+
+def _is_native_audit_candidate_id(value: Any) -> TypeGuard[str]:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"audit-candidate-sha256:[0-9a-f]{64}", value) is not None
+    )
 
 
 def _is_nonempty(value: Any) -> TypeGuard[str]:
@@ -437,6 +523,11 @@ def build_trusted_source_receipt(envelope: Mapping[str, Any]) -> dict[str, Any]:
             str(item.get("artifact_sha256"))
             for item in quality
             if isinstance(item, Mapping) and _is_sha256(item.get("artifact_sha256"))
+        ),
+        "quality_binding_sha256s": sorted(
+            artifact_sha256(item)
+            for item in quality
+            if isinstance(item, Mapping)
         ),
     }
 
@@ -912,6 +1003,163 @@ def _authority_card_errors(payload: Mapping[str, Any]) -> list[str]:
     return []
 
 
+def _coding_audit_finalization_receipt_errors(
+    artifact: Mapping[str, Any],
+) -> list[str]:
+    label = "quality coding_audit_finalization_receipt"
+    if set(artifact) != _CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS:
+        return [f"{label}: нарушен закрытый контракт полей."]
+
+    errors: list[str] = []
+    unsigned = {
+        key: value for key, value in artifact.items() if key != "receipt_sha256"
+    }
+    try:
+        calculated_receipt_sha256 = artifact_sha256(unsigned)
+    except (TypeError, ValueError, UnicodeEncodeError):
+        calculated_receipt_sha256 = None
+    if (
+        not _is_sha256(artifact.get("receipt_sha256"))
+        or artifact.get("receipt_sha256") != calculated_receipt_sha256
+    ):
+        errors.append(f"{label}: receipt_sha256 не соответствует artifact.")
+
+    sha_fields = {
+        "plan_sha256",
+        "audit_plan_sha256",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "final_coding_sha256",
+    }
+    candidate_ids = artifact.get("candidate_ids")
+    resolved_candidate_ids = artifact.get("resolved_candidate_ids")
+    required_pairs = artifact.get("required_difference_pairs")
+    resolved_populations = artifact.get("resolved_field_populations")
+
+    required_pair_values: list[tuple[str, str]] = []
+    required_pairs_valid = isinstance(required_pairs, list)
+    if required_pairs_valid:
+        for item in required_pairs:
+            if (
+                not isinstance(item, Mapping)
+                or set(item) != {"candidate_id", "field"}
+                or not _is_canonical_identifier(item.get("candidate_id"))
+                or item.get("field") not in _CODING_REVIEW_DIFFERENCE_FIELDS
+            ):
+                required_pairs_valid = False
+                break
+            required_pair_values.append(
+                (str(item["candidate_id"]), str(item["field"]))
+            )
+    required_pairs_valid = (
+        required_pairs_valid
+        and len(required_pair_values) == len(set(required_pair_values))
+    )
+    expected_pairs = (
+        [
+            {"candidate_id": candidate_id, "field": field}
+            for candidate_id in candidate_ids
+            for field in _CODING_REVIEW_DIFFERENCE_FIELD_ORDER
+            if (candidate_id, field) in set(required_pair_values)
+        ]
+        if _canonical_unique_string_list(candidate_ids, allow_empty=False)
+        else []
+    )
+    required_pairs_valid = required_pairs_valid and required_pairs == expected_pairs
+    expected_resolved_candidate_ids = [
+        candidate_id
+        for candidate_id in candidate_ids
+        if any(pair["candidate_id"] == candidate_id for pair in expected_pairs)
+    ] if _canonical_unique_string_list(candidate_ids, allow_empty=False) else []
+    expected_populations = [
+        {
+            "candidate_id": candidate_id,
+            "fields": [
+                pair["field"]
+                for pair in expected_pairs
+                if pair["candidate_id"] == candidate_id
+            ],
+        }
+        for candidate_id in expected_resolved_candidate_ids
+    ]
+
+    expected_true = {
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "reliability_complete",
+    }
+    expected_false = {
+        "quote_locator_verified",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+    }
+    resolutions_present = artifact.get("resolutions_present")
+    resolutions_file_sha256 = artifact.get("resolutions_file_sha256")
+    receipt_contract_valid = (
+        artifact.get("schema_version") == "1.0"
+        and artifact.get("artifact_type")
+        == "coding_audit_finalization_receipt"
+        and artifact.get("producer")
+        == "judicial_meaning.quality.coding_audit_finalize"
+        and artifact.get("bundle_contract_version") in {"1.1", "1.2"}
+        and artifact.get("codebook_version") == "1.0"
+        and all(_is_sha256(artifact.get(field)) for field in sha_fields)
+        and artifact.get("source_bundle_manifest_sha256")
+        == artifact.get("expected_source_bundle_manifest_sha256")
+        and artifact.get("audit_import_receipt_sha256")
+        == artifact.get("expected_audit_import_receipt_sha256")
+        and type(resolutions_present) is bool
+        and (
+            (resolutions_present is False and resolutions_file_sha256 is None)
+            or (resolutions_present is True and _is_sha256(resolutions_file_sha256))
+        )
+        and _canonical_unique_string_list(candidate_ids, allow_empty=False)
+        and all(_is_native_audit_candidate_id(value) for value in candidate_ids)
+        and required_pairs_valid
+        and set(candidate_id for candidate_id, _ in required_pair_values).issubset(
+            set(candidate_ids)
+        )
+        and resolved_candidate_ids == expected_resolved_candidate_ids
+        and resolved_populations == expected_populations
+        and resolutions_present is bool(expected_pairs)
+        and artifact.get("resolutions_state_sha256")
+        == artifact_sha256(
+            {
+                "present": resolutions_present,
+                "file_sha256": resolutions_file_sha256,
+            }
+        )
+        and all(artifact.get(field) is True for field in expected_true)
+        and all(artifact.get(field) is False for field in expected_false)
+        and type(artifact.get("quote_locator_review_declared")) is bool
+        and artifact.get("quote_locator_review_declared") is bool(expected_pairs)
+    )
+    if not receipt_contract_valid:
+        errors.append(f"{label}: квитанция не подтверждает закрытую финализацию.")
+    return errors
+
+
 def _quality_artifact_errors(
     quality_type: str,
     artifact: Mapping[str, Any],
@@ -980,7 +1228,8 @@ def _quality_artifact_errors(
             "profile_assessed", "claim_use_ready", "blocking_dimensions",
             "profile_complete", "numeric_aggregation",
             "constitutional_conclusion_permitted", "malformed_position_card_refs",
-            "malformed_trajectory_refs", "input_sha256s",
+            "malformed_trajectory_refs", "coding_reliability_origin",
+            "input_sha256s",
             "claim_limit", "profile_id",
         }
         if set(artifact) != required:
@@ -1006,10 +1255,33 @@ def _quality_artifact_errors(
             errors.append("quality uncertainty_profile: есть неоценённое или блокирующее измерение.")
         input_hashes = artifact.get("input_sha256s")
         input_hash_fields = {
-            "applicant_relations", "coding_reliability", "comparisons",
+            "applicant_relations", "coding_audit_finalization_receipt",
+            "coding_reliability", "comparisons",
+            "expected_finalization_receipt_sha256",
             "higher_authority_treatments", "position_cards", "source_reconciliation",
             "temporal_analysis", "trajectories",
         }
+        reliability_origin = artifact.get("coding_reliability_origin")
+        reliability_origin_valid = (
+            isinstance(reliability_origin, Mapping)
+            and set(reliability_origin) == _CODING_RELIABILITY_ORIGIN_FIELDS
+            and reliability_origin.get("status") == "native_finalization_bound"
+            and reliability_origin.get("reason_codes") in ([], ())
+            and _is_sha256(reliability_origin.get("expected_receipt_sha256"))
+            and all(
+                reliability_origin.get(field) is True
+                for field in (
+                    "reliability_contract_valid",
+                    "receipt_contract_valid",
+                    "receipt_self_digest_valid",
+                    "external_receipt_digest_valid",
+                    "reliability_file_digest_valid",
+                    "audit_plan_digest_valid",
+                    "candidate_population_valid",
+                    "usable_for_claim",
+                )
+            )
+        )
         if (
             artifact.get("fingerprint_sha256") != fingerprint_sha256
             or artifact.get("unit") != "independent_case_chain"
@@ -1024,6 +1296,9 @@ def _quality_artifact_errors(
             or not isinstance(input_hashes, Mapping)
             or set(input_hashes) != input_hash_fields
             or not all(_is_sha256(value) for value in input_hashes.values())
+            or not reliability_origin_valid
+            or input_hashes.get("expected_finalization_receipt_sha256")
+            != reliability_origin.get("expected_receipt_sha256")
             or not _is_nonempty(artifact.get("claim_limit"))
         ):
             errors.append("quality uncertainty_profile: профиль не готов или связан с иным делом.")
@@ -1201,6 +1476,8 @@ def _quality_artifact_errors(
             or not false_exclusions_valid
         ):
             errors.append("quality coding_reliability: независимая проверка не завершена.")
+    elif quality_type == "coding_audit_finalization_receipt":
+        errors.extend(_coding_audit_finalization_receipt_errors(artifact))
     elif quality_type == "prefiling_refresh":
         required = {
             "schema_version", "baseline_corpus_digest", "current_corpus_digest",
@@ -1400,13 +1677,7 @@ def _quality_binding_errors(
     if not isinstance(value, list) or not value:
         return ["quality_bindings должен быть непустым списком content-bound артефактов."]
     errors: list[str] = []
-    allowed_types = {
-        "chain_stage_propagation",
-        "uncertainty_profile",
-        "coding_audit_plan",
-        "coding_reliability",
-        "prefiling_refresh",
-    }
+    allowed_types = set(REQUIRED_QUALITY_TYPES)
     seen_types: set[str] = set()
     artifacts_by_type: dict[str, Mapping[str, Any]] = {}
     claim_ids = {
@@ -1418,13 +1689,22 @@ def _quality_binding_errors(
         if not isinstance(binding, Mapping):
             errors.append(f"quality_bindings[{index}] должен быть объектом.")
             continue
-        if set(binding) != {"quality_type", "artifact_sha256", "artifact"}:
+        quality_type = binding.get("quality_type")
+        expected_binding_fields = {"quality_type", "artifact_sha256", "artifact"}
+        if quality_type == "coding_audit_finalization_receipt":
+            expected_binding_fields.add("expected_receipt_sha256")
+        if set(binding) != expected_binding_fields:
+            expected_description = (
+                "quality_type, artifact_sha256, artifact и "
+                "expected_receipt_sha256"
+                if quality_type == "coding_audit_finalization_receipt"
+                else "quality_type, artifact_sha256 и artifact"
+            )
             errors.append(
-                f"quality_bindings[{index}] должен содержать ровно quality_type, "
-                "artifact_sha256 и artifact."
+                f"quality_bindings[{index}] должен содержать ровно "
+                f"{expected_description}."
             )
             continue
-        quality_type = binding.get("quality_type")
         artifact = binding.get("artifact")
         if quality_type not in allowed_types:
             errors.append(f"quality_bindings[{index}].quality_type не поддерживается.")
@@ -1434,6 +1714,13 @@ def _quality_binding_errors(
         digest = artifact_sha256(artifact)
         if binding.get("artifact_sha256") != digest:
             errors.append(f"quality_bindings[{index}].artifact_sha256 не соответствует artifact.")
+        if (
+            quality_type == "coding_audit_finalization_receipt"
+            and not _is_sha256(binding.get("expected_receipt_sha256"))
+        ):
+            errors.append(
+                f"quality_bindings[{index}].expected_receipt_sha256 должен быть SHA-256."
+            )
         if isinstance(quality_type, str) and quality_type in seen_types:
             errors.append(f"Повторный quality binding типа {quality_type}.")
         elif isinstance(quality_type, str):
@@ -1454,6 +1741,9 @@ def _quality_binding_errors(
         errors.append("quality_bindings не содержит обязательные типы: " + ", ".join(missing_types) + ".")
     audit_plan = artifacts_by_type.get("coding_audit_plan")
     reliability = artifacts_by_type.get("coding_reliability")
+    finalization_receipt = artifacts_by_type.get(
+        "coding_audit_finalization_receipt"
+    )
     if audit_plan is not None and reliability is not None:
         if (
             reliability.get("audit_plan_input_sha256") != artifact_sha256(audit_plan)
@@ -1467,6 +1757,49 @@ def _quality_binding_errors(
             errors.append(
                 "quality coding_reliability не связан с переданным coding_audit_plan."
             )
+    receipt_binding = next(
+        (
+            binding
+            for binding in value
+            if isinstance(binding, Mapping)
+            and binding.get("quality_type")
+            == "coding_audit_finalization_receipt"
+            and set(binding)
+            == {
+                "quality_type",
+                "artifact_sha256",
+                "artifact",
+                "expected_receipt_sha256",
+            }
+        ),
+        None,
+    )
+    if (
+        audit_plan is not None
+        and reliability is not None
+        and finalization_receipt is not None
+        and receipt_binding is not None
+    ):
+        expected_receipt_sha256 = receipt_binding.get("expected_receipt_sha256")
+        native_relation_valid = (
+            _is_sha256(expected_receipt_sha256)
+            and finalization_receipt.get("receipt_sha256")
+            == expected_receipt_sha256
+            and finalization_receipt.get("coding_reliability_file_sha256")
+            == _canonical_json_file_sha256(reliability)
+            and finalization_receipt.get("audit_plan_sha256")
+            == reliability.get("audit_plan_sha256")
+            == audit_plan.get("audit_plan_sha256")
+            and finalization_receipt.get("candidate_ids")
+            == reliability.get("required_candidate_ids")
+            == audit_plan.get("required_candidate_ids")
+            and finalization_receipt.get("plan_sha256") == plan_sha256
+        )
+        if not native_relation_valid:
+            errors.append(
+                "quality coding_audit_finalization_receipt не связан с внешним "
+                "подтверждением, reliability, планом или кандидатами."
+            )
     profile = artifacts_by_type.get("uncertainty_profile")
     propagation = artifacts_by_type.get("chain_stage_propagation")
     if profile is not None and reliability is not None:
@@ -1478,6 +1811,28 @@ def _quality_binding_errors(
         ):
             errors.append(
                 "quality uncertainty_profile не связан с coding_reliability."
+            )
+    if (
+        profile is not None
+        and finalization_receipt is not None
+        and receipt_binding is not None
+    ):
+        input_hashes = profile.get("input_sha256s")
+        origin = profile.get("coding_reliability_origin")
+        expected_receipt_sha256 = receipt_binding.get("expected_receipt_sha256")
+        if (
+            not isinstance(input_hashes, Mapping)
+            or not isinstance(origin, Mapping)
+            or input_hashes.get("coding_audit_finalization_receipt")
+            != artifact_sha256(finalization_receipt)
+            or input_hashes.get("expected_finalization_receipt_sha256")
+            != expected_receipt_sha256
+            or origin.get("expected_receipt_sha256")
+            != expected_receipt_sha256
+        ):
+            errors.append(
+                "quality uncertainty_profile не связан с native-квитанцией и "
+                "внешним подтверждением."
             )
     if profile is not None and propagation is not None:
         input_hashes = profile.get("input_sha256s")
@@ -1647,10 +2002,20 @@ def _trusted_source_errors(
                 for item in payload.get("quality_bindings", [])
                 if isinstance(item, Mapping) and _is_sha256(item.get("artifact_sha256"))
             ),
+            "quality_binding_sha256s": sorted(
+                artifact_sha256(item)
+                for item in payload.get("quality_bindings", [])
+                if isinstance(item, Mapping)
+            ),
         }
-        for key, expected in expected_receipt.items():
-            if receipt.get(key) != expected:
-                errors.append(f"trusted result receipt: {key} не совпадает с reviewed result.")
+        if set(receipt) != set(expected_receipt):
+            errors.append("trusted result receipt: нарушен закрытый контракт полей.")
+        else:
+            for key, expected in expected_receipt.items():
+                if receipt.get(key) != expected:
+                    errors.append(
+                        f"trusted result receipt: {key} не совпадает с reviewed result."
+                    )
     request_id = payload.get("request_handoff_id")
     request_path = workspace / "handoffs" / "trusted-requests" / f"{request_id}.json"
     try:

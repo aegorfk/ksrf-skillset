@@ -1,3 +1,4 @@
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -17,6 +18,7 @@ from judicial_meaning.reporting import derive_research_status, write_offline_rep
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = SKILL_ROOT / "schemas" / "case-relative-workbench.v1.json"
+PRACTICE_SCHEMA_PATH = SKILL_ROOT / "schemas" / "practice-quality.v1.json"
 
 
 class WorkbenchSchemaContractTests(unittest.TestCase):
@@ -467,7 +469,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             definition = self.definitions[definition_name]
             self.assertIn("quality_bindings", definition["required"])
             quality = definition["properties"]["quality_bindings"]
-            self.assertEqual(5, quality["minItems"])
+            self.assertEqual(6, quality["minItems"])
             self.assertTrue(quality["uniqueItems"])
 
     def test_handoff_quality_bindings_reference_closed_mirrored_contracts(self):
@@ -495,9 +497,11 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
                 self.assertIs(definition["additionalProperties"], False)
 
         binding = self.definitions["handoff_quality_binding"]
+        self.assertEqual(2, len(binding["oneOf"]))
+        standard_binding, receipt_binding = binding["oneOf"]
         artifact_refs = {
             item["$ref"].removeprefix("#/definitions/")
-            for item in binding["properties"]["artifact"]["oneOf"]
+            for item in standard_binding["properties"]["artifact"]["oneOf"]
         }
         self.assertEqual(set(quality_definitions.values()), artifact_refs)
         conditional_refs = {
@@ -505,9 +509,58 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             item["then"]["properties"]["artifact"]["$ref"].removeprefix(
                 "#/definitions/"
             )
-            for item in binding["allOf"]
+            for item in standard_binding["allOf"]
         }
         self.assertEqual(quality_definitions, conditional_refs)
+        self.assertEqual(
+            "coding_audit_finalization_receipt",
+            receipt_binding["properties"]["quality_type"]["const"],
+        )
+        self.assertEqual(
+            "#/definitions/coding_audit_finalization_receipt",
+            receipt_binding["properties"]["artifact"]["$ref"],
+        )
+        self.assertEqual(
+            {
+                "quality_type",
+                "artifact_sha256",
+                "artifact",
+                "expected_receipt_sha256",
+            },
+            set(receipt_binding["required"]),
+        )
+        self.assertIs(standard_binding["additionalProperties"], False)
+        self.assertIs(receipt_binding["additionalProperties"], False)
+
+        origin = self.definitions["coding_reliability_origin"]
+        self.assertEqual(
+            {
+                "status",
+                "reason_codes",
+                "expected_receipt_sha256",
+                "reliability_contract_valid",
+                "receipt_contract_valid",
+                "receipt_self_digest_valid",
+                "external_receipt_digest_valid",
+                "reliability_file_digest_valid",
+                "audit_plan_digest_valid",
+                "candidate_population_valid",
+                "usable_for_claim",
+            },
+            set(origin["required"]),
+        )
+        self.assertEqual(
+            {"missing", "compatibility_only", "native_finalization_bound"},
+            set(origin["properties"]["status"]["enum"]),
+        )
+        profile = self.definitions["uncertainty_profile"]
+        self.assertIn("coding_reliability_origin", profile["properties"])
+        self.assertTrue(
+            {
+                "coding_audit_finalization_receipt",
+                "expected_finalization_receipt_sha256",
+            }.issubset(profile["properties"]["input_sha256s"]["properties"])
+        )
 
         prefiling = self.definitions["prefiling_refresh"]
         self.assertEqual(
@@ -568,6 +621,61 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             ).issubset(self.definitions["coding_reliability"]["required"])
         )
 
+    def test_native_receipt_candidate_ids_use_the_runtime_identifier_contract(self):
+        candidate = self.definitions["coding_audit_candidate_id"]
+        validator = Draft202012Validator(candidate)
+        self.assertTrue(
+            validator.is_valid("audit-candidate-sha256:" + "a" * 64)
+        )
+        self.assertFalse(validator.is_valid("candidate-1"))
+
+        receipt = self.definitions["coding_audit_finalization_receipt"]
+        candidate_refs = (
+            receipt["properties"]["candidate_ids"]["items"],
+            receipt["properties"]["required_difference_pairs"]["items"]
+            ["properties"]["candidate_id"],
+            receipt["properties"]["resolved_candidate_ids"]["items"],
+            receipt["properties"]["resolved_field_populations"]["items"]
+            ["properties"]["candidate_id"],
+        )
+        self.assertEqual(
+            {"#/definitions/coding_audit_candidate_id"},
+            {item["$ref"] for item in candidate_refs},
+        )
+
+    def test_stable_schemas_disclose_native_cross_artifact_runtime_invariants(self):
+        schemas = (
+            self.schema,
+            json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8")),
+        )
+        for schema in schemas:
+            with self.subTest(schema=schema.get("$id")):
+                profile_text = " ".join(
+                    schema["definitions"]["uncertainty_profile"][
+                        "x-runtime-invariants"
+                    ]
+                )
+                receipt_text = " ".join(
+                    schema["definitions"]["coding_audit_finalization_receipt"][
+                        "x-runtime-invariants"
+                    ]
+                )
+                for marker in (
+                    "coding_reliability_origin",
+                    "input_sha256s",
+                    "expected_finalization_receipt_sha256",
+                    "claim_use_ready",
+                ):
+                    self.assertIn(marker, profile_text)
+                for marker in (
+                    "exactly one trailing LF",
+                    "audit_plan_sha256",
+                    "candidate_ids",
+                    "receipt_sha256",
+                    "separately retained",
+                ):
+                    self.assertIn(marker, receipt_text)
+
         audit_payload = {
             "schema_version": "1.0",
             "plan_sha256": "0" * 64,
@@ -590,6 +698,10 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             "artifact": audit_payload,
         }
         self.assertSchemaValid("handoff_quality_binding", valid_binding)
+        invalid_standard_binding = {
+            **valid_binding,
+            "expected_receipt_sha256": "5" * 64,
+        }
         audit_validator = Draft202012Validator(
             {
                 "$schema": self.schema["$schema"],
@@ -620,7 +732,128 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
             },
             format_checker=FormatChecker(),
         )
+        self.assertTrue(list(validator.iter_errors(invalid_standard_binding)))
         self.assertTrue(list(validator.iter_errors(mislabeled)))
+
+    def test_native_profile_fields_are_required_only_for_claim_use(self):
+        dimension = {
+            "state": "verified",
+            "chain_ids": [],
+            "evidence_refs": [],
+            "unknowns": [],
+            "claim_effect": "Предел вывода проверен.",
+            "assessed": True,
+            "usable_for_claim": True,
+            "review_complete": True,
+        }
+        origin = {
+            "status": "native_finalization_bound",
+            "reason_codes": [],
+            "expected_receipt_sha256": "a" * 64,
+            "reliability_contract_valid": True,
+            "receipt_contract_valid": True,
+            "receipt_self_digest_valid": True,
+            "external_receipt_digest_valid": True,
+            "reliability_file_digest_valid": True,
+            "audit_plan_digest_valid": True,
+            "candidate_population_valid": True,
+            "usable_for_claim": True,
+        }
+        input_hashes = {
+            key: str(index) * 64
+            for index, key in enumerate(
+                (
+                    "applicant_relations",
+                    "coding_reliability",
+                    "comparisons",
+                    "higher_authority_treatments",
+                    "position_cards",
+                    "source_reconciliation",
+                    "temporal_analysis",
+                    "trajectories",
+                ),
+                start=1,
+            )
+        }
+        input_hashes.update(
+            {
+                "coding_audit_finalization_receipt": "b" * 64,
+                "expected_finalization_receipt_sha256": "a" * 64,
+            }
+        )
+        native_profile = {
+            "schema_version": "1.0",
+            "fingerprint_sha256": "c" * 64,
+            "unit": "independent_case_chain",
+            "dimensions": {
+                name: copy.deepcopy(dimension)
+                for name in (
+                    "comparable_reading_plurality",
+                    "fact_sensitivity",
+                    "court_distribution",
+                    "temporal_distribution",
+                    "chain_endorsement",
+                    "outcome_materiality",
+                    "higher_authority_treatment",
+                    "coverage_limits",
+                    "coding_reliability",
+                )
+            },
+            "profile_assessed": True,
+            "claim_use_ready": True,
+            "blocking_dimensions": [],
+            "profile_complete": True,
+            "numeric_aggregation": "prohibited",
+            "constitutional_conclusion_permitted": False,
+            "malformed_position_card_refs": [],
+            "malformed_trajectory_refs": [],
+            "coding_reliability_origin": origin,
+            "input_sha256s": input_hashes,
+            "claim_limit": "Только в проверенных пределах.",
+            "profile_id": "d" * 64,
+        }
+
+        schemas = (
+            self.schema,
+            json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8")),
+        )
+        for schema in schemas:
+            validator = Draft202012Validator(
+                {
+                    "$schema": schema["$schema"],
+                    "$ref": "#/definitions/uncertainty_profile",
+                    "$defs": schema.get("$defs", {}),
+                    "definitions": schema["definitions"],
+                },
+                format_checker=FormatChecker(),
+            )
+            with self.subTest(schema=schema.get("$id"), variant="native"):
+                self.assertTrue(validator.is_valid(native_profile))
+            for missing in (
+                "coding_reliability_origin",
+                "coding_audit_finalization_receipt",
+                "expected_finalization_receipt_sha256",
+            ):
+                candidate = copy.deepcopy(native_profile)
+                if missing == "coding_reliability_origin":
+                    candidate.pop(missing)
+                else:
+                    candidate["input_sha256s"].pop(missing)
+                with self.subTest(schema=schema.get("$id"), missing=missing):
+                    self.assertFalse(validator.is_valid(candidate))
+
+            historical = copy.deepcopy(native_profile)
+            historical["claim_use_ready"] = False
+            historical["profile_complete"] = False
+            historical.pop("coding_reliability_origin")
+            historical["input_sha256s"].pop(
+                "coding_audit_finalization_receipt"
+            )
+            historical["input_sha256s"].pop(
+                "expected_finalization_receipt_sha256"
+            )
+            with self.subTest(schema=schema.get("$id"), variant="historical"):
+                self.assertTrue(validator.is_valid(historical))
 
     def test_public_cache_and_source_contract_enums_are_explicit(self):
         self.assertEqual(

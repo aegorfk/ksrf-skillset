@@ -319,6 +319,79 @@ CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS = frozenset(
         "receipt_sha256",
     }
 )
+CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "producer",
+        "bundle_contract_version",
+        "plan_sha256",
+        "audit_plan_sha256",
+        "codebook_version",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_present",
+        "resolutions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "candidate_ids",
+        "required_difference_pairs",
+        "resolved_candidate_ids",
+        "resolved_field_populations",
+        "final_coding_sha256",
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "quote_locator_review_declared",
+        "quote_locator_verified",
+        "reliability_complete",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+        "receipt_sha256",
+    }
+)
+CODING_AUDIT_FINALIZATION_RECEIPT_SHA256_FIELDS = frozenset(
+    {
+        "plan_sha256",
+        "audit_plan_sha256",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "final_coding_sha256",
+        "receipt_sha256",
+    }
+)
 REFRESH_PLAN_FIELDS = frozenset(
     {
         "plan_id",
@@ -667,6 +740,338 @@ def _coding_reliability_contract_valid(record: Mapping[str, Any]) -> bool:
             return False
         seen_false_exclusions.add(str(candidate_id))
     return True
+
+
+def _coding_audit_finalization_receipt_contract_valid(
+    record: Mapping[str, Any],
+) -> bool:
+    if set(record) != CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS:
+        return False
+    if (
+        record.get("schema_version") != SCHEMA_VERSION
+        or record.get("artifact_type")
+        != "coding_audit_finalization_receipt"
+        or record.get("producer")
+        != "judicial_meaning.quality.coding_audit_finalize"
+        or record.get("bundle_contract_version") not in {"1.1", "1.2"}
+        or record.get("codebook_version") not in NATIVE_AUDIT_CODEBOOK_VERSIONS
+        or not all(
+            _is_sha256(record.get(field))
+            for field in CODING_AUDIT_FINALIZATION_RECEIPT_SHA256_FIELDS
+        )
+        or record.get("source_bundle_manifest_sha256")
+        != record.get("expected_source_bundle_manifest_sha256")
+        or record.get("audit_import_receipt_sha256")
+        != record.get("expected_audit_import_receipt_sha256")
+    ):
+        return False
+
+    candidate_ids_value = record.get("candidate_ids")
+    if (
+        not isinstance(candidate_ids_value, list)
+        or not _unique_nonempty_string_list(candidate_ids_value)
+        or not all(
+            _is_native_audit_candidate_id(value) for value in candidate_ids_value
+        )
+    ):
+        return False
+    candidate_ids = list(candidate_ids_value)
+
+    allowed_difference_fields = (
+        *AUDITED_CODING_FIELDS,
+        *NON_AUDITED_CODING_CONTENT_FIELDS,
+    )
+    raw_pairs = record.get("required_difference_pairs")
+    if not isinstance(raw_pairs, list):
+        return False
+    pair_set: set[tuple[str, str]] = set()
+    for item in raw_pairs:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"candidate_id", "field"}
+            or item.get("candidate_id") not in candidate_ids
+            or item.get("field") not in allowed_difference_fields
+        ):
+            return False
+        pair = (str(item["candidate_id"]), str(item["field"]))
+        if pair in pair_set:
+            return False
+        pair_set.add(pair)
+    expected_pairs = [
+        {"candidate_id": candidate_id, "field": field}
+        for candidate_id in candidate_ids
+        for field in allowed_difference_fields
+        if (candidate_id, field) in pair_set
+    ]
+    if raw_pairs != expected_pairs:
+        return False
+
+    expected_resolved_candidate_ids = [
+        candidate_id
+        for candidate_id in candidate_ids
+        if any(pair["candidate_id"] == candidate_id for pair in expected_pairs)
+    ]
+    expected_populations = [
+        {
+            "candidate_id": candidate_id,
+            "fields": [
+                pair["field"]
+                for pair in expected_pairs
+                if pair["candidate_id"] == candidate_id
+            ],
+        }
+        for candidate_id in expected_resolved_candidate_ids
+    ]
+    if (
+        record.get("resolved_candidate_ids") != expected_resolved_candidate_ids
+        or record.get("resolved_field_populations") != expected_populations
+    ):
+        return False
+
+    resolutions_present = record.get("resolutions_present")
+    resolutions_file_sha256 = record.get("resolutions_file_sha256")
+    if (
+        not isinstance(resolutions_present, bool)
+        or resolutions_present is not bool(expected_pairs)
+        or (
+            resolutions_present
+            and not _is_sha256(resolutions_file_sha256)
+        )
+        or (not resolutions_present and resolutions_file_sha256 is not None)
+        or record.get("resolutions_state_sha256")
+        != canonical_digest(
+            {
+                "present": resolutions_present,
+                "file_sha256": resolutions_file_sha256,
+            }
+        )
+    ):
+        return False
+
+    required_true = (
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "reliability_complete",
+    )
+    required_false = (
+        "quote_locator_verified",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+    )
+    if (
+        any(record.get(field) is not True for field in required_true)
+        or any(record.get(field) is not False for field in required_false)
+        or not isinstance(record.get("quote_locator_review_declared"), bool)
+        or record.get("quote_locator_review_declared") is not bool(expected_pairs)
+    ):
+        return False
+    try:
+        canonical_digest(record)
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return False
+    return True
+
+
+def _native_coding_reliability_origin(
+    *,
+    status: str,
+    reason_codes: list[str],
+    expected_receipt_sha256: str | None,
+    reliability_contract_valid: bool,
+    receipt_contract_valid: bool,
+    receipt_self_digest_valid: bool,
+    external_receipt_digest_valid: bool,
+    reliability_file_digest_valid: bool,
+    audit_plan_digest_valid: bool,
+    candidate_population_valid: bool,
+    usable_for_claim: bool,
+) -> dict[str, Any]:
+    return {
+        "status": status,
+        "reason_codes": reason_codes,
+        "expected_receipt_sha256": expected_receipt_sha256,
+        "reliability_contract_valid": reliability_contract_valid,
+        "receipt_contract_valid": receipt_contract_valid,
+        "receipt_self_digest_valid": receipt_self_digest_valid,
+        "external_receipt_digest_valid": external_receipt_digest_valid,
+        "reliability_file_digest_valid": reliability_file_digest_valid,
+        "audit_plan_digest_valid": audit_plan_digest_valid,
+        "candidate_population_valid": candidate_population_valid,
+        "usable_for_claim": usable_for_claim,
+    }
+
+
+def verify_native_coding_reliability(
+    coding_reliability: Mapping[str, Any] | None,
+    finalization_receipt: Mapping[str, Any] | None,
+    expected_receipt_sha256: str | None,
+    *,
+    current_plan_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Verify the externally anchored native coding-reliability relation."""
+
+    receipt_supplied = finalization_receipt is not None
+    expectation_supplied = expected_receipt_sha256 is not None
+    if not receipt_supplied and not expectation_supplied:
+        if coding_reliability is None:
+            return _native_coding_reliability_origin(
+                status="missing",
+                reason_codes=["coding_reliability_missing"],
+                expected_receipt_sha256=None,
+                reliability_contract_valid=False,
+                receipt_contract_valid=False,
+                receipt_self_digest_valid=False,
+                external_receipt_digest_valid=False,
+                reliability_file_digest_valid=False,
+                audit_plan_digest_valid=False,
+                candidate_population_valid=False,
+                usable_for_claim=False,
+            )
+        try:
+            reliability_contract_valid = isinstance(
+                coding_reliability, Mapping
+            ) and _coding_reliability_contract_valid(coding_reliability)
+        except (TypeError, ValueError, UnicodeEncodeError):
+            reliability_contract_valid = False
+        reason_codes = ["native_finalization_binding_missing"]
+        if not reliability_contract_valid:
+            reason_codes.insert(0, "coding_reliability_contract_invalid")
+        return _native_coding_reliability_origin(
+            status="compatibility_only",
+            reason_codes=reason_codes,
+            expected_receipt_sha256=None,
+            reliability_contract_valid=reliability_contract_valid,
+            receipt_contract_valid=False,
+            receipt_self_digest_valid=False,
+            external_receipt_digest_valid=False,
+            reliability_file_digest_valid=False,
+            audit_plan_digest_valid=False,
+            candidate_population_valid=False,
+            usable_for_claim=False,
+        )
+
+    if (
+        coding_reliability is None
+        or not receipt_supplied
+        or not expectation_supplied
+    ):
+        raise ValueError(
+            "Нативная надёжность кодирования: передан неполный набор "
+            "обязательных привязок. Передайте все три исходных значения: "
+            "неизменённые файлы coding-reliability.json и "
+            "coding-audit-finalization-receipt.json, а также отдельно "
+            "сохранённый SHA-256 из успешного вывода coding-audit-finalize."
+        )
+
+    try:
+        reliability_contract_valid = isinstance(
+            coding_reliability, Mapping
+        ) and _coding_reliability_contract_valid(coding_reliability)
+    except (TypeError, ValueError, UnicodeEncodeError):
+        reliability_contract_valid = False
+    reliability = coding_reliability if isinstance(coding_reliability, Mapping) else {}
+    try:
+        receipt_contract_valid = isinstance(
+            finalization_receipt, Mapping
+        ) and _coding_audit_finalization_receipt_contract_valid(
+            finalization_receipt
+        )
+    except (TypeError, ValueError, UnicodeEncodeError):
+        receipt_contract_valid = False
+    receipt = finalization_receipt if isinstance(finalization_receipt, Mapping) else {}
+    receipt_sha256 = receipt.get("receipt_sha256")
+    try:
+        unsigned_receipt = {
+            key: value for key, value in receipt.items() if key != "receipt_sha256"
+        }
+        calculated_receipt_sha256 = canonical_digest(unsigned_receipt)
+    except (TypeError, ValueError, UnicodeEncodeError):
+        calculated_receipt_sha256 = None
+    receipt_self_digest_valid = (
+        _is_sha256(receipt_sha256)
+        and calculated_receipt_sha256 == receipt_sha256
+    )
+    external_receipt_digest_valid = (
+        _is_sha256(expected_receipt_sha256)
+        and receipt_self_digest_valid
+        and expected_receipt_sha256 == receipt_sha256
+    )
+    try:
+        reliability_file_sha256 = hashlib.sha256(
+            _canonical_bytes(coding_reliability) + b"\n"
+        ).hexdigest()
+    except (TypeError, ValueError, UnicodeEncodeError):
+        reliability_file_sha256 = None
+    reliability_file_digest_valid = (
+        reliability_file_sha256 is not None
+        and receipt.get("coding_reliability_file_sha256")
+        == reliability_file_sha256
+    )
+    audit_plan_digest_valid = (
+        _is_sha256(receipt.get("audit_plan_sha256"))
+        and receipt.get("audit_plan_sha256")
+        == reliability.get("audit_plan_sha256")
+    )
+    candidate_population_valid = (
+        isinstance(receipt.get("candidate_ids"), list)
+        and receipt.get("candidate_ids")
+        == reliability.get("required_candidate_ids")
+    )
+    current_plan_valid = current_plan_sha256 is None or (
+        _is_sha256(current_plan_sha256)
+        and receipt.get("plan_sha256") == current_plan_sha256
+    )
+
+    failures = [
+        reason
+        for valid, reason in (
+            (reliability_contract_valid, "coding_reliability_contract_invalid"),
+            (receipt_contract_valid, "finalization_receipt_contract_invalid"),
+            (receipt_self_digest_valid, "finalization_receipt_self_digest_mismatch"),
+            (
+                external_receipt_digest_valid,
+                "external_finalization_receipt_digest_mismatch",
+            ),
+            (
+                reliability_file_digest_valid,
+                "coding_reliability_file_digest_mismatch",
+            ),
+            (audit_plan_digest_valid, "audit_plan_digest_mismatch"),
+            (candidate_population_valid, "candidate_population_mismatch"),
+            (current_plan_valid, "current_plan_digest_mismatch"),
+        )
+        if not valid
+    ]
+    if failures:
+        raise ValueError(
+            "Нативная надёжность кодирования не подтверждена ("
+            + ",".join(failures)
+            + "). Передайте неизменённые файлы Release 16 и отдельно "
+            "сохранённый SHA-256 из успешного вывода coding-audit-finalize; "
+            "при сомнении повторите восстановление в новой соседней папке "
+            "и побайтово сравните результат."
+        )
+
+    return _native_coding_reliability_origin(
+        status="native_finalization_bound",
+        reason_codes=[],
+        expected_receipt_sha256=expected_receipt_sha256,
+        reliability_contract_valid=True,
+        receipt_contract_valid=True,
+        receipt_self_digest_valid=True,
+        external_receipt_digest_valid=True,
+        reliability_file_digest_valid=True,
+        audit_plan_digest_valid=True,
+        candidate_population_valid=True,
+        usable_for_claim=True,
+    )
 
 
 TREATMENT_SOURCE_FIELDS = (
@@ -1834,6 +2239,8 @@ def build_uncertainty_profile(
     source_reconciliation: Mapping[str, Any] | None,
     coding_reliability: Mapping[str, Any] | None,
     higher_authority_treatments: Iterable[Any] | None,
+    coding_audit_finalization_receipt: Mapping[str, Any] | None = None,
+    expected_finalization_receipt_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Build nine independent qualitative dimensions without an aggregate number."""
 
@@ -1876,6 +2283,11 @@ def build_uncertainty_profile(
         None
         if higher_authority_treatments is None
         else [dict(item) if isinstance(item, Mapping) else item for item in higher_authority_treatments]
+    )
+    coding_reliability_origin = verify_native_coding_reliability(
+        coding_reliability,
+        coding_audit_finalization_receipt,
+        expected_finalization_receipt_sha256,
     )
     current_cards: list[dict[str, Any]] = []
     for card in cards:
@@ -2265,36 +2677,41 @@ def build_uncertainty_profile(
             usable_for_claim=closed,
         )
 
-    if coding_reliability is None:
+    if coding_reliability_origin["status"] == "missing":
         reliability_dimension = _dimension(
             "not_assessed",
-            unknowns=["coding_reliability_missing"],
+            unknowns=coding_reliability_origin["reason_codes"],
             claim_effect="Надёжность кодирования не проверена независимой выборкой.",
             review_complete=False,
         )
-    else:
-        unresolved_coding = coding_reliability.get("unresolved_candidate_ids", [])
-        if not isinstance(unresolved_coding, list):
-            unresolved_coding = ["invalid_reliability_contract"]
-        reliability_usable = _coding_reliability_contract_valid(coding_reliability)
-        if not reliability_usable and not unresolved_coding:
-            unresolved_coding = ["invalid_or_unbound_reliability_contract"]
+    elif coding_reliability_origin["status"] == "compatibility_only":
         reliability_dimension = _dimension(
-            (
-                "independent_audit_complete"
-                if reliability_usable
-                else "unresolved_coding_reliability"
+            "compatibility_only",
+            evidence_refs=(
+                [coding_reliability.get("audit_plan_sha256")]
+                if coding_reliability_origin["reliability_contract_valid"]
+                and isinstance(coding_reliability, Mapping)
+                else []
             ),
-            evidence_refs=[coding_reliability.get("audit_plan_sha256")],
-            unknowns=unresolved_coding,
+            unknowns=coding_reliability_origin["reason_codes"],
             claim_effect=(
-                "Независимая выборка проверена; это не превращает кодирование в безошибочное."
-                if reliability_usable
-                else "Неразрешённые расхождения кодировщиков ограничивают или блокируют вывод."
+                "Отчёт надёжности доступен только для диагностики: без отдельно "
+                "подтверждённой квитанции его нельзя использовать в выводе."
             ),
-            review_complete=reliability_usable,
+            review_complete=False,
             assessed=True,
-            usable_for_claim=reliability_usable,
+            usable_for_claim=False,
+        )
+    else:
+        assert isinstance(coding_reliability, Mapping)
+        reliability_dimension = _dimension(
+            "independent_audit_complete",
+            evidence_refs=[coding_reliability.get("audit_plan_sha256")],
+            unknowns=[],
+            claim_effect="Независимая выборка проверена; это не превращает кодирование в безошибочное.",
+            review_complete=True,
+            assessed=True,
+            usable_for_claim=True,
         )
 
     dimensions = {
@@ -2342,7 +2759,16 @@ def build_uncertainty_profile(
         "source_reconciliation": source_reconciliation,
         "coding_reliability": coding_reliability,
         "higher_authority_treatments": authority_input,
+        "coding_audit_finalization_receipt": coding_audit_finalization_receipt,
     }
+    input_sha256s = {
+        key: canonical_digest(value) for key, value in sorted(input_payload.items())
+    }
+    input_sha256s["expected_finalization_receipt_sha256"] = (
+        expected_finalization_receipt_sha256
+        if expected_finalization_receipt_sha256 is not None
+        else canonical_digest(None)
+    )
     profile_assessed = all(item["assessed"] for item in dimensions.values())
     blocking_dimensions = sorted(
         name for name, item in dimensions.items() if not item["usable_for_claim"]
@@ -2353,6 +2779,7 @@ def build_uncertainty_profile(
         "fingerprint_sha256": fingerprint_sha256,
         "unit": "independent_case_chain",
         "dimensions": dimensions,
+        "coding_reliability_origin": coding_reliability_origin,
         "profile_assessed": profile_assessed,
         "claim_use_ready": claim_use_ready,
         "blocking_dimensions": blocking_dimensions,
@@ -2363,9 +2790,7 @@ def build_uncertainty_profile(
             set(malformed_position_card_refs)
         ),
         "malformed_trajectory_refs": sorted(set(malformed_trajectory_refs)),
-        "input_sha256s": {
-            key: canonical_digest(value) for key, value in sorted(input_payload.items())
-        },
+        "input_sha256s": input_sha256s,
         "claim_limit": (
             "Профиль сохраняет независимые объяснения неопределённости; он не является "
             "числовым рейтингом и сам по себе не доказывает неконституционность."
@@ -4818,4 +5243,5 @@ __all__ = [
     "build_native_coding_review_import",
     "build_uncertainty_profile",
     "canonical_digest",
+    "verify_native_coding_reliability",
 ]

@@ -38,7 +38,7 @@ CLI_COUNTS = {
     "judicial_meaning.py": 39,
     "ksrf_autocollect.py": 1,
     "ksrf.py": 5,
-    "ksrf_practice_analysis.py": 1,
+    "ksrf_practice_analysis.py": 2,
     "ksrf_setup_doctor.py": 1,
     "validate_argument_research.py": 1,
     "validate_authority_ledger.py": 3,
@@ -53,7 +53,7 @@ COMMAND_START = re.compile(
     r'^\s*python3\s+(?P<program>"[^"\n]+/scripts/(?P<quoted>[^/"\s]+\.py)"|'
     r"\S+/scripts/(?P<plain>[^/\s]+\.py))(?P<tail>.*)$"
 )
-COMMAND_TAILS_SHA256 = "b1448cb8e368f7e18ce70756b820770d72892fe2152d45ea8970bc240e228416"
+COMMAND_TAILS_SHA256 = "61367fe7f79edcd6199b12245075e5739499e730747f28f5b0eec6a58b8fff17"
 
 
 def _user_markdown() -> list[tuple[str, str]]:
@@ -130,7 +130,7 @@ class RuntimeCommandPathContractTests(unittest.TestCase):
             expected = f'"$KSRF_SKILLS_ROOT/{CLI_PACKAGES[cli]}/scripts/{cli}"'
             self.assertEqual(program, expected, f"Непереносимый путь: {logical}")
 
-        self.assertEqual(len(commands), 56)
+        self.assertEqual(len(commands), 57)
         self.assertEqual(counts, CLI_COUNTS)
 
         offenders = [

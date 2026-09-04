@@ -12,6 +12,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime
 from hashlib import sha256
+import json
 import re
 from typing import Any, Mapping, Protocol, Sequence
 
@@ -47,23 +48,158 @@ _SELECTED_PROOF_FIELDS = frozenset(
 _QUALITY_BINDING_FIELDS = frozenset(
     {"quality_type", "artifact_sha256", "artifact"}
 )
+_FINALIZATION_RECEIPT_BINDING_FIELDS = frozenset(
+    {
+        "quality_type",
+        "artifact_sha256",
+        "artifact",
+        "expected_receipt_sha256",
+    }
+)
 _ALLOWED_QUALITY_TYPES = frozenset(
     {
         "chain_stage_propagation",
         "uncertainty_profile",
-        "coding_reliability",
-        "prefiling_refresh",
         "coding_audit_plan",
-    }
-)
-_REQUIRED_QUALITY_TYPES = frozenset(
-    {
-        "chain_stage_propagation",
-        "uncertainty_profile",
         "coding_reliability",
+        "coding_audit_finalization_receipt",
         "prefiling_refresh",
     }
 )
+_REQUIRED_QUALITY_TYPES = _ALLOWED_QUALITY_TYPES
+_CODING_RELIABILITY_FIELDS = frozenset(
+    {
+        "schema_version",
+        "audit_plan_input_sha256",
+        "audit_plan_sha256",
+        "audit_plan_frozen",
+        "audit_plan_contract_valid",
+        "audit_plan_digest_valid",
+        "primary_coding_sha256",
+        "current_primary_coding_sha256",
+        "audit_decisions_sha256",
+        "adjudications_sha256",
+        "required_candidate_ids",
+        "audited_candidate_ids",
+        "missing_candidate_ids",
+        "same_reviewer_candidate_ids",
+        "invalid_binding_candidate_ids",
+        "invalid_provenance_candidate_ids",
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "invalid_audit_record_ids",
+        "invalid_adjudication_record_ids",
+        "field_disagreements",
+        "false_exclusion_diagnostics",
+        "unresolved_candidate_ids",
+        "stale",
+        "complete",
+        "evidence_sha256",
+    }
+)
+_CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "producer",
+        "bundle_contract_version",
+        "plan_sha256",
+        "audit_plan_sha256",
+        "codebook_version",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_present",
+        "resolutions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "candidate_ids",
+        "required_difference_pairs",
+        "resolved_candidate_ids",
+        "resolved_field_populations",
+        "final_coding_sha256",
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "quote_locator_review_declared",
+        "quote_locator_verified",
+        "reliability_complete",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+        "receipt_sha256",
+    }
+)
+_CODING_RELIABILITY_ORIGIN_FIELDS = frozenset(
+    {
+        "status",
+        "reason_codes",
+        "expected_receipt_sha256",
+        "reliability_contract_valid",
+        "receipt_contract_valid",
+        "receipt_self_digest_valid",
+        "external_receipt_digest_valid",
+        "reliability_file_digest_valid",
+        "audit_plan_digest_valid",
+        "candidate_population_valid",
+        "usable_for_claim",
+    }
+)
+_AUDITED_CODING_FIELDS = frozenset(
+    {
+        "label",
+        "speaker",
+        "norm_edition_id",
+        "reading_family",
+        "relation",
+        "reasoning_to_outcome",
+        "alternative_grounds",
+        "remedy",
+    }
+)
+_CODING_REVIEW_DIFFERENCE_FIELD_ORDER = (
+    "label",
+    "speaker",
+    "norm_edition_id",
+    "reading_family",
+    "relation",
+    "reasoning_to_outcome",
+    "alternative_grounds",
+    "remedy",
+    "proposition",
+    "quote",
+    "quote_locator",
+    "material_facts",
+)
+_CODING_REVIEW_DIFFERENCE_FIELDS = frozenset(
+    _CODING_REVIEW_DIFFERENCE_FIELD_ORDER
+)
+_EXCLUSION_LABELS = frozenset(
+    {
+        "party_only",
+        "mentioned_only",
+        "quoted_not_adopted",
+        "false_positive",
+        "unclear",
+    }
+)
+_SUBSTANTIVE_LABELS = frozenset({"core_merits", "contextual"})
 _CLAIM_STATES = (
     "not_required",
     "required",
@@ -127,6 +263,7 @@ _PRACTICE_STATE_FIELDS = frozenset(
         "wording_review_event_sha256",
         "wording_reviewed_at",
         "result_import_event_sha256",
+        "expected_finalization_receipt_sha256",
         "result_imported_at",
         "result_source_sha256",
         "result_created_at",
@@ -153,6 +290,7 @@ _READY_BINDING_FIELDS = (
     "wording_review_event_sha256",
     "wording_reviewed_at",
     "result_import_event_sha256",
+    "expected_finalization_receipt_sha256",
     "result_imported_at",
     "result_source_sha256",
     "result_created_at",
@@ -384,6 +522,475 @@ def _canonical_identifier(value: Any) -> str:
         return ""
     normalized = " ".join(value.split())
     return value if value and value == normalized and "\x00" not in value else ""
+
+
+def _safe_digest(value: Any) -> str | None:
+    try:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return None
+    return sha256(payload).hexdigest()
+
+
+def _canonical_json_file_sha256(value: Any) -> str | None:
+    """Hash the finalizer's canonical JSON file bytes, including exactly one LF."""
+
+    try:
+        payload = (
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return None
+    return sha256(payload).hexdigest()
+
+
+def _canonical_identifier_list(value: Any, *, allow_empty: bool) -> bool:
+    return (
+        isinstance(value, list)
+        and (allow_empty or bool(value))
+        and all(bool(_canonical_identifier(item)) for item in value)
+        and len(value) == len(set(value))
+    )
+
+
+def _coding_audit_plan_contract_valid(value: Any, *, plan_sha256: Any) -> bool:
+    fields = frozenset(
+        {
+            "schema_version",
+            "plan_sha256",
+            "screening_sha256",
+            "primary_coding_sha256",
+            "selection_method",
+            "sample_size",
+            "exclusion_sample_size",
+            "sample_candidate_ids",
+            "exclusion_sample_candidate_ids",
+            "required_candidate_ids",
+            "invalid_screening_record_ids",
+            "invalid_primary_record_ids",
+            "frozen",
+            "audit_plan_sha256",
+        }
+    )
+    if not isinstance(value, Mapping) or frozenset(value) != fields:
+        return False
+    unsigned = {key: item for key, item in value.items() if key != "audit_plan_sha256"}
+    sample = value.get("sample_candidate_ids")
+    exclusion = value.get("exclusion_sample_candidate_ids")
+    required = value.get("required_candidate_ids")
+    sample_size = value.get("sample_size")
+    exclusion_size = value.get("exclusion_sample_size")
+    return (
+        value.get("schema_version") == "1.0"
+        and value.get("plan_sha256") == plan_sha256
+        and isinstance(plan_sha256, str)
+        and bool(_SHA256_RE.fullmatch(plan_sha256))
+        and isinstance(value.get("screening_sha256"), str)
+        and bool(_SHA256_RE.fullmatch(value["screening_sha256"]))
+        and isinstance(value.get("primary_coding_sha256"), str)
+        and bool(_SHA256_RE.fullmatch(value["primary_coding_sha256"]))
+        and value.get("selection_method") == "canonical_sha256_rank"
+        and isinstance(sample_size, int)
+        and not isinstance(sample_size, bool)
+        and sample_size >= 0
+        and isinstance(exclusion_size, int)
+        and not isinstance(exclusion_size, bool)
+        and exclusion_size >= 0
+        and _canonical_identifier_list(sample, allow_empty=True)
+        and _canonical_identifier_list(exclusion, allow_empty=True)
+        and _canonical_identifier_list(required, allow_empty=False)
+        and len(sample) <= sample_size
+        and len(exclusion) <= exclusion_size
+        and set(required) == set(sample) | set(exclusion)
+        and value.get("invalid_screening_record_ids") == []
+        and value.get("invalid_primary_record_ids") == []
+        and value.get("frozen") is True
+        and value.get("audit_plan_sha256") == _safe_digest(unsigned)
+    )
+
+
+def _coding_reliability_contract_valid(value: Any) -> bool:
+    if not isinstance(value, Mapping) or frozenset(value) != _CODING_RELIABILITY_FIELDS:
+        return False
+    unsigned = {key: item for key, item in value.items() if key != "evidence_sha256"}
+    if value.get("evidence_sha256") != _safe_digest(unsigned):
+        return False
+    hash_fields = (
+        "audit_plan_input_sha256",
+        "audit_plan_sha256",
+        "primary_coding_sha256",
+        "current_primary_coding_sha256",
+        "audit_decisions_sha256",
+        "adjudications_sha256",
+    )
+    empty_fields = (
+        "missing_candidate_ids",
+        "same_reviewer_candidate_ids",
+        "invalid_binding_candidate_ids",
+        "invalid_provenance_candidate_ids",
+        "invalid_screening_record_ids",
+        "invalid_primary_record_ids",
+        "invalid_audit_record_ids",
+        "invalid_adjudication_record_ids",
+        "unresolved_candidate_ids",
+    )
+    required = value.get("required_candidate_ids")
+    audited = value.get("audited_candidate_ids")
+    if not (
+        value.get("schema_version") == "1.0"
+        and all(
+            isinstance(value.get(field), str)
+            and bool(_SHA256_RE.fullmatch(value[field]))
+            for field in hash_fields
+        )
+        and value.get("audit_plan_frozen") is True
+        and value.get("audit_plan_contract_valid") is True
+        and value.get("audit_plan_digest_valid") is True
+        and value.get("primary_coding_sha256")
+        == value.get("current_primary_coding_sha256")
+        and _canonical_identifier_list(required, allow_empty=False)
+        and _canonical_identifier_list(audited, allow_empty=False)
+        and set(required) == set(audited)
+        and all(value.get(field) == [] for field in empty_fields)
+        and value.get("stale") is False
+        and value.get("complete") is True
+    ):
+        return False
+    required_ids = set(required)
+    disagreements = value.get("field_disagreements")
+    if not isinstance(disagreements, list):
+        return False
+    disagreement_by_candidate: dict[str, Mapping[str, Any]] = {}
+    for item in disagreements:
+        candidate_id = item.get("candidate_id") if isinstance(item, Mapping) else None
+        fields = item.get("fields") if isinstance(item, Mapping) else None
+        if not (
+            isinstance(item, Mapping)
+            and frozenset(item)
+            == frozenset(
+                {
+                    "candidate_id",
+                    "fields",
+                    "primary_coding_sha256",
+                    "secondary_coding_sha256",
+                    "resolved",
+                    "adjudication_sha256",
+                }
+            )
+            and isinstance(candidate_id, str)
+            and candidate_id in required_ids
+            and str(candidate_id) not in disagreement_by_candidate
+            and _canonical_identifier_list(fields, allow_empty=False)
+            and set(fields).issubset(_AUDITED_CODING_FIELDS)
+            and isinstance(item.get("primary_coding_sha256"), str)
+            and bool(_SHA256_RE.fullmatch(item["primary_coding_sha256"]))
+            and isinstance(item.get("secondary_coding_sha256"), str)
+            and bool(_SHA256_RE.fullmatch(item["secondary_coding_sha256"]))
+            and item.get("resolved") is True
+            and isinstance(item.get("adjudication_sha256"), str)
+            and bool(_SHA256_RE.fullmatch(item["adjudication_sha256"]))
+        ):
+            return False
+        disagreement_by_candidate[str(candidate_id)] = item
+    empty_adjudications_sha256 = _safe_digest([])
+    if (
+        (not disagreements and value.get("adjudications_sha256") != empty_adjudications_sha256)
+        or (disagreements and value.get("adjudications_sha256") == empty_adjudications_sha256)
+    ):
+        return False
+    false_exclusions = value.get("false_exclusion_diagnostics")
+    if not isinstance(false_exclusions, list):
+        return False
+    seen_false_exclusions: set[str] = set()
+    for item in false_exclusions:
+        candidate_id = item.get("candidate_id") if isinstance(item, Mapping) else None
+        disagreement = disagreement_by_candidate.get(str(candidate_id))
+        if not (
+            isinstance(item, Mapping)
+            and frozenset(item)
+            == frozenset(
+                {"candidate_id", "primary_label", "secondary_label", "resolved"}
+            )
+            and isinstance(candidate_id, str)
+            and candidate_id in required_ids
+            and str(candidate_id) not in seen_false_exclusions
+            and isinstance(item.get("primary_label"), str)
+            and item.get("primary_label") in _EXCLUSION_LABELS
+            and isinstance(item.get("secondary_label"), str)
+            and item.get("secondary_label") in _SUBSTANTIVE_LABELS
+            and item.get("resolved") is True
+            and disagreement is not None
+            and "label" in disagreement.get("fields", [])
+        ):
+            return False
+        seen_false_exclusions.add(str(candidate_id))
+    return True
+
+
+def _finalization_receipt_contract_valid(value: Any) -> bool:
+    if (
+        not isinstance(value, Mapping)
+        or frozenset(value) != _CODING_AUDIT_FINALIZATION_RECEIPT_FIELDS
+    ):
+        return False
+    unsigned = {key: item for key, item in value.items() if key != "receipt_sha256"}
+    if value.get("receipt_sha256") != _safe_digest(unsigned):
+        return False
+    hash_fields = (
+        "plan_sha256",
+        "audit_plan_sha256",
+        "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256",
+        "audit_plan_file_sha256",
+        "primary_decisions_file_sha256",
+        "review_packet_sha256",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256",
+        "audit_decisions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256",
+        "coding_reliability_file_sha256",
+        "final_coding_sha256",
+    )
+    candidate_ids = value.get("candidate_ids")
+    if not (
+        value.get("schema_version") == "1.0"
+        and value.get("artifact_type") == "coding_audit_finalization_receipt"
+        and value.get("producer")
+        == "judicial_meaning.quality.coding_audit_finalize"
+        and value.get("bundle_contract_version") in {"1.1", "1.2"}
+        and value.get("codebook_version") == "1.0"
+        and all(
+            isinstance(value.get(field), str)
+            and bool(_SHA256_RE.fullmatch(value[field]))
+            for field in hash_fields
+        )
+        and value.get("source_bundle_manifest_sha256")
+        == value.get("expected_source_bundle_manifest_sha256")
+        and value.get("audit_import_receipt_sha256")
+        == value.get("expected_audit_import_receipt_sha256")
+        and _canonical_identifier_list(candidate_ids, allow_empty=False)
+        and all(
+            re.fullmatch(r"audit-candidate-sha256:[0-9a-f]{64}", item)
+            for item in candidate_ids
+        )
+    ):
+        return False
+    pairs = value.get("required_difference_pairs")
+    pair_values: list[tuple[str, str]] = []
+    if not isinstance(pairs, list):
+        return False
+    for item in pairs:
+        if not (
+            isinstance(item, Mapping)
+            and frozenset(item) == frozenset({"candidate_id", "field"})
+            and item.get("candidate_id") in candidate_ids
+            and isinstance(item.get("field"), str)
+            and item.get("field") in _CODING_REVIEW_DIFFERENCE_FIELDS
+        ):
+            return False
+        pair_values.append((str(item["candidate_id"]), str(item["field"])))
+    pair_set = set(pair_values)
+    expected_pairs = [
+        {"candidate_id": candidate_id, "field": field}
+        for candidate_id in candidate_ids
+        for field in _CODING_REVIEW_DIFFERENCE_FIELD_ORDER
+        if (candidate_id, field) in pair_set
+    ]
+    expected_resolved_ids = [
+        candidate_id
+        for candidate_id in candidate_ids
+        if any(item["candidate_id"] == candidate_id for item in expected_pairs)
+    ]
+    expected_populations = [
+        {
+            "candidate_id": candidate_id,
+            "fields": [
+                item["field"]
+                for item in expected_pairs
+                if item["candidate_id"] == candidate_id
+            ],
+        }
+        for candidate_id in expected_resolved_ids
+    ]
+    resolutions_present = value.get("resolutions_present")
+    resolutions_file_sha256 = value.get("resolutions_file_sha256")
+    true_fields = (
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "reliability_complete",
+    )
+    false_fields = (
+        "quote_locator_verified",
+        "source_workspace_reverified",
+        "reviewer_identity_authenticated",
+        "human_review_authenticated",
+        "independence_verified",
+        "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe",
+        "legal_readiness",
+    )
+    return (
+        len(pair_values) == len(pair_set)
+        and pairs == expected_pairs
+        and value.get("resolved_candidate_ids") == expected_resolved_ids
+        and value.get("resolved_field_populations") == expected_populations
+        and isinstance(resolutions_present, bool)
+        and resolutions_present is bool(expected_pairs)
+        and (
+            (resolutions_present and isinstance(resolutions_file_sha256, str)
+             and bool(_SHA256_RE.fullmatch(resolutions_file_sha256)))
+            or (not resolutions_present and resolutions_file_sha256 is None)
+        )
+        and value.get("resolutions_state_sha256")
+        == _safe_digest(
+            {"present": resolutions_present, "file_sha256": resolutions_file_sha256}
+        )
+        and value.get("quote_locator_review_declared") is bool(expected_pairs)
+        and all(value.get(field) is True for field in true_fields)
+        and all(value.get(field) is False for field in false_fields)
+    )
+
+
+def _native_quality_binding_errors(
+    value: Any,
+    *,
+    expected_receipt_sha256: Any,
+    plan_sha256: Any,
+) -> list[str]:
+    errors: list[str] = []
+    if not (
+        isinstance(expected_receipt_sha256, str)
+        and _SHA256_RE.fullmatch(expected_receipt_sha256)
+    ):
+        errors.append("practice_native_reliability_anchor_missing")
+    if not isinstance(value, list):
+        return _unique([*errors, "practice_native_quality_bindings_invalid"])
+    by_type: dict[str, Mapping[str, Any]] = {}
+    for binding in value:
+        if not isinstance(binding, Mapping):
+            errors.append("practice_native_quality_binding_shape_invalid")
+            continue
+        quality_type = binding.get("quality_type")
+        expected_fields = (
+            _FINALIZATION_RECEIPT_BINDING_FIELDS
+            if quality_type == "coding_audit_finalization_receipt"
+            else _QUALITY_BINDING_FIELDS
+        )
+        if frozenset(binding) != expected_fields:
+            errors.append("practice_native_quality_binding_shape_invalid")
+            continue
+        if (
+            not isinstance(quality_type, str)
+            or quality_type not in _REQUIRED_QUALITY_TYPES
+            or quality_type in by_type
+        ):
+            errors.append("practice_native_quality_binding_population_invalid")
+            continue
+        artifact = binding.get("artifact")
+        if (
+            not isinstance(artifact, Mapping)
+            or binding.get("artifact_sha256") != _safe_digest(artifact)
+        ):
+            errors.append("practice_native_quality_binding_digest_invalid")
+            continue
+        by_type[str(quality_type)] = binding
+    if set(by_type) != set(_REQUIRED_QUALITY_TYPES) or len(value) != len(
+        _REQUIRED_QUALITY_TYPES
+    ):
+        errors.append("practice_native_quality_binding_population_invalid")
+    audit_plan_binding = by_type.get("coding_audit_plan")
+    reliability_binding = by_type.get("coding_reliability")
+    receipt_binding = by_type.get("coding_audit_finalization_receipt")
+    profile_binding = by_type.get("uncertainty_profile")
+    if not all(
+        (audit_plan_binding, reliability_binding, receipt_binding, profile_binding)
+    ):
+        return _unique(errors)
+    audit_plan = audit_plan_binding["artifact"]
+    reliability = reliability_binding["artifact"]
+    receipt = receipt_binding["artifact"]
+    profile = profile_binding["artifact"]
+    if not _coding_audit_plan_contract_valid(audit_plan, plan_sha256=plan_sha256):
+        errors.append("practice_native_audit_plan_invalid")
+    if not _coding_reliability_contract_valid(reliability):
+        errors.append("practice_native_coding_reliability_invalid")
+    if not _finalization_receipt_contract_valid(receipt):
+        errors.append("practice_native_finalization_receipt_invalid")
+    transported_expected = receipt_binding.get("expected_receipt_sha256")
+    if transported_expected != expected_receipt_sha256:
+        errors.append("practice_native_reliability_anchor_mismatch")
+    if receipt.get("receipt_sha256") != transported_expected:
+        errors.append("practice_native_finalization_receipt_digest_mismatch")
+    if receipt.get("coding_reliability_file_sha256") != _canonical_json_file_sha256(
+        reliability
+    ):
+        errors.append("practice_native_coding_reliability_file_digest_mismatch")
+    if (
+        reliability.get("audit_plan_input_sha256") != _safe_digest(audit_plan)
+        or receipt.get("audit_plan_sha256")
+        != reliability.get("audit_plan_sha256")
+        or reliability.get("audit_plan_sha256")
+        != audit_plan.get("audit_plan_sha256")
+        or reliability.get("primary_coding_sha256")
+        != audit_plan.get("primary_coding_sha256")
+    ):
+        errors.append("practice_native_audit_plan_binding_mismatch")
+    if (
+        receipt.get("candidate_ids")
+        != reliability.get("required_candidate_ids")
+        or reliability.get("required_candidate_ids")
+        != audit_plan.get("required_candidate_ids")
+    ):
+        errors.append("practice_native_candidate_population_mismatch")
+    if receipt.get("plan_sha256") != plan_sha256:
+        errors.append("practice_native_current_plan_mismatch")
+    origin = profile.get("coding_reliability_origin")
+    input_sha256s = profile.get("input_sha256s")
+    origin_valid = (
+        isinstance(origin, Mapping)
+        and frozenset(origin) == _CODING_RELIABILITY_ORIGIN_FIELDS
+        and origin.get("status") == "native_finalization_bound"
+        and origin.get("reason_codes") == []
+        and origin.get("expected_receipt_sha256") == transported_expected
+        and all(
+            origin.get(field) is True
+            for field in _CODING_RELIABILITY_ORIGIN_FIELDS
+            - {"status", "reason_codes", "expected_receipt_sha256"}
+        )
+    )
+    if not (
+        origin_valid
+        and isinstance(input_sha256s, Mapping)
+        and input_sha256s.get("coding_reliability")
+        == reliability_binding.get("artifact_sha256")
+        and input_sha256s.get("coding_audit_finalization_receipt")
+        == receipt_binding.get("artifact_sha256")
+        and input_sha256s.get("expected_finalization_receipt_sha256")
+        == transported_expected
+    ):
+        errors.append("practice_native_uncertainty_profile_origin_mismatch")
+    return _unique(errors)
 
 
 def _exact_text(value: Any) -> str:
@@ -674,6 +1281,7 @@ def _validate_practice_state(
         "fingerprint_sha256",
         "wording_review_event_sha256",
         "result_import_event_sha256",
+        "expected_finalization_receipt_sha256",
         "result_source_sha256",
         "attachment_event_sha256",
         "trust_anchor_sha256",
@@ -1209,14 +1817,20 @@ def _validate_result_proof_bundle(
         if not isinstance(binding, Mapping):
             errors.append(f"practice_result_quality_binding_invalid:{ordinal}")
             continue
+        quality_type_value = binding.get("quality_type")
+        expected_binding_fields = (
+            _FINALIZATION_RECEIPT_BINDING_FIELDS
+            if quality_type_value == "coding_audit_finalization_receipt"
+            else _QUALITY_BINDING_FIELDS
+        )
         errors.extend(
             _exact_mapping_keys(
                 binding,
-                _QUALITY_BINDING_FIELDS,
+                expected_binding_fields,
                 label=f"practice_result_quality_binding:{ordinal}",
             )
         )
-        quality_type = _canonical_identifier(binding.get("quality_type"))
+        quality_type = _canonical_identifier(quality_type_value)
         if quality_type not in _ALLOWED_QUALITY_TYPES:
             errors.append(f"practice_result_quality_type_invalid:{ordinal}")
         elif quality_type in seen_quality:
@@ -1500,6 +2114,15 @@ def _validate_result(
             payload=payload,
             result=value,
             bindings=bindings,
+        )
+    )
+    errors.extend(
+        _native_quality_binding_errors(
+            payload.get("quality_bindings"),
+            expected_receipt_sha256=state.get(
+                "expected_finalization_receipt_sha256"
+            ),
+            plan_sha256=value.get("plan_sha256"),
         )
     )
     return selected, _unique(errors)

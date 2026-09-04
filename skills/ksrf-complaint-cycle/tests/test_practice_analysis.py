@@ -57,6 +57,166 @@ def _digest(value: object) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _canonical_json_file_sha256(value: object) -> str:
+    return hashlib.sha256(_canonical_bytes(value) + b"\n").hexdigest()
+
+
+def _native_quality_bindings(
+    *, plan_sha256: str = "3" * 64
+) -> tuple[list[dict], str]:
+    candidate_id = "audit-candidate-sha256:" + "1" * 64
+    audit_plan_payload = {
+        "schema_version": "1.0",
+        "plan_sha256": plan_sha256,
+        "screening_sha256": "1" * 64,
+        "primary_coding_sha256": "2" * 64,
+        "selection_method": "canonical_sha256_rank",
+        "sample_size": 1,
+        "exclusion_sample_size": 0,
+        "sample_candidate_ids": [candidate_id],
+        "exclusion_sample_candidate_ids": [],
+        "required_candidate_ids": [candidate_id],
+        "invalid_screening_record_ids": [],
+        "invalid_primary_record_ids": [],
+        "frozen": True,
+    }
+    audit_plan = {
+        **audit_plan_payload,
+        "audit_plan_sha256": _digest(audit_plan_payload),
+    }
+    reliability_payload = {
+        "schema_version": "1.0",
+        "audit_plan_input_sha256": _digest(audit_plan),
+        "audit_plan_sha256": audit_plan["audit_plan_sha256"],
+        "audit_plan_frozen": True,
+        "audit_plan_contract_valid": True,
+        "audit_plan_digest_valid": True,
+        "primary_coding_sha256": audit_plan["primary_coding_sha256"],
+        "current_primary_coding_sha256": audit_plan["primary_coding_sha256"],
+        "required_candidate_ids": [candidate_id],
+        "audit_decisions_sha256": "9" * 64,
+        "adjudications_sha256": _digest([]),
+        "audited_candidate_ids": [candidate_id],
+        "missing_candidate_ids": [],
+        "same_reviewer_candidate_ids": [],
+        "invalid_binding_candidate_ids": [],
+        "invalid_provenance_candidate_ids": [],
+        "invalid_screening_record_ids": [],
+        "invalid_primary_record_ids": [],
+        "invalid_audit_record_ids": [],
+        "invalid_adjudication_record_ids": [],
+        "field_disagreements": [],
+        "false_exclusion_diagnostics": [],
+        "unresolved_candidate_ids": [],
+        "stale": False,
+        "complete": True,
+    }
+    reliability = {
+        **reliability_payload,
+        "evidence_sha256": _digest(reliability_payload),
+    }
+    receipt_payload = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_finalization_receipt",
+        "producer": "judicial_meaning.quality.coding_audit_finalize",
+        "bundle_contract_version": "1.1",
+        "plan_sha256": plan_sha256,
+        "audit_plan_sha256": audit_plan["audit_plan_sha256"],
+        "codebook_version": "1.0",
+        "source_bundle_manifest_sha256": "1" * 64,
+        "expected_source_bundle_manifest_sha256": "1" * 64,
+        "source_bundle_manifest_file_sha256": "2" * 64,
+        "audit_plan_file_sha256": "3" * 64,
+        "primary_decisions_file_sha256": "4" * 64,
+        "review_packet_sha256": "5" * 64,
+        "codebook_sha256": "6" * 64,
+        "coding_brief_file_sha256": "7" * 64,
+        "audit_import_receipt_sha256": "8" * 64,
+        "expected_audit_import_receipt_sha256": "8" * 64,
+        "audit_import_receipt_file_sha256": "9" * 64,
+        "audit_decisions_file_sha256": "a" * 64,
+        "resolutions_present": False,
+        "resolutions_file_sha256": None,
+        "resolutions_state_sha256": _digest(
+            {"present": False, "file_sha256": None}
+        ),
+        "resolved_review_decisions_file_sha256": "c" * 64,
+        "adjudications_file_sha256": "d" * 64,
+        "coding_reliability_file_sha256": _canonical_json_file_sha256(
+            reliability
+        ),
+        "candidate_ids": [candidate_id],
+        "required_difference_pairs": [],
+        "resolved_candidate_ids": [],
+        "resolved_field_populations": [],
+        "final_coding_sha256": "e" * 64,
+        "difference_resolution_bijection_verified": True,
+        "final_quote_literal_presence_verified": True,
+        "final_quote_normalized_presence_verified": True,
+        "quote_locator_review_declared": False,
+        "quote_locator_verified": False,
+        "reliability_complete": True,
+        "source_workspace_reverified": False,
+        "reviewer_identity_authenticated": False,
+        "human_review_authenticated": False,
+        "independence_verified": False,
+        "receipt_authenticated": False,
+        "norm_edition_temporal_applicability_verified": False,
+        "publication_safe": False,
+        "legal_readiness": False,
+    }
+    receipt = {
+        **receipt_payload,
+        "receipt_sha256": _digest(receipt_payload),
+    }
+    expected_receipt_sha256 = receipt["receipt_sha256"]
+    profile = {
+        "quality_type": "uncertainty_profile",
+        "coding_reliability_origin": {
+            "status": "native_finalization_bound",
+            "reason_codes": [],
+            "expected_receipt_sha256": expected_receipt_sha256,
+            "reliability_contract_valid": True,
+            "receipt_contract_valid": True,
+            "receipt_self_digest_valid": True,
+            "external_receipt_digest_valid": True,
+            "reliability_file_digest_valid": True,
+            "audit_plan_digest_valid": True,
+            "candidate_population_valid": True,
+            "usable_for_claim": True,
+        },
+        "input_sha256s": {
+            "coding_reliability": _digest(reliability),
+            "coding_audit_finalization_receipt": _digest(receipt),
+            "expected_finalization_receipt_sha256": expected_receipt_sha256,
+        },
+    }
+    artifacts = (
+        ("chain_stage_propagation", {"quality_type": "chain_stage_propagation"}),
+        ("uncertainty_profile", profile),
+        ("coding_audit_plan", audit_plan),
+        ("coding_reliability", reliability),
+        ("prefiling_refresh", {"quality_type": "prefiling_refresh"}),
+    )
+    bindings = [
+        {
+            "quality_type": quality_type,
+            "artifact_sha256": _digest(artifact),
+            "artifact": artifact,
+        }
+        for quality_type, artifact in artifacts
+    ]
+    bindings.append(
+        {
+            "quality_type": "coding_audit_finalization_receipt",
+            "artifact_sha256": _digest(receipt),
+            "artifact": receipt,
+            "expected_receipt_sha256": expected_receipt_sha256,
+        }
+    )
+    return bindings, expected_receipt_sha256
+
+
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -156,7 +316,27 @@ print(json.dumps({'valid': True, 'status': 'imported'}))
             self.workspace,
             result_path,
             request_id=request["handoff_id"],
+            expected_finalization_receipt_sha256=(
+                self.expected_finalization_receipt_sha256
+            ),
             now="2026-08-27T11:02:00Z",
+        )
+
+    def import_v2_result(
+        self,
+        result_path: Path,
+        *,
+        request_id: str,
+        **kwargs: object,
+    ) -> dict:
+        return practice.import_result(
+            self.workspace,
+            result_path,
+            request_id=request_id,
+            expected_finalization_receipt_sha256=(
+                self.expected_finalization_receipt_sha256
+            ),
+            **kwargs,
         )
 
     def valid_v2_result(self, request: dict) -> dict:
@@ -243,21 +423,10 @@ print(json.dumps({'valid': True, 'status': 'imported'}))
                 "normative_bridge_sha256": _digest(bridge),
             }
         )
-        quality_bindings = []
-        for quality_type in (
-            "chain_stage_propagation",
-            "uncertainty_profile",
-            "coding_reliability",
-            "prefiling_refresh",
-        ):
-            artifact = {"quality_type": quality_type}
-            quality_bindings.append(
-                {
-                    "quality_type": quality_type,
-                    "artifact_sha256": _digest(artifact),
-                    "artifact": artifact,
-                }
-            )
+        quality_bindings, expected_receipt_sha256 = _native_quality_bindings(
+            plan_sha256="3" * 64
+        )
+        self.expected_finalization_receipt_sha256 = expected_receipt_sha256
         envelope = {
             "schema_version": "2.0",
             "created_at": "2026-08-27T11:00:00Z",
@@ -584,6 +753,151 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         self.assertEqual(state["claims"][0]["state"], "blocked")
         self.assertEqual(state["global_integrity_errors"], [])
 
+    def test_v2_import_requires_independent_finalization_receipt_anchor(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "missing-finalization-anchor.json"
+        _write_json(result_path, result)
+
+        with self.assertRaisesRegex(
+            ValueError, "expected-finalization-receipt-sha256|внешн"
+        ):
+            practice.import_result(
+                self.workspace,
+                result_path,
+                request_id=request["handoff_id"],
+                now="2026-08-27T11:02:00Z",
+            )
+
+        results = self.workspace / "practice-analysis" / "results"
+        self.assertEqual(list(results.glob("*.json")) if results.exists() else [], [])
+
+    def test_import_event_binds_anchor_and_idempotent_mismatch_is_rejected(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "native-result.json"
+        _write_json(result_path, result)
+
+        first = practice.import_result(
+            self.workspace,
+            result_path,
+            request_id=request["handoff_id"],
+            expected_finalization_receipt_sha256=(
+                self.expected_finalization_receipt_sha256
+            ),
+            now="2026-08-27T11:02:00Z",
+        )
+
+        self.assertEqual(
+            first["expected_finalization_receipt_sha256"],
+            self.expected_finalization_receipt_sha256,
+        )
+        with self.assertRaisesRegex(ValueError, "не совпадает|внешн"):
+            practice.import_result(
+                self.workspace,
+                result_path,
+                request_id=request["handoff_id"],
+                expected_finalization_receipt_sha256="f" * 64,
+                now="2026-08-27T11:03:00Z",
+            )
+        events = practice.read_jsonl(
+            self.workspace / "practice-analysis" / "result-imports.jsonl"
+        )
+        self.assertEqual(len(events), 1)
+
+    def test_state_rechecks_import_event_anchor_against_native_binding(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "native-state-result.json"
+        _write_json(result_path, result)
+        practice.import_result(
+            self.workspace,
+            result_path,
+            request_id=request["handoff_id"],
+            expected_finalization_receipt_sha256=(
+                self.expected_finalization_receipt_sha256
+            ),
+            now="2026-08-27T11:02:00Z",
+        )
+        events_path = (
+            self.workspace / "practice-analysis" / "result-imports.jsonl"
+        )
+        event = practice.read_jsonl(events_path)[0]
+        event["expected_finalization_receipt_sha256"] = "f" * 64
+        event["event_sha256"] = _digest(
+            {key: value for key, value in event.items() if key != "event_sha256"}
+        )
+        events_path.write_text(
+            json.dumps(event, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        _write_json(
+            practice._ledger_checkpoint_path(events_path),
+            {
+                "schema_version": "1.0",
+                "ledger_id": event["ledger_id"],
+                "record_count": 1,
+                "head_event_sha256": event["event_sha256"],
+            },
+        )
+
+        state = practice.derive_state(self.workspace, stage="drafting")
+
+        self.assertEqual(state["claims"][0]["state"], "stale")
+        self.assertIn(
+            "finalization_receipt_anchor_mismatch",
+            state["claims"][0]["blocking_reasons"],
+        )
+
+    def test_release16_v2_event_without_anchor_remains_audit_readable(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result_path = self.root / "release16-result.json"
+        _write_json(result_path, result)
+        self.import_v2_result(
+            result_path,
+            request_id=request["handoff_id"],
+            now="2026-08-27T11:02:00Z",
+        )
+        events_path = self.workspace / "practice-analysis" / "result-imports.jsonl"
+        event = practice.read_jsonl(events_path)[0]
+        event.pop("expected_finalization_receipt_sha256")
+        event["event_sha256"] = _digest(
+            {key: value for key, value in event.items() if key != "event_sha256"}
+        )
+        events_path.write_text(
+            json.dumps(event, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        _write_json(
+            practice._ledger_checkpoint_path(events_path),
+            {
+                "schema_version": "1.0",
+                "ledger_id": event["ledger_id"],
+                "record_count": 1,
+                "head_event_sha256": event["event_sha256"],
+            },
+        )
+
+        state = practice.derive_state(self.workspace, stage="drafting")
+
+        self.assertEqual(state["global_integrity_errors"], [])
+        self.assertEqual(state["claims"][0]["state"], "stale")
+        self.assertIn(
+            "native_reliability_binding_invalid",
+            state["claims"][0]["blocking_reasons"],
+        )
+
     def test_v2_import_checks_request_claim_and_approval_proof_bindings(self) -> None:
         request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
         self.attach_with_fake_sibling(request)
@@ -594,8 +908,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         invalid_path = self.root / "invalid-result.json"
         _write_json(invalid_path, invalid)
         with self.assertRaisesRegex(ValueError, "claim_sha256"):
-            practice.import_result(
-                self.workspace,
+            self.import_v2_result(
                 invalid_path,
                 request_id=request["handoff_id"],
                 now="2026-08-27T11:01:00Z",
@@ -605,8 +918,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
 
         valid_path = self.root / "valid-result.json"
         _write_json(valid_path, valid)
-        imported = practice.import_result(
-            self.workspace,
+        imported = self.import_v2_result(
             valid_path,
             request_id=request["handoff_id"],
             now="2026-08-27T11:02:00Z",
@@ -625,8 +937,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result_path = self.root / "tampered.json"
         _write_json(result_path, result)
         with self.assertRaisesRegex(ValueError, "handoff_id"):
-            practice.import_result(
-                self.workspace,
+            self.import_v2_result(
                 result_path,
                 request_id=request["handoff_id"],
                 now="2026-08-27T11:02:00Z",
@@ -642,8 +953,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result_path = self.root / "inconsistent-proof.json"
         _write_json(result_path, result)
         with self.assertRaisesRegex(ValueError, "normative_bridge_sha256"):
-            practice.import_result(
-                self.workspace,
+            self.import_v2_result(
                 result_path,
                 request_id=request["handoff_id"],
                 now="2026-08-27T11:02:00Z",
@@ -671,8 +981,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
                 result_path = self.root / f"{label}.json"
                 _write_json(result_path, result)
                 with self.assertRaisesRegex(ValueError, error_pattern):
-                    practice.import_result(
-                        self.workspace,
+                    self.import_v2_result(
                         result_path,
                         request_id=request["handoff_id"],
                         now="2026-08-27T11:02:00Z",
@@ -703,8 +1012,8 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result = self.valid_v2_result(request)
         result_path = self.root / "result.json"
         _write_json(result_path, result)
-        first = practice.import_result(self.workspace, result_path, request_id=request["handoff_id"])
-        second = practice.import_result(self.workspace, result_path, request_id=request["handoff_id"])
+        first = self.import_v2_result(result_path, request_id=request["handoff_id"])
+        second = self.import_v2_result(result_path, request_id=request["handoff_id"])
         self.assertEqual(first["status"], "imported")
         self.assertEqual(second["status"], "idempotent_noop")
         events = practice.read_jsonl(
@@ -717,8 +1026,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result = self.valid_v2_result(request)
         result_path = self.root / "unanchored.json"
         _write_json(result_path, result)
-        imported = practice.import_result(
-            self.workspace,
+        imported = self.import_v2_result(
             result_path,
             request_id=request["handoff_id"],
         )
@@ -733,8 +1041,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result = self.valid_v2_result(request)
         result_path = self.root / "anchored.json"
         _write_json(result_path, result)
-        imported = practice.import_result(
-            self.workspace,
+        imported = self.import_v2_result(
             result_path,
             request_id=request["handoff_id"],
         )
@@ -789,8 +1096,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
                 path = self.root / f"{label}.json"
                 _write_json(path, result)
                 with self.assertRaisesRegex(ValueError, pattern):
-                    practice.import_result(
-                        self.workspace,
+                    self.import_v2_result(
                         path,
                         request_id=request["handoff_id"],
                     )
@@ -801,7 +1107,7 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         result = self.valid_v2_result(request)
         path = self.root / "result.json"
         _write_json(path, result)
-        practice.import_result(self.workspace, path, request_id=request["handoff_id"])
+        self.import_v2_result(path, request_id=request["handoff_id"])
         stored = self.workspace / "practice-analysis" / "results" / f"{result['handoff_id']}.json"
         stored.unlink()
         state = practice.derive_state(self.workspace, stage="drafting")
@@ -828,51 +1134,182 @@ class TestRequestAttachAndImport(PracticeAnalysisTestCase):
         request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
         self.attach_with_fake_sibling(request)
         result = self.valid_v2_result(request)
-        required_types = (
+        required_types = {
             "chain_stage_propagation",
             "uncertainty_profile",
             "coding_audit_plan",
             "coding_reliability",
             "prefiling_refresh",
-        )
-        result["payload"]["quality_bindings"] = [
-            {
-                "quality_type": quality_type,
-                "artifact_sha256": _digest(artifact := {"quality_type": quality_type}),
-                "artifact": artifact,
-            }
-            for quality_type in required_types
+            "coding_audit_finalization_receipt",
+        }
+        actual_types = [
+            item["quality_type"]
+            for item in result["payload"]["quality_bindings"]
         ]
+        self.assertEqual(len(actual_types), 6)
+        self.assertEqual(set(actual_types), required_types)
         result = _sign_envelope(result)
         path = self.root / "quality-result.json"
         _write_json(path, result)
         imported = self.import_with_attached_source(request, path)
         self.assertTrue(imported["eligible_for_drafting"])
 
-    def test_quality_binding_with_resigned_wrong_artifact_hash_is_rejected(self) -> None:
-        request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
+    def test_native_quality_binding_population_and_shapes_are_closed(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
         self.attach_with_fake_sibling(request)
-        result = self.valid_v2_result(request)
-        required_types = (
+        required_types = {
             "chain_stage_propagation",
             "uncertainty_profile",
             "coding_audit_plan",
             "coding_reliability",
+            "coding_audit_finalization_receipt",
             "prefiling_refresh",
-        )
-        result["payload"]["quality_bindings"] = [
-            {
-                "quality_type": quality_type,
-                "artifact_sha256": "9" * 64,
-                "artifact": {"quality_type": quality_type},
-            }
-            for quality_type in required_types
-        ]
+        }
+        for missing_type in sorted(required_types):
+            with self.subTest(missing_type=missing_type):
+                result = self.valid_v2_result(request)
+                result["payload"]["quality_bindings"] = [
+                    binding
+                    for binding in result["payload"]["quality_bindings"]
+                    if binding["quality_type"] != missing_type
+                ]
+                result = _sign_envelope(result)
+                path = self.root / f"quality-missing-{missing_type}.json"
+                _write_json(path, result)
+                with self.assertRaisesRegex(ValueError, "native|population"):
+                    self.import_v2_result(
+                        path,
+                        request_id=request["handoff_id"],
+                    )
+
+        for label, mutate in (
+            (
+                "receipt-three-fields",
+                lambda bindings: bindings[-1].pop("expected_receipt_sha256"),
+            ),
+            (
+                "ordinary-four-fields",
+                lambda bindings: bindings[0].__setitem__(
+                    "expected_receipt_sha256", "f" * 64
+                ),
+            ),
+            (
+                "duplicate",
+                lambda bindings: bindings.append(json.loads(json.dumps(bindings[0]))),
+            ),
+        ):
+            with self.subTest(label=label):
+                result = self.valid_v2_result(request)
+                mutate(result["payload"]["quality_bindings"])
+                result = _sign_envelope(result)
+                path = self.root / f"quality-shape-{label}.json"
+                _write_json(path, result)
+                with self.assertRaisesRegex(ValueError, "native|shape|population"):
+                    self.import_v2_result(
+                        path,
+                        request_id=request["handoff_id"],
+                    )
+
+    def test_quality_binding_with_resigned_wrong_artifact_hash_is_rejected(self) -> None:
+        request = practice.create_request(self.workspace, now="2026-08-27T10:10:00Z")
+        self.attach_with_fake_sibling(request)
+        result = self.valid_v2_result(request)
+        result["payload"]["quality_bindings"][0]["artifact_sha256"] = "9" * 64
         result = _sign_envelope(result)
         path = self.root / "quality-result-tampered.json"
         _write_json(path, result)
         with self.assertRaisesRegex(ValueError, "artifact_sha256"):
             self.import_with_attached_source(request, path)
+
+    def test_native_validation_is_total_for_unhashable_json_values(self) -> None:
+        request = practice.create_request(
+            self.workspace, now="2026-08-27T10:10:00Z"
+        )
+        self.attach_with_fake_sibling(request)
+
+        def mutate_disagreement_candidate(result: dict) -> None:
+            reliability = result["payload"]["quality_bindings"][3]["artifact"]
+            reliability["field_disagreements"] = [
+                {
+                    "candidate_id": {},
+                    "fields": ["label"],
+                    "primary_coding_sha256": "1" * 64,
+                    "secondary_coding_sha256": "2" * 64,
+                    "resolved": True,
+                    "adjudication_sha256": "3" * 64,
+                }
+            ]
+            reliability["adjudications_sha256"] = "4" * 64
+
+        def mutate_false_exclusion_candidate(result: dict) -> None:
+            reliability = result["payload"]["quality_bindings"][3]["artifact"]
+            candidate_id = reliability["required_candidate_ids"][0]
+            reliability["field_disagreements"] = [
+                {
+                    "candidate_id": candidate_id,
+                    "fields": ["label"],
+                    "primary_coding_sha256": "1" * 64,
+                    "secondary_coding_sha256": "2" * 64,
+                    "resolved": True,
+                    "adjudication_sha256": "3" * 64,
+                }
+            ]
+            reliability["adjudications_sha256"] = "4" * 64
+            reliability["false_exclusion_diagnostics"] = [
+                {
+                    "candidate_id": {},
+                    "primary_label": "party_only",
+                    "secondary_label": "core_merits",
+                    "resolved": True,
+                }
+            ]
+
+        for label, mutate in (
+            (
+                "quality-type",
+                lambda result: result["payload"]["quality_bindings"][0].__setitem__(
+                    "quality_type", {}
+                ),
+            ),
+            (
+                "candidate-list",
+                lambda result: result["payload"]["quality_bindings"][3][
+                    "artifact"
+                ].__setitem__("required_candidate_ids", [{}]),
+            ),
+            ("field-disagreement-candidate", mutate_disagreement_candidate),
+            ("false-exclusion-candidate", mutate_false_exclusion_candidate),
+        ):
+            with self.subTest(label=label):
+                result = self.valid_v2_result(request)
+                mutate(result)
+                if label in {
+                    "candidate-list",
+                    "field-disagreement-candidate",
+                    "false-exclusion-candidate",
+                }:
+                    binding = result["payload"]["quality_bindings"][3]
+                    reliability = binding["artifact"]
+                    reliability["evidence_sha256"] = _digest(
+                        {
+                            key: value
+                            for key, value in reliability.items()
+                            if key != "evidence_sha256"
+                        }
+                    )
+                    binding["artifact_sha256"] = _digest(reliability)
+                result = _sign_envelope(result)
+                path = self.root / f"hostile-{label}.json"
+                _write_json(path, result)
+
+                with self.assertRaises(ValueError) as raised:
+                    self.import_v2_result(
+                        path,
+                        request_id=request["handoff_id"],
+                    )
+                self.assertNotIn("{}", str(raised.exception))
 
 
 class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
@@ -907,8 +1344,7 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
         self.finding_id = self.result["payload"]["findings"][0]["finding_id"]
         self.result_path = self.root / "result.json"
         _write_json(self.result_path, self.result)
-        practice.import_result(
-            self.workspace,
+        self.import_v2_result(
             self.result_path,
             request_id=self.request["handoff_id"],
             now="2026-08-27T11:02:00Z",
@@ -1061,8 +1497,44 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
             official_check_ref="Официальные источники и corpus cutoff перепроверены.",
             now="2026-08-27T11:10:00Z",
         )
-        filing_after = practice.validate_workspace(self.workspace, stage="filing")
+        filing_after = practice.validate_workspace(
+            self.workspace,
+            stage="filing",
+            now="2026-08-27T11:10:00Z",
+        )
         self.assertTrue(filing_after["valid"])
+
+    def test_release16_refresh_binding_without_anchor_is_audit_readable(self) -> None:
+        self.review_within_limit()
+        refresh = practice.record_refresh(
+            self.workspace,
+            as_of="2026-08-27",
+            reviewer="И.И. Иванов",
+            official_check_ref="Проверено.",
+            now="2026-08-27T11:10:00Z",
+        )
+        historical = json.loads(json.dumps(refresh))
+        historical["ready_claim_bindings"][0].pop(
+            "expected_finalization_receipt_sha256"
+        )
+        historical["ready_claim_set_sha256"] = _digest(
+            historical["ready_claim_bindings"]
+        )
+        historical["event_sha256"] = _digest(
+            {
+                key: value
+                for key, value in historical.items()
+                if key != "event_sha256"
+            }
+        )
+
+        self.assertIsNone(
+            practice._event_structure_error(
+                historical,
+                "refreshes.jsonl",
+                1,
+            )
+        )
 
     def test_current_filing_claim_projection_reopens_exact_ready_material(self) -> None:
         self.review_within_limit()
@@ -1372,7 +1844,13 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
             corpus_cutoff="2026-08-27",
             now="2026-08-27T11:10:00Z",
         )
-        self.assertTrue(practice.validate_workspace(self.workspace, stage="filing")["valid"])
+        self.assertTrue(
+            practice.validate_workspace(
+                self.workspace,
+                stage="filing",
+                now="2026-08-27T11:10:00Z",
+            )["valid"]
+        )
 
     def test_changed_claim_does_not_block_independent_claim_in_shared_result(self) -> None:
         # The direct claim is made practice-dependent and the shared result is rebound to both.
@@ -1387,7 +1865,7 @@ class TestWordingStagesAndRefresh(PracticeAnalysisTestCase):
         result = self.valid_v2_result(request)
         result_path = self.root / "shared.json"
         _write_json(result_path, result)
-        practice.import_result(self.workspace, result_path, request_id=request["handoff_id"])
+        self.import_v2_result(result_path, request_id=request["handoff_id"])
         finding_id = result["payload"]["findings"][0]["finding_id"]
         wording_sources: dict[str, Path] = {}
         for claim_id, wording in (
@@ -1544,6 +2022,24 @@ class TestLintSchemaAndCli(PracticeAnalysisTestCase):
         self.assertFalse(schema["$defs"]["practice_request_v2"]["additionalProperties"])
         self.assertFalse(schema["$defs"]["practice_result_v2"]["additionalProperties"])
         self.assertIn("ledger_event", schema["$defs"])
+        quality = schema["$defs"]["practice_result_v2"]["properties"]["payload"][
+            "properties"
+        ]["quality_bindings"]
+        self.assertEqual((quality["minItems"], quality["maxItems"]), (6, 6))
+        receipt_branch = schema["$defs"]["quality_binding"]["oneOf"][1]
+        self.assertIn("expected_receipt_sha256", receipt_branch["required"])
+        self.assertIn(
+            "expected_finalization_receipt_sha256",
+            schema["$defs"]["gate_claim"]["required"],
+        )
+        self.assertIn(
+            "expected_finalization_receipt_sha256",
+            schema["$defs"]["ready_claim_binding"]["required"],
+        )
+        self.assertNotIn(
+            "expected_finalization_receipt_sha256",
+            schema["$defs"]["historical_ready_claim_binding"]["required"],
+        )
 
     def test_cli_returns_actionable_nonzero_validation_result(self) -> None:
         claims = self.root / "claims.json"

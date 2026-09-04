@@ -273,21 +273,11 @@ def _valid_case() -> tuple[dict[str, Any], dict[str, Any]]:
         "limitations": ["Request не является выводом для жалобы."],
     }
     research_request["handoff_id"] = _digest(research_request)
-    quality_bindings = []
-    for quality_type in (
-        "chain_stage_propagation",
-        "uncertainty_profile",
-        "coding_reliability",
-        "prefiling_refresh",
-    ):
-        artifact = {"quality_type": quality_type}
-        quality_bindings.append(
-            {
-                "quality_type": quality_type,
-                "artifact_sha256": _digest(artifact),
-                "artifact": artifact,
-            }
+    quality_bindings, expected_finalization_receipt_sha256 = (
+        practice_analysis_tests._native_quality_bindings(
+            plan_sha256=candidate["plan_sha256"]
         )
+    )
     result = {
         "schema_version": "2.0",
         "created_at": "2026-09-01T09:30:00Z",
@@ -396,6 +386,9 @@ def _valid_case() -> tuple[dict[str, Any], dict[str, Any]]:
         "wording_review_event_sha256": wording_review["event_sha256"],
         "wording_reviewed_at": wording_review["reviewed_at"],
         "result_import_event_sha256": "3" * 64,
+        "expected_finalization_receipt_sha256": (
+            expected_finalization_receipt_sha256
+        ),
         "result_imported_at": "2026-09-01T09:35:00Z",
         "result_source_sha256": "4" * 64,
         "result_created_at": result["created_at"],
@@ -411,6 +404,7 @@ def _valid_case() -> tuple[dict[str, Any], dict[str, Any]]:
         "handoff_id", "plan_sha256", "evidence_sha256", "fingerprint_sha256",
         "maximum_permitted_claim", "wording_review_event_sha256", "wording_reviewed_at",
         "result_import_event_sha256", "result_imported_at", "result_source_sha256",
+        "expected_finalization_receipt_sha256",
         "result_created_at", "attachment_event_sha256", "attachment_attached_at",
         "anchor_checked_at", "trust_anchor_sha256",
     )
@@ -804,6 +798,153 @@ class PracticeBindingModuleTests(unittest.TestCase):
         self.assertEqual(receipt["practice_binding_sha256"], request["practice_binding_sha256"])
         self.assertEqual(set(receipt["trusted_approval_ids"]), {"practice:practice-claim-1", "selection"})
         self.assertEqual(receipt["matter_binding"]["workspace_revision_id"], "workspace-revision-1")
+
+    def test_filing_consumer_rejects_missing_native_receipt_binding(self) -> None:
+        request, resolution = _valid_case()
+        result = resolution["result"]
+        result["payload"]["quality_bindings"] = [
+            binding
+            for binding in result["payload"]["quality_bindings"]
+            if binding["quality_type"] != "coding_audit_finalization_receipt"
+        ]
+        _rebind_result_handoff(resolution)
+
+        errors, receipt = resolve_practice_claim_evidence_binding(
+            request, StaticAuthority(resolution)
+        )
+
+        self.assertIsNone(receipt)
+        self.assertTrue(
+            any(
+                "coding_audit_finalization_receipt" in error
+                or "native" in error
+                for error in errors
+            )
+        )
+
+    def test_filing_consumer_rejects_state_anchor_mismatch(self) -> None:
+        request, resolution = _valid_case()
+        replacement = "f" * 64
+        resolution["practice_state"][
+            "expected_finalization_receipt_sha256"
+        ] = replacement
+        resolution["ready_binding"][
+            "expected_finalization_receipt_sha256"
+        ] = replacement
+        filing = resolution["filing_validation"]["state"]
+        filing["claims"][0][
+            "expected_finalization_receipt_sha256"
+        ] = replacement
+        refresh = resolution["prefiling_refresh"]
+        refresh["record"]["ready_claim_bindings"][0][
+            "expected_finalization_receipt_sha256"
+        ] = replacement
+        ready_set_sha256 = _digest(refresh["record"]["ready_claim_bindings"])
+        refresh["record"]["ready_claim_set_sha256"] = ready_set_sha256
+        refresh["record"]["event_sha256"] = _digest(
+            {
+                key: value
+                for key, value in refresh["record"].items()
+                if key != "event_sha256"
+            }
+        )
+        refresh["ready_claim_set_sha256"] = ready_set_sha256
+        filing["prefiling_refresh"] = deepcopy(refresh)
+
+        errors, receipt = resolve_practice_claim_evidence_binding(
+            request, StaticAuthority(resolution)
+        )
+
+        self.assertIsNone(receipt)
+        self.assertIn("practice_native_reliability_anchor_mismatch", errors)
+
+    def test_filing_native_validation_is_total_for_unhashable_json_values(self) -> None:
+        def mutate_disagreement_candidate(result: dict[str, Any]) -> None:
+            reliability = result["payload"]["quality_bindings"][3]["artifact"]
+            reliability["field_disagreements"] = [
+                {
+                    "candidate_id": {},
+                    "fields": ["label"],
+                    "primary_coding_sha256": "1" * 64,
+                    "secondary_coding_sha256": "2" * 64,
+                    "resolved": True,
+                    "adjudication_sha256": "3" * 64,
+                }
+            ]
+            reliability["adjudications_sha256"] = "4" * 64
+
+        def mutate_false_exclusion_candidate(result: dict[str, Any]) -> None:
+            reliability = result["payload"]["quality_bindings"][3]["artifact"]
+            candidate_id = reliability["required_candidate_ids"][0]
+            reliability["field_disagreements"] = [
+                {
+                    "candidate_id": candidate_id,
+                    "fields": ["label"],
+                    "primary_coding_sha256": "1" * 64,
+                    "secondary_coding_sha256": "2" * 64,
+                    "resolved": True,
+                    "adjudication_sha256": "3" * 64,
+                }
+            ]
+            reliability["adjudications_sha256"] = "4" * 64
+            reliability["false_exclusion_diagnostics"] = [
+                {
+                    "candidate_id": {},
+                    "primary_label": "party_only",
+                    "secondary_label": "core_merits",
+                    "resolved": True,
+                }
+            ]
+
+        for label, mutate in (
+            (
+                "quality-type",
+                lambda result: result["payload"]["quality_bindings"][0].__setitem__(
+                    "quality_type", {}
+                ),
+            ),
+            (
+                "candidate-list",
+                lambda result: result["payload"]["quality_bindings"][3][
+                    "artifact"
+                ].__setitem__("required_candidate_ids", [{}]),
+            ),
+            ("field-disagreement-candidate", mutate_disagreement_candidate),
+            ("false-exclusion-candidate", mutate_false_exclusion_candidate),
+        ):
+            with self.subTest(label=label):
+                request, resolution = _valid_case()
+                result = resolution["result"]
+                mutate(result)
+                if label in {
+                    "candidate-list",
+                    "field-disagreement-candidate",
+                    "false-exclusion-candidate",
+                }:
+                    binding = result["payload"]["quality_bindings"][3]
+                    reliability = binding["artifact"]
+                    reliability["evidence_sha256"] = _digest(
+                        {
+                            key: value
+                            for key, value in reliability.items()
+                            if key != "evidence_sha256"
+                        }
+                    )
+                    binding["artifact_sha256"] = _digest(reliability)
+                _rebind_result_handoff(resolution)
+
+                errors, receipt = resolve_practice_claim_evidence_binding(
+                    request, StaticAuthority(resolution)
+                )
+
+                self.assertIsNone(receipt)
+                if label != "quality-type":
+                    self.assertIn(
+                        "practice_native_coding_reliability_invalid", errors
+                    )
+                else:
+                    self.assertTrue(any("practice_native" in error for error in errors))
+                self.assertNotIn("practice_binding_resolution_validation_error", errors)
 
     def test_scalar_finding_ids_are_rejected_without_coercion(self) -> None:
         with self.assertRaisesRegex(ValueError, "evidence_ids"):

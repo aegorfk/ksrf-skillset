@@ -185,6 +185,54 @@ python3 "$JM" quality coding-audit-finalize \
 
 Код `0` означает только полную техническую связность заявленных решений и атомарную публикацию. Он не подтверждает личность, авторство или независимость проверяющего, реальность чтения пакета, смысл и правильность локатора, фактов, нормы либо вывода, применимость редакции во времени, актуальность практики, юридическое одобрение, разрешение на публикацию или готовность к подаче. Отдельная `quality coding-reliability` ниже остаётся экспертным совместимым путём, но не читает пакет и импорт и не создаёт штатную квитанцию финализации.
 
+### Передача штатной надёжности в профиль и жалобу
+
+Для последующих шагов нужны одновременно два неизменённых файла из итоговой папки и отдельно сохранённый `receipt_sha256` из полного успешного stdout финализатора. Само поле `receipt_sha256` внутри квитанции не является заменой внешнему значению. Не смешивай два разных хеша: `artifact_sha256` handoff связывает полный JSON квитанции вместе с её полем `receipt_sha256`, а `expected_receipt_sha256` связывает её самохеш без этого поля и приходит только из внешнего успешного подтверждения.
+
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+JM="$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py"
+FINALIZATION_DIR="./coding-audit-finalization"
+EXPECTED_FINALIZATION_RECEIPT_SHA256="<receipt_sha256 из сохранённого успешного stdout>"
+
+python3 "$JM" quality uncertainty-profile \
+  --fingerprint-sha256 "$FINGERPRINT_SHA256" \
+  --position-cards ./position-cards.jsonl \
+  --comparisons ./comparability-matrix.jsonl \
+  --applicant-relations ./applicant-relations.jsonl \
+  --trajectories ./chain-stage-propagation.json \
+  --temporal-analysis ./case-temporal-analysis.json \
+  --source-reconciliation ./source-reconciliation.json \
+  --coding-reliability "$FINALIZATION_DIR/coding-reliability.json" \
+  --coding-audit-finalization-receipt "$FINALIZATION_DIR/coding-audit-finalization-receipt.json" \
+  --expected-finalization-receipt-sha256 "$EXPECTED_FINALIZATION_RECEIPT_SHA256" \
+  --higher-authority-treatments ./higher-authority-treatments.jsonl \
+  --output ./practice-uncertainty-profile.json
+
+python3 "$JM" handoff create \
+  --workspace "$CASSATION_WORKSPACE" \
+  --target-skill ksrf-complaint-cycle \
+  --payload-type approved_bounded_findings \
+  --request ./practice-request.json \
+  --quality-binding ./chain-stage-propagation.json \
+  --quality-binding ./practice-uncertainty-profile.json \
+  --quality-binding ./coding-audit-plan.json \
+  --quality-binding "$FINALIZATION_DIR/coding-reliability.json" \
+  --quality-binding "$FINALIZATION_DIR/coding-audit-finalization-receipt.json" \
+  --quality-binding ./pre-filing-refresh.json \
+  --expected-finalization-receipt-sha256 "$EXPECTED_FINALIZATION_RECEIPT_SHA256" \
+  --output ./reviewed-practice-result.json
+
+python3 "$KSRF_SKILLS_ROOT/ksrf-complaint-cycle/scripts/ksrf_practice_analysis.py" \
+  result import \
+  --workspace "$MATTER_WORKSPACE" \
+  --input ./reviewed-practice-result.json \
+  --request-id "$REQUEST_ID" \
+  --expected-finalization-receipt-sha256 "$EXPECTED_FINALIZATION_RECEIPT_SHA256"
+```
+
+Профиль с одной `coding-reliability.json` всё ещё можно построить для диагностики, но он получает `compatibility_only`, оставляет измерение кодирования заблокированным и не разрешает использовать вывод в тезисе. Если внешний SHA не был сохранён либо успешность stdout сомнительна, не копируй значение из квитанции: повтори финализацию с теми же неизменёнными входами в новую отсутствующую соседнюю папку и используй SHA только из нормально завершившегося повтора после побайтного сравнения результатов.
+
 ### 5. Экспертный ручной путь остаётся совместимым
 
 Если уже есть точные специальные входы по контракту, `quality coding-audit-plan` продолжает работать как прежде. В этом пути `screening-candidates.jsonl` перечисляет всю замороженную рамку (минимальная строка — `{"candidate_id":"candidate-1"}`), а `primary-decisions.jsonl` содержит для каждого ID ровно закрытую запись кодирования из определения `coding_audit_decision.secondary_coding` в `schemas/practice-quality.v1.json`.
@@ -358,7 +406,7 @@ python3 "$JM" quality prefiling-refresh \
 
 ## Связь с handoff
 
-Если claim зависит от trajectory, uncertainty, reliability или refresh, portable v2 result обязан включить content hashes соответствующих артефактов. Для `prefiling_refresh` handoff повторяет closed-contract проверку: сверяет `refresh_id`, requirements digest и принадлежность gap заявленному scope, corpus/population/set bindings, полную непересекающуюся классификацию treatment IDs, timestamps и точное множество `claim_ids`. В handoff допускается только `complete=true`; `affected_claim_ids`, pending IDs и blocking diagnostics должны быть пусты.
+Если claim зависит от практики, portable v2 result обязан включить ровно шесть связанных quality-артефактов: trajectory, uncertainty profile, audit plan, reliability, квитанцию финализации и prefiling refresh. Только квитанционная привязка имеет четвёртое поле `expected_receipt_sha256`, полученное из отдельного CLI-параметра; остальные пять сохраняют прежнюю трёхполевую форму. Handoff заново сверяет самохеш квитанции, точные канонические байты reliability с одним завершающим LF, audit plan, упорядоченных кандидатов, текущий plan и три связи профиля. Для `prefiling_refresh` он также сверяет `refresh_id`, requirements digest и принадлежность gap заявленному scope, corpus/population/set bindings, полную непересекающуюся классификацию treatment IDs, timestamps и точное множество `claim_ids`. В handoff допускается только `complete=true`; `affected_claim_ids`, pending IDs и blocking diagnostics должны быть пусты.
 
 Изменение связанного артефакта делает зависимые claims stale. Reviewed result строится кассационным CLI из текущего workspace; caller не может передать собственный findings JSON. Перед включением reviewed finding в жалобу центральный host снова открывает current workspace, проверяет exact ready claim и полный refresh, связывает final wording с exact finding IDs и затем применяет отдельный [filing evidence binding](filing-evidence-binding.md). Quality hash внутри portable result не заменяет current host resolution.
 
@@ -368,9 +416,9 @@ python3 "$JM" quality prefiling-refresh \
 
 После обновления skillset заново создай, в таком порядке:
 
-1. `coding-audit-plan.json` и `coding-reliability.json`, если они участвуют в выводе;
+1. `coding-audit-plan.json`, а для штатного пути — точные `coding-reliability.json`, `coding-audit-finalization-receipt.json` и отдельно сохранённый SHA успешной финализации;
 2. `treatment-quality-set.json` и `refresh-plan.json` из неизменённого состояния текущего public cache;
 3. `pre-filing-refresh.json` для полного множества claim IDs;
-4. reviewed handoff и trust receipts, содержащие новый quality artifact hash.
+4. uncertainty profile, reviewed handoff, импорт result и trust receipts с полной шестой привязкой и тем же внешним SHA.
 
-Не дописывай отсутствующие поля и SHA вручную: новый runtime должен пересчитать их из первичных данных. Старые файлы остаются audit-readable как исторические материалы, но не дают текущего `complete=true` и не проходят новый handoff gate.
+Если два точных файла Release16 и внешний SHA сохранены, саму финализацию повторять не нужно: заново создай только перечисленные последующие артефакты. Не дописывай отсутствующие поля и SHA вручную. Если внешний SHA утрачен или его происхождение сомнительно, используй описанный выше повтор в новой соседней папке; не восстанавливай его из квитанции. Старые последующие файлы остаются читаемыми для аудита как исторические материалы, но не дают текущего `complete=true` и не проходят новую проверку пакета передачи.

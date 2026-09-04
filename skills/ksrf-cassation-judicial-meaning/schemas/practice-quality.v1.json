@@ -339,8 +339,90 @@
       },
       "additionalProperties": false
     },
+    "coding_reliability_origin": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "status", "reason_codes", "expected_receipt_sha256",
+        "reliability_contract_valid", "receipt_contract_valid",
+        "receipt_self_digest_valid", "external_receipt_digest_valid",
+        "reliability_file_digest_valid", "audit_plan_digest_valid",
+        "candidate_population_valid", "usable_for_claim"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["missing", "compatibility_only", "native_finalization_bound"]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "coding_reliability_missing",
+              "coding_reliability_contract_invalid",
+              "native_finalization_binding_missing"
+            ]
+          }
+        },
+        "expected_receipt_sha256": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "reliability_contract_valid": {"type": "boolean"},
+        "receipt_contract_valid": {"type": "boolean"},
+        "receipt_self_digest_valid": {"type": "boolean"},
+        "external_receipt_digest_valid": {"type": "boolean"},
+        "reliability_file_digest_valid": {"type": "boolean"},
+        "audit_plan_digest_valid": {"type": "boolean"},
+        "candidate_population_valid": {"type": "boolean"},
+        "usable_for_claim": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "native_finalization_bound"}}},
+          "then": {
+            "properties": {
+              "reason_codes": {"maxItems": 0},
+              "expected_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "reliability_contract_valid": {"const": true},
+              "receipt_contract_valid": {"const": true},
+              "receipt_self_digest_valid": {"const": true},
+              "external_receipt_digest_valid": {"const": true},
+              "reliability_file_digest_valid": {"const": true},
+              "audit_plan_digest_valid": {"const": true},
+              "candidate_population_valid": {"const": true},
+              "usable_for_claim": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "expected_receipt_sha256": {"type": "null"},
+              "receipt_contract_valid": {"const": false},
+              "receipt_self_digest_valid": {"const": false},
+              "external_receipt_digest_valid": {"const": false},
+              "reliability_file_digest_valid": {"const": false},
+              "audit_plan_digest_valid": {"const": false},
+              "candidate_population_valid": {"const": false},
+              "usable_for_claim": {"const": false}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
     "uncertainty_profile": {
       "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "the current builder always emits the closed coding_reliability_origin and exactly ten closed input_sha256s bindings; historical non-claim-ready profiles may remain structurally readable without the native fields but cannot pass current claim-use runtime validation",
+        "claim_use_ready=true requires coding_reliability_origin.status=native_finalization_bound, no origin reason codes, every origin verification boolean true, and coding reliability usable_for_claim=true",
+        "input_sha256s.coding_reliability binds the canonical reliability object, input_sha256s.coding_audit_finalization_receipt binds the complete receipt object, and input_sha256s.expected_finalization_receipt_sha256 exactly equals coding_reliability_origin.expected_receipt_sha256",
+        "runtime verification enforces the separately supplied expected_finalization_receipt_sha256, receipt self-digest, exactly-one-LF reliability file digest, audit-plan equality, and ordered candidate equality; JSON Schema alone cannot prove these relations",
+        "claim_use_ready records bounded technical lineage only and does not authenticate a person or establish legal correctness, current law, publication permission, approval, or filing readiness"
+      ],
       "type": "object",
       "required": [
         "schema_version", "fingerprint_sha256", "unit", "dimensions",
@@ -400,6 +482,9 @@
           "type": "array", "uniqueItems": true,
           "items": {"type": "string", "minLength": 1}
         },
+        "coding_reliability_origin": {
+          "$ref": "#/definitions/coding_reliability_origin"
+        },
         "input_sha256s": {
           "type": "object",
           "required": [
@@ -410,6 +495,8 @@
           "properties": {
             "applicant_relations": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "coding_reliability": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "coding_audit_finalization_receipt": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "expected_finalization_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "comparisons": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "higher_authority_treatments": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "position_cards": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -429,10 +516,24 @@
             "properties": {"claim_use_ready": {"const": true}}
           },
           "then": {
+            "required": ["coding_reliability_origin"],
             "properties": {
               "profile_assessed": {"const": true},
               "profile_complete": {"const": true},
               "blocking_dimensions": {"maxItems": 0},
+              "coding_reliability_origin": {
+                "properties": {
+                  "status": {"const": "native_finalization_bound"},
+                  "reason_codes": {"maxItems": 0},
+                  "usable_for_claim": {"const": true}
+                }
+              },
+              "input_sha256s": {
+                "required": [
+                  "coding_audit_finalization_receipt",
+                  "expected_finalization_receipt_sha256"
+                ]
+              },
               "dimensions": {
                 "properties": {
                   "comparable_reading_plurality": {
@@ -1368,6 +1469,9 @@
       "x-contract-version": "1.0",
       "x-runtime-invariants": [
         "receipt_sha256 is the canonical digest of the exact remaining receipt fields",
+        "coding_reliability_file_sha256 is SHA-256 of canonical sorted compact UTF-8 coding_reliability JSON with ensure_ascii=false, allow_nan=false, and exactly one trailing LF",
+        "audit_plan_sha256 must equal the reliability audit_plan_sha256 and candidate_ids must exactly equal reliability required_candidate_ids in order; runtime consumers revalidate both relations",
+        "the finalization receipt expected digest is separately retained outside this receipt and must equal receipt_sha256; consumers must never derive that expectation from the receipt being checked",
         "both expected digests are operator-retained inputs and must equal the fully revalidated native bundle and import receipt",
         "required_difference_pairs, resolved_candidate_ids, and resolved_field_populations form an exact value-free bijection over both imported difference maps",
         "all four output files are canonical and their exact bytes are bound by the receipt; the receipt itself contains no packet text, quote, selected value, person label, person-attributable timestamp, or absolute input path",

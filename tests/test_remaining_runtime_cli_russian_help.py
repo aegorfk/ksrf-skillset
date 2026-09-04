@@ -115,9 +115,9 @@ EXPECTED_ROUTE_COUNTS = {
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "3c662353f856e9dd0c2ed8d638e46110418b619c19ee9e404d504ac190a60531",
+    "judicial": "cb8868e3980e302e8a6313039881efabbe6c849fee17a6be48085abfbda4b29e",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
-    "practice": "4a3637d2d26d9d972ba7cdd27d67c9f92be3955b5a3cdd9ba363ab15790cd2e7",
+    "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
 }
 
@@ -493,6 +493,11 @@ REQUIRED_PRACTICE_ACTION_HELP = {
         "только для аудита",
     ),
     (("result", "import"), "request_id"): ("handoff_id", "SHA-256"),
+    (("result", "import"), "expected_finalization_receipt_sha256"): (
+        "внешний SHA-256",
+        "успешного stdout coding-audit-finalize",
+        "Значение внутри квитанции его не заменяет",
+    ),
     (("result", "import"), "trusted_source_workspace"): (
         "по умолчанию берётся успешно привязанная кассационная папка",
         "Явный путь должен с ней совпадать",
@@ -916,8 +921,8 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
                     )
                     self.assertTrue(inventory["state_restored"])
                     self.assertEqual(inventory["rendering_violations"], [])
-                    self.assertEqual(len(public_actions), 42)
-                    self.assertEqual(len(actions_by_key), 42)
+                    self.assertEqual(len(public_actions), 43)
+                    self.assertEqual(len(actions_by_key), 43)
                     self.assertEqual(
                         set(actions_by_key),
                         set(REQUIRED_PRACTICE_ACTION_HELP),

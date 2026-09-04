@@ -1266,8 +1266,90 @@
       },
       "additionalProperties": false
     },
+    "coding_reliability_origin": {
+      "x-contract-version": "1.0",
+      "type": "object",
+      "required": [
+        "status", "reason_codes", "expected_receipt_sha256",
+        "reliability_contract_valid", "receipt_contract_valid",
+        "receipt_self_digest_valid", "external_receipt_digest_valid",
+        "reliability_file_digest_valid", "audit_plan_digest_valid",
+        "candidate_population_valid", "usable_for_claim"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["missing", "compatibility_only", "native_finalization_bound"]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "coding_reliability_missing",
+              "coding_reliability_contract_invalid",
+              "native_finalization_binding_missing"
+            ]
+          }
+        },
+        "expected_receipt_sha256": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/definitions/sha256"}
+          ]
+        },
+        "reliability_contract_valid": {"type": "boolean"},
+        "receipt_contract_valid": {"type": "boolean"},
+        "receipt_self_digest_valid": {"type": "boolean"},
+        "external_receipt_digest_valid": {"type": "boolean"},
+        "reliability_file_digest_valid": {"type": "boolean"},
+        "audit_plan_digest_valid": {"type": "boolean"},
+        "candidate_population_valid": {"type": "boolean"},
+        "usable_for_claim": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "native_finalization_bound"}}},
+          "then": {
+            "properties": {
+              "reason_codes": {"maxItems": 0},
+              "expected_receipt_sha256": {"$ref": "#/definitions/sha256"},
+              "reliability_contract_valid": {"const": true},
+              "receipt_contract_valid": {"const": true},
+              "receipt_self_digest_valid": {"const": true},
+              "external_receipt_digest_valid": {"const": true},
+              "reliability_file_digest_valid": {"const": true},
+              "audit_plan_digest_valid": {"const": true},
+              "candidate_population_valid": {"const": true},
+              "usable_for_claim": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "expected_receipt_sha256": {"type": "null"},
+              "receipt_contract_valid": {"const": false},
+              "receipt_self_digest_valid": {"const": false},
+              "external_receipt_digest_valid": {"const": false},
+              "reliability_file_digest_valid": {"const": false},
+              "audit_plan_digest_valid": {"const": false},
+              "candidate_population_valid": {"const": false},
+              "usable_for_claim": {"const": false}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
     "uncertainty_profile": {
       "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "the current builder always emits the closed coding_reliability_origin and exactly ten closed input_sha256s bindings; historical non-claim-ready profiles may remain structurally readable without the native fields but cannot pass current claim-use runtime validation",
+        "claim_use_ready=true requires coding_reliability_origin.status=native_finalization_bound, no origin reason codes, every origin verification boolean true, and coding reliability usable_for_claim=true",
+        "input_sha256s.coding_reliability binds the canonical reliability object, input_sha256s.coding_audit_finalization_receipt binds the complete receipt object, and input_sha256s.expected_finalization_receipt_sha256 exactly equals coding_reliability_origin.expected_receipt_sha256",
+        "runtime verification enforces the separately supplied expected_finalization_receipt_sha256, receipt self-digest, exactly-one-LF reliability file digest, audit-plan equality, and ordered candidate equality; JSON Schema alone cannot prove these relations",
+        "claim_use_ready records bounded technical lineage only and does not authenticate a person or establish legal correctness, current law, publication permission, approval, or filing readiness"
+      ],
       "type": "object",
       "required": [
         "schema_version", "fingerprint_sha256", "unit", "dimensions",
@@ -1327,6 +1409,9 @@
           "type": "array", "uniqueItems": true,
           "items": {"$ref": "#/definitions/non_empty_string"}
         },
+        "coding_reliability_origin": {
+          "$ref": "#/definitions/coding_reliability_origin"
+        },
         "input_sha256s": {
           "type": "object",
           "required": [
@@ -1337,6 +1422,8 @@
           "properties": {
             "applicant_relations": {"$ref": "#/definitions/sha256"},
             "coding_reliability": {"$ref": "#/definitions/sha256"},
+            "coding_audit_finalization_receipt": {"$ref": "#/definitions/sha256"},
+            "expected_finalization_receipt_sha256": {"$ref": "#/definitions/sha256"},
             "comparisons": {"$ref": "#/definitions/sha256"},
             "higher_authority_treatments": {"$ref": "#/definitions/sha256"},
             "position_cards": {"$ref": "#/definitions/sha256"},
@@ -1356,10 +1443,24 @@
             "properties": {"claim_use_ready": {"const": true}}
           },
           "then": {
+            "required": ["coding_reliability_origin"],
             "properties": {
               "profile_assessed": {"const": true},
               "profile_complete": {"const": true},
               "blocking_dimensions": {"maxItems": 0},
+              "coding_reliability_origin": {
+                "properties": {
+                  "status": {"const": "native_finalization_bound"},
+                  "reason_codes": {"maxItems": 0},
+                  "usable_for_claim": {"const": true}
+                }
+              },
+              "input_sha256s": {
+                "required": [
+                  "coding_audit_finalization_receipt",
+                  "expected_finalization_receipt_sha256"
+                ]
+              },
               "dimensions": {
                 "properties": {
                   "comparable_reading_plurality": {
@@ -1942,54 +2043,210 @@
       ],
       "additionalProperties": false
     },
-    "handoff_quality_binding": {
+    "coding_review_difference_field": {
+      "type": "string",
+      "enum": [
+        "label", "speaker", "norm_edition_id", "reading_family",
+        "relation", "reasoning_to_outcome", "alternative_grounds", "remedy",
+        "proposition", "quote", "quote_locator", "material_facts"
+      ]
+    },
+    "coding_audit_candidate_id": {
+      "type": "string",
+      "pattern": "^audit-candidate-sha256:[0-9a-f]{64}$"
+    },
+    "coding_audit_finalization_receipt": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "receipt_sha256 is the canonical digest of the exact remaining receipt fields",
+        "coding_reliability_file_sha256 is SHA-256 of canonical sorted compact UTF-8 coding_reliability JSON with ensure_ascii=false, allow_nan=false, and exactly one trailing LF",
+        "audit_plan_sha256 must equal the reliability audit_plan_sha256 and candidate_ids must exactly equal reliability required_candidate_ids in order; runtime consumers revalidate both relations",
+        "the separately retained expected finalization receipt digest is carried only by the enclosing special handoff binding, must equal receipt_sha256, and must never be derived from the receipt being checked",
+        "schema validation is structural; receipt self-digest, full artifact digest, exact-file bytes, audit-plan equality, candidate order, and profile-origin links require runtime validation",
+        "a valid receipt proves bounded technical lineage only and does not authenticate a person or establish legal correctness, current law, publication permission, approval, or filing readiness"
+      ],
       "type": "object",
-      "required": ["quality_type", "artifact_sha256", "artifact"],
+      "required": [
+        "schema_version", "artifact_type", "producer",
+        "bundle_contract_version", "plan_sha256", "audit_plan_sha256",
+        "codebook_version", "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256", "audit_plan_file_sha256",
+        "primary_decisions_file_sha256", "review_packet_sha256",
+        "codebook_sha256", "coding_brief_file_sha256",
+        "audit_import_receipt_sha256",
+        "expected_audit_import_receipt_sha256",
+        "audit_import_receipt_file_sha256", "audit_decisions_file_sha256",
+        "resolutions_present", "resolutions_file_sha256",
+        "resolutions_state_sha256",
+        "resolved_review_decisions_file_sha256",
+        "adjudications_file_sha256", "coding_reliability_file_sha256",
+        "candidate_ids", "required_difference_pairs", "resolved_candidate_ids",
+        "resolved_field_populations", "final_coding_sha256",
+        "difference_resolution_bijection_verified",
+        "final_quote_literal_presence_verified",
+        "final_quote_normalized_presence_verified",
+        "quote_locator_review_declared", "quote_locator_verified",
+        "reliability_complete", "source_workspace_reverified",
+        "reviewer_identity_authenticated", "human_review_authenticated",
+        "independence_verified", "receipt_authenticated",
+        "norm_edition_temporal_applicability_verified",
+        "publication_safe", "legal_readiness", "receipt_sha256"
+      ],
       "properties": {
-        "quality_type": {
-          "type": "string",
-          "enum": [
-            "chain_stage_propagation",
-            "uncertainty_profile",
-            "coding_audit_plan",
-            "coding_reliability",
-            "prefiling_refresh"
-          ]
+        "schema_version": {"$ref": "#/definitions/schema_version"},
+        "artifact_type": {"type": "string", "const": "coding_audit_finalization_receipt"},
+        "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_finalize"},
+        "bundle_contract_version": {"type": "string", "enum": ["1.1", "1.2"]},
+        "plan_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_plan_sha256": {"$ref": "#/definitions/sha256"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "source_bundle_manifest_sha256": {"$ref": "#/definitions/sha256"},
+        "expected_source_bundle_manifest_sha256": {"$ref": "#/definitions/sha256"},
+        "source_bundle_manifest_file_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_plan_file_sha256": {"$ref": "#/definitions/sha256"},
+        "primary_decisions_file_sha256": {"$ref": "#/definitions/sha256"},
+        "review_packet_sha256": {"$ref": "#/definitions/sha256"},
+        "codebook_sha256": {"$ref": "#/definitions/sha256"},
+        "coding_brief_file_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_import_receipt_sha256": {"$ref": "#/definitions/sha256"},
+        "expected_audit_import_receipt_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_import_receipt_file_sha256": {"$ref": "#/definitions/sha256"},
+        "audit_decisions_file_sha256": {"$ref": "#/definitions/sha256"},
+        "resolutions_present": {"type": "boolean"},
+        "resolutions_file_sha256": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/sha256"}]
         },
-        "artifact_sha256": {"$ref": "#/definitions/sha256"},
-        "artifact": {
-          "oneOf": [
-            {"$ref": "#/definitions/chain_propagation_result"},
-            {"$ref": "#/definitions/uncertainty_profile"},
-            {"$ref": "#/definitions/coding_audit_plan"},
-            {"$ref": "#/definitions/coding_reliability"},
-            {"$ref": "#/definitions/prefiling_refresh"}
-          ]
-        }
+        "resolutions_state_sha256": {"$ref": "#/definitions/sha256"},
+        "resolved_review_decisions_file_sha256": {"$ref": "#/definitions/sha256"},
+        "adjudications_file_sha256": {"$ref": "#/definitions/sha256"},
+        "coding_reliability_file_sha256": {"$ref": "#/definitions/sha256"},
+        "candidate_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "required_difference_pairs": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "field"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "field": {"$ref": "#/definitions/coding_review_difference_field"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "resolved_candidate_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "resolved_field_populations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "fields"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "fields": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {"$ref": "#/definitions/coding_review_difference_field"}
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "final_coding_sha256": {"$ref": "#/definitions/sha256"},
+        "difference_resolution_bijection_verified": {"type": "boolean", "const": true},
+        "final_quote_literal_presence_verified": {"type": "boolean", "const": true},
+        "final_quote_normalized_presence_verified": {"type": "boolean", "const": true},
+        "quote_locator_review_declared": {"type": "boolean"},
+        "quote_locator_verified": {"type": "boolean", "const": false},
+        "reliability_complete": {"type": "boolean", "const": true},
+        "source_workspace_reverified": {"type": "boolean", "const": false},
+        "reviewer_identity_authenticated": {"type": "boolean", "const": false},
+        "human_review_authenticated": {"type": "boolean", "const": false},
+        "independence_verified": {"type": "boolean", "const": false},
+        "receipt_authenticated": {"type": "boolean", "const": false},
+        "norm_edition_temporal_applicability_verified": {"type": "boolean", "const": false},
+        "publication_safe": {"type": "boolean", "const": false},
+        "legal_readiness": {"type": "boolean", "const": false},
+        "receipt_sha256": {"$ref": "#/definitions/sha256"}
       },
       "allOf": [
         {
-          "if": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}},
-          "then": {"properties": {"artifact": {"$ref": "#/definitions/chain_propagation_result"}}}
-        },
-        {
-          "if": {"properties": {"quality_type": {"const": "uncertainty_profile"}}},
-          "then": {"properties": {"artifact": {"$ref": "#/definitions/uncertainty_profile"}}}
-        },
-        {
-          "if": {"properties": {"quality_type": {"const": "coding_audit_plan"}}},
-          "then": {"properties": {"artifact": {"$ref": "#/definitions/coding_audit_plan"}}}
-        },
-        {
-          "if": {"properties": {"quality_type": {"const": "coding_reliability"}}},
-          "then": {"properties": {"artifact": {"$ref": "#/definitions/coding_reliability"}}}
-        },
-        {
-          "if": {"properties": {"quality_type": {"const": "prefiling_refresh"}}},
-          "then": {"properties": {"artifact": {"$ref": "#/definitions/prefiling_refresh"}}}
+          "if": {"properties": {"resolutions_present": {"const": true}}},
+          "then": {"properties": {"resolutions_file_sha256": {"$ref": "#/definitions/sha256"}}},
+          "else": {"properties": {"resolutions_file_sha256": {"type": "null"}}}
         }
       ],
       "additionalProperties": false
+    },
+    "handoff_quality_binding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["quality_type", "artifact_sha256", "artifact"],
+          "properties": {
+            "quality_type": {
+              "type": "string",
+              "enum": [
+                "chain_stage_propagation", "uncertainty_profile",
+                "coding_audit_plan", "coding_reliability", "prefiling_refresh"
+              ]
+            },
+            "artifact_sha256": {"$ref": "#/definitions/sha256"},
+            "artifact": {
+              "oneOf": [
+                {"$ref": "#/definitions/chain_propagation_result"},
+                {"$ref": "#/definitions/uncertainty_profile"},
+                {"$ref": "#/definitions/coding_audit_plan"},
+                {"$ref": "#/definitions/coding_reliability"},
+                {"$ref": "#/definitions/prefiling_refresh"}
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}},
+              "then": {"properties": {"artifact": {"$ref": "#/definitions/chain_propagation_result"}}}
+            },
+            {
+              "if": {"properties": {"quality_type": {"const": "uncertainty_profile"}}},
+              "then": {"properties": {"artifact": {"$ref": "#/definitions/uncertainty_profile"}}}
+            },
+            {
+              "if": {"properties": {"quality_type": {"const": "coding_audit_plan"}}},
+              "then": {"properties": {"artifact": {"$ref": "#/definitions/coding_audit_plan"}}}
+            },
+            {
+              "if": {"properties": {"quality_type": {"const": "coding_reliability"}}},
+              "then": {"properties": {"artifact": {"$ref": "#/definitions/coding_reliability"}}}
+            },
+            {
+              "if": {"properties": {"quality_type": {"const": "prefiling_refresh"}}},
+              "then": {"properties": {"artifact": {"$ref": "#/definitions/prefiling_refresh"}}}
+            }
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "quality_type", "artifact_sha256", "artifact",
+            "expected_receipt_sha256"
+          ],
+          "properties": {
+            "quality_type": {
+              "type": "string", "const": "coding_audit_finalization_receipt"
+            },
+            "artifact_sha256": {"$ref": "#/definitions/sha256"},
+            "artifact": {"$ref": "#/definitions/coding_audit_finalization_receipt"},
+            "expected_receipt_sha256": {"$ref": "#/definitions/sha256"}
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "handoff_request_payload": {
       "type": "object",
@@ -2078,7 +2335,7 @@
         },
         "quality_bindings": {
           "type": "array",
-          "minItems": 5,
+          "minItems": 6,
           "uniqueItems": true,
           "items": {"$ref": "#/definitions/handoff_quality_binding"},
           "allOf": [
@@ -2086,6 +2343,7 @@
             {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "coding_audit_plan"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_audit_finalization_receipt"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}}, "minContains": 1, "maxContains": 1}
           ]
         }
@@ -2153,7 +2411,7 @@
         },
         "quality_bindings": {
           "type": "array",
-          "minItems": 5,
+          "minItems": 6,
           "uniqueItems": true,
           "items": {"$ref": "#/definitions/handoff_quality_binding"},
           "allOf": [
@@ -2161,6 +2419,7 @@
             {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "coding_audit_plan"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"quality_type": {"const": "coding_audit_finalization_receipt"}}}, "minContains": 1, "maxContains": 1},
             {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}}, "minContains": 1, "maxContains": 1}
           ]
         }

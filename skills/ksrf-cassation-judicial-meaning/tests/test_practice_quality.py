@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import inspect
 import json
 import unittest
 from pathlib import Path
@@ -45,6 +47,7 @@ def definition_validator(schema, name):
             "$schema": schema.get("$schema"),
             "$ref": f"#/definitions/{name}",
             "definitions": schema["definitions"],
+            "$defs": schema["definitions"][name].get("$defs", {}),
         }
     )
 
@@ -286,6 +289,331 @@ class PracticeQualityTests(unittest.TestCase):
         result = api.assess_coding_reliability(plan, primary, [audit])
         self.assertTrue(result["complete"])
         return result
+
+    def finalization_receipt(self, api, reliability, **overrides):
+        reliability_content = (
+            json.dumps(
+                reliability,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        sha_fields = {
+            "source_bundle_manifest_sha256": "1" * 64,
+            "expected_source_bundle_manifest_sha256": "1" * 64,
+            "source_bundle_manifest_file_sha256": "2" * 64,
+            "audit_plan_file_sha256": "3" * 64,
+            "primary_decisions_file_sha256": "4" * 64,
+            "review_packet_sha256": "5" * 64,
+            "codebook_sha256": "6" * 64,
+            "coding_brief_file_sha256": "7" * 64,
+            "audit_import_receipt_sha256": "8" * 64,
+            "expected_audit_import_receipt_sha256": "8" * 64,
+            "audit_import_receipt_file_sha256": "9" * 64,
+            "audit_decisions_file_sha256": "a" * 64,
+            "resolutions_state_sha256": api.canonical_digest(
+                {"present": False, "file_sha256": None}
+            ),
+            "resolved_review_decisions_file_sha256": "c" * 64,
+            "adjudications_file_sha256": "d" * 64,
+            "coding_reliability_file_sha256": hashlib.sha256(
+                reliability_content
+            ).hexdigest(),
+            "final_coding_sha256": "e" * 64,
+        }
+        unsigned = {
+            "schema_version": "1.0",
+            "artifact_type": "coding_audit_finalization_receipt",
+            "producer": "judicial_meaning.quality.coding_audit_finalize",
+            "bundle_contract_version": "1.2",
+            "plan_sha256": "f" * 64,
+            "audit_plan_sha256": reliability["audit_plan_sha256"],
+            "codebook_version": "1.0",
+            **sha_fields,
+            "resolutions_present": False,
+            "resolutions_file_sha256": None,
+            "candidate_ids": list(reliability["required_candidate_ids"]),
+            "required_difference_pairs": [],
+            "resolved_candidate_ids": [],
+            "resolved_field_populations": [],
+            "difference_resolution_bijection_verified": True,
+            "final_quote_literal_presence_verified": True,
+            "final_quote_normalized_presence_verified": True,
+            "quote_locator_review_declared": False,
+            "quote_locator_verified": False,
+            "reliability_complete": True,
+            "source_workspace_reverified": False,
+            "reviewer_identity_authenticated": False,
+            "human_review_authenticated": False,
+            "independence_verified": False,
+            "receipt_authenticated": False,
+            "norm_edition_temporal_applicability_verified": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+        }
+        unsigned.update(overrides)
+        return {**unsigned, "receipt_sha256": api.canonical_digest(unsigned)}
+
+    def native_reliability_inputs(self, api):
+        reliability = copy.deepcopy(self.complete_reliability(api))
+        native_candidate_id = "audit-candidate-sha256:" + "a" * 64
+        reliability["required_candidate_ids"] = [native_candidate_id]
+        reliability["audited_candidate_ids"] = [native_candidate_id]
+        digest_payload = dict(reliability)
+        digest_payload.pop("evidence_sha256")
+        reliability["evidence_sha256"] = api.canonical_digest(digest_payload)
+        receipt = self.finalization_receipt(api, reliability)
+        return reliability, receipt, receipt["receipt_sha256"]
+
+    def test_native_reliability_verifier_is_public(self):
+        api = self.api()
+        self.assertTrue(
+            callable(getattr(api, "verify_native_coding_reliability", None)),
+            "the native relation verifier must be an explicit reusable runtime API",
+        )
+        self.assertIn("verify_native_coding_reliability", api.__all__)
+
+    def test_native_reliability_verifier_accepts_exact_release16_triple(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+
+        origin = api.verify_native_coding_reliability(
+            reliability,
+            receipt,
+            expected,
+            current_plan_sha256=receipt["plan_sha256"],
+        )
+
+        self.assertEqual(
+            {
+                "status": "native_finalization_bound",
+                "reason_codes": [],
+                "expected_receipt_sha256": expected,
+                "reliability_contract_valid": True,
+                "receipt_contract_valid": True,
+                "receipt_self_digest_valid": True,
+                "external_receipt_digest_valid": True,
+                "reliability_file_digest_valid": True,
+                "audit_plan_digest_valid": True,
+                "candidate_population_valid": True,
+                "usable_for_claim": True,
+            },
+            origin,
+        )
+
+    def test_native_reliability_verifier_keeps_missing_and_standalone_diagnostic_only(self):
+        api = self.api()
+        reliability = self.complete_reliability(api)
+
+        self.assertEqual(
+            {
+                "status": "missing",
+                "reason_codes": ["coding_reliability_missing"],
+                "expected_receipt_sha256": None,
+                "reliability_contract_valid": False,
+                "receipt_contract_valid": False,
+                "receipt_self_digest_valid": False,
+                "external_receipt_digest_valid": False,
+                "reliability_file_digest_valid": False,
+                "audit_plan_digest_valid": False,
+                "candidate_population_valid": False,
+                "usable_for_claim": False,
+            },
+            api.verify_native_coding_reliability(None, None, None),
+        )
+        self.assertEqual(
+            {
+                "status": "compatibility_only",
+                "reason_codes": ["native_finalization_binding_missing"],
+                "expected_receipt_sha256": None,
+                "reliability_contract_valid": True,
+                "receipt_contract_valid": False,
+                "receipt_self_digest_valid": False,
+                "external_receipt_digest_valid": False,
+                "reliability_file_digest_valid": False,
+                "audit_plan_digest_valid": False,
+                "candidate_population_valid": False,
+                "usable_for_claim": False,
+            },
+            api.verify_native_coding_reliability(reliability, None, None),
+        )
+
+    def test_native_reliability_verifier_rejects_partial_triples(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        partials = (
+            (None, receipt, expected),
+            (reliability, receipt, None),
+            (reliability, None, expected),
+            (None, None, expected),
+        )
+        for supplied in partials:
+            with self.subTest(present=tuple(value is not None for value in supplied)):
+                with self.assertRaisesRegex(ValueError, "неполный набор"):
+                    api.verify_native_coding_reliability(*supplied)
+
+    def test_native_reliability_verifier_rejects_every_cross_binding_mismatch(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+
+        def resigned(**changes):
+            unsigned = {key: copy.deepcopy(value) for key, value in receipt.items()}
+            unsigned.pop("receipt_sha256")
+            unsigned.update(changes)
+            return {
+                **unsigned,
+                "receipt_sha256": api.canonical_digest(unsigned),
+            }
+
+        without_lf = hashlib.sha256(
+            json.dumps(
+                reliability,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        cases = (
+            ("external", reliability, receipt, "0" * 64, None),
+            (
+                "receipt_self_digest",
+                reliability,
+                {**receipt, "plan_sha256": "0" * 64},
+                expected,
+                None,
+            ),
+            (
+                "reliability_file",
+                reliability,
+                resigned(coding_reliability_file_sha256="0" * 64),
+                None,
+                None,
+            ),
+            (
+                "reliability_file_without_trailing_lf",
+                reliability,
+                resigned(coding_reliability_file_sha256=without_lf),
+                None,
+                None,
+            ),
+            (
+                "audit_plan",
+                reliability,
+                resigned(audit_plan_sha256="0" * 64),
+                None,
+                None,
+            ),
+            (
+                "candidate_population",
+                reliability,
+                resigned(candidate_ids=[]),
+                None,
+                None,
+            ),
+            (
+                "current_plan",
+                reliability,
+                receipt,
+                expected,
+                "0" * 64,
+            ),
+            (
+                "legal_overread",
+                reliability,
+                resigned(legal_readiness=True),
+                None,
+                None,
+            ),
+        )
+        for case_name, candidate_reliability, candidate_receipt, anchor, plan in cases:
+            if anchor is None:
+                anchor = candidate_receipt["receipt_sha256"]
+            with self.subTest(case_name=case_name):
+                with self.assertRaises(ValueError):
+                    api.verify_native_coding_reliability(
+                        candidate_reliability,
+                        candidate_receipt,
+                        anchor,
+                        current_plan_sha256=plan,
+                    )
+
+    def test_native_reliability_verifier_rejects_rehashed_receipt_without_old_anchor(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        unsigned = {key: copy.deepcopy(value) for key, value in receipt.items()}
+        unsigned.pop("receipt_sha256")
+        unsigned["plan_sha256"] = "0" * 64
+        attacker_receipt = {
+            **unsigned,
+            "receipt_sha256": api.canonical_digest(unsigned),
+        }
+
+        with self.assertRaises(ValueError):
+            api.verify_native_coding_reliability(
+                reliability,
+                attacker_receipt,
+                expected,
+            )
+
+    def test_native_reliability_verifier_failure_does_not_echo_private_values(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        hostile_values = (
+            "СЕКРЕТНАЯ ЦИТАТА",
+            "reviewer-real-name",
+            "/Users/private/case.json",
+        )
+        hostile_receipt = {
+            **receipt,
+            "private_quote": hostile_values[0],
+            "reviewer": hostile_values[1],
+            "source_path": hostile_values[2],
+        }
+
+        with self.assertRaises(ValueError) as raised:
+            api.verify_native_coding_reliability(
+                reliability,
+                hostile_receipt,
+                expected,
+            )
+        diagnostic = str(raised.exception)
+        self.assertTrue(diagnostic.startswith("Нативная надёжность кодирования"))
+        for hostile in hostile_values:
+            self.assertNotIn(hostile, diagnostic)
+
+        with self.assertRaises(ValueError) as malformed_reliability:
+            api.verify_native_coding_reliability(
+                [hostile_values[0]],
+                receipt,
+                expected,
+            )
+        for hostile in hostile_values:
+            self.assertNotIn(hostile, str(malformed_reliability.exception))
+
+        non_json_reliability = copy.deepcopy(reliability)
+        non_json_reliability["field_disagreements"] = [float("nan")]
+        with self.assertRaises(ValueError) as non_json_failure:
+            api.verify_native_coding_reliability(
+                non_json_reliability,
+                receipt,
+                expected,
+            )
+        self.assertTrue(
+            str(non_json_failure.exception).startswith(
+                "Нативная надёжность кодирования"
+            )
+        )
+
+    def test_uncertainty_profile_accepts_native_relation_inputs(self):
+        parameters = inspect.signature(
+            self.api().build_uncertainty_profile
+        ).parameters
+        self.assertIn("coding_audit_finalization_receipt", parameters)
+        self.assertIn("expected_finalization_receipt_sha256", parameters)
 
     def closed_reconciliation(self):
         return {
@@ -571,9 +899,168 @@ class PracticeQualityTests(unittest.TestCase):
         )
         return cards, comparisons, relations, trajectory_result["trajectories"]
 
+    def test_uncertainty_profile_keeps_standalone_reliability_compatibility_only(self):
+        api = self.api()
+        cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        reliability = self.complete_reliability(api)
+        profile = api.build_uncertainty_profile(
+            fingerprint_sha256="f" * 64,
+            position_cards=cards,
+            comparisons=comparisons,
+            applicant_relations=relations,
+            temporal_analysis={"temporal_analysis_complete": True, "transitions": []},
+            trajectories=trajectories,
+            source_reconciliation=self.closed_reconciliation(),
+            coding_reliability=reliability,
+            higher_authority_treatments=[],
+        )
+
+        origin = profile.get("coding_reliability_origin")
+        self.assertIsInstance(origin, dict)
+        self.assertEqual("compatibility_only", origin["status"])
+        self.assertEqual(
+            ["native_finalization_binding_missing"],
+            origin["reason_codes"],
+        )
+        self.assertFalse(origin["usable_for_claim"])
+        coding = profile["dimensions"]["coding_reliability"]
+        self.assertEqual("compatibility_only", coding["state"])
+        self.assertFalse(coding["usable_for_claim"])
+        self.assertIn("coding_reliability", profile["blocking_dimensions"])
+        self.assertFalse(profile["claim_use_ready"])
+
+    def test_uncertainty_profile_invalid_compatibility_projection_is_value_free(self):
+        api = self.api()
+        cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        hostile_values = ("СЕКРЕТНАЯ ЦИТАТА", "Иван Иванов")
+        profile = api.build_uncertainty_profile(
+            fingerprint_sha256="f" * 64,
+            position_cards=cards,
+            comparisons=comparisons,
+            applicant_relations=relations,
+            temporal_analysis={"temporal_analysis_complete": True, "transitions": []},
+            trajectories=trajectories,
+            source_reconciliation=self.closed_reconciliation(),
+            coding_reliability={
+                "complete": False,
+                "audit_plan_sha256": hostile_values[0],
+                "unresolved_candidate_ids": [hostile_values[1]],
+            },
+            higher_authority_treatments=[],
+        )
+
+        self.assertEqual(
+            [
+                "coding_reliability_contract_invalid",
+                "native_finalization_binding_missing",
+            ],
+            profile["coding_reliability_origin"]["reason_codes"],
+        )
+        projection = json.dumps(profile, ensure_ascii=False)
+        for hostile in hostile_values:
+            self.assertNotIn(hostile, projection)
+
+    def test_uncertainty_profile_binds_exact_native_reliability_triple(self):
+        api = self.api()
+        cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        profile = api.build_uncertainty_profile(
+            fingerprint_sha256="f" * 64,
+            position_cards=cards,
+            comparisons=comparisons,
+            applicant_relations=relations,
+            temporal_analysis={"temporal_analysis_complete": True, "transitions": []},
+            trajectories=trajectories,
+            source_reconciliation=self.closed_reconciliation(),
+            coding_reliability=reliability,
+            higher_authority_treatments=[],
+            coding_audit_finalization_receipt=receipt,
+            expected_finalization_receipt_sha256=expected,
+        )
+
+        origin = profile.get("coding_reliability_origin")
+        self.assertIsInstance(origin, dict)
+        self.assertEqual(
+            api.verify_native_coding_reliability(reliability, receipt, expected),
+            origin,
+        )
+        self.assertEqual(
+            "independent_audit_complete",
+            profile["dimensions"]["coding_reliability"]["state"],
+        )
+        self.assertTrue(profile["dimensions"]["coding_reliability"]["usable_for_claim"])
+        self.assertTrue(profile["claim_use_ready"])
+        self.assertEqual(
+            {
+                "position_cards",
+                "comparisons",
+                "applicant_relations",
+                "temporal_analysis",
+                "trajectories",
+                "source_reconciliation",
+                "coding_reliability",
+                "higher_authority_treatments",
+                "coding_audit_finalization_receipt",
+                "expected_finalization_receipt_sha256",
+            },
+            set(profile["input_sha256s"]),
+        )
+        self.assertEqual(
+            api.canonical_digest(reliability),
+            profile["input_sha256s"]["coding_reliability"],
+        )
+        self.assertEqual(
+            api.canonical_digest(receipt),
+            profile["input_sha256s"]["coding_audit_finalization_receipt"],
+        )
+        self.assertEqual(
+            expected,
+            profile["input_sha256s"]["expected_finalization_receipt_sha256"],
+        )
+
+    def test_uncertainty_profile_rejects_partial_or_invalid_native_relation(self):
+        api = self.api()
+        cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        common = {
+            "fingerprint_sha256": "f" * 64,
+            "position_cards": cards,
+            "comparisons": comparisons,
+            "applicant_relations": relations,
+            "temporal_analysis": {
+                "temporal_analysis_complete": True,
+                "transitions": [],
+            },
+            "trajectories": trajectories,
+            "source_reconciliation": self.closed_reconciliation(),
+            "coding_reliability": reliability,
+            "higher_authority_treatments": [],
+        }
+        with self.assertRaises(ValueError) as partial_error:
+            api.build_uncertainty_profile(
+                **common,
+                coding_audit_finalization_receipt=receipt,
+            )
+        self.assertIn("неполный набор", str(partial_error.exception))
+        self.assertIn("Передайте все три", str(partial_error.exception))
+        self.assertIn("отдельно сохранённый", str(partial_error.exception))
+
+        with self.assertRaises(ValueError) as mismatch_error:
+            api.build_uncertainty_profile(
+                **common,
+                coding_audit_finalization_receipt=receipt,
+                expected_finalization_receipt_sha256="0" * 64,
+            )
+        mismatch_message = str(mismatch_error.exception)
+        self.assertIn("неизменённые файлы", mismatch_message)
+        self.assertIn("повторите восстановление", mismatch_message)
+        self.assertNotIn(receipt["candidate_ids"][0], mismatch_message)
+        self.assertEqual(expected, receipt["receipt_sha256"])
+
     def test_uncertainty_profile_has_nine_fixed_dimensions_and_no_scalar(self):
         api = self.api()
         cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        reliability, receipt, expected = self.native_reliability_inputs(api)
         profile = api.build_uncertainty_profile(
             fingerprint_sha256="f" * 64,
             position_cards=cards,
@@ -587,8 +1074,10 @@ class PracticeQualityTests(unittest.TestCase):
             },
             trajectories=trajectories,
             source_reconciliation=self.closed_reconciliation(),
-            coding_reliability=self.complete_reliability(api),
+            coding_reliability=reliability,
             higher_authority_treatments=[self.reviewed_treatment(api, "treatment-1")],
+            coding_audit_finalization_receipt=receipt,
+            expected_finalization_receipt_sha256=expected,
         )
         self.assertEqual(
             set(api.UNCERTAINTY_DIMENSIONS), set(profile["dimensions"])
@@ -697,7 +1186,7 @@ class PracticeQualityTests(unittest.TestCase):
         api = self.api()
         cards, comparisons, relations, trajectories = self.profile_inputs(api)
 
-        def profile_for(reliability):
+        def profile_for(reliability, receipt=None, expected=None):
             return api.build_uncertainty_profile(
                 fingerprint_sha256="f" * 64,
                 position_cards=cards,
@@ -708,6 +1197,8 @@ class PracticeQualityTests(unittest.TestCase):
                 source_reconciliation=self.closed_reconciliation(),
                 coding_reliability=reliability,
                 higher_authority_treatments=[],
+                coding_audit_finalization_receipt=receipt,
+                expected_finalization_receipt_sha256=expected,
             )
 
         stub = {"complete": True, "stale": False, "unresolved_candidate_ids": []}
@@ -715,10 +1206,16 @@ class PracticeQualityTests(unittest.TestCase):
         self.assertFalse(stub_profile["claim_use_ready"])
         self.assertIn("coding_reliability", stub_profile["blocking_dimensions"])
 
-        valid = self.complete_reliability(api)
+        valid, receipt, expected = self.native_reliability_inputs(api)
         self.assertTrue(valid.get("audit_plan_frozen"))
         self.assertTrue(valid.get("audit_plan_digest_valid"))
-        self.assertTrue(profile_for(valid)["claim_use_ready"])
+        compatibility_profile = profile_for(valid)
+        self.assertFalse(compatibility_profile["claim_use_ready"])
+        self.assertEqual(
+            "compatibility_only",
+            compatibility_profile["coding_reliability_origin"]["status"],
+        )
+        self.assertTrue(profile_for(valid, receipt, expected)["claim_use_ready"])
 
         for case_name, mutate in (
             ("unfrozen", lambda value: value.update(audit_plan_frozen=False)),
@@ -1055,9 +1552,7 @@ class PracticeQualityTests(unittest.TestCase):
         tampered["claim_use_ready"] = True
         tampered["profile_complete"] = True
         errors = list(
-            Draft202012Validator(
-                schema["definitions"]["uncertainty_profile"]
-            ).iter_errors(tampered)
+            definition_validator(schema, "uncertainty_profile").iter_errors(tampered)
         )
         self.assertTrue(errors, "blocking dimensions cannot be schema-ready")
 
@@ -1065,6 +1560,7 @@ class PracticeQualityTests(unittest.TestCase):
         api = self.api()
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         cards, comparisons, relations, trajectories = self.profile_inputs(api)
+        reliability, receipt, expected = self.native_reliability_inputs(api)
         profile = api.build_uncertainty_profile(
             fingerprint_sha256="f" * 64,
             position_cards=cards,
@@ -1073,16 +1569,16 @@ class PracticeQualityTests(unittest.TestCase):
             temporal_analysis={"temporal_analysis_complete": True, "transitions": []},
             trajectories=trajectories,
             source_reconciliation=self.closed_reconciliation(),
-            coding_reliability=self.complete_reliability(api),
+            coding_reliability=reliability,
             higher_authority_treatments=[],
+            coding_audit_finalization_receipt=receipt,
+            expected_finalization_receipt_sha256=expected,
         )
         self.assertTrue(profile["claim_use_ready"])
         tampered = copy.deepcopy(profile)
         tampered["dimensions"]["coverage_limits"]["usable_for_claim"] = False
         errors = list(
-            Draft202012Validator(
-                schema["definitions"]["uncertainty_profile"]
-            ).iter_errors(tampered)
+            definition_validator(schema, "uncertainty_profile").iter_errors(tampered)
         )
         self.assertTrue(errors, "an unusable dimension must contradict claim readiness")
 
@@ -1920,7 +2416,7 @@ class PracticeQualityTests(unittest.TestCase):
             coding_reliability={"complete": True, "unresolved_candidate_ids": []},
             higher_authority_treatments=[],
         )
-        Draft202012Validator(definitions["uncertainty_profile"]).validate(profile)
+        definition_validator(schema, "uncertainty_profile").validate(profile)
 
         candidates = [{"candidate_id": "candidate-1"}]
         primary = [self.primary("candidate-1")]

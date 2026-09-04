@@ -174,6 +174,7 @@
         "wording_review_event_sha256",
         "wording_reviewed_at",
         "result_import_event_sha256",
+        "expected_finalization_receipt_sha256",
         "result_imported_at",
         "result_source_sha256",
         "result_created_at",
@@ -214,6 +215,7 @@
         ,"wording_review_event_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
         ,"wording_reviewed_at": {"type": ["string", "null"]}
         ,"result_import_event_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+        ,"expected_finalization_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
         ,"result_imported_at": {"type": ["string", "null"]}
         ,"result_source_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
         ,"result_created_at": {"type": ["string", "null"]}
@@ -400,6 +402,44 @@
         "sha256": {"$ref": "#/$defs/sha256"}
       }
     },
+    "quality_binding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quality_type", "artifact_sha256", "artifact"],
+          "properties": {
+            "quality_type": {
+              "enum": [
+                "chain_stage_propagation",
+                "uncertainty_profile",
+                "coding_audit_plan",
+                "coding_reliability",
+                "prefiling_refresh"
+              ]
+            },
+            "artifact_sha256": {"$ref": "#/$defs/sha256"},
+            "artifact": {"type": "object", "minProperties": 1}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "quality_type",
+            "artifact_sha256",
+            "artifact",
+            "expected_receipt_sha256"
+          ],
+          "properties": {
+            "quality_type": {"const": "coding_audit_finalization_receipt"},
+            "artifact_sha256": {"$ref": "#/$defs/sha256"},
+            "artifact": {"type": "object", "minProperties": 1},
+            "expected_receipt_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      ]
+    },
     "practice_result_v2": {
       "type": "object",
       "additionalProperties": false,
@@ -560,32 +600,17 @@
             "maximum_permitted_claim": {"type": "string", "minLength": 1},
             "quality_bindings": {
               "type": "array",
-              "minItems": 4,
-              "maxItems": 5,
+              "minItems": 6,
+              "maxItems": 6,
               "uniqueItems": true,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["quality_type", "artifact_sha256", "artifact"],
-                "properties": {
-                  "quality_type": {
-                    "enum": [
-                      "chain_stage_propagation",
-                      "uncertainty_profile",
-                      "coding_audit_plan",
-                      "coding_reliability",
-                      "prefiling_refresh"
-                    ]
-                  },
-                  "artifact_sha256": {"$ref": "#/$defs/sha256"},
-                  "artifact": {"type": "object", "minProperties": 1}
-                }
-              },
+              "items": {"$ref": "#/$defs/quality_binding"},
               "allOf": [
-                {"contains": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}, "required": ["quality_type"]}},
-                {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}, "required": ["quality_type"]}},
-                {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}, "required": ["quality_type"]}},
-                {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}, "required": ["quality_type"]}}
+                {"contains": {"properties": {"quality_type": {"const": "chain_stage_propagation"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1},
+                {"contains": {"properties": {"quality_type": {"const": "uncertainty_profile"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1},
+                {"contains": {"properties": {"quality_type": {"const": "coding_audit_plan"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1},
+                {"contains": {"properties": {"quality_type": {"const": "coding_reliability"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1},
+                {"contains": {"properties": {"quality_type": {"const": "coding_audit_finalization_receipt"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1},
+                {"contains": {"properties": {"quality_type": {"const": "prefiling_refresh"}}, "required": ["quality_type"]}, "minContains": 1, "maxContains": 1}
               ]
             },
             "limitations": {
@@ -607,9 +632,47 @@
         "handoff_id", "plan_sha256",
         "evidence_sha256", "fingerprint_sha256", "maximum_permitted_claim",
         "wording_review_event_sha256", "wording_reviewed_at",
-        "result_import_event_sha256", "result_imported_at", "result_source_sha256",
+        "result_import_event_sha256", "expected_finalization_receipt_sha256", "result_imported_at", "result_source_sha256",
         "result_created_at", "attachment_event_sha256", "attachment_attached_at",
         "anchor_checked_at", "trust_anchor_sha256"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "revision_id": {"$ref": "#/$defs/sha256"},
+        "claim_sha256": {"$ref": "#/$defs/sha256"},
+        "source_file_sha256": {"$ref": "#/$defs/sha256"},
+        "input_bindings_sha256": {"$ref": "#/$defs/sha256"},
+        "input_manifest_updated_at": {"type": "string", "minLength": 1},
+        "claim_created_at": {"type": "string", "minLength": 1},
+        "handoff_id": {"$ref": "#/$defs/sha256"},
+        "plan_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "fingerprint_sha256": {"$ref": "#/$defs/sha256"},
+        "maximum_permitted_claim": {"type": "string", "minLength": 1},
+        "wording_review_event_sha256": {"$ref": "#/$defs/sha256"},
+        "wording_reviewed_at": {"type": "string", "minLength": 1},
+        "result_import_event_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_finalization_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "result_imported_at": {"type": "string", "minLength": 1},
+        "result_source_sha256": {"$ref": "#/$defs/sha256"},
+        "result_created_at": {"type": "string", "minLength": 1},
+        "attachment_event_sha256": {"$ref": "#/$defs/sha256"},
+        "attachment_attached_at": {"type": "string", "minLength": 1},
+        "anchor_checked_at": {"type": "string", "minLength": 1},
+        "trust_anchor_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "historical_ready_claim_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id", "revision_id", "claim_sha256", "source_file_sha256",
+        "input_bindings_sha256", "input_manifest_updated_at", "claim_created_at",
+        "handoff_id", "plan_sha256", "evidence_sha256", "fingerprint_sha256",
+        "maximum_permitted_claim", "wording_review_event_sha256",
+        "wording_reviewed_at", "result_import_event_sha256", "result_imported_at",
+        "result_source_sha256", "result_created_at", "attachment_event_sha256",
+        "attachment_attached_at", "anchor_checked_at", "trust_anchor_sha256"
       ],
       "properties": {
         "claim_id": {"type": "string", "minLength": 1},
@@ -653,11 +716,11 @@
         "result_schema_version": {"type": "string"}, "claim_ids": {"type": "array"}, "imported_at": {"type": "string"}, "source_path": {"type": "string"}, "source_sha256": {"type": "string"},
         "cassation_workspace": {"type": "string"}, "sibling_cli": {"type": ["string", "null"]}, "sibling_cli_sha256": {"type": ["string", "null"]}, "attached_at": {"type": "string"},
         "returncode": {"type": "integer"}, "stdout": {"type": "string"}, "stderr": {"type": "string"}, "error": {"type": ["string", "null"]},
-        "anchor_status": {"type": "string"}, "anchor_handoff_id": {"type": ["string", "null"]}, "anchor_checked_at": {"type": "string"}, "trusted_source_workspace": {"type": ["string", "null"]}, "attachment_event_sha256": {"type": ["string", "null"]}, "trust_anchor_sha256": {"type": ["string", "null"]},
+        "anchor_status": {"type": "string"}, "anchor_handoff_id": {"type": ["string", "null"]}, "anchor_checked_at": {"type": "string"}, "trusted_source_workspace": {"type": ["string", "null"]}, "attachment_event_sha256": {"type": ["string", "null"]}, "trust_anchor_sha256": {"type": ["string", "null"]}, "expected_finalization_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
         "finding_ids": {"type": "array"}, "maximum_permitted_claim": {"type": ["string", "null"]}, "plan_sha256": {"type": ["string", "null"]}, "evidence_sha256": {"type": ["string", "null"]}, "fingerprint_sha256": {"type": ["string", "null"]},
         "human_decision_sha256": {"type": ["string", "null"]}, "validation_report_sha256": {"type": ["string", "null"]}, "normative_bridge_sha256": {"type": ["string", "null"]},
         "wording_text": {"type": "string"}, "wording_sha256": {"type": "string"}, "wording_source_path": {"type": "string"}, "wording_source_sha256": {"type": "string"},
-        "as_of": {"type": "string"}, "corpus_cutoff": {"type": "string"}, "official_check_ref": {"type": "string"}, "ready_claim_bindings": {"type": "array", "items": {"$ref": "#/$defs/ready_claim_binding"}}, "ready_claim_set_sha256": {"type": "string"}, "recorded_at": {"type": "string"},
+        "as_of": {"type": "string"}, "corpus_cutoff": {"type": "string"}, "official_check_ref": {"type": "string"}, "ready_claim_bindings": {"type": "array", "items": {"oneOf": [{"$ref": "#/$defs/ready_claim_binding"}, {"$ref": "#/$defs/historical_ready_claim_binding"}]}}, "ready_claim_set_sha256": {"type": "string"}, "recorded_at": {"type": "string"},
         "supersedes_revision_id": {"type": ["string", "null"]}, "created_at": {"type": "string"}
       }
     }

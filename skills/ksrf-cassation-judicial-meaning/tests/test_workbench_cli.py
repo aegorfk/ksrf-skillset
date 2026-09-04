@@ -10,7 +10,9 @@ from judicial_meaning.cli import (
     _approval_evidence_sha256,
     _build_reviewed_handoff_payload,
     _default_report_model,
+    _load_quality_bindings,
     _validation_state,
+    build_parser,
     main,
     read_json,
     read_jsonl,
@@ -31,6 +33,119 @@ class WorkbenchCliTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = main(argv)
         return code, stdout.getvalue(), stderr.getvalue()
+
+    def parser_help(self, argv):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with self.assertRaises(SystemExit) as raised:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                build_parser().parse_args([*argv, "--help"])
+        self.assertEqual(0, raised.exception.code)
+        self.assertEqual("", stderr.getvalue())
+        return stdout.getvalue()
+
+    def test_native_reliability_options_are_actionable_in_russian(self):
+        profile_help = self.parser_help(["quality", "uncertainty-profile"])
+        handoff_help = self.parser_help(["handoff", "create"])
+        for rendered in (profile_help, handoff_help):
+            self.assertIn("--expected-finalization-receipt-sha256", rendered)
+            self.assertIn("сохран", rendered.lower())
+            self.assertIn("coding-audit-finalize", rendered)
+            self.assertNotIn("EXPECTED_FINALIZATION_RECEIPT_SHA256", rendered)
+            normalized = " ".join(rendered.lower().split())
+            self.assertIn("только техническую цепочку", normalized)
+            self.assertIn("не подтверждает личность", normalized)
+            self.assertIn("юридическую правильность", normalized)
+            self.assertIn("актуальность права", normalized)
+            self.assertIn("разрешение на публикацию", normalized)
+            self.assertIn("готовность к подаче", normalized)
+        self.assertIn("--coding-audit-finalization-receipt", profile_help)
+        self.assertIn("--quality-binding", handoff_help)
+        for command in ("check", "import"):
+            rendered = self.parser_help(["handoff", command])
+            normalized = " ".join(rendered.lower().split())
+            self.assertIn("шесть", normalized)
+            self.assertIn("самохеш", normalized)
+            self.assertIn("не восстанавли", normalized)
+
+    def test_finalization_receipt_binding_requires_separate_explicit_anchor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt_path = root / "receipt.json"
+            receipt = {
+                "schema_version": "1.0",
+                "artifact_type": "coding_audit_finalization_receipt",
+                "receipt_sha256": "a" * 64,
+            }
+            write_json(receipt_path, receipt)
+
+            with self.assertRaisesRegex(ValueError, "внешн|сохран"):
+                _load_quality_bindings([str(receipt_path)])
+
+            bindings = _load_quality_bindings(
+                [str(receipt_path)],
+                expected_finalization_receipt_sha256="b" * 64,
+            )
+            self.assertEqual(1, len(bindings))
+            self.assertEqual(
+                {
+                    "quality_type",
+                    "artifact_sha256",
+                    "artifact",
+                    "expected_receipt_sha256",
+                },
+                set(bindings[0]),
+            )
+            self.assertEqual("b" * 64, bindings[0]["expected_receipt_sha256"])
+
+            plan_path = root / "plan.json"
+            write_json(
+                plan_path,
+                {"audit_plan_sha256": "c" * 64, "required_candidate_ids": []},
+            )
+            with self.assertRaisesRegex(ValueError, "квитанц"):
+                _load_quality_bindings(
+                    [str(plan_path)],
+                    expected_finalization_receipt_sha256="b" * 64,
+                )
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                _load_quality_bindings(
+                    [str(receipt_path)],
+                    expected_finalization_receipt_sha256="не-хеш",
+                )
+
+            hostile_path = root / "секретный-проверяющий.json"
+            hostile_path.write_text('{"quote":"НЕ_ПЕЧАТАТЬ"', encoding="utf-8")
+            with self.assertRaises(ValueError) as raised:
+                _load_quality_bindings([str(hostile_path)])
+            diagnostic = str(raised.exception)
+            self.assertNotIn(str(hostile_path), diagnostic)
+            self.assertNotIn("НЕ_ПЕЧАТАТЬ", diagnostic)
+
+            reliability_path = root / "coding-reliability.json"
+            reliability = {
+                "audit_plan_sha256": "d" * 64,
+                "required_candidate_ids": [],
+                "current_primary_coding_sha256": "e" * 64,
+            }
+            write_json(reliability_path, reliability)
+            with self.assertRaisesRegex(ValueError, "каноническ.*LF"):
+                _load_quality_bindings([str(reliability_path)])
+            reliability_path.write_bytes(
+                (
+                    json.dumps(
+                        reliability,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                ).encode("utf-8")
+            )
+            self.assertEqual(
+                "coding_reliability",
+                _load_quality_bindings([str(reliability_path)])[0]["quality_type"],
+            )
 
     @staticmethod
     def answers(value="ежемесячная премия"):

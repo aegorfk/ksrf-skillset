@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from judicial_meaning.handoff_workbench import (
+    _quality_binding_errors,
     artifact_sha256,
     bind_request_payload,
     build_approved_finding,
@@ -32,10 +33,23 @@ def canonical_digest(envelope):
     return hashlib.sha256(payload).hexdigest()
 
 
+def canonical_file_sha256(value):
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8") + b"\n"
+    return hashlib.sha256(payload).hexdigest()
+
+
 class HandoffWorkbenchTests(unittest.TestCase):
     plan_sha256 = "a" * 64
     evidence_sha256 = "b" * 64
     fingerprint_sha256 = "c" * 64
+    audit_candidate_id = "audit-candidate-sha256:" + "1" * 64
+    other_audit_candidate_id = "audit-candidate-sha256:" + "2" * 64
     limitations = ["Только раскрытый наблюдаемый корпус."]
 
     def test_portable_digest_rejects_non_finite_json_numbers(self):
@@ -244,9 +258,9 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "selection_method": "canonical_sha256_rank",
             "sample_size": 1,
             "exclusion_sample_size": 0,
-            "sample_candidate_ids": ["candidate-1"],
+            "sample_candidate_ids": [self.audit_candidate_id],
             "exclusion_sample_candidate_ids": [],
-            "required_candidate_ids": ["candidate-1"],
+            "required_candidate_ids": [self.audit_candidate_id],
             "invalid_screening_record_ids": [],
             "invalid_primary_record_ids": [],
             "frozen": True,
@@ -266,8 +280,8 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "current_primary_coding_sha256": audit_plan["primary_coding_sha256"],
             "audit_decisions_sha256": "9" * 64,
             "adjudications_sha256": artifact_sha256([]),
-            "required_candidate_ids": ["candidate-1"],
-            "audited_candidate_ids": ["candidate-1"],
+            "required_candidate_ids": [self.audit_candidate_id],
+            "audited_candidate_ids": [self.audit_candidate_id],
             "missing_candidate_ids": [],
             "same_reviewer_candidate_ids": [],
             "invalid_binding_candidate_ids": [],
@@ -286,6 +300,59 @@ class HandoffWorkbenchTests(unittest.TestCase):
             **reliability_payload,
             "evidence_sha256": artifact_sha256(reliability_payload),
         }
+        receipt_payload = {
+            "schema_version": "1.0",
+            "artifact_type": "coding_audit_finalization_receipt",
+            "producer": "judicial_meaning.quality.coding_audit_finalize",
+            "bundle_contract_version": "1.1",
+            "plan_sha256": self.plan_sha256,
+            "audit_plan_sha256": audit_plan["audit_plan_sha256"],
+            "codebook_version": "1.0",
+            "source_bundle_manifest_sha256": "1" * 64,
+            "expected_source_bundle_manifest_sha256": "1" * 64,
+            "source_bundle_manifest_file_sha256": "2" * 64,
+            "audit_plan_file_sha256": "3" * 64,
+            "primary_decisions_file_sha256": "4" * 64,
+            "review_packet_sha256": "5" * 64,
+            "codebook_sha256": "6" * 64,
+            "coding_brief_file_sha256": "7" * 64,
+            "audit_import_receipt_sha256": "8" * 64,
+            "expected_audit_import_receipt_sha256": "8" * 64,
+            "audit_import_receipt_file_sha256": "9" * 64,
+            "audit_decisions_file_sha256": "a" * 64,
+            "resolutions_present": False,
+            "resolutions_file_sha256": None,
+            "resolutions_state_sha256": artifact_sha256(
+                {"present": False, "file_sha256": None}
+            ),
+            "resolved_review_decisions_file_sha256": "c" * 64,
+            "adjudications_file_sha256": "d" * 64,
+            "coding_reliability_file_sha256": canonical_file_sha256(reliability),
+            "candidate_ids": list(reliability["required_candidate_ids"]),
+            "required_difference_pairs": [],
+            "resolved_candidate_ids": [],
+            "resolved_field_populations": [],
+            "final_coding_sha256": "e" * 64,
+            "difference_resolution_bijection_verified": True,
+            "final_quote_literal_presence_verified": True,
+            "final_quote_normalized_presence_verified": True,
+            "quote_locator_review_declared": False,
+            "quote_locator_verified": False,
+            "reliability_complete": True,
+            "source_workspace_reverified": False,
+            "reviewer_identity_authenticated": False,
+            "human_review_authenticated": False,
+            "independence_verified": False,
+            "receipt_authenticated": False,
+            "norm_edition_temporal_applicability_verified": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+        }
+        receipt = {
+            **receipt_payload,
+            "receipt_sha256": artifact_sha256(receipt_payload),
+        }
+        expected_receipt_sha256 = receipt["receipt_sha256"]
         dimensions = {
             name: {
                 "state": "reviewed",
@@ -322,10 +389,25 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "constitutional_conclusion_permitted": False,
             "malformed_position_card_refs": [],
             "malformed_trajectory_refs": [],
+            "coding_reliability_origin": {
+                "status": "native_finalization_bound",
+                "reason_codes": [],
+                "expected_receipt_sha256": expected_receipt_sha256,
+                "reliability_contract_valid": True,
+                "receipt_contract_valid": True,
+                "receipt_self_digest_valid": True,
+                "external_receipt_digest_valid": True,
+                "reliability_file_digest_valid": True,
+                "audit_plan_digest_valid": True,
+                "candidate_population_valid": True,
+                "usable_for_claim": True,
+            },
             "input_sha256s": {
                 "applicant_relations": "1" * 64,
+                "coding_audit_finalization_receipt": artifact_sha256(receipt),
                 "coding_reliability": artifact_sha256(reliability),
                 "comparisons": "3" * 64,
+                "expected_finalization_receipt_sha256": expected_receipt_sha256,
                 "higher_authority_treatments": "4" * 64,
                 "position_cards": "5" * 64,
                 "source_reconciliation": "6" * 64,
@@ -413,7 +495,7 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "complete": True,
         }
         refresh = {**refresh_payload, "refresh_id": artifact_sha256(refresh_payload)}
-        return [
+        ordinary_bindings = [
             {
                 "quality_type": quality_type,
                 "artifact_sha256": artifact_sha256(artifact),
@@ -427,6 +509,15 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 ("prefiling_refresh", refresh),
             )
         ]
+        ordinary_bindings.append(
+            {
+                "quality_type": "coding_audit_finalization_receipt",
+                "artifact_sha256": artifact_sha256(receipt),
+                "artifact": receipt,
+                "expected_receipt_sha256": expected_receipt_sha256,
+            }
+        )
+        return ordinary_bindings
 
     @staticmethod
     def quality_binding(envelope, quality_type):
@@ -434,6 +525,15 @@ class HandoffWorkbenchTests(unittest.TestCase):
             item
             for item in envelope["payload"]["quality_bindings"]
             if item["quality_type"] == quality_type
+        )
+
+    def quality_errors(self, bindings):
+        return _quality_binding_errors(
+            bindings,
+            plan_sha256=self.plan_sha256,
+            evidence_sha256=self.evidence_sha256,
+            fingerprint_sha256=self.fingerprint_sha256,
+            claim_bindings=self.claim_bindings(),
         )
 
     @staticmethod
@@ -446,10 +546,51 @@ class HandoffWorkbenchTests(unittest.TestCase):
     def rehash_reliability_and_profile(self, envelope):
         reliability = self.quality_binding(envelope, "coding_reliability")
         self.rehash_quality_binding(reliability, "evidence_sha256")
+        receipt = self.quality_binding(
+            envelope, "coding_audit_finalization_receipt"
+        )
+        receipt_artifact = receipt["artifact"]
+        receipt_artifact["coding_reliability_file_sha256"] = canonical_file_sha256(
+            reliability["artifact"]
+        )
+        receipt_artifact["audit_plan_sha256"] = reliability["artifact"][
+            "audit_plan_sha256"
+        ]
+        receipt_artifact["candidate_ids"] = list(
+            reliability["artifact"]["required_candidate_ids"]
+        )
+        self.rehash_receipt_and_profile(envelope)
+
+    def rehash_receipt_and_profile(self, envelope, *, update_expected=True):
+        receipt = self.quality_binding(
+            envelope, "coding_audit_finalization_receipt"
+        )
+        receipt_artifact = receipt["artifact"]
+        receipt_payload = {
+            key: value
+            for key, value in receipt_artifact.items()
+            if key != "receipt_sha256"
+        }
+        receipt_artifact["receipt_sha256"] = artifact_sha256(receipt_payload)
+        receipt["artifact_sha256"] = artifact_sha256(receipt_artifact)
+        if update_expected:
+            receipt["expected_receipt_sha256"] = receipt_artifact["receipt_sha256"]
         profile = self.quality_binding(envelope, "uncertainty_profile")
         profile["artifact"]["input_sha256s"]["coding_reliability"] = (
-            artifact_sha256(reliability["artifact"])
+            artifact_sha256(
+                self.quality_binding(envelope, "coding_reliability")["artifact"]
+            )
         )
+        profile["artifact"]["input_sha256s"][
+            "coding_audit_finalization_receipt"
+        ] = artifact_sha256(receipt_artifact)
+        if update_expected:
+            profile["artifact"]["input_sha256s"][
+                "expected_finalization_receipt_sha256"
+            ] = receipt["expected_receipt_sha256"]
+            profile["artifact"]["coding_reliability_origin"][
+                "expected_receipt_sha256"
+            ] = receipt["expected_receipt_sha256"]
         self.rehash_quality_binding(profile, "profile_id")
 
     def persist_trusted_source(self, workspace, envelope):
@@ -725,6 +866,274 @@ class HandoffWorkbenchTests(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertIn("quality_bindings", " ".join(result["errors"]))
 
+    def test_native_quality_population_has_six_exact_cross_bound_bindings(self):
+        bindings = self.quality_bindings()
+
+        self.assertEqual([], self.quality_errors(bindings))
+        self.assertEqual(
+            {
+                "chain_stage_propagation",
+                "uncertainty_profile",
+                "coding_audit_plan",
+                "coding_reliability",
+                "prefiling_refresh",
+                "coding_audit_finalization_receipt",
+            },
+            {binding["quality_type"] for binding in bindings},
+        )
+
+    def test_only_finalization_receipt_uses_four_field_binding(self):
+        mutations = {
+            "receipt represented by generic binding": lambda bindings: next(
+                item
+                for item in bindings
+                if item["quality_type"] == "coding_audit_finalization_receipt"
+            ).pop("expected_receipt_sha256"),
+            "ordinary binding receives expectation": lambda bindings: next(
+                item
+                for item in bindings
+                if item["quality_type"] == "coding_reliability"
+            ).__setitem__("expected_receipt_sha256", "f" * 64),
+            "sixth type is absent": lambda bindings: bindings.__setitem__(
+                slice(None),
+                [
+                    item
+                    for item in bindings
+                    if item["quality_type"]
+                    != "coding_audit_finalization_receipt"
+                ],
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                bindings = copy.deepcopy(self.quality_bindings())
+                mutate(bindings)
+
+                errors = self.quality_errors(bindings)
+
+                self.assertTrue(errors)
+                self.assertIn("quality", " ".join(errors).lower())
+
+    def test_native_receipt_relation_rejects_rehashed_inner_mismatches(self):
+        def make_envelope():
+            return {"payload": {"quality_bindings": self.quality_bindings()}}
+
+        def wrong_external_anchor(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["expected_receipt_sha256"] = "f" * 64
+
+        def wrong_self_digest(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["artifact"]["receipt_sha256"] = "f" * 64
+            receipt["artifact_sha256"] = artifact_sha256(receipt["artifact"])
+            profile = self.quality_binding(envelope, "uncertainty_profile")
+            profile["artifact"]["input_sha256s"][
+                "coding_audit_finalization_receipt"
+            ] = receipt["artifact_sha256"]
+            self.rehash_quality_binding(profile, "profile_id")
+
+        def wrong_reliability_file(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["artifact"]["coding_reliability_file_sha256"] = "f" * 64
+            self.rehash_receipt_and_profile(envelope)
+
+        def wrong_plan(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["artifact"]["audit_plan_sha256"] = "f" * 64
+            self.rehash_receipt_and_profile(envelope)
+
+        def wrong_outer_plan(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["artifact"]["plan_sha256"] = "f" * 64
+            self.rehash_receipt_and_profile(envelope)
+
+        def wrong_candidates(envelope):
+            receipt = self.quality_binding(
+                envelope, "coding_audit_finalization_receipt"
+            )
+            receipt["artifact"]["candidate_ids"] = [
+                self.other_audit_candidate_id
+            ]
+            self.rehash_receipt_and_profile(envelope)
+
+        for label, mutate in {
+            "external anchor": wrong_external_anchor,
+            "receipt self digest": wrong_self_digest,
+            "reliability file": wrong_reliability_file,
+            "audit plan": wrong_plan,
+            "outer plan": wrong_outer_plan,
+            "candidate population": wrong_candidates,
+        }.items():
+            with self.subTest(label=label):
+                envelope = make_envelope()
+                mutate(envelope)
+
+                errors = self.quality_errors(
+                    envelope["payload"]["quality_bindings"]
+                )
+
+                self.assertTrue(errors)
+                self.assertIn(
+                    "coding_audit_finalization_receipt",
+                    " ".join(errors),
+                )
+
+    def test_uncertainty_profile_binds_reliability_receipt_and_external_anchor(self):
+        mutations = {
+            "reliability": lambda profile: profile["input_sha256s"].__setitem__(
+                "coding_reliability", "f" * 64
+            ),
+            "receipt": lambda profile: profile["input_sha256s"].__setitem__(
+                "coding_audit_finalization_receipt", "f" * 64
+            ),
+            "external expectation": lambda profile: profile[
+                "input_sha256s"
+            ].__setitem__("expected_finalization_receipt_sha256", "f" * 64),
+            "origin expectation": lambda profile: profile[
+                "coding_reliability_origin"
+            ].__setitem__("expected_receipt_sha256", "f" * 64),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                envelope = {
+                    "payload": {
+                        "quality_bindings": copy.deepcopy(self.quality_bindings())
+                    }
+                }
+                profile_binding = self.quality_binding(
+                    envelope, "uncertainty_profile"
+                )
+                mutate(profile_binding["artifact"])
+                self.rehash_quality_binding(profile_binding, "profile_id")
+
+                errors = self.quality_errors(
+                    envelope["payload"]["quality_bindings"]
+                )
+
+                self.assertTrue(errors)
+                self.assertIn("uncertainty_profile", " ".join(errors))
+
+    def test_native_receipt_errors_do_not_echo_hostile_private_values(self):
+        bindings = copy.deepcopy(self.quality_bindings())
+        receipt = next(
+            item
+            for item in bindings
+            if item["quality_type"] == "coding_audit_finalization_receipt"
+        )
+        hostile = "Секретная цитата /Users/private/дело Иван Иванов"
+        receipt["artifact"]["invented_private_value"] = hostile
+        receipt["artifact_sha256"] = artifact_sha256(receipt["artifact"])
+
+        errors = self.quality_errors(bindings)
+
+        self.assertTrue(errors)
+        self.assertNotIn(hostile, " ".join(errors))
+
+    def test_finalization_receipt_enforces_resolution_bijection_and_order(self):
+        def unexpected_resolution_file(receipt):
+            receipt["resolutions_present"] = True
+            receipt["resolutions_file_sha256"] = "1" * 64
+            receipt["resolutions_state_sha256"] = artifact_sha256(
+                {"present": True, "file_sha256": "1" * 64}
+            )
+
+        def wrong_resolution_state(receipt):
+            receipt["resolutions_state_sha256"] = "f" * 64
+
+        def false_review_declaration(receipt):
+            receipt["quote_locator_review_declared"] = True
+
+        def unordered_difference_pairs(receipt):
+            receipt["required_difference_pairs"] = [
+                {"candidate_id": self.audit_candidate_id, "field": "quote"},
+                {"candidate_id": self.audit_candidate_id, "field": "label"},
+            ]
+            receipt["resolved_candidate_ids"] = [self.audit_candidate_id]
+            receipt["resolved_field_populations"] = [
+                {
+                    "candidate_id": self.audit_candidate_id,
+                    "fields": ["quote", "label"],
+                }
+            ]
+            receipt["resolutions_present"] = True
+            receipt["resolutions_file_sha256"] = "1" * 64
+            receipt["resolutions_state_sha256"] = artifact_sha256(
+                {"present": True, "file_sha256": "1" * 64}
+            )
+            receipt["quote_locator_review_declared"] = True
+
+        for label, mutate in {
+            "unexpected resolution file": unexpected_resolution_file,
+            "wrong resolution-state digest": wrong_resolution_state,
+            "false review declaration": false_review_declaration,
+            "unordered difference pairs": unordered_difference_pairs,
+        }.items():
+            with self.subTest(label=label):
+                envelope = {
+                    "payload": {
+                        "quality_bindings": copy.deepcopy(self.quality_bindings())
+                    }
+                }
+                receipt = self.quality_binding(
+                    envelope, "coding_audit_finalization_receipt"
+                )["artifact"]
+                mutate(receipt)
+                self.rehash_receipt_and_profile(envelope)
+
+                errors = self.quality_errors(
+                    envelope["payload"]["quality_bindings"]
+                )
+
+                self.assertTrue(errors)
+                self.assertIn(
+                    "coding_audit_finalization_receipt",
+                    " ".join(errors),
+                )
+
+    def test_finalization_receipt_requires_native_candidate_identifiers(self):
+        envelope = {
+            "payload": {"quality_bindings": copy.deepcopy(self.quality_bindings())}
+        }
+        audit_plan = self.quality_binding(envelope, "coding_audit_plan")
+        audit_plan["artifact"]["sample_candidate_ids"] = ["candidate-1"]
+        audit_plan["artifact"]["required_candidate_ids"] = ["candidate-1"]
+        self.rehash_quality_binding(audit_plan, "audit_plan_sha256")
+        reliability = self.quality_binding(envelope, "coding_reliability")
+        reliability["artifact"].update(
+            audit_plan_input_sha256=artifact_sha256(audit_plan["artifact"]),
+            audit_plan_sha256=audit_plan["artifact"]["audit_plan_sha256"],
+            required_candidate_ids=["candidate-1"],
+            audited_candidate_ids=["candidate-1"],
+        )
+        self.rehash_reliability_and_profile(envelope)
+
+        errors = self.quality_errors(envelope["payload"]["quality_bindings"])
+
+        self.assertTrue(errors)
+        self.assertIn("coding_audit_finalization_receipt", " ".join(errors))
+
+    def test_trusted_receipt_binds_complete_special_quality_binding(self):
+        envelope = self.make_approved()
+        receipt = build_trusted_source_receipt(envelope)
+
+        self.assertEqual(
+            sorted(
+                artifact_sha256(binding)
+                for binding in envelope["payload"]["quality_bindings"]
+            ),
+            receipt["quality_binding_sha256s"],
+        )
+
     def test_fabricated_or_missing_quality_bindings_fail_closed(self):
         missing = copy.deepcopy(self.make_approved())
         del missing["payload"]["quality_bindings"]
@@ -836,10 +1245,10 @@ class HandoffWorkbenchTests(unittest.TestCase):
             ),
             "duplicate selected IDs": lambda artifact: artifact.update(
                 sample_size=2,
-                sample_candidate_ids=["candidate-1", "candidate-1"],
+                sample_candidate_ids=[self.audit_candidate_id, self.audit_candidate_id],
             ),
             "required IDs differ from sample union": lambda artifact: artifact.__setitem__(
-                "required_candidate_ids", ["candidate-2"]
+                "required_candidate_ids", [self.other_audit_candidate_id]
             ),
         }
         for label, mutate in mutations.items():
@@ -862,7 +1271,7 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 "field_disagreements"
             ].append(
                 {
-                    "candidate_id": "candidate-1",
+                    "candidate_id": self.audit_candidate_id,
                     "fields": ["label"],
                     "primary_coding_sha256": "b" * 64,
                     "secondary_coding_sha256": "c" * 64,
@@ -873,7 +1282,7 @@ class HandoffWorkbenchTests(unittest.TestCase):
             "false exclusion without label disagreement": lambda artifact: artifact.update(
                 field_disagreements=[
                     {
-                        "candidate_id": "candidate-1",
+                        "candidate_id": self.audit_candidate_id,
                         "fields": ["reasoning"],
                         "primary_coding_sha256": "b" * 64,
                         "secondary_coding_sha256": "c" * 64,
@@ -883,7 +1292,7 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 ],
                 false_exclusion_diagnostics=[
                     {
-                        "candidate_id": "candidate-1",
+                        "candidate_id": self.audit_candidate_id,
                         "primary_label": "false_positive",
                         "secondary_label": "core_merits",
                         "resolved": True,
@@ -894,7 +1303,7 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 adjudications_sha256="e" * 64,
                 field_disagreements=[
                     {
-                        "candidate_id": "candidate-1",
+                        "candidate_id": self.audit_candidate_id,
                         "fields": ["invented"],
                         "primary_coding_sha256": "b" * 64,
                         "secondary_coding_sha256": "c" * 64,
@@ -964,8 +1373,8 @@ class HandoffWorkbenchTests(unittest.TestCase):
                 current_primary_coding_sha256="f" * 64,
             ),
             "required candidates": lambda artifact: artifact.update(
-                required_candidate_ids=["candidate-2"],
-                audited_candidate_ids=["candidate-2"],
+                required_candidate_ids=[self.other_audit_candidate_id],
+                audited_candidate_ids=[self.other_audit_candidate_id],
             ),
         }
         for label, mutate in mutations.items():

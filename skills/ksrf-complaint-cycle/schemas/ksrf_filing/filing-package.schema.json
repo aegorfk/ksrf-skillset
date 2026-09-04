@@ -708,7 +708,7 @@
     },
     "practiceReadyBinding": {
       "type": "object",
-      "required": ["claim_id", "revision_id", "claim_sha256", "source_file_sha256", "input_bindings_sha256", "input_manifest_updated_at", "claim_created_at", "handoff_id", "plan_sha256", "evidence_sha256", "fingerprint_sha256", "maximum_permitted_claim", "wording_review_event_sha256", "wording_reviewed_at", "result_import_event_sha256", "result_imported_at", "result_source_sha256", "result_created_at", "attachment_event_sha256", "attachment_attached_at", "anchor_checked_at", "trust_anchor_sha256"],
+      "required": ["claim_id", "revision_id", "claim_sha256", "source_file_sha256", "input_bindings_sha256", "input_manifest_updated_at", "claim_created_at", "handoff_id", "plan_sha256", "evidence_sha256", "fingerprint_sha256", "maximum_permitted_claim", "wording_review_event_sha256", "wording_reviewed_at", "result_import_event_sha256", "expected_finalization_receipt_sha256", "result_imported_at", "result_source_sha256", "result_created_at", "attachment_event_sha256", "attachment_attached_at", "anchor_checked_at", "trust_anchor_sha256"],
       "properties": {
         "claim_id": {"type": "string", "minLength": 1},
         "revision_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -725,6 +725,7 @@
         "wording_review_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "wording_reviewed_at": {"type": "string", "format": "date-time"},
         "result_import_event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_finalization_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "result_imported_at": {"type": "string", "format": "date-time"},
         "result_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "result_created_at": {"type": "string", "format": "date-time"},
