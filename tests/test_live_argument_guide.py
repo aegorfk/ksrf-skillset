@@ -22,7 +22,7 @@ import skillset_file_contract as contract  # noqa: E402
 
 
 EXPECTED_GUIDE_SHA256 = (
-    "88676c07982a7b897a3ff93f89f0860083eb4ed3e9cff37e7db75802062805dd"
+    "133be3b2a86388857d1e14c7517de3362455ad8f43114e1bcbfc2cc644706493"
 )
 
 
@@ -32,7 +32,7 @@ class LiveArgumentGuideTests(unittest.TestCase):
         text = data.decode("utf-8")
 
         self.assertEqual(len(text.splitlines()), 424)
-        self.assertEqual(len(data), 52_749)
+        self.assertEqual(len(data), 52_930)
         self.assertEqual(hashlib.sha256(data).hexdigest(), EXPECTED_GUIDE_SHA256)
         self.assertNotIn(
             "- [Автоматизация](#функциональность-для-максимальной-автоматизации)",
