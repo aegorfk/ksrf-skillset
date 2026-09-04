@@ -253,6 +253,17 @@
         "The repair classifies profile data and each user statement, distinguishes evaluation, verifiable allegation, insult, obvious illegality and private-life content, and reconstructs the request, evidence, temporary response, verification and final moderation decision.",
         "The prayer is narrowed to the proven harmful meaning and uses graduated remedies; full profile restoration or removal, case review and factual outcome remain separate, while the broadest measure requires systematic-abuse evidence and inadequacy of lesser protection."
       ]
+    },
+    {
+      "id": 24,
+      "prompt": "Проект жалобы утверждает: раз квартира была зарегистрирована за продавцом, приобретатель безусловно добросовестен, а публичный собственник навсегда утратил право на виндикацию. Дата и основание публичного титула, обязанности по выявлению выморочного имущества, доступные на момент покупки отметки и документы, цена, число сделок, действия приобретателя и бремя доказывания не разобраны. Поздний уголовный приговор используется как доказательство одновременно бездействия государства и добросовестности покупателя. Проект объединяет неопределённость понятия добросовестности и особый статус публичного истца в одно требование и обещает возврат квартиры с компенсацией. Поставь QA-вердикт и предложи исправление.",
+      "expected_output": "Blocking QA with role, time, reliance, causation and partial-outcome separation.",
+      "files": [],
+      "expectations": [
+        "QA blocks both absolutes and requires the exact source of public title, competent bodies and duties, public inaction dates, state-confirmed transactions, transaction-date information, concrete red flags, acquisition checks and burden of proof.",
+        "The repair distinguishes information available at purchase from later criminal findings, treats registry reliance as significant but non-conclusive, and separately proves causal contributions and less restrictive public remedies.",
+        "The prayer separates public-owner risk allocation from the legal-certainty route and keeps constitutional meaning, factual good faith, review, return of property and compensation as distinct outcomes; success on one route does not validate the whole complaint."
+      ]
     }
   ]
 }
