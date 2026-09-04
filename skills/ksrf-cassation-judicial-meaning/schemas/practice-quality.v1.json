@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/practice-quality.v1.json",
   "title": "Practice quality contracts",
-  "contract_version": "1.3",
+  "contract_version": "1.4",
   "$defs": {
     "trajectory": {"$ref": "#/definitions/chain_meaning_trajectory"},
     "dimension": {"$ref": "#/definitions/uncertainty_dimension"}
@@ -28,6 +28,7 @@
     {"$ref": "#/definitions/coding_audit_finalization_receipt"},
     {"$ref": "#/definitions/coding_adjudication"},
     {"$ref": "#/definitions/coding_reliability"},
+    {"$ref": "#/definitions/native_reliability_doctor_report"},
     {"$ref": "#/definitions/refresh_plan"},
     {"$ref": "#/definitions/treatment_quality_set"},
     {"$ref": "#/definitions/prefiling_refresh"}
@@ -1804,6 +1805,829 @@
               }
             }
           }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "native_reliability_doctor_report": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "reason_codes are duplicate-free and follow the fixed doctor reason order",
+        "status is selected by the highest-priority present reason class: unreadable, invalid, incomplete, mismatch, then valid",
+        "remediation is derived only from reason_codes, deduplicated, and follows the fixed remediation order",
+        "a dependent check is null whenever a missing, unreadable, or invalid prerequisite prevents evaluation",
+        "the report contains no input-derived paths, digests, identifiers, values, timestamps, exceptions, or environment data"
+      ],
+      "$defs": {
+        "remediation_access": {
+          "$anchor": "doctor-remediation-access",
+          "type": "object",
+          "required": ["code", "message_ru"],
+          "properties": {
+            "code": {"const": "check_local_read_access"},
+            "message_ru": {
+              "const": "Проверьте, что указанный локальный файл существует и доступен для чтения; команда не будет его изменять."
+            }
+          },
+          "additionalProperties": false
+        },
+        "remediation_original": {
+          "$anchor": "doctor-remediation-original",
+          "type": "object",
+          "required": ["code", "message_ru"],
+          "properties": {
+            "code": {"const": "use_original_finalizer_files"},
+            "message_ru": {
+              "const": "Используйте исходные файлы успешной финализации и не исправляйте их JSON вручную."
+            }
+          },
+          "additionalProperties": false
+        },
+        "remediation_triple": {
+          "$anchor": "doctor-remediation-triple",
+          "type": "object",
+          "required": ["code", "message_ru"],
+          "properties": {
+            "code": {"const": "provide_exact_triple"},
+            "message_ru": {
+              "const": "Передайте оба неизменённых файла финализации и отдельно сохранённый SHA-256 из её успешного стандартного вывода."
+            }
+          },
+          "additionalProperties": false
+        },
+        "remediation_external": {
+          "$anchor": "doctor-remediation-external",
+          "type": "object",
+          "required": ["code", "message_ru"],
+          "properties": {
+            "code": {"const": "retain_external_digest"},
+            "message_ru": {
+              "const": "Берите ожидаемый SHA-256 только из стандартного вывода успешно завершившейся финализации и не восстанавливайте его из квитанции."
+            }
+          },
+          "additionalProperties": false
+        },
+        "remediation_recover": {
+          "$anchor": "doctor-remediation-recover",
+          "type": "object",
+          "required": ["code", "message_ru"],
+          "properties": {
+            "code": {"const": "recover_in_new_sibling"},
+            "message_ru": {
+              "const": "Повторите финализацию из тех же неизменённых входов в новой соседней папке и побайтово сравните результат."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "status",
+        "native_relation_valid", "reason_codes", "checks", "remediation",
+        "scope"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {
+          "type": "string", "const": "native_reliability_doctor_report"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["valid", "incomplete", "mismatch", "invalid", "unreadable"]
+        },
+        "native_relation_valid": {"type": "boolean"},
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "coding_reliability_unreadable",
+              "finalization_receipt_unreadable",
+              "coding_reliability_json_invalid",
+              "coding_reliability_canonical_bytes_invalid",
+              "coding_reliability_contract_invalid",
+              "finalization_receipt_json_invalid",
+              "finalization_receipt_contract_invalid",
+              "expected_finalization_receipt_sha256_invalid",
+              "coding_reliability_missing",
+              "finalization_receipt_missing",
+              "expected_finalization_receipt_sha256_missing",
+              "coding_reliability_incomplete",
+              "finalization_receipt_self_digest_mismatch",
+              "external_finalization_receipt_digest_mismatch",
+              "coding_reliability_file_digest_mismatch",
+              "audit_plan_digest_mismatch",
+              "candidate_population_mismatch"
+            ]
+          }
+        },
+        "checks": {
+          "type": "object",
+          "required": [
+            "coding_reliability_present", "coding_reliability_readable",
+            "coding_reliability_contract_valid", "coding_reliability_complete",
+            "finalization_receipt_present", "finalization_receipt_readable",
+            "finalization_receipt_contract_valid",
+            "expected_receipt_sha256_present",
+            "expected_receipt_sha256_valid", "receipt_self_digest_valid",
+            "external_receipt_digest_valid",
+            "coding_reliability_file_digest_valid",
+            "audit_plan_digest_valid", "candidate_population_valid"
+          ],
+          "properties": {
+            "coding_reliability_present": {"type": "boolean"},
+            "coding_reliability_readable": {"type": ["boolean", "null"]},
+            "coding_reliability_contract_valid": {"type": ["boolean", "null"]},
+            "coding_reliability_complete": {"type": ["boolean", "null"]},
+            "finalization_receipt_present": {"type": "boolean"},
+            "finalization_receipt_readable": {"type": ["boolean", "null"]},
+            "finalization_receipt_contract_valid": {"type": ["boolean", "null"]},
+            "expected_receipt_sha256_present": {"type": "boolean"},
+            "expected_receipt_sha256_valid": {"type": ["boolean", "null"]},
+            "receipt_self_digest_valid": {"type": ["boolean", "null"]},
+            "external_receipt_digest_valid": {"type": ["boolean", "null"]},
+            "coding_reliability_file_digest_valid": {"type": ["boolean", "null"]},
+            "audit_plan_digest_valid": {"type": ["boolean", "null"]},
+            "candidate_population_valid": {"type": ["boolean", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "remediation": {
+          "type": "array",
+          "oneOf": [
+            {"maxItems": 0},
+            {"minItems": 1, "prefixItems": [{"$ref": "#doctor-remediation-access"}], "items": false},
+            {"minItems": 1, "prefixItems": [{"$ref": "#doctor-remediation-original"}], "items": false},
+            {"minItems": 1, "prefixItems": [{"$ref": "#doctor-remediation-triple"}], "items": false},
+            {"minItems": 1, "prefixItems": [{"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 1, "prefixItems": [{"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-triple"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 2, "prefixItems": [{"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 3, "prefixItems": [{"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 4, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}], "items": false},
+            {"minItems": 4, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 4, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 4, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 4, "prefixItems": [{"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false},
+            {"minItems": 5, "prefixItems": [{"$ref": "#doctor-remediation-access"}, {"$ref": "#doctor-remediation-original"}, {"$ref": "#doctor-remediation-triple"}, {"$ref": "#doctor-remediation-external"}, {"$ref": "#doctor-remediation-recover"}], "items": false}
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "technical_lineage_only", "consumer_revalidation_required",
+            "reviewer_identity_authenticated", "legal_readiness",
+            "filing_authorized"
+          ],
+          "properties": {
+            "technical_lineage_only": {"type": "boolean", "const": true},
+            "consumer_revalidation_required": {"type": "boolean", "const": true},
+            "reviewer_identity_authenticated": {"type": "boolean", "const": false},
+            "legal_readiness": {"type": "boolean", "const": false},
+            "filing_authorized": {"type": "boolean", "const": false}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "status": {"const": "valid"},
+                "native_relation_valid": {"const": true},
+                "reason_codes": {"maxItems": 0},
+                "remediation": {"maxItems": 0},
+                "checks": {
+                  "properties": {
+                    "coding_reliability_present": {"const": true},
+                    "coding_reliability_readable": {"const": true},
+                    "coding_reliability_contract_valid": {"const": true},
+                    "coding_reliability_complete": {"const": true},
+                    "finalization_receipt_present": {"const": true},
+                    "finalization_receipt_readable": {"const": true},
+                    "finalization_receipt_contract_valid": {"const": true},
+                    "expected_receipt_sha256_present": {"const": true},
+                    "expected_receipt_sha256_valid": {"const": true},
+                    "receipt_self_digest_valid": {"const": true},
+                    "external_receipt_digest_valid": {"const": true},
+                    "coding_reliability_file_digest_valid": {"const": true},
+                    "audit_plan_digest_valid": {"const": true},
+                    "candidate_population_valid": {"const": true}
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "unreadable"},
+                "native_relation_valid": {"const": false},
+                "reason_codes": {
+                  "minItems": 1,
+                  "contains": {
+                    "enum": [
+                      "coding_reliability_unreadable",
+                      "finalization_receipt_unreadable"
+                    ]
+                  }
+                },
+                "remediation": {"minItems": 1}
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "invalid"},
+                "native_relation_valid": {"const": false},
+                "reason_codes": {
+                  "minItems": 1,
+                  "contains": {
+                    "enum": [
+                      "coding_reliability_json_invalid",
+                      "coding_reliability_canonical_bytes_invalid",
+                      "coding_reliability_contract_invalid",
+                      "finalization_receipt_json_invalid",
+                      "finalization_receipt_contract_invalid",
+                      "expected_finalization_receipt_sha256_invalid"
+                    ]
+                  },
+                  "not": {
+                    "contains": {
+                      "enum": [
+                        "coding_reliability_unreadable",
+                        "finalization_receipt_unreadable"
+                      ]
+                    }
+                  }
+                },
+                "remediation": {"minItems": 1}
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "incomplete"},
+                "native_relation_valid": {"const": false},
+                "reason_codes": {
+                  "minItems": 1,
+                  "contains": {
+                    "enum": [
+                      "coding_reliability_missing",
+                      "finalization_receipt_missing",
+                      "expected_finalization_receipt_sha256_missing",
+                      "coding_reliability_incomplete"
+                    ]
+                  },
+                  "not": {
+                    "contains": {
+                      "enum": [
+                        "coding_reliability_unreadable",
+                        "finalization_receipt_unreadable",
+                        "coding_reliability_json_invalid",
+                        "coding_reliability_canonical_bytes_invalid",
+                        "coding_reliability_contract_invalid",
+                        "finalization_receipt_json_invalid",
+                        "finalization_receipt_contract_invalid",
+                        "expected_finalization_receipt_sha256_invalid"
+                      ]
+                    }
+                  }
+                },
+                "remediation": {"minItems": 1}
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "mismatch"},
+                "native_relation_valid": {"const": false},
+                "reason_codes": {
+                  "minItems": 1,
+                  "contains": {
+                    "enum": [
+                      "finalization_receipt_self_digest_mismatch",
+                      "external_finalization_receipt_digest_mismatch",
+                      "coding_reliability_file_digest_mismatch",
+                      "audit_plan_digest_mismatch",
+                      "candidate_population_mismatch"
+                    ]
+                  },
+                  "not": {
+                    "contains": {
+                      "enum": [
+                        "coding_reliability_unreadable",
+                        "finalization_receipt_unreadable",
+                        "coding_reliability_json_invalid",
+                        "coding_reliability_canonical_bytes_invalid",
+                        "coding_reliability_contract_invalid",
+                        "finalization_receipt_json_invalid",
+                        "finalization_receipt_contract_invalid",
+                        "expected_finalization_receipt_sha256_invalid",
+                        "coding_reliability_missing",
+                        "finalization_receipt_missing",
+                        "expected_finalization_receipt_sha256_missing",
+                        "coding_reliability_incomplete"
+                      ]
+                    }
+                  }
+                },
+                "checks": {
+                  "properties": {
+                    "coding_reliability_present": {"const": true},
+                    "coding_reliability_readable": {"const": true},
+                    "coding_reliability_contract_valid": {"const": true},
+                    "coding_reliability_complete": {"const": true},
+                    "finalization_receipt_present": {"const": true},
+                    "finalization_receipt_readable": {"const": true},
+                    "finalization_receipt_contract_valid": {"const": true},
+                    "expected_receipt_sha256_present": {"const": true},
+                    "expected_receipt_sha256_valid": {"const": true}
+                  },
+                  "anyOf": [
+                    {"properties": {"receipt_self_digest_valid": {"const": false}}},
+                    {"properties": {"external_receipt_digest_valid": {"const": false}}},
+                    {"properties": {"coding_reliability_file_digest_valid": {"const": false}}},
+                    {"properties": {"audit_plan_digest_valid": {"const": false}}},
+                    {"properties": {"candidate_population_valid": {"const": false}}}
+                  ]
+                },
+                "remediation": {
+                  "const": [
+                    {
+                      "code": "recover_in_new_sibling",
+                      "message_ru": "Повторите финализацию из тех же неизменённых входов в новой соседней папке и побайтово сравните результат."
+                    }
+                  ]
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "reason_codes": {
+                        "contains": {
+                          "const": "finalization_receipt_self_digest_mismatch"
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "receipt_self_digest_valid": {"const": false}
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "receipt_self_digest_valid": {"const": true}
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "reason_codes": {
+                        "contains": {
+                          "const": "external_finalization_receipt_digest_mismatch"
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "external_receipt_digest_valid": {"const": false}
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "checks": {
+                        "oneOf": [
+                          {
+                            "properties": {
+                              "receipt_self_digest_valid": {"const": false},
+                              "external_receipt_digest_valid": {"type": "null"}
+                            }
+                          },
+                          {
+                            "properties": {
+                              "receipt_self_digest_valid": {"const": true},
+                              "external_receipt_digest_valid": {"const": true}
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "reason_codes": {
+                        "contains": {
+                          "const": "coding_reliability_file_digest_mismatch"
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "coding_reliability_file_digest_valid": {"const": false}
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "coding_reliability_file_digest_valid": {"const": true}
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "reason_codes": {
+                        "contains": {"const": "audit_plan_digest_mismatch"}
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "audit_plan_digest_valid": {"const": false}
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "audit_plan_digest_valid": {"const": true}
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "reason_codes": {
+                        "contains": {"const": "candidate_population_mismatch"}
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "candidate_population_valid": {"const": false}
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "checks": {
+                        "properties": {
+                          "candidate_population_valid": {"const": true}
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_present": {"const": false}}}}},
+          "then": {"properties": {"checks": {"properties": {"coding_reliability_readable": {"const": null}}}}},
+          "else": {"properties": {"checks": {"properties": {"coding_reliability_readable": {"type": "boolean"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_readable": {"not": {"const": true}}}}}},
+          "then": {"properties": {"checks": {"properties": {"coding_reliability_contract_valid": {"const": null}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_contract_valid": {"const": true}}}}},
+          "then": {"properties": {"checks": {"properties": {"coding_reliability_complete": {"type": "boolean"}}}}},
+          "else": {"properties": {"checks": {"properties": {"coding_reliability_complete": {"const": null}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_present": {"const": false}}}}},
+          "then": {"properties": {"checks": {"properties": {"finalization_receipt_readable": {"const": null}}}}},
+          "else": {"properties": {"checks": {"properties": {"finalization_receipt_readable": {"type": "boolean"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_readable": {"not": {"const": true}}}}}},
+          "then": {"properties": {"checks": {"properties": {"finalization_receipt_contract_valid": {"const": null}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"expected_receipt_sha256_present": {"const": false}}}}},
+          "then": {"properties": {"checks": {"properties": {"expected_receipt_sha256_valid": {"const": null}}}}},
+          "else": {"properties": {"checks": {"properties": {"expected_receipt_sha256_valid": {"type": "boolean"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_contract_valid": {"const": true}}}}},
+          "then": {"properties": {"checks": {"properties": {"receipt_self_digest_valid": {"type": "boolean"}}}}},
+          "else": {"properties": {"checks": {"properties": {"receipt_self_digest_valid": {"const": null}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "receipt_self_digest_valid": {"const": true},
+                  "expected_receipt_sha256_valid": {"const": true}
+                }
+              }
+            }
+          },
+          "then": {"properties": {"checks": {"properties": {"external_receipt_digest_valid": {"type": "boolean"}}}}},
+          "else": {"properties": {"checks": {"properties": {"external_receipt_digest_valid": {"const": null}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "coding_reliability_contract_valid": {"const": true},
+                  "finalization_receipt_contract_valid": {"const": true}
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "coding_reliability_file_digest_valid": {"type": "boolean"},
+                  "audit_plan_digest_valid": {"type": "boolean"},
+                  "candidate_population_valid": {"type": "boolean"}
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "coding_reliability_file_digest_valid": {"const": null},
+                  "audit_plan_digest_valid": {"const": null},
+                  "candidate_population_valid": {"const": null}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_present": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "coding_reliability_missing"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "coding_reliability_missing"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_present": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "finalization_receipt_missing"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "finalization_receipt_missing"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"expected_receipt_sha256_present": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "expected_finalization_receipt_sha256_missing"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "expected_finalization_receipt_sha256_missing"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_readable": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "coding_reliability_unreadable"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "coding_reliability_unreadable"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_readable": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "finalization_receipt_unreadable"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "finalization_receipt_unreadable"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "coding_reliability_present": {"const": true},
+                  "coding_reliability_readable": {"const": true},
+                  "coding_reliability_contract_valid": {"const": null}
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "coding_reliability_json_invalid",
+                    "coding_reliability_canonical_bytes_invalid"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reason_codes": {
+                "not": {
+                  "contains": {
+                    "enum": [
+                      "coding_reliability_json_invalid",
+                      "coding_reliability_canonical_bytes_invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "properties": {
+                  "finalization_receipt_present": {"const": true},
+                  "finalization_receipt_readable": {"const": true},
+                  "finalization_receipt_contract_valid": {"const": null}
+                }
+              }
+            }
+          },
+          "then": {"properties": {"reason_codes": {"contains": {"const": "finalization_receipt_json_invalid"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "finalization_receipt_json_invalid"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_contract_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "coding_reliability_contract_invalid"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "coding_reliability_contract_invalid"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"finalization_receipt_contract_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "finalization_receipt_contract_invalid"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "finalization_receipt_contract_invalid"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"expected_receipt_sha256_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "expected_finalization_receipt_sha256_invalid"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "expected_finalization_receipt_sha256_invalid"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_complete": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "coding_reliability_incomplete"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "coding_reliability_incomplete"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"receipt_self_digest_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "finalization_receipt_self_digest_mismatch"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "finalization_receipt_self_digest_mismatch"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"external_receipt_digest_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "external_finalization_receipt_digest_mismatch"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "external_finalization_receipt_digest_mismatch"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"coding_reliability_file_digest_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "coding_reliability_file_digest_mismatch"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "coding_reliability_file_digest_mismatch"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"audit_plan_digest_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "audit_plan_digest_mismatch"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "audit_plan_digest_mismatch"}}}}}
+        },
+        {
+          "if": {"properties": {"checks": {"properties": {"candidate_population_valid": {"const": false}}}}},
+          "then": {"properties": {"reason_codes": {"contains": {"const": "candidate_population_mismatch"}}}},
+          "else": {"properties": {"reason_codes": {"not": {"contains": {"const": "candidate_population_mismatch"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "coding_reliability_unreadable",
+                    "finalization_receipt_unreadable"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {"properties": {"remediation": {"contains": {"$ref": "#doctor-remediation-access"}}}},
+          "else": {"properties": {"remediation": {"not": {"contains": {"$ref": "#doctor-remediation-access"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "coding_reliability_json_invalid",
+                    "coding_reliability_canonical_bytes_invalid",
+                    "coding_reliability_contract_invalid",
+                    "finalization_receipt_json_invalid",
+                    "finalization_receipt_contract_invalid"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {"properties": {"remediation": {"contains": {"$ref": "#doctor-remediation-original"}}}},
+          "else": {"properties": {"remediation": {"not": {"contains": {"$ref": "#doctor-remediation-original"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "coding_reliability_missing",
+                    "finalization_receipt_missing",
+                    "expected_finalization_receipt_sha256_missing",
+                    "coding_reliability_incomplete"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {"properties": {"remediation": {"contains": {"$ref": "#doctor-remediation-triple"}}}},
+          "else": {"properties": {"remediation": {"not": {"contains": {"$ref": "#doctor-remediation-triple"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "expected_finalization_receipt_sha256_missing",
+                    "expected_finalization_receipt_sha256_invalid"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {"properties": {"remediation": {"contains": {"$ref": "#doctor-remediation-external"}}}},
+          "else": {"properties": {"remediation": {"not": {"contains": {"$ref": "#doctor-remediation-external"}}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_codes": {
+                "contains": {
+                  "enum": [
+                    "expected_finalization_receipt_sha256_missing",
+                    "expected_finalization_receipt_sha256_invalid",
+                    "finalization_receipt_self_digest_mismatch",
+                    "external_finalization_receipt_digest_mismatch",
+                    "coding_reliability_file_digest_mismatch",
+                    "audit_plan_digest_mismatch",
+                    "candidate_population_mismatch"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {"properties": {"remediation": {"contains": {"$ref": "#doctor-remediation-recover"}}}},
+          "else": {"properties": {"remediation": {"not": {"contains": {"$ref": "#doctor-remediation-recover"}}}}}
         }
       ],
       "additionalProperties": false

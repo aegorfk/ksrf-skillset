@@ -74,6 +74,7 @@ from .practice_quality import (
     build_native_coding_audit_inputs,
     build_native_coding_audit_finalization,
     build_native_coding_review_import,
+    build_native_reliability_doctor_report,
     build_uncertainty_profile,
     canonical_digest,
     NON_AUDITED_CODING_CONTENT_FIELDS,
@@ -3615,6 +3616,19 @@ def _write_stdout_line(line: str) -> None:
     sys.stdout.flush()
 
 
+def _write_stdout_bytes(content: bytes) -> None:
+    """Write exact UTF-8 bytes, with a text-stream fallback for unit tests."""
+
+    stream = getattr(sys.stdout, "buffer", None)
+    if stream is None:
+        _write_stdout_line(content.decode("utf-8"))
+        return
+    written = stream.write(content)
+    if written != len(content):
+        raise OSError("Стандартный вывод принял не весь результат.")
+    stream.flush()
+
+
 def _print_json(value: Any) -> None:
     _write_stdout_line(_json_output_line(value))
 
@@ -4594,6 +4608,53 @@ def cmd_quality_uncertainty_profile(args: argparse.Namespace) -> int:
         ),
     )
     return _quality_result(args, result)
+
+
+def cmd_quality_native_reliability_doctor(args: argparse.Namespace) -> int:
+    reliability_path = getattr(args, "coding_reliability", None)
+    receipt_path = getattr(args, "coding_audit_finalization_receipt", None)
+    (
+        reliability,
+        reliability_readable,
+        canonical_bytes_valid,
+        reliability_file_sha256,
+        reliability_reasons,
+    ) = (
+        _read_native_reliability_doctor_json(
+            reliability_path,
+            unreadable_reason="coding_reliability_unreadable",
+            invalid_reason="coding_reliability_json_invalid",
+            require_canonical=True,
+        )
+    )
+    receipt, receipt_readable, _, _, receipt_reasons = (
+        _read_native_reliability_doctor_json(
+            receipt_path,
+            unreadable_reason="finalization_receipt_unreadable",
+            invalid_reason="finalization_receipt_json_invalid",
+            require_canonical=False,
+        )
+    )
+    report = build_native_reliability_doctor_report(
+        reliability,
+        receipt,
+        getattr(args, "expected_finalization_receipt_sha256", None),
+        coding_reliability_present=reliability_path is not None,
+        coding_reliability_readable=reliability_readable,
+        coding_reliability_canonical_bytes_valid=canonical_bytes_valid,
+        coding_reliability_file_sha256=reliability_file_sha256,
+        finalization_receipt_present=receipt_path is not None,
+        finalization_receipt_readable=receipt_readable,
+        input_reason_codes=(*reliability_reasons, *receipt_reasons),
+    )
+    _write_stdout_bytes(_canonical_json_bytes(report))
+    return {
+        "valid": 0,
+        "incomplete": 3,
+        "mismatch": 3,
+        "invalid": 2,
+        "unreadable": 2,
+    }.get(report.get("status"), 2)
 
 
 def cmd_quality_coding_audit_plan(args: argparse.Namespace) -> int:
@@ -7219,6 +7280,122 @@ def _optional_private_quality_json(
     return value
 
 
+_NATIVE_RELIABILITY_DOCTOR_MAX_INPUT_BYTES = 64 * 1024 * 1024
+
+
+def _read_native_reliability_doctor_bytes(path_value: str) -> bytes:
+    """Read one bounded regular file without following a leaf symlink."""
+
+    path = Path(path_value).expanduser()
+    leaf_metadata = path.lstat()
+    if (
+        stat.S_ISLNK(leaf_metadata.st_mode)
+        or not stat.S_ISREG(leaf_metadata.st_mode)
+        or leaf_metadata.st_size < 0
+        or leaf_metadata.st_size > _NATIVE_RELIABILITY_DOCTOR_MAX_INPUT_BYTES
+    ):
+        raise OSError("not-bounded-regular-file")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if nofollow:
+        flags |= nofollow
+    descriptor = os.open(path, flags)
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or (metadata.st_dev, metadata.st_ino)
+            != (leaf_metadata.st_dev, leaf_metadata.st_ino)
+            or metadata.st_size < 0
+            or metadata.st_size > _NATIVE_RELIABILITY_DOCTOR_MAX_INPUT_BYTES
+        ):
+            raise OSError("not-bounded-regular-file")
+        stable_identity = _stable_file_identity(metadata)
+        chunks: list[bytes] = []
+        remaining = _NATIVE_RELIABILITY_DOCTOR_MAX_INPUT_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        content = b"".join(chunks)
+        if len(content) > _NATIVE_RELIABILITY_DOCTOR_MAX_INPUT_BYTES:
+            raise OSError("input-too-large")
+        final_metadata = os.fstat(descriptor)
+        try:
+            final_leaf_metadata = path.lstat()
+        except OSError as exc:
+            raise OSError("file-changed-during-read") from exc
+        if (
+            _stable_file_identity(final_metadata) != stable_identity
+            or _stable_file_identity(final_leaf_metadata) != stable_identity
+            or len(content) != metadata.st_size
+        ):
+            raise OSError("file-changed-during-read")
+        return content
+    finally:
+        os.close(descriptor)
+
+
+def _read_native_reliability_doctor_json(
+    path_value: str | None,
+    *,
+    unreadable_reason: str,
+    invalid_reason: str,
+    require_canonical: bool,
+) -> tuple[
+    dict[str, Any] | None,
+    bool | None,
+    bool | None,
+    str | None,
+    tuple[str, ...],
+]:
+    """Capture one doctor input once and collapse failures to closed codes."""
+
+    if path_value is None:
+        return None, None, None, None, ()
+    try:
+        content = _read_native_reliability_doctor_bytes(path_value)
+    except (OSError, RuntimeError, UnicodeError, ValueError):
+        return None, False, None, None, (unreadable_reason,)
+    content_sha256 = hashlib.sha256(content).hexdigest()
+    try:
+        value = json.loads(
+            content.decode("utf-8"),
+            parse_constant=_reject_json_constant,
+            object_pairs_hook=_closed_json_object,
+        )
+    except (
+        UnicodeError,
+        json.JSONDecodeError,
+        ValueError,
+        RecursionError,
+    ):
+        return None, True, None, content_sha256, (invalid_reason,)
+    if not isinstance(value, dict):
+        return None, True, None, content_sha256, (invalid_reason,)
+    if not require_canonical:
+        return value, True, None, content_sha256, ()
+    try:
+        canonical = content == _canonical_json_bytes(value)
+    except (TypeError, ValueError, UnicodeEncodeError, RecursionError):
+        return None, True, False, content_sha256, (invalid_reason,)
+    if not canonical:
+        return (
+            value,
+            True,
+            False,
+            content_sha256,
+            ("coding_reliability_canonical_bytes_invalid",),
+        )
+    return value, True, True, content_sha256, ()
+
+
 def _load_quality_bindings(
     path_values: Iterable[str],
     *,
@@ -8290,6 +8467,71 @@ def build_parser() -> argparse.ArgumentParser:
     quality_uncertainty.add_argument("--higher-authority-treatments")
     quality_uncertainty.add_argument("--output")
     quality_uncertainty.set_defaults(func=cmd_quality_uncertainty_profile)
+
+    quality_native_reliability = quality_sub.add_parser(
+        "native-reliability",
+        help=(
+            "Проверить точную связь штатной надёжности, квитанции и внешнего SHA-256"
+        ),
+        description=(
+            "Локально и только для чтения проверить три независимых входа "
+            "штатной надёжности кодирования. Один совместимый файл "
+            "coding-reliability.json не подтверждает штатное происхождение."
+        ),
+    )
+    quality_native_reliability_sub = quality_native_reliability.add_subparsers(
+        dest="native_reliability_command",
+        required=True,
+    )
+    quality_native_reliability_doctor = quality_native_reliability_sub.add_parser(
+        "doctor",
+        help="Диагностировать сохранённую тройку без изменения файлов",
+        description=(
+            "Проверить неизменённые файлы отчёта надёжности и квитанции "
+            "финализации вместе с отдельно сохранённым SHA-256 из успешного "
+            "стандартного вывода финализатора."
+        ),
+        epilog=(
+            "Для статуса valid нужны все три входа; пропуск разрешён только "
+            "для диагностики incomplete. Стандартный вывод содержит один "
+            "детерминированный канонический JSON-отчёт. Отдельная команда "
+            "quality coding-reliability остаётся совместимой диагностикой и "
+            "не подтверждает штатное происхождение. "
+            "Коды завершения: 0 — точная техническая связь подтверждена; "
+            "3 — набор неполон или связь не совпала; 2 — переданный вход "
+            "недоступен или недействителен. Команда не пишет файлы, не "
+            "обращается к сети или базе данных и ничего не исправляет. "
+            "Ожидаемый SHA-256 нельзя брать из самой квитанции: если он "
+            "утрачен или сомнителен, повторите финализацию из тех же "
+            "неизменённых входов в новой соседней папке и побайтово сравните "
+            "результат. Статус valid не подтверждает личность или "
+            "независимость проверяющего, юридическую правильность, "
+            "актуальность права, разрешение на публикацию, одобрение или "
+            "готовность к подаче; последующий потребитель заново проверяет "
+            "текущий план, доверенное происхождение и собственные барьеры."
+        ),
+    )
+    quality_native_reliability_doctor.add_argument(
+        "--coding-reliability",
+        help=(
+            "Неизменённый канонический coding-reliability.json штатной "
+            "финализации; отдельный совместимый отчёт остаётся только диагностикой."
+        ),
+    )
+    quality_native_reliability_doctor.add_argument(
+        "--coding-audit-finalization-receipt",
+        help="Неизменённый coding-audit-finalization-receipt.json.",
+    )
+    quality_native_reliability_doctor.add_argument(
+        "--expected-finalization-receipt-sha256",
+        help=(
+            "Отдельно сохранённый строчный SHA-256 из успешного стандартного "
+            "вывода coding-audit-finalize; не восстанавливается из квитанции."
+        ),
+    )
+    quality_native_reliability_doctor.set_defaults(
+        func=cmd_quality_native_reliability_doctor
+    )
 
     quality_audit_plan = quality_sub.add_parser(
         "coding-audit-plan",

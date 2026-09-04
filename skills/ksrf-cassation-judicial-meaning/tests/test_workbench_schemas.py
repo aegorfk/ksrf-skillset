@@ -5,6 +5,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from judicial_meaning import practice_quality
 from judicial_meaning.casework import (
     build_explainable_queue,
     analyze_case_relative_dynamics,
@@ -14,6 +15,7 @@ from judicial_meaning.casework import (
 )
 from judicial_meaning.handoff_workbench import bind_request_payload, create_handoff
 from judicial_meaning.reporting import derive_research_status, write_offline_report
+from tests import test_practice_quality
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
@@ -734,6 +736,532 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         )
         self.assertTrue(list(validator.iter_errors(invalid_standard_binding)))
         self.assertTrue(list(validator.iter_errors(mislabeled)))
+
+    def test_native_reliability_doctor_report_schema_is_closed_and_rooted(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual("1.4", schema["contract_version"])
+        self.assertEqual(
+            1,
+            schema["oneOf"].count(
+                {"$ref": "#/definitions/native_reliability_doctor_report"}
+            ),
+        )
+        definition = schema["definitions"]["native_reliability_doctor_report"]
+        self.assertFalse(definition["additionalProperties"])
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": "#/definitions/native_reliability_doctor_report",
+                "definitions": schema["definitions"],
+            }
+        )
+        report = {
+            "schema_version": "1.0",
+            "artifact_type": "native_reliability_doctor_report",
+            "status": "valid",
+            "native_relation_valid": True,
+            "reason_codes": [],
+            "checks": {
+                "coding_reliability_present": True,
+                "coding_reliability_readable": True,
+                "coding_reliability_contract_valid": True,
+                "coding_reliability_complete": True,
+                "finalization_receipt_present": True,
+                "finalization_receipt_readable": True,
+                "finalization_receipt_contract_valid": True,
+                "expected_receipt_sha256_present": True,
+                "expected_receipt_sha256_valid": True,
+                "receipt_self_digest_valid": True,
+                "external_receipt_digest_valid": True,
+                "coding_reliability_file_digest_valid": True,
+                "audit_plan_digest_valid": True,
+                "candidate_population_valid": True,
+            },
+            "remediation": [],
+            "scope": {
+                "technical_lineage_only": True,
+                "consumer_revalidation_required": True,
+                "reviewer_identity_authenticated": False,
+                "legal_readiness": False,
+                "filing_authorized": False,
+            },
+        }
+        self.assertEqual([], list(validator.iter_errors(report)))
+        Draft202012Validator(schema).validate(report)
+
+        remediation_messages = {
+            "check_local_read_access": (
+                "Проверьте, что указанный локальный файл существует и доступен "
+                "для чтения; команда не будет его изменять."
+            ),
+            "use_original_finalizer_files": (
+                "Используйте исходные файлы успешной финализации и не "
+                "исправляйте их JSON вручную."
+            ),
+            "provide_exact_triple": (
+                "Передайте оба неизменённых файла финализации и отдельно "
+                "сохранённый SHA-256 из её успешного стандартного вывода."
+            ),
+            "retain_external_digest": (
+                "Берите ожидаемый SHA-256 только из стандартного вывода успешно "
+                "завершившейся финализации и не восстанавливайте его из квитанции."
+            ),
+            "recover_in_new_sibling": (
+                "Повторите финализацию из тех же неизменённых входов в новой "
+                "соседней папке и побайтово сравните результат."
+            ),
+        }
+
+        def state_report(status, reason_codes, check_changes, remediation_codes):
+            value = copy.deepcopy(report)
+            value.update(
+                {
+                    "status": status,
+                    "native_relation_valid": False,
+                    "reason_codes": reason_codes,
+                    "remediation": [
+                        {
+                            "code": code,
+                            "message_ru": remediation_messages[code],
+                        }
+                        for code in remediation_codes
+                    ],
+                }
+            )
+            value["checks"].update(check_changes)
+            return value
+
+        unreadable_report = state_report(
+            "unreadable",
+            ["coding_reliability_unreadable"],
+            {
+                "coding_reliability_readable": False,
+                "coding_reliability_contract_valid": None,
+                "coding_reliability_complete": None,
+                "coding_reliability_file_digest_valid": None,
+                "audit_plan_digest_valid": None,
+                "candidate_population_valid": None,
+            },
+            ["check_local_read_access"],
+        )
+        invalid_report = state_report(
+            "invalid",
+            ["expected_finalization_receipt_sha256_invalid"],
+            {
+                "expected_receipt_sha256_valid": False,
+                "external_receipt_digest_valid": None,
+            },
+            ["retain_external_digest", "recover_in_new_sibling"],
+        )
+        incomplete_report = state_report(
+            "incomplete",
+            ["expected_finalization_receipt_sha256_missing"],
+            {
+                "expected_receipt_sha256_present": False,
+                "expected_receipt_sha256_valid": None,
+                "external_receipt_digest_valid": None,
+            },
+            [
+                "provide_exact_triple",
+                "retain_external_digest",
+                "recover_in_new_sibling",
+            ],
+        )
+        mismatch_report = state_report(
+            "mismatch",
+            ["external_finalization_receipt_digest_mismatch"],
+            {"external_receipt_digest_valid": False},
+            ["recover_in_new_sibling"],
+        )
+        self_mismatch_report = state_report(
+            "mismatch",
+            ["finalization_receipt_self_digest_mismatch"],
+            {
+                "receipt_self_digest_valid": False,
+                "external_receipt_digest_valid": None,
+            },
+            ["recover_in_new_sibling"],
+        )
+        for candidate in (
+            unreadable_report,
+            invalid_report,
+            incomplete_report,
+            mismatch_report,
+            self_mismatch_report,
+        ):
+            with self.subTest(valid_status=candidate["status"]):
+                self.assertEqual([], list(validator.iter_errors(candidate)))
+                Draft202012Validator(schema).validate(candidate)
+
+        invalid_variants = (
+            {**report, "unexpected": "private"},
+            {
+                **report,
+                "checks": {
+                    key: value
+                    for key, value in report["checks"].items()
+                    if key != "coding_reliability_complete"
+                },
+            },
+            {**report, "reason_codes": ["private_input_value"]},
+            {
+                **report,
+                "checks": {**report["checks"], "private_check": False},
+            },
+            {
+                **report,
+                "scope": {**report["scope"], "private_scope": False},
+            },
+            {
+                **report,
+                "remediation": [
+                    {
+                        "code": "provide_exact_triple",
+                        "message_ru": "Произвольный текст",
+                    }
+                ],
+            },
+            {**report, "status": "mismatch", "native_relation_valid": True},
+            {**unreadable_report, "reason_codes": []},
+            {
+                **unreadable_report,
+                "reason_codes": ["coding_reliability_json_invalid"],
+            },
+            {**invalid_report, "reason_codes": []},
+            {
+                **invalid_report,
+                "reason_codes": ["coding_reliability_unreadable"],
+            },
+            {
+                **incomplete_report,
+                "reason_codes": [
+                    "coding_reliability_contract_invalid",
+                    "coding_reliability_incomplete",
+                ],
+            },
+            {
+                **mismatch_report,
+                "reason_codes": [
+                    "coding_reliability_incomplete",
+                    "external_finalization_receipt_digest_mismatch",
+                ],
+            },
+            {
+                **mismatch_report,
+                "checks": {
+                    **mismatch_report["checks"],
+                    "external_receipt_digest_valid": True,
+                },
+            },
+            {
+                **mismatch_report,
+                "checks": {
+                    **mismatch_report["checks"],
+                    "external_receipt_digest_valid": True,
+                    "candidate_population_valid": False,
+                },
+            },
+            {
+                **self_mismatch_report,
+                "checks": {
+                    **self_mismatch_report["checks"],
+                    "external_receipt_digest_valid": True,
+                },
+            },
+            {
+                **unreadable_report,
+                "checks": {
+                    **unreadable_report["checks"],
+                    "coding_reliability_readable": True,
+                },
+                "remediation": invalid_report["remediation"],
+            },
+            {
+                **invalid_report,
+                "checks": {
+                    **invalid_report["checks"],
+                    "expected_receipt_sha256_valid": True,
+                    "external_receipt_digest_valid": True,
+                },
+                "remediation": unreadable_report["remediation"],
+            },
+            {
+                **incomplete_report,
+                "checks": {
+                    **incomplete_report["checks"],
+                    "expected_receipt_sha256_present": True,
+                    "expected_receipt_sha256_valid": True,
+                    "external_receipt_digest_valid": True,
+                },
+            },
+            {
+                **self_mismatch_report,
+                "reason_codes": [
+                    "finalization_receipt_self_digest_mismatch",
+                    "external_finalization_receipt_digest_mismatch",
+                ],
+                "checks": {
+                    **self_mismatch_report["checks"],
+                    "external_receipt_digest_valid": False,
+                },
+            },
+            {
+                **incomplete_report,
+                "remediation": list(reversed(incomplete_report["remediation"])),
+            },
+            {
+                **mismatch_report,
+                "remediation": [
+                    unreadable_report["remediation"][0],
+                    mismatch_report["remediation"][0],
+                ],
+            },
+            {
+                **invalid_report,
+                "remediation": [mismatch_report["remediation"][0]],
+            },
+            {**incomplete_report, "remediation": []},
+        )
+        for invalid in invalid_variants:
+            with self.subTest(invalid=invalid):
+                self.assertTrue(list(validator.iter_errors(invalid)))
+
+    def test_native_reliability_doctor_runtime_states_fit_exact_schema(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": "#/definitions/native_reliability_doctor_report",
+                "definitions": schema["definitions"],
+            }
+        )
+        fixture = test_practice_quality.PracticeQualityTests()
+        reliability, receipt, expected = fixture.native_reliability_inputs(
+            practice_quality
+        )
+        reliability_file_sha256 = fixture.reliability_file_sha256(reliability)
+
+        def build(
+            reliability_value,
+            receipt_value,
+            expected_value,
+            *,
+            coding_present=True,
+            coding_readable=True,
+            coding_canonical=True,
+            coding_file_sha256=reliability_file_sha256,
+            receipt_present=True,
+            receipt_readable=True,
+            input_reason_codes=(),
+        ):
+            return practice_quality.build_native_reliability_doctor_report(
+                reliability_value,
+                receipt_value,
+                expected_value,
+                coding_reliability_present=coding_present,
+                coding_reliability_readable=coding_readable,
+                coding_reliability_canonical_bytes_valid=coding_canonical,
+                coding_reliability_file_sha256=coding_file_sha256,
+                finalization_receipt_present=receipt_present,
+                finalization_receipt_readable=receipt_readable,
+                input_reason_codes=input_reason_codes,
+            )
+
+        reports = [build(reliability, receipt, expected)]
+        reports.append(
+            build(
+                None,
+                None,
+                None,
+                coding_present=False,
+                coding_readable=None,
+                coding_canonical=None,
+                coding_file_sha256=None,
+                receipt_present=False,
+                receipt_readable=None,
+            )
+        )
+        reports.append(
+            build(
+                None,
+                None,
+                None,
+                coding_readable=False,
+                coding_canonical=None,
+                coding_file_sha256=None,
+                receipt_present=False,
+                receipt_readable=None,
+                input_reason_codes=("coding_reliability_unreadable",),
+            )
+        )
+        reports.append(
+            build(
+                reliability,
+                receipt,
+                expected,
+                coding_canonical=False,
+            )
+        )
+        reports.append(
+            build(
+                reliability,
+                None,
+                expected,
+                receipt_readable=False,
+            )
+        )
+        reports.append(
+            build(
+                None,
+                receipt,
+                expected,
+                coding_canonical=None,
+                coding_file_sha256="0" * 64,
+            )
+        )
+        reports.append(
+            build(
+                {"schema_version": "1.0"},
+                receipt,
+                expected,
+                coding_file_sha256="0" * 64,
+            )
+        )
+        reports.append(build(reliability, None, expected))
+        reports.append(build(reliability, {}, expected))
+        reports.append(build(reliability, receipt, "НЕ-SHA-256"))
+        reports.append(
+            build(
+                None,
+                None,
+                None,
+                coding_readable=False,
+                coding_canonical=None,
+                coding_file_sha256=None,
+                input_reason_codes=("coding_reliability_unreadable",),
+            )
+        )
+
+        incomplete = copy.deepcopy(fixture.complete_reliability(practice_quality))
+        incomplete["complete"] = False
+        incomplete_payload = dict(incomplete)
+        incomplete_payload.pop("evidence_sha256")
+        incomplete["evidence_sha256"] = practice_quality.canonical_digest(
+            incomplete_payload
+        )
+        reports.append(
+            build(
+                incomplete,
+                None,
+                None,
+                coding_file_sha256=fixture.reliability_file_sha256(incomplete),
+                receipt_present=False,
+                receipt_readable=None,
+            )
+        )
+
+        def resigned(**changes):
+            unsigned = copy.deepcopy(receipt)
+            unsigned.pop("receipt_sha256")
+            unsigned.update(changes)
+            signed = {
+                **unsigned,
+                "receipt_sha256": practice_quality.canonical_digest(unsigned),
+            }
+            return signed, signed["receipt_sha256"]
+
+        self_mismatch = {**receipt, "plan_sha256": "0" * 64}
+        file_mismatch = resigned(coding_reliability_file_sha256="0" * 64)
+        plan_mismatch = resigned(audit_plan_sha256="0" * 64)
+        candidate_mismatch = resigned(
+            candidate_ids=["audit-candidate-sha256:" + "b" * 64]
+        )
+        reports.extend(
+            (
+                build(reliability, self_mismatch, expected),
+                build(reliability, receipt, "0" * 64),
+                build(reliability, *file_mismatch),
+                build(reliability, *plan_mismatch),
+                build(reliability, *candidate_mismatch),
+            )
+        )
+        combined_receipt, combined_expected = resigned(
+            coding_reliability_file_sha256="0" * 64,
+            audit_plan_sha256="0" * 64,
+            candidate_ids=["audit-candidate-sha256:" + "b" * 64],
+        )
+        reports.append(build(reliability, combined_receipt, "0" * 64))
+        reports.append(
+            build(
+                reliability,
+                {**combined_receipt, "plan_sha256": "0" * 64},
+                combined_expected,
+            )
+        )
+
+        reason_enum = set(
+            schema["definitions"]["native_reliability_doctor_report"]
+            ["properties"]["reason_codes"]["items"]["enum"]
+        )
+        self.assertEqual(
+            reason_enum,
+            {
+                reason
+                for value in reports
+                for reason in value["reason_codes"]
+            },
+        )
+        self.assertEqual(
+            {"valid", "incomplete", "mismatch", "invalid", "unreadable"},
+            {value["status"] for value in reports},
+        )
+        for value in reports:
+            with self.subTest(
+                status=value["status"], reasons=value["reason_codes"]
+            ):
+                errors = sorted(
+                    validator.iter_errors(value), key=lambda item: list(item.path)
+                )
+                self.assertEqual([], [error.message for error in errors])
+
+        reason_examples = {}
+        remediation_examples = {}
+        for value in reports:
+            for reason in value["reason_codes"]:
+                reason_examples.setdefault(reason, value)
+            for item in value["remediation"]:
+                remediation_examples.setdefault(item["code"], value)
+        self.assertEqual(reason_enum, set(reason_examples))
+        self.assertEqual(
+            {
+                "check_local_read_access",
+                "use_original_finalizer_files",
+                "provide_exact_triple",
+                "retain_external_digest",
+                "recover_in_new_sibling",
+            },
+            set(remediation_examples),
+        )
+        for reason, value in reason_examples.items():
+            with self.subTest(missing_reason=reason):
+                missing_reason = copy.deepcopy(value)
+                missing_reason["reason_codes"].remove(reason)
+                self.assertTrue(list(validator.iter_errors(missing_reason)))
+        for code, value in remediation_examples.items():
+            with self.subTest(missing_remediation=code):
+                missing_remediation = copy.deepcopy(value)
+                missing_remediation["remediation"] = [
+                    item
+                    for item in missing_remediation["remediation"]
+                    if item["code"] != code
+                ]
+                self.assertTrue(list(validator.iter_errors(missing_remediation)))
+        ordered = max(reports, key=lambda value: len(value["remediation"]))
+        self.assertEqual(5, len(ordered["remediation"]))
+        reordered = copy.deepcopy(ordered)
+        reordered["remediation"].reverse()
+        self.assertTrue(list(validator.iter_errors(reordered)))
 
     def test_native_profile_fields_are_required_only_for_claim_use(self):
         dimension = {

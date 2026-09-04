@@ -368,6 +368,19 @@ class PracticeQualityTests(unittest.TestCase):
         receipt = self.finalization_receipt(api, reliability)
         return reliability, receipt, receipt["receipt_sha256"]
 
+    def reliability_file_sha256(self, reliability):
+        content = (
+            json.dumps(
+                reliability,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        return hashlib.sha256(content).hexdigest()
+
     def test_native_reliability_verifier_is_public(self):
         api = self.api()
         self.assertTrue(
@@ -375,6 +388,484 @@ class PracticeQualityTests(unittest.TestCase):
             "the native relation verifier must be an explicit reusable runtime API",
         )
         self.assertIn("verify_native_coding_reliability", api.__all__)
+
+    def test_native_reliability_doctor_builder_is_public(self):
+        api = self.api()
+        self.assertTrue(
+            callable(
+                getattr(api, "build_native_reliability_doctor_report", None)
+            ),
+            "the doctor report builder must be an explicit reusable runtime API",
+        )
+        self.assertIn("build_native_reliability_doctor_report", api.__all__)
+
+    def test_native_reliability_doctor_accepts_exact_triple_value_free(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        reliability_snapshot = copy.deepcopy(reliability)
+        receipt_snapshot = copy.deepcopy(receipt)
+
+        report = api.build_native_reliability_doctor_report(
+            reliability,
+            receipt,
+            expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256=self.reliability_file_sha256(
+                reliability
+            ),
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+
+        self.assertEqual(
+            {
+                "schema_version",
+                "artifact_type",
+                "status",
+                "native_relation_valid",
+                "reason_codes",
+                "checks",
+                "remediation",
+                "scope",
+            },
+            set(report),
+        )
+        self.assertEqual("1.0", report["schema_version"])
+        self.assertEqual(
+            "native_reliability_doctor_report", report["artifact_type"]
+        )
+        self.assertEqual("valid", report["status"])
+        self.assertIs(report["native_relation_valid"], True)
+        self.assertEqual([], report["reason_codes"])
+        self.assertEqual([], report["remediation"])
+        self.assertEqual(
+            {
+                "coding_reliability_present": True,
+                "coding_reliability_readable": True,
+                "coding_reliability_contract_valid": True,
+                "coding_reliability_complete": True,
+                "finalization_receipt_present": True,
+                "finalization_receipt_readable": True,
+                "finalization_receipt_contract_valid": True,
+                "expected_receipt_sha256_present": True,
+                "expected_receipt_sha256_valid": True,
+                "receipt_self_digest_valid": True,
+                "external_receipt_digest_valid": True,
+                "coding_reliability_file_digest_valid": True,
+                "audit_plan_digest_valid": True,
+                "candidate_population_valid": True,
+            },
+            report["checks"],
+        )
+        self.assertEqual(
+            {
+                "technical_lineage_only": True,
+                "consumer_revalidation_required": True,
+                "reviewer_identity_authenticated": False,
+                "legal_readiness": False,
+                "filing_authorized": False,
+            },
+            report["scope"],
+        )
+        serialized = json.dumps(
+            report,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        self.assertNotIn(expected, serialized)
+        self.assertNotIn(reliability["required_candidate_ids"][0], serialized)
+        repeated = api.build_native_reliability_doctor_report(
+            copy.deepcopy(reliability),
+            copy.deepcopy(receipt),
+            expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256=self.reliability_file_sha256(
+                reliability
+            ),
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+        self.assertEqual(report, repeated)
+        self.assertEqual(reliability_snapshot, reliability)
+        self.assertEqual(receipt_snapshot, receipt)
+
+    def test_native_reliability_doctor_distinguishes_missing_and_incomplete(self):
+        api = self.api()
+        missing = api.build_native_reliability_doctor_report(
+            None,
+            None,
+            None,
+            coding_reliability_present=False,
+            coding_reliability_readable=None,
+            coding_reliability_canonical_bytes_valid=None,
+            coding_reliability_file_sha256=None,
+            finalization_receipt_present=False,
+            finalization_receipt_readable=None,
+        )
+        self.assertEqual("incomplete", missing["status"])
+        self.assertEqual(
+            [
+                "coding_reliability_missing",
+                "finalization_receipt_missing",
+                "expected_finalization_receipt_sha256_missing",
+            ],
+            missing["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "provide_exact_triple",
+                "retain_external_digest",
+                "recover_in_new_sibling",
+            ],
+            [item["code"] for item in missing["remediation"]],
+        )
+        self.assertIsNone(
+            missing["checks"]["coding_reliability_contract_valid"]
+        )
+        self.assertIsNone(missing["checks"]["coding_reliability_complete"])
+        self.assertIsNone(missing["checks"]["receipt_self_digest_valid"])
+
+        incomplete = copy.deepcopy(self.complete_reliability(api))
+        incomplete["complete"] = False
+        payload = dict(incomplete)
+        payload.pop("evidence_sha256")
+        incomplete["evidence_sha256"] = api.canonical_digest(payload)
+        report = api.build_native_reliability_doctor_report(
+            incomplete,
+            None,
+            None,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256=self.reliability_file_sha256(
+                incomplete
+            ),
+            finalization_receipt_present=False,
+            finalization_receipt_readable=None,
+        )
+        self.assertEqual("incomplete", report["status"])
+        self.assertIs(report["checks"]["coding_reliability_contract_valid"], True)
+        self.assertIs(report["checks"]["coding_reliability_complete"], False)
+        self.assertEqual(
+            [
+                "finalization_receipt_missing",
+                "expected_finalization_receipt_sha256_missing",
+                "coding_reliability_incomplete",
+            ],
+            report["reason_codes"],
+        )
+        legacy = api.verify_native_coding_reliability(incomplete, None, None)
+        self.assertEqual("compatibility_only", legacy["status"])
+        self.assertEqual(
+            [
+                "coding_reliability_contract_invalid",
+                "native_finalization_binding_missing",
+            ],
+            legacy["reason_codes"],
+        )
+        self.assertIs(legacy["reliability_contract_valid"], False)
+
+    def test_native_reliability_doctor_classifies_relation_mismatches(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+
+        def resigned(**changes):
+            unsigned = copy.deepcopy(receipt)
+            unsigned.pop("receipt_sha256")
+            unsigned.update(changes)
+            signed = {**unsigned, "receipt_sha256": api.canonical_digest(unsigned)}
+            return signed, signed["receipt_sha256"]
+
+        file_receipt, file_expected = resigned(
+            coding_reliability_file_sha256="0" * 64
+        )
+        plan_receipt, plan_expected = resigned(audit_plan_sha256="0" * 64)
+        candidate_receipt, candidate_expected = resigned(
+            candidate_ids=["audit-candidate-sha256:" + "b" * 64]
+        )
+        cases = (
+            (
+                "receipt_self_digest",
+                {**receipt, "plan_sha256": "0" * 64},
+                expected,
+                "finalization_receipt_self_digest_mismatch",
+            ),
+            (
+                "external_digest",
+                receipt,
+                "0" * 64,
+                "external_finalization_receipt_digest_mismatch",
+            ),
+            (
+                "reliability_file",
+                file_receipt,
+                file_expected,
+                "coding_reliability_file_digest_mismatch",
+            ),
+            (
+                "audit_plan",
+                plan_receipt,
+                plan_expected,
+                "audit_plan_digest_mismatch",
+            ),
+            (
+                "candidate_population",
+                candidate_receipt,
+                candidate_expected,
+                "candidate_population_mismatch",
+            ),
+        )
+        for case_name, candidate_receipt, anchor, reason in cases:
+            with self.subTest(case_name=case_name):
+                report = api.build_native_reliability_doctor_report(
+                    reliability,
+                    candidate_receipt,
+                    anchor,
+                    coding_reliability_present=True,
+                    coding_reliability_readable=True,
+                    coding_reliability_canonical_bytes_valid=True,
+                    coding_reliability_file_sha256=self.reliability_file_sha256(
+                        reliability
+                    ),
+                    finalization_receipt_present=True,
+                    finalization_receipt_readable=True,
+                )
+                self.assertEqual("mismatch", report["status"])
+                self.assertIn(reason, report["reason_codes"])
+                self.assertEqual(
+                    ["recover_in_new_sibling"],
+                    [item["code"] for item in report["remediation"]],
+                )
+
+        empty_receipt, empty_expected = resigned(candidate_ids=[])
+        invalid = api.build_native_reliability_doctor_report(
+            reliability,
+            empty_receipt,
+            empty_expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256=self.reliability_file_sha256(
+                reliability
+            ),
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+        self.assertEqual("invalid", invalid["status"])
+        self.assertIn(
+            "finalization_receipt_contract_invalid",
+            invalid["reason_codes"],
+        )
+
+    def test_native_reliability_doctor_does_not_hash_noncanonical_raw_input(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+
+        report = api.build_native_reliability_doctor_report(
+            reliability,
+            receipt,
+            expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=False,
+            coding_reliability_file_sha256=hashlib.sha256(
+                b"noncanonical raw bytes"
+            ).hexdigest(),
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+
+        self.assertEqual("invalid", report["status"])
+        self.assertIn(
+            "coding_reliability_canonical_bytes_invalid",
+            report["reason_codes"],
+        )
+        self.assertIsNone(
+            report["checks"]["coding_reliability_file_digest_valid"]
+        )
+
+    def test_native_reliability_doctor_uses_captured_raw_file_digest(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+
+        report = api.build_native_reliability_doctor_report(
+            reliability,
+            receipt,
+            expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256="0" * 64,
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+
+        self.assertEqual("mismatch", report["status"])
+        self.assertIs(
+            report["checks"]["coding_reliability_file_digest_valid"], False
+        )
+        self.assertIn(
+            "coding_reliability_file_digest_mismatch",
+            report["reason_codes"],
+        )
+
+    def test_native_reliability_doctor_is_total_and_value_free_for_invalid_input(self):
+        api = self.api()
+        reliability, receipt, expected = self.native_reliability_inputs(api)
+        hostile = "СЕКРЕТНЫЙ-КАНДИДАТ"
+        malformed = copy.deepcopy(reliability)
+        malformed["required_candidate_ids"] = [[hostile]]
+        payload = dict(malformed)
+        payload.pop("evidence_sha256")
+        malformed["evidence_sha256"] = api.canonical_digest(payload)
+
+        report = api.build_native_reliability_doctor_report(
+            malformed,
+            receipt,
+            expected,
+            coding_reliability_present=True,
+            coding_reliability_readable=True,
+            coding_reliability_canonical_bytes_valid=True,
+            coding_reliability_file_sha256=self.reliability_file_sha256(
+                malformed
+            ),
+            finalization_receipt_present=True,
+            finalization_receipt_readable=True,
+        )
+
+        self.assertEqual("invalid", report["status"])
+        self.assertIn("coding_reliability_contract_invalid", report["reason_codes"])
+        self.assertIsNone(report["checks"]["coding_reliability_complete"])
+        self.assertNotIn(hostile, json.dumps(report, ensure_ascii=False))
+
+        unreadable = api.build_native_reliability_doctor_report(
+            None,
+            None,
+            None,
+            coding_reliability_present=True,
+            coding_reliability_readable=False,
+            coding_reliability_canonical_bytes_valid=None,
+            coding_reliability_file_sha256=None,
+            finalization_receipt_present=False,
+            finalization_receipt_readable=None,
+            input_reason_codes=("coding_reliability_unreadable",),
+        )
+        self.assertEqual("unreadable", unreadable["status"])
+        self.assertEqual("coding_reliability_unreadable", unreadable["reason_codes"][0])
+        self.assertIn("finalization_receipt_missing", unreadable["reason_codes"])
+        self.assertIn(
+            "expected_finalization_receipt_sha256_missing",
+            unreadable["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "check_local_read_access",
+                "provide_exact_triple",
+                "retain_external_digest",
+                "recover_in_new_sibling",
+            ],
+            [item["code"] for item in unreadable["remediation"]],
+        )
+
+    def test_native_reliability_doctor_rejects_internal_state_contradictions(self):
+        api = self.api()
+        private_reason = "private-derived-reason"
+        with self.assertRaises(ValueError) as unknown:
+            api.build_native_reliability_doctor_report(
+                None,
+                None,
+                None,
+                coding_reliability_present=False,
+                coding_reliability_readable=None,
+                coding_reliability_canonical_bytes_valid=None,
+                coding_reliability_file_sha256=None,
+                finalization_receipt_present=False,
+                finalization_receipt_readable=None,
+                input_reason_codes=(private_reason,),
+            )
+        self.assertNotIn(private_reason, str(unknown.exception))
+
+        with self.assertRaises(ValueError):
+            api.build_native_reliability_doctor_report(
+                None,
+                None,
+                None,
+                coding_reliability_present=False,
+                coding_reliability_readable=True,
+                coding_reliability_canonical_bytes_valid=None,
+                coding_reliability_file_sha256=None,
+                finalization_receipt_present=False,
+                finalization_receipt_readable=None,
+            )
+
+    def test_native_reliability_validators_use_indexed_candidate_membership(self):
+        api = self.api()
+
+        class NoLinearMembership(list):
+            def __contains__(self, value):
+                raise AssertionError("candidate membership must use a set index")
+
+        reliability, receipt, _ = self.native_reliability_inputs(api)
+        identifiers = [f"candidate-load-{index:05d}" for index in range(2000)]
+        reliability["required_candidate_ids"] = NoLinearMembership(identifiers)
+        reliability["audited_candidate_ids"] = list(identifiers)
+        reliability["field_disagreements"] = [
+            {
+                "candidate_id": identifiers[-1],
+                "fields": ["label"],
+                "primary_coding_sha256": "1" * 64,
+                "secondary_coding_sha256": "2" * 64,
+                "resolved": True,
+                "adjudication_sha256": "3" * 64,
+            }
+        ]
+        reliability["false_exclusion_diagnostics"] = [
+            {
+                "candidate_id": identifiers[-1],
+                "primary_label": "false_positive",
+                "secondary_label": "core_merits",
+                "resolved": True,
+            }
+        ]
+        reliability["adjudications_sha256"] = "4" * 64
+        reliability_payload = dict(reliability)
+        reliability_payload.pop("evidence_sha256")
+        reliability["evidence_sha256"] = api.canonical_digest(
+            reliability_payload
+        )
+        self.assertTrue(api._coding_reliability_structure_valid(reliability))
+
+        native_ids = [
+            "audit-candidate-sha256:"
+            + hashlib.sha256(str(index).encode("ascii")).hexdigest()
+            for index in range(2000)
+        ]
+        receipt["candidate_ids"] = NoLinearMembership(native_ids)
+        receipt["required_difference_pairs"] = [
+            {"candidate_id": native_ids[-1], "field": "label"}
+        ]
+        receipt["resolved_candidate_ids"] = [native_ids[-1]]
+        receipt["resolved_field_populations"] = [
+            {"candidate_id": native_ids[-1], "fields": ["label"]}
+        ]
+        receipt["resolutions_present"] = True
+        receipt["resolutions_file_sha256"] = "5" * 64
+        receipt["resolutions_state_sha256"] = api.canonical_digest(
+            {"present": True, "file_sha256": "5" * 64}
+        )
+        receipt["quote_locator_review_declared"] = True
+        unsigned_receipt = dict(receipt)
+        unsigned_receipt.pop("receipt_sha256")
+        receipt["receipt_sha256"] = api.canonical_digest(unsigned_receipt)
+        self.assertTrue(
+            api._coding_audit_finalization_receipt_contract_valid(receipt)
+        )
 
     def test_native_reliability_verifier_accepts_exact_release16_triple(self):
         api = self.api()
@@ -510,7 +1001,7 @@ class PracticeQualityTests(unittest.TestCase):
             (
                 "candidate_population",
                 reliability,
-                resigned(candidate_ids=[]),
+                resigned(candidate_ids=["audit-candidate-sha256:" + "b" * 64]),
                 None,
                 None,
             ),
@@ -2384,6 +2875,7 @@ class PracticeQualityTests(unittest.TestCase):
             "coding_audit_decision",
             "coding_adjudication",
             "coding_reliability",
+            "native_reliability_doctor_report",
             "coverage_requirement",
             "refresh_plan_entry",
             "coverage_gap",
