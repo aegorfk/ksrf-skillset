@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import contextlib
 import copy
 import errno
 import hashlib
@@ -433,7 +435,13 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
         self.assertIn("строгий utf-8 jsonl", logical_guide)
         self.assertIn("повторяющихся ключей", logical_guide)
         self.assertIn("nan", logical_guide)
-        self.assertIn("штатного импорта", logical_guide)
+        self.assertIn("штатную команду", logical_guide)
+        self.assertIn("quality coding-audit-review-import", logical_guide)
+        self.assertIn(
+            "заранее согласованную псевдонимную метку второго кодировщика",
+            logical_guide,
+        )
+        self.assertIn("не используйте реальное имя", logical_guide)
         self.assertIn("coding-codebook.md", logical_guide)
         self.assertIn("coding-brief.json", logical_guide)
         self.assertIn("направленную проверяемую гипотезу", logical_guide)
@@ -536,7 +544,7 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
 
         manifest = read_json(bundle / "coding-audit-inputs-manifest.json")
         self.assertEqual("1.0", manifest["schema_version"])
-        self.assertEqual("1.1", manifest["bundle_contract_version"])
+        self.assertEqual("1.2", manifest["bundle_contract_version"])
         self.assertEqual("1.0", manifest["codebook_version"])
         self.assertEqual(
             review_manifest["codebook_sha256"], manifest["codebook_sha256"]
@@ -676,6 +684,7 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
                 self.assertEqual(
                     {
                         "artifact_type",
+                        "bundle_contract_version",
                         "output_dir",
                         "manifest_sha256",
                         "independent_review_packet_sha256",
@@ -687,6 +696,7 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
                     },
                     set(payload),
                 )
+                self.assertEqual("1.2", payload["bundle_contract_version"])
                 self.assertEqual(
                     hashlib.sha256(
                         (bundle / "independent-review-packet.zip").read_bytes()
@@ -710,6 +720,78 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             )
             self.assertEqual(0, completed.returncode, completed.stderr)
             self.assertEqual(outputs["source"], self._bundle_bytes(repeated))
+
+    def test_versioned_review_assets_and_fixed_packets_are_immutable(self) -> None:
+        self.assertEqual(
+            "5ed805004bb37b00d11c9a8cb6095a9ccdc83c503ee873b7d9a3d2f50feab713",
+            hashlib.sha256(cli_module._BLINDED_REVIEW_GUIDE_V1_1).hexdigest(),
+        )
+        self.assertEqual(
+            "9df462830ba59076c936abc88957f2eeaf2bc9be3f273d817232e551b84b53c4",
+            hashlib.sha256(cli_module._BLINDED_REVIEW_GUIDE_V1_2).hexdigest(),
+        )
+        self.assertEqual(
+            "0c38b8b5c97cb5e9ec67b4c5f64d05db46f37418b055044c8690996a5e55b807",
+            hashlib.sha256(cli_module._load_audit_codebook("1.0")).hexdigest(),
+        )
+        self.assertEqual(
+            cli_module._BLINDED_REVIEW_GUIDE_V1_1,
+            cli_module._BLINDED_REVIEW_GUIDES["1.1"],
+        )
+        self.assertEqual(
+            cli_module._BLINDED_REVIEW_GUIDE_V1_2,
+            cli_module._BLINDED_REVIEW_GUIDES["1.2"],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            projection = build_native_coding_audit_inputs(
+                read_jsonl(Path(state["screening_path"])),
+                read_jsonl(Path(state["primary_path"])),
+                cli_module._captured_workspace_source_texts(
+                    Path(state["workspace"]),
+                    read_jsonl(Path(state["sources_path"])),
+                ),
+                plan_sha256=state["frozen"]["plan_sha256"],
+                codebook_version="1.0",
+                sample_size=5,
+                exclusion_sample_size=5,
+            )
+            kwargs = {
+                "plan_sha256": state["frozen"]["plan_sha256"],
+                "codebook_content": cli_module._load_audit_codebook("1.0"),
+                "coding_brief_content": cli_module._canonical_json_bytes(
+                    cli_module._build_neutral_coding_brief(
+                        state["frozen"], codebook_version="1.0"
+                    )
+                ),
+                "bundle_contract_version": "1.1",
+            }
+            first = cli_module._build_blinded_review_packet(projection, **kwargs)
+            second = cli_module._build_blinded_review_packet(projection, **kwargs)
+            self.assertEqual(first, second)
+            self.assertEqual(
+                "f7eb72b52f8c9b8421060fef4a274d3cc84720f7d9290742814f599d0015a6b3",
+                hashlib.sha256(first).hexdigest(),
+            )
+            with zipfile.ZipFile(io.BytesIO(first), "r") as archive:
+                self.assertEqual(
+                    cli_module._BLINDED_REVIEW_GUIDE_V1_1,
+                    archive.read("REVIEW-INSTRUCTIONS.md"),
+                )
+            current = cli_module._build_blinded_review_packet(
+                projection,
+                **{**kwargs, "bundle_contract_version": "1.2"},
+            )
+            self.assertEqual(
+                "2f2af30d9192126f8d42547596b1d86ab9febbf109a1e59d67c6be5babf87d04",
+                hashlib.sha256(current).hexdigest(),
+            )
+            with zipfile.ZipFile(io.BytesIO(current), "r") as archive:
+                self.assertEqual(
+                    cli_module._BLINDED_REVIEW_GUIDE_V1_2,
+                    archive.read("REVIEW-INSTRUCTIONS.md"),
+                )
 
     def test_review_zip_is_invariant_to_primary_answers_and_sampling_lane(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1415,6 +1497,116 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
                 self.assertTrue(completed.stderr.startswith("Ошибка: "))
                 self.assertEqual(before, self._tree_snapshot(root))
 
+    def test_prepare_flush_failure_preserves_bundle_but_not_manifest_anchor(self) -> None:
+        class FlushFailure(io.StringIO):
+            def flush(self) -> None:
+                raise BrokenPipeError("имитация отказа flush")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "confirmation-flush-failure"
+            stdout = FlushFailure()
+            stderr = io.StringIO()
+            with (
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                return_code = cli_module.main(
+                    self._prepare_arguments(state, destination)
+                )
+
+            self.assertEqual(2, return_code)
+            self.assertEqual(BUNDLE_FILES, {path.name for path in destination.iterdir()})
+            apparent_success = json.loads(stdout.getvalue())
+            self.assertEqual(
+                "coding_audit_input_bundle",
+                apparent_success["artifact_type"],
+            )
+            diagnostic = stderr.getvalue()
+            self.assertIn("подтверждение", diagnostic)
+            self.assertIn("считайте его недействительным", diagnostic)
+            self.assertIn("другую отсутствующую соседнюю папку", diagnostic)
+            self.assertIn("побайтно сравните оба каталога", diagnostic)
+            self.assertIn("manifest_sha256 только из успешного повторного", diagnostic)
+            self.assertIn("не восстанавливайте этот якорь из первого пакета", diagnostic)
+
+    def test_prepare_interrupt_after_inner_return_uses_publisher_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "inner-return-interrupt"
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            real_inner = cli_module._cmd_quality_coding_audit_prepare
+
+            def publish_then_interrupt(
+                *args: object, **kwargs: object
+            ) -> tuple[str, tuple[int, int]]:
+                result = real_inner(*args, **kwargs)
+                publication_state = kwargs["publication_state"]
+                self.assertEqual(1, len(publication_state))
+                raise SystemExit("имитация выхода после возврата inner")
+
+            with (
+                patch.object(
+                    cli_module,
+                    "_cmd_quality_coding_audit_prepare",
+                    side_effect=publish_then_interrupt,
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                return_code = cli_module.main(
+                    self._prepare_arguments(state, destination)
+                )
+
+            destination_stat = os.stat(destination)
+            self.assertEqual(2, return_code)
+            self.assertEqual("", stdout.getvalue())
+            self.assertEqual(BUNDLE_FILES, {path.name for path in destination.iterdir()})
+            diagnostic = stderr.getvalue()
+            self.assertIn("завершение команды после публикации", diagnostic)
+            self.assertIn("стандартный вывод ещё не формировался", diagnostic)
+            self.assertIn(f"устройство каталога {destination_stat.st_dev}", diagnostic)
+            self.assertIn(f"inode {destination_stat.st_ino}", diagnostic)
+            self.assertIn("Остановите автоматику", diagnostic)
+            self.assertNotIn("SystemExit", diagnostic)
+
+    def test_prepare_interrupt_after_parent_close_before_delivery_is_finalization(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "before-delivery-interrupt"
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with (
+                patch.object(
+                    cli_module,
+                    "_deliver_published_confirmation",
+                    side_effect=KeyboardInterrupt(
+                        "имитация прерывания до начала передачи подтверждения"
+                    ),
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                return_code = cli_module.main(
+                    self._prepare_arguments(state, destination)
+                )
+
+            self.assertEqual(2, return_code)
+            self.assertEqual("", stdout.getvalue())
+            self.assertEqual(BUNDLE_FILES, {path.name for path in destination.iterdir()})
+            diagnostic = stderr.getvalue()
+            self.assertIn("завершение команды после публикации", diagnostic)
+            self.assertIn("стандартный вывод ещё не формировался", diagnostic)
+            self.assertNotIn("начала передачи финального", diagnostic)
+            self.assertNotIn("KeyboardInterrupt", diagnostic)
+
     def test_workspace_destination_and_atomic_race_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1851,6 +2043,73 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             self.assertFalse(destination.exists())
             self.assertEqual(before, self._tree_snapshot(Path(state["workspace"])))
 
+    def test_prepare_refuses_output_above_the_importer_record_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "must-not-exist"
+            args = argparse.Namespace(
+                workspace=str(state["workspace"]),
+                codebook_version="1.0",
+                sample_size=1,
+                exclusion_sample_size=1,
+                output_dir=str(destination),
+            )
+            with patch.object(cli_module, "_AUDIT_IMPORT_MAX_RECORDS", 0):
+                with self.assertRaisesRegex(ValueError, "слишком много записей"):
+                    cli_module.cmd_quality_coding_audit_prepare(args)
+            self.assertFalse(destination.exists())
+
+    def test_prepare_applies_importer_byte_limits_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = self._seed_workspace(root)
+            destination = Path(state["bundles"]) / "must-not-exist"
+            args = argparse.Namespace(
+                workspace=str(state["workspace"]),
+                codebook_version="1.0",
+                sample_size=1,
+                exclusion_sample_size=1,
+                output_dir=str(destination),
+            )
+            limits = {
+                **cli_module._AUDIT_IMPORT_FILE_LIMITS,
+                "coding-audit-plan.json": 1,
+            }
+            with patch.object(cli_module, "_AUDIT_IMPORT_FILE_LIMITS", limits):
+                with self.assertRaisesRegex(ValueError, "безопасный предел"):
+                    cli_module.cmd_quality_coding_audit_prepare(args)
+            self.assertFalse(destination.exists())
+
+    def test_review_zip_limits_fail_before_zipfile_allocation(self) -> None:
+        for limit_name, files in (
+            ("member", {"one.txt": b"12345"}),
+            ("total", {"one.txt": b"1234", "two.txt": b"5678"}),
+        ):
+            with self.subTest(limit_name=limit_name):
+                member_limit = 4 if limit_name == "member" else 16
+                total_limit = 1024 if limit_name == "member" else 8
+                with (
+                    patch.object(
+                        cli_module,
+                        "_AUDIT_IMPORT_ZIP_MEMBER_LIMIT",
+                        member_limit,
+                    ),
+                    patch.object(
+                        cli_module,
+                        "_AUDIT_IMPORT_ZIP_TOTAL_LIMIT",
+                        total_limit,
+                    ),
+                    patch.object(cli_module.zipfile, "ZipFile") as zip_constructor,
+                    self.assertRaisesRegex(ValueError, "безопасн.*предел"),
+                ):
+                    cli_module._deterministic_flat_zip(files)
+                zip_constructor.assert_not_called()
+
+        packet = cli_module._deterministic_flat_zip({"one.txt": b"content"})
+        with zipfile.ZipFile(io.BytesIO(packet), "r") as archive:
+            self.assertEqual(b"content", archive.read("one.txt"))
+
     def test_unknown_codebook_version_is_refused_without_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1889,6 +2148,21 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             "hypothesis_under_test",
             "независимому каналу",
             "до распаковки",
+            "текущему пользователю",
+            "сравните оба",
+            "результата побайтно",
+            "не повторяйте команду",
+            "inode родителя",
+            "карантин",
+            "чувствительную копию неучтённой",
+            "системному администратору",
+            "временная копия считается неучтённой",
+            "намеренно не удаляет",
+            "все имена либо жёсткие ссылки",
+            "стандартный вывод может быть пустым или частичным",
+            "код 2 не означает, что каталога нет",
+            "явно сбросить финальный JSON",
+            "не восстанавливайте якорь из первого пакета",
             "юридическ",
             "пода",
             *sorted(BUNDLE_FILES),
@@ -1902,7 +2176,11 @@ class NativeCodingAuditProducerTests(unittest.TestCase):
             )
             self.assertEqual(0, completed.returncode, completed.stderr)
             self.assertEqual("", completed.stderr)
-            logical_help = re.sub(r"-\n\s*", "-", completed.stdout)
+            logical_help = re.sub(
+                r"\s+",
+                " ",
+                re.sub(r"-\n\s*", "-", completed.stdout),
+            )
             lowered = logical_help.casefold()
             for fragment in required_fragments:
                 self.assertIn(fragment.casefold(), lowered, (location, fragment))

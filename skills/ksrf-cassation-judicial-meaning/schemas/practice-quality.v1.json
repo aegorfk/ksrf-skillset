@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ksrf-cassation-judicial-meaning/practice-quality.v1.json",
   "title": "Practice quality contracts",
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "$defs": {
     "trajectory": {"$ref": "#/definitions/chain_meaning_trajectory"},
     "dimension": {"$ref": "#/definitions/uncertainty_dimension"}
@@ -22,6 +22,7 @@
     {"$ref": "#/definitions/coding_audit_plan"},
     {"$ref": "#/definitions/coding_audit_completed_coding"},
     {"$ref": "#/definitions/coding_audit_decision"},
+    {"$ref": "#/definitions/coding_audit_review_import_receipt"},
     {"$ref": "#/definitions/coding_adjudication"},
     {"$ref": "#/definitions/coding_reliability"},
     {"$ref": "#/definitions/refresh_plan"},
@@ -830,13 +831,14 @@
       "additionalProperties": false
     },
     "coding_audit_inputs_manifest": {
-      "x-contract-version": "1.1",
+      "x-contract-version": "1.2",
       "x-runtime-invariants": [
         "candidate_ids are sorted and equal the complete audit screening-frame population",
         "required_candidate_ids are sorted, are a subset of candidate_ids, and equal the frozen audit plan required_candidate_ids",
-        "a legacy manifest without bundle_contract_version contains exactly the original five content files; a newly produced bundle_contract_version 1.1 manifest contains those five files plus independent-review-packet.zip exactly once",
-        "for bundle_contract_version 1.1, required_candidate_ids equal the candidate IDs in review materials and pending templates, with one row of each per candidate and exact candidate, chain, document, codebook and source-text-digest identity parity across the parent bundle",
-        "for bundle_contract_version 1.1, codebook_sha256 and coding_brief_file_sha256 equal the inner manifest values and the corresponding exact ZIP payload-member digests; neither field exists in the legacy branch",
+        "a legacy manifest without bundle_contract_version contains exactly the original five content files; a native bundle_contract_version 1.1 or 1.2 manifest contains those five files plus independent-review-packet.zip exactly once",
+        "for native bundle_contract_version 1.1 or 1.2, required_candidate_ids equal the candidate IDs in review materials and pending templates, with one row of each per candidate and exact candidate, chain, document, codebook and source-text-digest identity parity across the parent bundle",
+        "for native bundle_contract_version 1.1 or 1.2, codebook_sha256 and coding_brief_file_sha256 equal the inner manifest values and the corresponding exact ZIP payload-member digests; neither field exists in the legacy branch",
+        "bundle_contract_version selects immutable version-specific review-instruction bytes; current prepare emits 1.2 while an externally anchored 1.1 bundle remains reproducible",
         "the required release-allowlisted codebook version is selected independently of primary coding, whose version fields are used only for exact equality checks",
         "source hashes bind the exact frozen plan, screening, primary and sources bytes plus the canonical candidate/source-text inventory",
         "manifest_sha256 is the canonical digest of the exact remaining manifest fields"
@@ -853,7 +855,7 @@
       ],
       "properties": {
         "schema_version": {"type": "string", "const": "1.0"},
-        "bundle_contract_version": {"type": "string", "const": "1.1"},
+        "bundle_contract_version": {"type": "string", "enum": ["1.1", "1.2"]},
         "artifact_type": {"type": "string", "const": "coding_audit_input_bundle"},
         "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_prepare"},
         "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -1071,6 +1073,166 @@
         "primary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "secondary_coding": {"$ref": "#/definitions/coding_audit_completed_coding"},
         "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coding_audit_review_import_receipt": {
+      "x-contract-version": "1.0",
+      "x-runtime-invariants": [
+        "receipt_sha256 is the canonical digest of the exact remaining receipt fields",
+        "candidate_ids and every candidate partition are sorted and unique",
+        "audited_field_agreement_candidate_ids and audited_field_disagreement_candidate_ids are disjoint and their union equals candidate_ids exactly",
+        "non_audited_content_difference_candidate_ids is a subset of candidate_ids",
+        "audited_field_differences and non_audited_content_differences contain exactly the disclosed candidate ids with all and only the differing field names in contract order, without field values",
+        "adjudication_required is true exactly when audited_field_disagreement_candidate_ids is non-empty; this matches the frozen downstream adjudication field set",
+        "non_audited_content_review_required is true exactly when non_audited_content_difference_candidate_ids is non-empty; these differences are disclosed rather than mislabeled as audited-field agreement",
+        "source_bundle_manifest_sha256 equals expected_source_bundle_manifest_sha256 after exact verification against the separately retained operator input",
+        "expected_secondary_coder_label_sha256 binds the normalized label passed by the operator, while secondary_coder_label_precommit_verified remains false because runtime cannot prove when that label was chosen",
+        "secondary_coding_file_sha256 binds the exact returned bytes, secondary_coding_sha256 binds the canonical returned records sorted by each record's canonical digest, and audit_decisions_file_sha256 binds the exact emitted JSONL bytes",
+        "the receipt contains no packet text, quote, or absolute input path and does not authenticate a reviewer, independent work, source provenance, or itself"
+      ],
+      "type": "object",
+      "required": [
+        "schema_version", "artifact_type", "producer",
+        "bundle_contract_version", "plan_sha256", "audit_plan_sha256",
+        "codebook_version", "source_bundle_manifest_sha256",
+        "expected_source_bundle_manifest_sha256",
+        "source_bundle_manifest_file_sha256", "review_packet_sha256",
+        "secondary_coding_file_sha256", "secondary_coding_sha256",
+        "codebook_sha256", "coding_brief_file_sha256",
+        "audit_decisions_file_sha256", "candidate_ids", "audited_fields",
+        "non_audited_content_fields",
+        "audited_field_agreement_candidate_ids",
+        "audited_field_disagreement_candidate_ids",
+        "audited_field_differences",
+        "non_audited_content_difference_candidate_ids",
+        "non_audited_content_differences",
+        "non_audited_content_review_required", "adjudication_required",
+        "expected_secondary_coder_label_sha256",
+        "secondary_coder_label_precommit_verified",
+        "returned_quote_literal_presence_verified", "quote_locator_verified",
+        "secondary_coder_label_differs_from_each_sampled_primary_label",
+        "single_secondary_coder_label",
+        "bundle_internal_consistency_verified",
+        "expected_manifest_digest_match_verified",
+        "norm_edition_allowlist_membership_verified",
+        "source_workspace_reverified", "reviewer_packet_use_attested",
+        "norm_edition_temporal_applicability_verified",
+        "reviewer_identity_authenticated", "human_review_authenticated",
+        "independence_verified", "receipt_authenticated",
+        "publication_safe", "legal_readiness", "receipt_sha256"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "const": "1.0"},
+        "artifact_type": {"type": "string", "const": "coding_audit_review_import_receipt"},
+        "producer": {"type": "string", "const": "judicial_meaning.quality.coding_audit_review_import"},
+        "bundle_contract_version": {"type": "string", "enum": ["1.1", "1.2"]},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_version": {"type": "string", "const": "1.0"},
+        "source_bundle_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_source_bundle_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_bundle_manifest_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "review_packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "codebook_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coding_brief_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "audit_decisions_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "audited_fields": {
+          "const": [
+            "label", "speaker", "norm_edition_id", "reading_family",
+            "relation", "reasoning_to_outcome", "alternative_grounds", "remedy"
+          ]
+        },
+        "non_audited_content_fields": {
+          "const": ["proposition", "quote", "quote_locator", "material_facts"]
+        },
+        "audited_field_agreement_candidate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "audited_field_disagreement_candidate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "audited_field_differences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "fields"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "fields": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "label", "speaker", "norm_edition_id", "reading_family",
+                    "relation", "reasoning_to_outcome", "alternative_grounds", "remedy"
+                  ]
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "non_audited_content_difference_candidate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/coding_audit_candidate_id"}
+        },
+        "non_audited_content_differences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["candidate_id", "fields"],
+            "properties": {
+              "candidate_id": {"$ref": "#/definitions/coding_audit_candidate_id"},
+              "fields": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": ["proposition", "quote", "quote_locator", "material_facts"]
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "non_audited_content_review_required": {"type": "boolean"},
+        "adjudication_required": {"type": "boolean"},
+        "expected_secondary_coder_label_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "secondary_coder_label_precommit_verified": {"type": "boolean", "const": false},
+        "returned_quote_literal_presence_verified": {"type": "boolean", "const": true},
+        "quote_locator_verified": {"type": "boolean", "const": false},
+        "secondary_coder_label_differs_from_each_sampled_primary_label": {"type": "boolean", "const": true},
+        "single_secondary_coder_label": {"type": "boolean", "const": true},
+        "bundle_internal_consistency_verified": {"type": "boolean", "const": true},
+        "expected_manifest_digest_match_verified": {"type": "boolean", "const": true},
+        "norm_edition_allowlist_membership_verified": {"type": "boolean", "const": true},
+        "source_workspace_reverified": {"type": "boolean", "const": false},
+        "reviewer_packet_use_attested": {"type": "boolean", "const": false},
+        "norm_edition_temporal_applicability_verified": {"type": "boolean", "const": false},
+        "reviewer_identity_authenticated": {"type": "boolean", "const": false},
+        "human_review_authenticated": {"type": "boolean", "const": false},
+        "independence_verified": {"type": "boolean", "const": false},
+        "receipt_authenticated": {"type": "boolean", "const": false},
+        "publication_safe": {"type": "boolean", "const": false},
+        "legal_readiness": {"type": "boolean", "const": false},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
       "additionalProperties": false
     },

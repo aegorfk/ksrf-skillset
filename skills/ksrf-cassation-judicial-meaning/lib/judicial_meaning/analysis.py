@@ -149,7 +149,7 @@ def screen_text(text: str, query_lanes: dict[str, list[str]]) -> list[dict[str, 
 
 
 def validate_coding_record(record: dict[str, Any]) -> list[str]:
-    """Reject a legal proposition unless a human checked the court's full text."""
+    """Validate the coding contract and its declared review-state fields."""
 
     if not isinstance(record, dict):
         return ["Карточка кодирования должна быть JSON-объектом."]
@@ -181,15 +181,15 @@ def validate_coding_record(record: dict[str, Any]) -> list[str]:
     if record.get("label") in {"core_merits", "contextual"} and record.get("speaker") != "court":
         errors.append("Правовую позицию нужно атрибутировать суду, а не стороне или пересказу.")
     if record.get("full_text_reviewed") is not True:
-        errors.append("Полный текст акта не проверен.")
+        errors.append("В записи не заявлено full_text_reviewed=true.")
     if record.get("quote_verified") is not True:
-        errors.append("Цитата не сверена с полным текстом.")
+        errors.append("В записи не заявлено quote_verified=true.")
     if record.get("label") not in _VALID_LABELS:
         errors.append("Неизвестная метка роли акта в исследовании.")
     if record.get("relation") not in _VALID_RELATIONS:
         errors.append("Неизвестное отношение акта к проверяемому предположению.")
     if record.get("human_review") != "approved":
-        errors.append("Кодирование не одобрено человеком.")
+        errors.append("В записи не заявлено human_review=approved.")
     if not _is_visible_text(record.get("reasoning_to_outcome")):
         errors.append("Не объяснена связь толкования с исходом дела.")
     material_facts = record.get("material_facts")

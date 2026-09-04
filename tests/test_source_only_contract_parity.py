@@ -4,10 +4,12 @@ import ast
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from urllib.parse import unquote
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -155,6 +157,43 @@ class SourceOnlyContractParityTests(unittest.TestCase):
                         excluded_basename=excluded_basename,
                     ):
                         self.assertNotIn(excluded_basename, text)
+
+    def test_coding_review_runtime_references_link_only_shipped_files(self) -> None:
+        runtime_paths = {
+            path.resolve()
+            for package in canonical.SKILL_NAMES
+            for path in canonical.payload_files(REPO / "skills" / package)
+        }
+        reference_root = (
+            REPO / "skills" / "ksrf-cassation-judicial-meaning" / "references"
+        )
+
+        for path in (
+            reference_root / "artifact-contracts.md",
+            reference_root / "practice-quality.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            if "../tests/" in text:
+                self.fail(
+                    f"Поставляемый справочник {path.relative_to(REPO)} "
+                    "ссылается на исключённый каталог tests."
+                )
+            for raw_target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", text):
+                target = raw_target.strip().strip("<>")
+                if not target or target.startswith("#"):
+                    continue
+                target_without_fragment = unquote(target.split("#", 1)[0])
+                if "://" in target_without_fragment or target_without_fragment.startswith(
+                    "mailto:"
+                ):
+                    continue
+                resolved = (path.parent / target_without_fragment).resolve()
+                with self.subTest(
+                    path=path.relative_to(REPO).as_posix(),
+                    target=target,
+                ):
+                    self.assertTrue(resolved.is_file())
+                    self.assertIn(resolved, runtime_paths)
 
     def test_automation_backlog_routes_are_replaced_by_shipped_checks(self) -> None:
         live_patterns = (

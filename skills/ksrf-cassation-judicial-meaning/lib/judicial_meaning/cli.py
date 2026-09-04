@@ -10,8 +10,11 @@ import io
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
+import stat
+import struct
 import sys
 import tempfile
 import textwrap
@@ -57,6 +60,9 @@ from .handoff_workbench import (
 from .public_corpus import PublicCorpus
 from .practice_quality import (
     AUDIT_CODING_RECORD_FIELDS,
+    CODING_AUDIT_PLAN_FIELDS,
+    NATIVE_AUDIT_QUEUE_FIELDS,
+    NATIVE_AUDIT_SCREENING_FIELDS,
     NATIVE_AUDIT_CODEBOOK_VERSIONS,
     NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS,
     analyze_chain_stage_propagation,
@@ -64,6 +70,7 @@ from .practice_quality import (
     assess_prefiling_refresh,
     build_coding_audit_plan,
     build_native_coding_audit_inputs,
+    build_native_coding_review_import,
     build_uncertainty_profile,
     canonical_digest,
 )
@@ -100,6 +107,7 @@ _RUSSIAN_METAVARS = {
     "audit_decisions": "ФАЙЛ_РЕШЕНИЙ_АУДИТА",
     "audit_plan": "ФАЙЛ_ПЛАНА_АУДИТА",
     "baseline_corpus_digest": "ИСХОДНЫЙ_ХЕШ_КОРПУСА",
+    "bundle": "ПАПКА_ПАКЕТА",
     "candidate": "ФАЙЛ_ДЕЛА_КАНДИДАТА",
     "candidates": "ФАЙЛ_КАНДИДАТОВ",
     "candidate_id": "ИДЕНТИФИКАТОР_КАНДИДАТА",
@@ -122,6 +130,8 @@ _RUSSIAN_METAVARS = {
     "exclusion_sample_size": "РАЗМЕР_ВЫБОРКИ_ИСКЛЮЧЕНИЙ",
     "executed_query_ids": "ФАЙЛ_ИДЕНТИФИКАТОРОВ_ЗАПРОСОВ",
     "expected_target": "ОЖИДАЕМЫЙ_ПОЛУЧАТЕЛЬ",
+    "expected_manifest_sha256": "СОХРАНЁННЫЙ_SHA256_МАНИФЕСТА",
+    "expected_secondary_coder": "ОЖИДАЕМАЯ_МЕТКА_КОДИРОВЩИКА",
     "fetched_at": "ДАТА_И_ВРЕМЯ_ISO",
     "filing_cutoff": "ДАТА_И_ВРЕМЯ_ISO",
     "fingerprint_sha256": "ХЕШ_ОТПЕЧАТКА_ДЕЛА",
@@ -178,6 +188,7 @@ _RUSSIAN_METAVARS = {
     "run_id": "ИДЕНТИФИКАТОР_ЗАПУСКА",
     "sample_size": "РАЗМЕР_ВЫБОРКИ",
     "screening_candidates": "ФАЙЛ_КАНДИДАТОВ_ОТБОРА",
+    "secondary_coding": "ФАЙЛ_ВТОРИЧНОЙ_РАЗМЕТКИ",
     "seed_id": "ИДЕНТИФИКАТОР_ИСТОЧНИКА",
     "snapshot": "ИДЕНТИФИКАТОР_СНИМКА",
     "snapshot_id": "ИДЕНТИФИКАТОР_СНИМКА",
@@ -229,6 +240,20 @@ class RussianHelpFormatter(argparse.HelpFormatter):
                 break_on_hyphens=False,
             )
         )
+
+
+class RussianExampleHelpFormatter(RussianHelpFormatter):
+    """Wrap prose but preserve a deliberately line-broken shell example."""
+
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
+        prose, marker, example = text.partition("\n\nПример команды:\n")
+        rendered = super()._fill_text(prose, width, indent)
+        if not marker:
+            return rendered
+        example_lines = "\n".join(
+            indent + line for line in example.rstrip().splitlines()
+        )
+        return f"{rendered}\n\n{indent}Пример команды:\n{example_lines}"
 
 
 class RussianHelpArgumentParser(argparse.ArgumentParser):
@@ -352,7 +377,7 @@ def _closed_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError(f"JSON-ключ {key!r} повторяется.")
+            raise ValueError("JSON содержит повторяющийся ключ.")
         result[key] = value
     return result
 
@@ -364,7 +389,7 @@ def _strict_json_loads(text: str, *, source: Path) -> Any:
             parse_constant=_reject_json_constant,
             object_pairs_hook=_closed_json_object,
         )
-    except (json.JSONDecodeError, UnicodeError, ValueError) as exc:
+    except (json.JSONDecodeError, UnicodeError, ValueError, RecursionError) as exc:
         raise ValueError(f"{source}: неверный строгий JSON: {exc}") from exc
 
 
@@ -415,7 +440,338 @@ def _canonical_jsonl_bytes(records: Iterable[Mapping[str, Any]]) -> bytes:
     return b"".join(_canonical_json_bytes(dict(record)) for record in records)
 
 
-_BLINDED_REVIEW_GUIDE = textwrap.dedent(
+_AUDIT_BUNDLE_CONTENT_PATHS = (
+    "screening-candidates.audit.jsonl",
+    "primary-decisions.audit.jsonl",
+    "coding-audit-plan.json",
+    "secondary-review-queue.jsonl",
+    "secondary-coding-template.jsonl",
+    "independent-review-packet.zip",
+)
+_AUDIT_BUNDLE_PATHS = frozenset(
+    (*_AUDIT_BUNDLE_CONTENT_PATHS, "coding-audit-inputs-manifest.json")
+)
+_BLINDED_REVIEW_PACKET_PATHS = (
+    "CODING-BRIEF.json",
+    "CODING-CODEBOOK.md",
+    "REVIEW-INSTRUCTIONS.md",
+    "review-materials.jsonl",
+    "review-packet-manifest.json",
+    "secondary-coding-template.jsonl",
+)
+_AUDIT_IMPORT_FILE_LIMITS = {
+    "coding-audit-inputs-manifest.json": 2 * 1024 * 1024,
+    "coding-audit-plan.json": 4 * 1024 * 1024,
+    "independent-review-packet.zip": 256 * 1024 * 1024,
+    "primary-decisions.audit.jsonl": 64 * 1024 * 1024,
+    "screening-candidates.audit.jsonl": 64 * 1024 * 1024,
+    "secondary-coding-template.jsonl": 64 * 1024 * 1024,
+    "secondary-review-queue.jsonl": 64 * 1024 * 1024,
+}
+_AUDIT_IMPORT_SECONDARY_LIMIT = 64 * 1024 * 1024
+_AUDIT_IMPORT_CODEBOOK_LIMIT = 2 * 1024 * 1024
+_AUDIT_IMPORT_ZIP_MEMBER_LIMIT = 192 * 1024 * 1024
+_AUDIT_IMPORT_ZIP_TOTAL_LIMIT = 256 * 1024 * 1024
+_AUDIT_IMPORT_ZIP_CENTRAL_DIRECTORY_LIMIT = 64 * 1024
+_AUDIT_IMPORT_MAX_RECORDS = 10_000
+_AUDIT_IMPORT_MAX_PHYSICAL_LINES = 20_000
+_AUDIT_IMPORT_MAX_JSON_DEPTH = 24
+_AUDIT_IMPORT_MAX_JSON_NODES = 400_000
+_AUDIT_IMPORT_MAX_COLLECTION_ITEMS = 20_000
+_AUDIT_IMPORT_MAX_STRING_BYTES = 16 * 1024 * 1024
+_NATIVE_AUDIT_CANDIDATE_ID_PATTERN = re.compile(
+    r"\Aaudit-candidate-sha256:[0-9a-f]{64}\Z"
+)
+
+
+def _is_native_audit_candidate_id(value: Any) -> bool:
+    return isinstance(value, str) and bool(
+        _NATIVE_AUDIT_CANDIDATE_ID_PATTERN.fullmatch(value)
+    )
+
+
+def _stable_file_identity(value: os.stat_result) -> tuple[int, ...]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        stat.S_IFMT(value.st_mode),
+        stat.S_IMODE(value.st_mode),
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _stable_directory_identity(value: os.stat_result) -> tuple[int, ...]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        stat.S_IFMT(value.st_mode),
+        stat.S_IMODE(value.st_mode),
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _read_bounded_regular_fd(
+    descriptor: int,
+    *,
+    label: str,
+    byte_limit: int,
+    path_stat: os.stat_result | None = None,
+) -> tuple[bytes, tuple[int, ...]]:
+    before = os.fstat(descriptor)
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"{label}: требуется обычный файл.")
+    if before.st_nlink != 1:
+        raise ValueError(f"{label}: вход через жёсткую ссылку запрещён.")
+    if before.st_size < 0 or before.st_size > byte_limit:
+        raise ValueError(f"{label}: размер превышает безопасный предел.")
+    if path_stat is not None and (
+        path_stat.st_dev != before.st_dev or path_stat.st_ino != before.st_ino
+    ):
+        raise ValueError(f"{label}: путь изменился во время открытия.")
+    chunks: list[bytes] = []
+    remaining = before.st_size
+    while remaining:
+        chunk = os.read(descriptor, min(1024 * 1024, remaining))
+        if not chunk:
+            raise ValueError(f"{label}: файл изменился во время чтения.")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    if os.read(descriptor, 1):
+        raise ValueError(f"{label}: файл вырос во время чтения.")
+    after = os.fstat(descriptor)
+    identity = _stable_file_identity(before)
+    if _stable_file_identity(after) != identity:
+        raise ValueError(f"{label}: файл изменился во время чтения.")
+    content = b"".join(chunks)
+    if len(content) != before.st_size:
+        raise ValueError(f"{label}: размер прочитанного содержимого не совпадает.")
+    return content, identity
+
+
+def _no_follow_open_flags() -> int:
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if os.name != "nt" and not no_follow:
+        raise ValueError(
+            "Среда выполнения не поддерживает безопасное открытие O_NOFOLLOW."
+        )
+    nonblocking = getattr(os, "O_NONBLOCK", 0) if os.name != "nt" else 0
+    return os.O_RDONLY | no_follow | nonblocking | getattr(os, "O_CLOEXEC", 0)
+
+
+def _capture_regular_file(
+    path: Path,
+    *,
+    label: str,
+    byte_limit: int,
+) -> dict[str, Any]:
+    try:
+        path_stat = os.stat(path, follow_symlinks=False)
+        if not stat.S_ISREG(path_stat.st_mode):
+            raise ValueError(f"{label}: требуется обычный файл.")
+        descriptor = os.open(path, _no_follow_open_flags())
+    except OSError as exc:
+        raise ValueError(f"{label}: файл отсутствует или небезопасен.") from exc
+    try:
+        content, identity = _read_bounded_regular_fd(
+            descriptor,
+            label=label,
+            byte_limit=byte_limit,
+            path_stat=path_stat,
+        )
+    finally:
+        os.close(descriptor)
+    return {"content": content, "identity": identity}
+
+
+def _bounded_directory_names(
+    descriptor: int, *, maximum_entries: int, label: str
+) -> list[str]:
+    names: list[str] = []
+    try:
+        with os.scandir(descriptor) as entries:
+            for entry in entries:
+                if len(names) >= maximum_entries:
+                    raise ValueError(f"{label}: слишком много записей в папке.")
+                names.append(entry.name)
+    except OSError as exc:
+        raise ValueError(f"{label}: не удалось безопасно прочитать папку.") from exc
+    return names
+
+
+def _capture_audit_bundle_descriptor(descriptor: int) -> dict[str, Any]:
+    directory_stat = os.fstat(descriptor)
+    if not stat.S_ISDIR(directory_stat.st_mode):
+        raise ValueError("--bundle должен быть обычной папкой.")
+    names = _bounded_directory_names(
+        descriptor,
+        maximum_entries=len(_AUDIT_BUNDLE_PATHS),
+        label="--bundle",
+    )
+    if set(names) != _AUDIT_BUNDLE_PATHS:
+        raise ValueError(
+            "--bundle должен содержать ровно семь файлов текущего контракта."
+        )
+    files: dict[str, dict[str, Any]] = {}
+    for name in sorted(names):
+        try:
+            child_stat = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISREG(child_stat.st_mode):
+                raise ValueError(f"{name}: требуется обычный файл.")
+            child = os.open(name, _no_follow_open_flags(), dir_fd=descriptor)
+        except OSError as exc:
+            raise ValueError(f"{name}: файл отсутствует или небезопасен.") from exc
+        try:
+            content, identity = _read_bounded_regular_fd(
+                child,
+                label=name,
+                byte_limit=_AUDIT_IMPORT_FILE_LIMITS[name],
+                path_stat=child_stat,
+            )
+        finally:
+            os.close(child)
+        files[name] = {"content": content, "identity": identity}
+    final_directory_stat = os.fstat(descriptor)
+    directory_identity = _stable_directory_identity(directory_stat)
+    if _stable_directory_identity(final_directory_stat) != directory_identity:
+        raise ValueError("--bundle изменился во время чтения.")
+    return {"directory_identity": directory_identity, "files": files}
+
+
+def _capture_audit_bundle_at(parent_descriptor: int, bundle_name: str) -> dict[str, Any]:
+    if not bundle_name or Path(bundle_name).name != bundle_name:
+        raise ValueError("--bundle имеет небезопасное имя папки.")
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    try:
+        path_stat = os.stat(
+            bundle_name, dir_fd=parent_descriptor, follow_symlinks=False
+        )
+        descriptor = os.open(bundle_name, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise ValueError("--bundle должен быть существующей безопасной папкой.") from exc
+    try:
+        directory_stat = os.fstat(descriptor)
+        if not stat.S_ISDIR(directory_stat.st_mode) or (
+            path_stat.st_dev != directory_stat.st_dev
+            or path_stat.st_ino != directory_stat.st_ino
+        ):
+            raise ValueError("--bundle изменился во время открытия.")
+        return _capture_audit_bundle_descriptor(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _open_audit_bundle_parent(path: Path) -> tuple[int, str, dict[str, Any]]:
+    bundle_name = path.name
+    if not bundle_name or bundle_name in {".", ".."}:
+        raise ValueError("--bundle должен называть отдельную папку.")
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    parent_descriptor: int | None = None
+    try:
+        path_stat = os.stat(path, follow_symlinks=False)
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ValueError("--bundle должен быть существующей безопасной папкой.") from exc
+    try:
+        directory_stat = os.fstat(descriptor)
+        if not stat.S_ISDIR(directory_stat.st_mode) or (
+            path_stat.st_dev != directory_stat.st_dev
+            or path_stat.st_ino != directory_stat.st_ino
+        ):
+            raise ValueError("--bundle изменился во время открытия.")
+        parent_descriptor = os.open("..", flags, dir_fd=descriptor)
+        parent_stat = os.fstat(parent_descriptor)
+        if not stat.S_ISDIR(parent_stat.st_mode):
+            raise ValueError("Родитель --bundle не является обычной папкой.")
+        entry_stat = os.stat(
+            bundle_name, dir_fd=parent_descriptor, follow_symlinks=False
+        )
+        if (
+            entry_stat.st_dev != directory_stat.st_dev
+            or entry_stat.st_ino != directory_stat.st_ino
+        ):
+            raise ValueError("--bundle перемещён во время открытия.")
+        capture = _capture_audit_bundle_descriptor(descriptor)
+    except Exception:
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
+        raise
+    finally:
+        os.close(descriptor)
+    return parent_descriptor, bundle_name, capture
+
+
+def _capture_audit_bundle(path: Path) -> dict[str, Any]:
+    parent_descriptor, bundle_name, _ = _open_audit_bundle_parent(path)
+    try:
+        return _capture_audit_bundle_at(parent_descriptor, bundle_name)
+    finally:
+        os.close(parent_descriptor)
+
+
+def _assert_json_resource_limits(value: Any, *, label: str) -> None:
+    nodes = 0
+    stack: list[tuple[Any, int]] = [(value, 1)]
+    while stack:
+        current, depth = stack.pop()
+        nodes += 1
+        if nodes > _AUDIT_IMPORT_MAX_JSON_NODES:
+            raise ValueError(f"{label}: JSON содержит слишком много элементов.")
+        if depth > _AUDIT_IMPORT_MAX_JSON_DEPTH:
+            raise ValueError(f"{label}: JSON имеет чрезмерную глубину.")
+        if isinstance(current, str):
+            if len(current.encode("utf-8")) > _AUDIT_IMPORT_MAX_STRING_BYTES:
+                raise ValueError(f"{label}: строка превышает безопасный предел.")
+        elif isinstance(current, list):
+            if len(current) > _AUDIT_IMPORT_MAX_COLLECTION_ITEMS:
+                raise ValueError(f"{label}: JSON-массив слишком велик.")
+            stack.extend((item, depth + 1) for item in current)
+        elif isinstance(current, dict):
+            if len(current) > _AUDIT_IMPORT_MAX_COLLECTION_ITEMS:
+                raise ValueError(f"{label}: JSON-объект слишком велик.")
+            for key, item in current.items():
+                if len(key.encode("utf-8")) > _AUDIT_IMPORT_MAX_STRING_BYTES:
+                    raise ValueError(f"{label}: JSON-ключ слишком велик.")
+                stack.append((item, depth + 1))
+
+
+def _strict_json_bytes(content: bytes, *, label: str) -> Any:
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{label}: требуется корректный UTF-8.") from exc
+    value = _strict_json_loads(text, source=Path(label))
+    _assert_json_resource_limits(value, label=label)
+    return value
+
+
+def _strict_jsonl_bytes(content: bytes, *, label: str) -> list[dict[str, Any]]:
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{label}: требуется корректный UTF-8.") from exc
+    records: list[dict[str, Any]] = []
+    for number, line in enumerate(io.StringIO(text), start=1):
+        if number > _AUDIT_IMPORT_MAX_PHYSICAL_LINES:
+            raise ValueError(f"{label}: слишком много физических строк.")
+        if len(line.encode("utf-8")) > _AUDIT_IMPORT_MAX_STRING_BYTES:
+            raise ValueError(f"{label}: строка {number} превышает безопасный предел.")
+        if not line.strip():
+            continue
+        value = _strict_json_loads(line, source=Path(label))
+        _assert_json_resource_limits(value, label=f"{label}: строка {number}")
+        if not isinstance(value, dict):
+            raise ValueError(f"{label}: строка {number} должна быть JSON-объектом.")
+        records.append(value)
+        if len(records) > _AUDIT_IMPORT_MAX_RECORDS:
+            raise ValueError(f"{label}: слишком много записей.")
+    return records
+
+
+_BLINDED_REVIEW_GUIDE_V1_1 = textwrap.dedent(
     """
     # Независимая проверка кодирования
 
@@ -486,6 +842,60 @@ _BLINDED_REVIEW_GUIDE = textwrap.dedent(
     текста или подачу жалобы.
     """
 ).lstrip().encode("utf-8")
+
+_BLINDED_REVIEW_GUIDE_V1_2 = _BLINDED_REVIEW_GUIDE_V1_1.replace(
+    (
+        "Этот выпуск ещё не содержит\n"
+        "штатного импорта решений или квитанции проверки текста. Возврат файла сам по\n"
+        "себе не доказывает независимость, сверку цитат, согласие кодировщиков,\n"
+        "юридическое одобрение или право на подачу."
+    ).encode("utf-8"),
+    (
+        "После возврата файла сопровождающий использует штатную команду\n"
+        "`quality coding-audit-review-import`, отдельно сохранённый SHA-256 манифеста\n"
+        "пакета и заранее согласованную псевдонимную метку второго кодировщика.\n"
+        "Эту метку выберите до передачи ZIP и сообщите отдельно; не используйте\n"
+        "реальное имя. Импорт выполняет буквальную и нормализованную проверки\n"
+        "присутствия цитат, но сам по себе не доказывает их смысловую правильность,\n"
+        "личность, независимость,\n"
+        "согласие кодировщиков, юридическое одобрение или право на подачу."
+    ).encode("utf-8"),
+).replace(
+    (
+        "   существенный факт, результат, reading family и своё отличающееся имя в\n"
+        "   `coder`."
+    ).encode("utf-8"),
+    (
+        "   существенный факт, результат, reading family и заранее согласованную\n"
+        "   псевдонимную метку в `coder`; не указывайте реальное имя."
+    ).encode("utf-8"),
+).replace(
+    "родительский каталог audit-пакета".encode("utf-8"),
+    "родительский каталог пакета аудита".encode("utf-8"),
+).replace(
+    "результат, reading family и заранее согласованную".encode("utf-8"),
+    (
+        "результат, `reading_family` (семейство толкования) и заранее согласованную"
+    ).encode("utf-8"),
+).replace(
+    "Поля `supports` и `adverse` относятся именно к этой".encode("utf-8"),
+    (
+        "Значения `supports` (поддерживает) и `adverse` (противоречит) относятся "
+        "именно к этой"
+    ).encode("utf-8"),
+)
+if _BLINDED_REVIEW_GUIDE_V1_2 == _BLINDED_REVIEW_GUIDE_V1_1:
+    raise AssertionError(
+        "Не удалось собрать инструкции пакета независимой проверки версии 1.2."
+    )
+if "своё отличающееся имя" in _BLINDED_REVIEW_GUIDE_V1_2.decode("utf-8"):
+    raise AssertionError("Инструкции версии 1.2 не закрепили псевдонимную метку.")
+
+_BLINDED_REVIEW_GUIDES = {
+    "1.1": _BLINDED_REVIEW_GUIDE_V1_1,
+    "1.2": _BLINDED_REVIEW_GUIDE_V1_2,
+}
+_CURRENT_AUDIT_BUNDLE_CONTRACT_VERSION = "1.2"
 
 
 _AUDIT_CODEBOOK_PATHS = {"1.0": "coding-audit-codebook-v1.md"}
@@ -686,15 +1096,15 @@ def _build_neutral_coding_brief(
     research_questions = frozen_plan.get("research_questions")
     if not isinstance(research_questions, list) or len(research_questions) != 1:
         raise ValueError(
-            "Native audit требует ровно один замороженный исследовательский "
-            "вопрос; для нескольких вопросов подготовьте отдельные audit-пакеты."
+            "Штатный аудит требует ровно один замороженный исследовательский "
+            "вопрос; для нескольких вопросов подготовьте отдельные пакеты аудита."
         )
     if (
         not isinstance(research_questions[0], Mapping)
         or research_questions[0].get("status") != "hypothesis_under_test"
     ):
         raise ValueError(
-            "Native audit требует ровно одну направленную гипотезу со статусом "
+            "Штатный аудит требует ровно одну направленную гипотезу со статусом "
             "hypothesis_under_test; открытый research_question сначала "
             "переформулируйте и заново заморозьте в отдельном плане."
         )
@@ -761,17 +1171,35 @@ def _build_neutral_coding_brief(
 def _deterministic_flat_zip(files: Mapping[str, bytes]) -> bytes:
     """Build one byte-stable stored ZIP with safe flat ASCII member names."""
 
+    if len(files) > len(_BLINDED_REVIEW_PACKET_PATHS):
+        raise ValueError("Пакет независимой проверки содержит слишком много файлов.")
+    estimated_zip_bytes = 22
+    for name, content in files.items():
+        if Path(name).name != name or not name.isascii():
+            raise AssertionError(
+                "Пути внутри ZIP для проверки должны быть плоскими и ASCII."
+            )
+        if not isinstance(content, bytes):
+            raise ValueError("Файл пакета независимой проверки должен состоять из байтов.")
+        if len(content) > _AUDIT_IMPORT_ZIP_MEMBER_LIMIT:
+            raise ValueError(
+                "Файл пакета независимой проверки превышает безопасный предел."
+            )
+        estimated_zip_bytes += len(content) + 76 + 2 * len(name.encode("ascii"))
+        if estimated_zip_bytes > _AUDIT_IMPORT_ZIP_TOTAL_LIMIT:
+            raise ValueError(
+                "Пакет независимой проверки превышает безопасный общий предел."
+            )
+
     buffer = io.BytesIO()
     with zipfile.ZipFile(
         buffer,
         mode="w",
         compression=zipfile.ZIP_STORED,
-        allowZip64=True,
+        allowZip64=False,
     ) as archive:
         archive.comment = b""
         for name in sorted(files):
-            if Path(name).name != name or not name.isascii():
-                raise AssertionError("review packet ZIP paths must be flat ASCII")
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3
@@ -788,14 +1216,16 @@ def _build_blinded_review_packet(
     plan_sha256: str,
     codebook_content: bytes,
     coding_brief_content: bytes,
+    bundle_contract_version: str = _CURRENT_AUDIT_BUNDLE_CONTRACT_VERSION,
+    installed_codebook_content: bytes | None = None,
 ) -> bytes:
     """Validate and serialize the selected reviewer-only projection."""
 
     audit_plan = bundle.get("audit_plan")
     if not isinstance(audit_plan, Mapping):
-        raise ValueError("Внутренний audit-план отсутствует или повреждён.")
+        raise ValueError("Внутренний план аудита отсутствует или повреждён.")
     if audit_plan.get("plan_sha256") != plan_sha256:
-        raise ValueError("Внутренний audit-план связан с другим замороженным планом.")
+        raise ValueError("Внутренний план аудита связан с другим замороженным планом.")
     required = audit_plan.get("required_candidate_ids")
     if (
         not isinstance(required, list)
@@ -804,7 +1234,7 @@ def _build_blinded_review_packet(
         or required != sorted(set(required))
     ):
         raise ValueError(
-            "Внутренний audit-план должен содержать непустой отсортированный "
+            "Внутренний план аудита должен содержать непустой отсортированный "
             "набор уникальных required_candidate_ids."
         )
 
@@ -829,7 +1259,12 @@ def _build_blinded_review_packet(
         raise ValueError("Внутренний справочник кодирования не является UTF-8.") from exc
     if not decoded_codebook.strip():
         raise ValueError("Внутренний справочник кодирования пуст.")
-    if codebook_content != _load_audit_codebook(codebook_version):
+    trusted_codebook_content = (
+        _load_audit_codebook(codebook_version)
+        if installed_codebook_content is None
+        else installed_codebook_content
+    )
+    if codebook_content != trusted_codebook_content:
         raise ValueError("Внутренний справочник не совпадает со штатной версией.")
     codebook_sha256 = hashlib.sha256(codebook_content).hexdigest()
     try:
@@ -856,12 +1291,12 @@ def _build_blinded_review_packet(
             if not isinstance(record, Mapping):
                 raise ValueError(f"Внутренний набор {key} содержит не объект.")
             candidate_id = record.get("candidate_id")
-            if not isinstance(candidate_id, str) or not candidate_id:
-                raise ValueError(f"Внутренний набор {key} содержит пустой candidate_id.")
-            if candidate_id in indexed:
+            if not _is_native_audit_candidate_id(candidate_id):
                 raise ValueError(
-                    f"Внутренний набор {key} повторяет candidate_id {candidate_id}."
+                    f"Внутренний набор {key} содержит неканонический candidate_id."
                 )
+            if candidate_id in indexed:
+                raise ValueError(f"Внутренний набор {key} повторяет candidate_id.")
             indexed[candidate_id] = record
             observed.append(candidate_id)
         if exact and observed != required:
@@ -877,7 +1312,7 @@ def _build_blinded_review_packet(
     materials = index_records("secondary_review_materials", exact=True)
     if not set(required).issubset(screening):
         raise ValueError(
-            "required_candidate_ids не являются подмножеством screening-кандидатов."
+            "required_candidate_ids не являются подмножеством кандидатов отбора."
         )
 
     pending_values = {
@@ -894,17 +1329,11 @@ def _build_blinded_review_packet(
         template = templates[candidate_id]
         material = materials[candidate_id]
         if set(material) != NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS:
-            raise ValueError(
-                f"Review material {candidate_id} содержит неожиданные поля."
-            )
+            raise ValueError("Материал проверки содержит неожиданные поля.")
         if material.get("schema_version") != "1.0":
-            raise ValueError(
-                f"Review material {candidate_id} имеет неподдерживаемую схему."
-            )
+            raise ValueError("Материал проверки имеет неподдерживаемую схему.")
         if set(template) != AUDIT_CODING_RECORD_FIELDS:
-            raise ValueError(
-                f"Secondary template {candidate_id} содержит неожиданные поля."
-            )
+            raise ValueError("Шаблон вторичной разметки содержит неожиданные поля.")
         for field in identity_fields:
             expected_value = material.get(field)
             if (
@@ -916,12 +1345,10 @@ def _build_blinded_review_packet(
                 )
             ):
                 raise ValueError(
-                    f"Review candidate {candidate_id} имеет несовпадающее поле {field}."
+                    f"Кандидат проверки имеет несовпадающее поле {field}."
                 )
         if frame.get("plan_sha256") != plan_sha256:
-            raise ValueError(
-                f"Review candidate {candidate_id} связан с другим замороженным планом."
-            )
+            raise ValueError("Кандидат проверки связан с другим замороженным планом.")
         chain_id = material.get("chain_id")
         document_id = material.get("document_id")
         expected_candidate_id = "audit-candidate-sha256:" + canonical_digest(
@@ -933,9 +1360,7 @@ def _build_blinded_review_packet(
             }
         )
         if candidate_id != expected_candidate_id:
-            raise ValueError(
-                f"Review candidate {candidate_id} не связан с планом и документом."
-            )
+            raise ValueError("Кандидат проверки не связан с планом и документом.")
         source_text_sha256 = material.get("source_text_sha256")
         if (
             not isinstance(source_text_sha256, str)
@@ -944,9 +1369,7 @@ def _build_blinded_review_packet(
             or queue_record.get("source_text_sha256") != source_text_sha256
             or document_id != f"document-sha256:{source_text_sha256}"
         ):
-            raise ValueError(
-                f"Review candidate {candidate_id} имеет несогласованный digest текста."
-            )
+            raise ValueError("Кандидат проверки имеет несогласованный хеш текста.")
         text = material.get("text")
         packet_text_sha256 = material.get("packet_text_sha256")
         if (
@@ -962,28 +1385,25 @@ def _build_blinded_review_packet(
             )
             or packet_text_sha256 != hashlib.sha256(text.encode("utf-8")).hexdigest()
         ):
-            raise ValueError(
-                f"Review candidate {candidate_id} не связан с точным текстом пакета."
-            )
+            raise ValueError("Кандидат проверки не связан с точным текстом пакета.")
         normalized_text = re.sub(
             r"\s+", " ", unicodedata.normalize("NFC", text)
         ).strip()
         if hashlib.sha256(normalized_text.encode("utf-8")).hexdigest() != source_text_sha256:
             raise ValueError(
-                f"Review candidate {candidate_id} не связан с нормализованным "
-                "текстом хранилища."
+                "Кандидат проверки не связан с нормализованным текстом хранилища."
             )
         if template.get("codebook_version") != queue_record.get("codebook_version"):
             raise ValueError(
-                f"Review candidate {candidate_id} имеет разные версии codebook."
+                "Кандидат проверки имеет разные версии справочника кодирования."
             )
         if template.get("codebook_version") != codebook_version:
             raise ValueError(
-                f"Review candidate {candidate_id} связан с другой версией codebook."
+                "Кандидат проверки связан с другой версией справочника кодирования."
             )
         if any(template.get(field) != value for field, value in pending_values.items()):
             raise ValueError(
-                f"Secondary template {candidate_id} не находится в состоянии pending."
+                "Шаблон вторичной разметки не находится в состоянии ожидания (`pending`)."
             )
         fixed_template_fields = set(identity_fields) | {"codebook_version"} | set(
             pending_values
@@ -992,14 +1412,15 @@ def _build_blinded_review_packet(
             template.get(field) is not None
             for field in AUDIT_CODING_RECORD_FIELDS - fixed_template_fields
         ):
-            raise ValueError(
-                f"Secondary template {candidate_id} заранее содержит ответ."
-            )
+            raise ValueError("Шаблон вторичной разметки заранее содержит ответ.")
 
+    review_guide = _BLINDED_REVIEW_GUIDES.get(bundle_contract_version)
+    if review_guide is None:
+        raise ValueError("Версия пакета независимой проверки не поддерживается.")
     review_content_files: dict[str, bytes] = {
         "CODING-BRIEF.json": coding_brief_content,
         "CODING-CODEBOOK.md": codebook_content,
-        "REVIEW-INSTRUCTIONS.md": _BLINDED_REVIEW_GUIDE,
+        "REVIEW-INSTRUCTIONS.md": review_guide,
         "review-materials.jsonl": _canonical_jsonl_bytes(
             materials[candidate_id] for candidate_id in required
         ),
@@ -1052,6 +1473,477 @@ def _build_blinded_review_packet(
             "review-packet-manifest.json": _canonical_json_bytes(review_manifest),
         }
     )
+
+
+_NATIVE_AUDIT_PARENT_MANIFEST_FIELDS = frozenset(
+    {
+        "schema_version",
+        "bundle_contract_version",
+        "artifact_type",
+        "producer",
+        "plan_sha256",
+        "codebook_version",
+        "codebook_sha256",
+        "coding_brief_file_sha256",
+        "source_plan_file_sha256",
+        "source_screening_sha256",
+        "source_primary_sha256",
+        "source_sources_sha256",
+        "source_text_inventory_sha256",
+        "candidate_ids",
+        "required_candidate_ids",
+        "secondary_review_state",
+        "human_approval_created",
+        "legal_readiness",
+        "files",
+        "manifest_sha256",
+    }
+)
+_NATIVE_AUDIT_PARENT_DIGEST_FIELDS = (
+    "plan_sha256",
+    "codebook_sha256",
+    "coding_brief_file_sha256",
+    "source_plan_file_sha256",
+    "source_screening_sha256",
+    "source_primary_sha256",
+    "source_sources_sha256",
+    "source_text_inventory_sha256",
+    "manifest_sha256",
+)
+
+
+def _is_lower_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _validate_native_screening_records(
+    records: list[dict[str, Any]], *, plan_sha256: str
+) -> list[str]:
+    candidate_ids: list[str] = []
+    for row_number, record in enumerate(records, start=1):
+        if set(record) != NATIVE_AUDIT_SCREENING_FIELDS:
+            raise ValueError(
+                f"screening-candidates.audit.jsonl: строка {row_number} имеет "
+                "неверный закрытый формат."
+            )
+        candidate_id = record.get("candidate_id")
+        chain_id = record.get("chain_id")
+        document_id = record.get("document_id")
+        source_ids = record.get("source_ids")
+        matches = record.get("matches")
+        expected_candidate_id = "audit-candidate-sha256:" + canonical_digest(
+            {
+                "schema_version": "1.0",
+                "plan_sha256": plan_sha256,
+                "chain_id": chain_id,
+                "document_id": document_id,
+            }
+        )
+        if (
+            record.get("schema_version") != "1.0"
+            or record.get("plan_sha256") != plan_sha256
+            or not _is_packet_canonical_identifier(candidate_id)
+            or candidate_id != expected_candidate_id
+            or not _is_packet_canonical_identifier(chain_id)
+            or not _is_packet_canonical_identifier(document_id)
+            or re.fullmatch(r"document-sha256:[0-9a-f]{64}", str(document_id)) is None
+            or record.get("status") != "candidate_needs_full_text_review"
+            or not isinstance(source_ids, list)
+            or not source_ids
+            or any(
+                isinstance(source_id, bool)
+                or not isinstance(source_id, int)
+                or source_id < 1
+                for source_id in source_ids
+            )
+            or source_ids != sorted(set(source_ids))
+            or not isinstance(matches, list)
+            or not matches
+        ):
+            raise ValueError(
+                f"screening-candidates.audit.jsonl: строка {row_number} неканонична."
+            )
+        match_digests: list[str] = []
+        for match in matches:
+            if not isinstance(match, Mapping) or set(match) != {
+                "lane",
+                "query",
+                "start",
+                "end",
+            }:
+                raise ValueError(
+                    f"screening-candidates.audit.jsonl: поле matches строки {row_number} "
+                    "имеют неверный формат."
+                )
+            start = match.get("start")
+            end = match.get("end")
+            if (
+                not _is_packet_canonical_identifier(match.get("lane"))
+                or not _is_packet_canonical_identifier(match.get("query"))
+                or isinstance(start, bool)
+                or not isinstance(start, int)
+                or isinstance(end, bool)
+                or not isinstance(end, int)
+                or not 0 <= start < end
+            ):
+                raise ValueError(
+                    f"screening-candidates.audit.jsonl: поле matches строки {row_number} "
+                    "неканоничны."
+                )
+            match_digests.append(canonical_digest(match))
+        if len(match_digests) != len(set(match_digests)):
+            raise ValueError(
+                f"screening-candidates.audit.jsonl: строка {row_number} повторяет совпадение."
+            )
+        candidate_ids.append(candidate_id)
+    if not candidate_ids or candidate_ids != sorted(set(candidate_ids)):
+        raise ValueError(
+            "screening-candidates.audit.jsonl должен иметь непустой отсортированный "
+            "набор candidate_id."
+        )
+    return candidate_ids
+
+
+def _preflight_blinded_review_zip(content: bytes) -> None:
+    """Bound central-directory allocation before ``zipfile`` parses entries."""
+
+    end_record_size = 22
+    if len(content) < end_record_size or content[-end_record_size:-18] != b"PK\x05\x06":
+        raise ValueError(
+            "independent-review-packet.zip не имеет канонической конечной записи."
+        )
+    try:
+        (
+            signature,
+            disk_number,
+            central_directory_disk,
+            entries_on_disk,
+            entries_total,
+            central_directory_size,
+            central_directory_offset,
+            comment_size,
+        ) = struct.unpack("<4s4H2LH", content[-end_record_size:])
+    except struct.error as exc:
+        raise ValueError(
+            "independent-review-packet.zip имеет повреждённую конечную запись."
+        ) from exc
+    if signature != b"PK\x05\x06" or comment_size != 0:
+        raise ValueError(
+            "independent-review-packet.zip содержит неканонический ZIP-комментарий."
+        )
+    if disk_number != 0 or central_directory_disk != 0:
+        raise ValueError("independent-review-packet.zip не может быть многотомным.")
+    if (
+        entries_on_disk != len(_BLINDED_REVIEW_PACKET_PATHS)
+        or entries_total != len(_BLINDED_REVIEW_PACKET_PATHS)
+    ):
+        raise ValueError(
+            "independent-review-packet.zip должен объявлять ровно шесть файлов; "
+            "ZIP64 и расширенные реестры запрещены."
+        )
+    if (
+        central_directory_size > _AUDIT_IMPORT_ZIP_CENTRAL_DIRECTORY_LIMIT
+        or central_directory_offset > len(content) - end_record_size
+        or central_directory_offset + central_directory_size
+        != len(content) - end_record_size
+    ):
+        raise ValueError(
+            "independent-review-packet.zip имеет чрезмерный или неканонический "
+            "центральный реестр."
+        )
+
+
+def _read_blinded_review_packet(
+    content: bytes,
+    *,
+    bundle_contract_version: str,
+    audit_plan: Mapping[str, Any],
+    screening_records: list[dict[str, Any]],
+    queue_records: list[dict[str, Any]],
+    template_records: list[dict[str, Any]],
+    codebook_version: str,
+    installed_codebook_content: bytes,
+) -> dict[str, Any]:
+    _preflight_blinded_review_zip(content)
+    try:
+        with zipfile.ZipFile(io.BytesIO(content), mode="r") as archive:
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if names != list(_BLINDED_REVIEW_PACKET_PATHS) or len(names) != len(
+                set(names)
+            ):
+                raise ValueError(
+                    "independent-review-packet.zip должен содержать ровно шесть "
+                    "уникальных файлов в каноническом порядке."
+                )
+            if archive.comment != b"":
+                raise ValueError("independent-review-packet.zip содержит ZIP-комментарий.")
+            stored_total = 0
+            uncompressed_total = 0
+            for info in infos:
+                stored_total += info.compress_size
+                uncompressed_total += info.file_size
+                if (
+                    Path(info.filename).name != info.filename
+                    or not info.filename.isascii()
+                    or info.is_dir()
+                    or info.compress_type != zipfile.ZIP_STORED
+                    or info.flag_bits != 0
+                    or info.compress_size != info.file_size
+                    or info.file_size > _AUDIT_IMPORT_ZIP_MEMBER_LIMIT
+                    or info.date_time != (1980, 1, 1, 0, 0, 0)
+                    or info.create_system != 3
+                    or info.external_attr != 0o100644 << 16
+                    or info.extra != b""
+                    or info.comment != b""
+                ):
+                    raise ValueError(
+                        "Файл внутри ZIP имеет небезопасные или неканонические свойства."
+                    )
+            if (
+                stored_total > _AUDIT_IMPORT_ZIP_TOTAL_LIMIT
+                or uncompressed_total > _AUDIT_IMPORT_ZIP_TOTAL_LIMIT
+            ):
+                raise ValueError("independent-review-packet.zip превышает безопасный предел.")
+            member_bytes = {info.filename: archive.read(info) for info in infos}
+    except (zipfile.BadZipFile, RuntimeError, NotImplementedError) as exc:
+        raise ValueError("independent-review-packet.zip повреждён или небезопасен.") from exc
+
+    coding_brief = _strict_json_bytes(
+        member_bytes["CODING-BRIEF.json"], label="CODING-BRIEF.json"
+    )
+    review_materials = _strict_jsonl_bytes(
+        member_bytes["review-materials.jsonl"], label="review-materials.jsonl"
+    )
+    packet_templates = _strict_jsonl_bytes(
+        member_bytes["secondary-coding-template.jsonl"],
+        label="secondary-coding-template.jsonl внутри ZIP",
+    )
+    review_manifest = _strict_json_bytes(
+        member_bytes["review-packet-manifest.json"],
+        label="review-packet-manifest.json",
+    )
+    if (
+        not isinstance(coding_brief, Mapping)
+        or not isinstance(review_manifest, Mapping)
+        or _canonical_json_bytes(coding_brief) != member_bytes["CODING-BRIEF.json"]
+        or _canonical_jsonl_bytes(review_materials)
+        != member_bytes["review-materials.jsonl"]
+        or _canonical_jsonl_bytes(packet_templates)
+        != member_bytes["secondary-coding-template.jsonl"]
+        or _canonical_json_bytes(review_manifest)
+        != member_bytes["review-packet-manifest.json"]
+    ):
+        raise ValueError("JSON/JSONL внутри пакета проверки не является каноническим.")
+    bundle = {
+        "audit_plan": dict(audit_plan),
+        "screening_candidates": screening_records,
+        "secondary_review_queue": queue_records,
+        "secondary_coding_templates": template_records,
+        "secondary_review_materials": review_materials,
+        "codebook_version": codebook_version,
+    }
+    expected = _build_blinded_review_packet(
+        bundle,
+        plan_sha256=str(audit_plan["plan_sha256"]),
+        codebook_content=member_bytes["CODING-CODEBOOK.md"],
+        coding_brief_content=member_bytes["CODING-BRIEF.json"],
+        bundle_contract_version=bundle_contract_version,
+        installed_codebook_content=installed_codebook_content,
+    )
+    if expected != content:
+        raise ValueError(
+            "independent-review-packet.zip не совпадает побайтно со штатной сборкой."
+        )
+    return {
+        "coding_brief": dict(coding_brief),
+        "coding_brief_content": member_bytes["CODING-BRIEF.json"],
+        "codebook_content": member_bytes["CODING-CODEBOOK.md"],
+        "review_materials": review_materials,
+        "templates": packet_templates,
+        "review_manifest": dict(review_manifest),
+    }
+
+
+def _load_native_coding_audit_bundle(
+    capture: Mapping[str, Any],
+    *,
+    expected_manifest_sha256: str,
+    installed_codebook_content: bytes,
+) -> dict[str, Any]:
+    files = capture.get("files")
+    if not isinstance(files, Mapping) or set(files) != _AUDIT_BUNDLE_PATHS:
+        raise ValueError("Внутренний снимок --bundle неполон.")
+
+    def file_bytes(name: str) -> bytes:
+        item = files.get(name)
+        if not isinstance(item, Mapping) or not isinstance(item.get("content"), bytes):
+            raise ValueError(f"Внутренний снимок {name} повреждён.")
+        content = item["content"]
+        if len(content) > _AUDIT_IMPORT_FILE_LIMITS[name]:
+            raise ValueError(f"{name}: файл превышает безопасный предел.")
+        return content
+
+    manifest_content = file_bytes("coding-audit-inputs-manifest.json")
+    manifest = _strict_json_bytes(
+        manifest_content, label="coding-audit-inputs-manifest.json"
+    )
+    if not isinstance(manifest, Mapping) or set(manifest) != _NATIVE_AUDIT_PARENT_MANIFEST_FIELDS:
+        raise ValueError("Родительский манифест имеет неверный закрытый формат.")
+    manifest = dict(manifest)
+    if _canonical_json_bytes(manifest) != manifest_content:
+        raise ValueError("Родительский манифест не является каноническим JSON.")
+    unsigned_manifest = {
+        key: value for key, value in manifest.items() if key != "manifest_sha256"
+    }
+    if manifest.get("manifest_sha256") != canonical_digest(unsigned_manifest):
+        raise ValueError("Собственная контрольная сумма родительского манифеста не совпадает.")
+    if not _is_lower_sha256(expected_manifest_sha256):
+        raise ValueError(
+            "--expected-manifest-sha256 должен содержать 64 строчные шестнадцатеричные цифры."
+        )
+    if manifest["manifest_sha256"] != expected_manifest_sha256:
+        raise ValueError(
+            "Родительский манифест не совпадает с отдельно сохранённым ожидаемым SHA-256."
+        )
+    bundle_contract_version = manifest.get("bundle_contract_version")
+    if (
+        manifest.get("schema_version") != "1.0"
+        or bundle_contract_version not in _BLINDED_REVIEW_GUIDES
+        or manifest.get("artifact_type") != "coding_audit_input_bundle"
+        or manifest.get("producer")
+        != "judicial_meaning.quality.coding_audit_prepare"
+        or manifest.get("secondary_review_state")
+        != "independent_secondary_required"
+        or manifest.get("human_approval_created") is not False
+        or manifest.get("legal_readiness") is not False
+        or manifest.get("codebook_version") not in NATIVE_AUDIT_CODEBOOK_VERSIONS
+        or any(
+            not _is_lower_sha256(manifest.get(field))
+            for field in _NATIVE_AUDIT_PARENT_DIGEST_FIELDS
+        )
+    ):
+        raise ValueError("Родительский манифест имеет неподдерживаемый контракт.")
+    entries = manifest.get("files")
+    if not isinstance(entries, list) or len(entries) != len(_AUDIT_BUNDLE_CONTENT_PATHS):
+        raise ValueError("Родительский манифест имеет неверный файловый реестр.")
+    for expected_name, entry in zip(_AUDIT_BUNDLE_CONTENT_PATHS, entries):
+        content = file_bytes(expected_name)
+        if (
+            not isinstance(entry, Mapping)
+            or set(entry) != {"path", "bytes", "sha256"}
+            or entry.get("path") != expected_name
+            or isinstance(entry.get("bytes"), bool)
+            or entry.get("bytes") != len(content)
+            or entry.get("sha256") != hashlib.sha256(content).hexdigest()
+        ):
+            raise ValueError(
+                f"Родительский манифест не совпадает с файлом {expected_name}."
+            )
+
+    screening = _strict_jsonl_bytes(
+        file_bytes("screening-candidates.audit.jsonl"),
+        label="screening-candidates.audit.jsonl",
+    )
+    primary = _strict_jsonl_bytes(
+        file_bytes("primary-decisions.audit.jsonl"),
+        label="primary-decisions.audit.jsonl",
+    )
+    audit_plan = _strict_json_bytes(
+        file_bytes("coding-audit-plan.json"), label="coding-audit-plan.json"
+    )
+    queue = _strict_jsonl_bytes(
+        file_bytes("secondary-review-queue.jsonl"),
+        label="secondary-review-queue.jsonl",
+    )
+    templates = _strict_jsonl_bytes(
+        file_bytes("secondary-coding-template.jsonl"),
+        label="secondary-coding-template.jsonl",
+    )
+    canonical_pairs = (
+        (screening, "screening-candidates.audit.jsonl"),
+        (primary, "primary-decisions.audit.jsonl"),
+        (queue, "secondary-review-queue.jsonl"),
+        (templates, "secondary-coding-template.jsonl"),
+    )
+    if any(
+        _canonical_jsonl_bytes(records) != file_bytes(name)
+        for records, name in canonical_pairs
+    ):
+        raise ValueError("Родительский JSONL должен иметь канонические байты.")
+    if not isinstance(audit_plan, Mapping) or set(audit_plan) != CODING_AUDIT_PLAN_FIELDS:
+        raise ValueError("coding-audit-plan.json имеет неверный закрытый формат.")
+    audit_plan = dict(audit_plan)
+    if _canonical_json_bytes(audit_plan) != file_bytes("coding-audit-plan.json"):
+        raise ValueError("coding-audit-plan.json не является каноническим JSON.")
+    plan_sha256 = manifest["plan_sha256"]
+    candidate_ids = _validate_native_screening_records(
+        screening, plan_sha256=plan_sha256
+    )
+    if candidate_ids != manifest.get("candidate_ids"):
+        raise ValueError("Манифест candidate_ids не совпадает с рамкой отбора.")
+    if [record.get("candidate_id") for record in primary] != candidate_ids:
+        raise ValueError("Первичная разметка не совпадает по порядку с рамкой отбора.")
+    regenerated_plan = build_coding_audit_plan(
+        screening,
+        primary,
+        plan_sha256=plan_sha256,
+        sample_size=audit_plan.get("sample_size"),
+        exclusion_sample_size=audit_plan.get("exclusion_sample_size"),
+    )
+    if regenerated_plan != audit_plan:
+        raise ValueError("coding-audit-plan.json не воспроизводится из исходных файлов пакета.")
+    required = audit_plan.get("required_candidate_ids")
+    if (
+        not isinstance(required, list)
+        or not required
+        or required != sorted(set(required))
+        or manifest.get("required_candidate_ids") != required
+        or audit_plan.get("invalid_screening_record_ids") != []
+        or audit_plan.get("invalid_primary_record_ids") != []
+    ):
+        raise ValueError("Обязательная выборка аудита или её входы недопустимы.")
+    if [record.get("candidate_id") for record in queue] != required:
+        raise ValueError("Очередь вторичной проверки не совпадает с обязательной выборкой.")
+    if [record.get("candidate_id") for record in templates] != required:
+        raise ValueError("Шаблон вторичной разметки не совпадает с обязательной выборкой.")
+    screening_by_candidate = {record["candidate_id"]: record for record in screening}
+    if any(
+        record.get("source_ids")
+        != screening_by_candidate[record["candidate_id"]].get("source_ids")
+        for record in queue
+    ):
+        raise ValueError("Очередь вторичной проверки не связана с source_ids рамки отбора.")
+
+    packet = _read_blinded_review_packet(
+        file_bytes("independent-review-packet.zip"),
+        bundle_contract_version=str(bundle_contract_version),
+        audit_plan=audit_plan,
+        screening_records=screening,
+        queue_records=queue,
+        template_records=templates,
+        codebook_version=str(manifest["codebook_version"]),
+        installed_codebook_content=installed_codebook_content,
+    )
+    if (
+        packet["templates"] != templates
+        or manifest["codebook_sha256"]
+        != hashlib.sha256(packet["codebook_content"]).hexdigest()
+        or manifest["coding_brief_file_sha256"]
+        != hashlib.sha256(packet["coding_brief_content"]).hexdigest()
+    ):
+        raise ValueError("Родительский манифест не совпадает с содержимым пакета проверки.")
+    return {
+        "manifest": manifest,
+        "manifest_content": manifest_content,
+        "screening": screening,
+        "primary": primary,
+        "audit_plan": audit_plan,
+        "queue": queue,
+        "templates": templates,
+        "packet": packet,
+        "review_packet_content": file_bytes("independent-review-packet.zip"),
+    }
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
@@ -2306,8 +3198,19 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _json_output_line(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True) + "\n"
+
+
+def _write_stdout_line(line: str) -> None:
+    written = sys.stdout.write(line)
+    if written != len(line):
+        raise OSError("Стандартный вывод принял не всю строку результата.")
+    sys.stdout.flush()
+
+
 def _print_json(value: Any) -> None:
-    print(json.dumps(value, ensure_ascii=False, sort_keys=True))
+    _write_stdout_line(_json_output_line(value))
 
 
 def _case_answers(args: argparse.Namespace) -> dict[str, Any]:
@@ -3327,47 +4230,1099 @@ def _atomic_rename_no_replace(source: Path, destination: Path) -> None:
         if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
             raise FileExistsError(
                 error_number,
-                "Каталог audit-пакета уже существует; перезапись запрещена.",
+                "Каталог пакета аудита уже существует; перезапись запрещена.",
                 destination,
             )
         raise OSError(error_number, os.strerror(error_number), destination)
 
 
+def _atomic_rename_no_replace_at(
+    parent_descriptor: int,
+    source_name: str,
+    destination_name: str,
+    *,
+    expected_source_identity: tuple[int, int] | None = None,
+) -> None:
+    """Atomically rename two flat names relative to one trusted directory fd."""
+
+    if any(
+        not name or Path(name).name != name or name in {".", ".."}
+        for name in (source_name, destination_name)
+    ):
+        raise ValueError("Имена каталогов публикации должны быть плоскими.")
+    if expected_source_identity is not None:
+        try:
+            source_stat = os.stat(
+                source_name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError as exc:
+            raise OSError("Временная папка публикации исчезла до переноса.") from exc
+        if (
+            not stat.S_ISDIR(source_stat.st_mode)
+            or (source_stat.st_dev, source_stat.st_ino) != expected_source_identity
+        ):
+            raise OSError("Временная папка публикации заменена до переноса.")
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            renameatx_np = libc.renameatx_np
+        except AttributeError as exc:
+            raise OSError(
+                errno.ENOTSUP,
+                "Система не поддерживает атомарную публикацию относительно папки.",
+            ) from exc
+        renameatx_np.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        renameatx_np.restype = ctypes.c_int
+        result = renameatx_np(
+            parent_descriptor,
+            os.fsencode(source_name),
+            parent_descriptor,
+            os.fsencode(destination_name),
+            0x00000004,
+        )
+    elif sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            renameat2 = libc.renameat2
+        except AttributeError as exc:
+            raise OSError(
+                errno.ENOTSUP,
+                "Система не поддерживает атомарную публикацию относительно папки.",
+            ) from exc
+        renameat2.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        renameat2.restype = ctypes.c_int
+        result = renameat2(
+            parent_descriptor,
+            os.fsencode(source_name),
+            parent_descriptor,
+            os.fsencode(destination_name),
+            0x00000001,
+        )
+    else:
+        raise OSError(
+            errno.ENOTSUP,
+            "Система не поддерживает безопасную публикацию относительно папки.",
+        )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise FileExistsError(
+                error_number,
+                "Каталог пакета аудита уже существует; перезапись запрещена.",
+                destination_name,
+            )
+        raise OSError(error_number, os.strerror(error_number), destination_name)
+
+
+def _fsync_directory(path: Path | int) -> None:
+    if os.name == "nt":
+        return
+    if isinstance(path, int):
+        os.fsync(path)
+        return
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _load_darwin_extended_acl_functions() -> tuple[Any, Any]:
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        acl_get_fd_np = libc.acl_get_fd_np
+        acl_free = libc.acl_free
+    except (AttributeError, OSError) as exc:
+        raise OSError(
+            "Среда macOS не предоставляет обязательную проверку расширенных ACL."
+        ) from exc
+    acl_get_fd_np.argtypes = [ctypes.c_int, ctypes.c_int]
+    acl_get_fd_np.restype = ctypes.c_void_p
+    acl_free.argtypes = [ctypes.c_void_p]
+    acl_free.restype = ctypes.c_int
+    return acl_get_fd_np, acl_free
+
+
+def _acl_guard_fd_identity(value: os.stat_result) -> tuple[int, ...]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        stat.S_IFMT(value.st_mode),
+        value.st_uid,
+        stat.S_IMODE(value.st_mode),
+        value.st_nlink,
+        value.st_ctime_ns,
+    )
+
+
+def _assert_fd_has_no_extended_acl(
+    descriptor: int,
+    *,
+    acl_type: int,
+    object_label: str,
+    acl_get_fd_np: Any,
+    acl_free: Any,
+) -> None:
+    try:
+        before = os.fstat(descriptor)
+    except OSError as exc:
+        raise OSError(
+            f"{object_label}: не удалось проверить идентичность перед проверкой ACL."
+        ) from exc
+    before_identity = _acl_guard_fd_identity(before)
+
+    acl_failure: Exception | None = None
+    ctypes.set_errno(0)
+    try:
+        acl = acl_get_fd_np(descriptor, acl_type)
+    except Exception:
+        acl_failure = OSError(
+            f"{object_label}: системная проверка расширенного ACL завершилась ошибкой."
+        )
+    else:
+        if not acl:
+            if ctypes.get_errno() != errno.ENOENT:
+                acl_failure = OSError(
+                    f"{object_label}: отсутствие расширенного ACL не подтверждено."
+                )
+        else:
+            ctypes.set_errno(0)
+            try:
+                free_result = acl_free(acl)
+            except Exception:
+                acl_failure = OSError(
+                    f"{object_label}: освобождение системного объекта ACL не подтверждено."
+                )
+            else:
+                if free_result != 0:
+                    acl_failure = OSError(
+                        f"{object_label}: освобождение системного объекта ACL не подтверждено."
+                    )
+                else:
+                    acl_failure = ValueError(
+                        f"{object_label}: обнаружен расширенный ACL macOS; "
+                        "режим 0700/0600 не подтверждает приватность."
+                    )
+
+    try:
+        after = os.fstat(descriptor)
+    except OSError as exc:
+        raise OSError(
+            f"{object_label}: не удалось проверить идентичность после проверки ACL."
+        ) from exc
+    after_identity = _acl_guard_fd_identity(after)
+    if after_identity != before_identity:
+        raise OSError(
+            f"{object_label}: объект изменился во время проверки расширенного ACL."
+        )
+    if acl_failure is not None:
+        raise acl_failure
+
+
+def _assert_darwin_fd_has_no_extended_acl(
+    descriptor: int, *, object_label: str
+) -> None:
+    if sys.platform != "darwin":
+        return
+    acl_get_fd_np, acl_free = _load_darwin_extended_acl_functions()
+    acl_type_extended = 0x100
+    _assert_fd_has_no_extended_acl(
+        descriptor,
+        acl_type=acl_type_extended,
+        object_label=object_label,
+        acl_get_fd_np=acl_get_fd_np,
+        acl_free=acl_free,
+    )
+
+
+def _assert_safe_publication_parent(descriptor: int) -> os.stat_result:
+    parent_stat = os.fstat(descriptor)
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        raise ValueError("Родитель --output-dir не является обычной папкой.")
+    if os.name == "posix":
+        effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+        if parent_stat.st_uid != effective_uid:
+            raise ValueError("Родитель --output-dir должен принадлежать текущему пользователю.")
+        if parent_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            raise ValueError(
+                "Родитель --output-dir не должен быть доступен для записи группе "
+                "или другим пользователям."
+            )
+    if sys.platform == "darwin":
+        _assert_darwin_fd_has_no_extended_acl(
+            descriptor,
+            object_label="Родительская папка публикации",
+        )
+        fresh_parent_stat = os.fstat(descriptor)
+        if _acl_guard_fd_identity(fresh_parent_stat) != _acl_guard_fd_identity(
+            parent_stat
+        ):
+            raise ValueError(
+                "Родитель --output-dir изменён во время проверки приватности."
+            )
+        if (
+            not stat.S_ISDIR(fresh_parent_stat.st_mode)
+            or fresh_parent_stat.st_uid != effective_uid
+            or fresh_parent_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+        ):
+            raise ValueError(
+                "Родитель --output-dir больше не соответствует требованиям приватности."
+            )
+        parent_stat = fresh_parent_stat
+    return parent_stat
+
+
+def _assert_parent_path_matches_descriptor(path: Path, descriptor: int) -> None:
+    try:
+        path_stat = os.stat(path, follow_symlinks=False)
+    except OSError as exc:
+        raise ValueError("Родитель --output-dir перемещён или заменён.") from exc
+    descriptor_stat = os.fstat(descriptor)
+    if (
+        path_stat.st_dev != descriptor_stat.st_dev
+        or path_stat.st_ino != descriptor_stat.st_ino
+    ):
+        raise ValueError("Родитель --output-dir перемещён или заменён.")
+
+
+def _assert_published_audit_bundle(
+    parent_descriptor: int,
+    destination_name: str,
+    expected_directory_identity: tuple[int, int],
+    files: Mapping[str, bytes],
+    expected_file_identities: Mapping[str, tuple[int, int]] | None = None,
+) -> None:
+    if expected_file_identities is not None and set(expected_file_identities) != set(
+        files
+    ):
+        raise ValueError("Не задана точная идентичность всех файлов публикации.")
+    try:
+        path_stat = os.stat(
+            destination_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+    except OSError as exc:
+        raise ValueError("Опубликованный каталог перемещён или заменён.") from exc
+    if (
+        not stat.S_ISDIR(path_stat.st_mode)
+        or (path_stat.st_dev, path_stat.st_ino) != expected_directory_identity
+        or stat.S_IMODE(path_stat.st_mode) != 0o700
+    ):
+        raise ValueError("Опубликованный каталог перемещён или заменён.")
+
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(
+            destination_name,
+            flags,
+            dir_fd=parent_descriptor,
+        )
+    except OSError as exc:
+        raise ValueError("Опубликованный каталог нельзя безопасно открыть.") from exc
+    try:
+        _assert_darwin_fd_has_no_extended_acl(
+            descriptor,
+            object_label="Каталог проверяемого пакета аудита",
+        )
+        opened_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(opened_stat.st_mode)
+            or (opened_stat.st_dev, opened_stat.st_ino)
+            != expected_directory_identity
+            or stat.S_IMODE(opened_stat.st_mode) != 0o700
+        ):
+            raise ValueError("Опубликованный каталог перемещён или заменён.")
+        directory_identity = _stable_directory_identity(opened_stat)
+        names = _bounded_directory_names(
+            descriptor,
+            maximum_entries=len(files),
+            label="Опубликованный каталог",
+        )
+        if set(names) != set(files):
+            raise ValueError("Опубликованный каталог содержит неожиданный набор файлов.")
+        for relative_path, expected_content in files.items():
+            try:
+                child_stat = os.stat(
+                    relative_path,
+                    dir_fd=descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    not stat.S_ISREG(child_stat.st_mode)
+                    or child_stat.st_nlink != 1
+                    or stat.S_IMODE(child_stat.st_mode) != 0o600
+                    or child_stat.st_size != len(expected_content)
+                    or (
+                        expected_file_identities is not None
+                        and (child_stat.st_dev, child_stat.st_ino)
+                        != expected_file_identities[relative_path]
+                    )
+                ):
+                    raise ValueError(
+                        "Опубликованный каталог содержит небезопасный файл."
+                    )
+                child_descriptor = os.open(
+                    relative_path,
+                    _no_follow_open_flags(),
+                    dir_fd=descriptor,
+                )
+            except OSError as exc:
+                raise ValueError(
+                    "Опубликованный каталог содержит небезопасный файл."
+                ) from exc
+            try:
+                _assert_darwin_fd_has_no_extended_acl(
+                    child_descriptor,
+                    object_label="Файл проверяемого пакета аудита",
+                )
+                observed_content, child_identity = _read_bounded_regular_fd(
+                    child_descriptor,
+                    label=relative_path,
+                    byte_limit=len(expected_content),
+                    path_stat=child_stat,
+                )
+            finally:
+                os.close(child_descriptor)
+            try:
+                final_child_stat = os.stat(
+                    relative_path,
+                    dir_fd=descriptor,
+                    follow_symlinks=False,
+                )
+            except OSError as exc:
+                raise ValueError(
+                    "Опубликованный файл перемещён или заменён."
+                ) from exc
+            if (
+                _stable_file_identity(final_child_stat) != child_identity
+                or observed_content != expected_content
+            ):
+                raise ValueError("Содержимое опубликованного файла изменено.")
+        final_opened_stat = os.fstat(descriptor)
+        try:
+            final_path_stat = os.stat(
+                destination_name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError as exc:
+            raise ValueError("Опубликованный каталог перемещён или заменён.") from exc
+        if (
+            _stable_directory_identity(final_opened_stat) != directory_identity
+            or (final_path_stat.st_dev, final_path_stat.st_ino)
+            != expected_directory_identity
+            or stat.S_IMODE(final_path_stat.st_mode) != 0o700
+        ):
+            raise ValueError("Опубликованный каталог изменён во время проверки.")
+    finally:
+        os.close(descriptor)
+
+
+class _PublicationRecoveryError(OSError):
+    """A classified failure that already contains the publication stop rule."""
+
+
+_PublishedCommandRecord = tuple[tuple[int, int], str, tuple[int, int]]
+
+
+def _publication_state_uncertain_error(
+    parent_identity: tuple[int, int],
+    destination_name: str,
+    published_directory_identity: tuple[int, int],
+    created_file_identities: Mapping[str, tuple[int, int]] | None = None,
+) -> _PublicationRecoveryError:
+    recovery_entry_name = json.dumps(destination_name, ensure_ascii=True)
+    file_coordinates = ""
+    if created_file_identities:
+        coordinates = ", ".join(
+            (
+                f"имя {json.dumps(name, ensure_ascii=True)}, устройство {identity[0]}, "
+                f"inode {identity[1]}"
+            )
+            for name, identity in sorted(created_file_identities.items())
+        )
+        file_coordinates = f" Идентификаторы созданных файлов: {coordinates}."
+    return _PublicationRecoveryError(
+        "Состояние публикации после атомарного переноса не подтверждено: её "
+        "расположение, целостность или защищённость могли измениться, а путь "
+        "--output-dir может уже не вести к опубликованному каталогу. "
+        "Координаты поиска в файловой системе: устройство "
+        f"{parent_identity[0]}, inode родительской папки "
+        f"{parent_identity[1]}, имя записи {recovery_entry_name}. "
+        "Идентификатор самого опубликованного каталога: устройство "
+        f"{published_directory_identity[0]}, inode "
+        f"{published_directory_identity[1]}.{file_coordinates} "
+        "Остановите автоматику, сохраните все входы неизменными, не "
+        "повторяйте команду и не передавайте результат дальше. Это аварийное "
+        "восстановление для системного администратора, а не штатная "
+        "пользовательская команда: передайте администратору всю строку ошибки. "
+        "Администратор должен найти родительскую папку и сам опубликованный "
+        "каталог по устройству и inode, а также найти по указанным устройству и "
+        "inode все имена и жёсткие ссылки каждого созданного файла. Каждую "
+        "найденную копию нужно учесть и поместить в карантин до ручного "
+        "восстановления. Если каталог, хотя бы один inode файла или все его ссылки "
+        "нельзя полностью учесть, считайте чувствительную копию неучтённой и не "
+        "продолжайте процесс без проверки оператора."
+    )
+
+
+def _staging_cleanup_uncertain_error(
+    parent_identity: tuple[int, int],
+    staging_name: str,
+    staging_identity: tuple[int, int] | None,
+    created_file_identities: Mapping[str, tuple[int, int]] | None = None,
+) -> _PublicationRecoveryError:
+    recovery_entry_name = json.dumps(staging_name, ensure_ascii=True)
+    staging_coordinates = (
+        "идентификатор временной папки получить не удалось"
+        if staging_identity is None
+        else (
+            f"устройство временной папки {staging_identity[0]}, "
+            f"inode {staging_identity[1]}"
+        )
+    )
+    file_coordinates = ""
+    if created_file_identities:
+        coordinates = ", ".join(
+            (
+                f"имя {json.dumps(name, ensure_ascii=True)}, устройство {identity[0]}, "
+                f"inode {identity[1]}"
+            )
+            for name, identity in sorted(created_file_identities.items())
+        )
+        file_coordinates = f" Созданные файлы: {coordinates}."
+    return _PublicationRecoveryError(
+        "Очистка временной публикации не подтверждена: чувствительные файлы "
+        "могли остаться в перемещённой, заменённой, изменённой или уже перенесённой "
+        "временной папке. После создания временной папки автоматическое удаление "
+        "файлов или самой папки намеренно не выполняется: при конкурентной подмене "
+        "имени нельзя переносимо и атомарно доказать, что удаляется именно созданный, "
+        "а не чужой объект. "
+        "Координаты: устройство родительской папки "
+        f"{parent_identity[0]}, inode {parent_identity[1]}, прежнее имя "
+        f"записи {recovery_entry_name}; {staging_coordinates}.{file_coordinates} "
+        "В том числе за пределами временной папки могла сохраниться копия через "
+        "жёсткую ссылку. "
+        "Остановите автоматику, "
+        "сохраните входы неизменными, не повторяйте команду и ничего не передавайте "
+        "дальше. Передайте всю строку ошибки системному администратору: он должен "
+        "найти по устройству и inode временную папку, а также все имена и жёсткие "
+        "ссылки каждого указанного созданного файла, затем учесть и поместить в "
+        "карантин каждую найденную копию. Штатной пользовательской команды "
+        "восстановления нет. Если хотя бы один inode файла или все его ссылки нельзя "
+        "полностью учесть, считайте чувствительную временную копию неучтённой."
+    )
+
+
+def _publication_confirmation_delivery_error(
+    parent_identity: tuple[int, int],
+    destination_name: str,
+    published_directory_identity: tuple[int, int],
+) -> _PublicationRecoveryError:
+    recovery_entry_name = json.dumps(destination_name, ensure_ascii=True)
+    return _PublicationRecoveryError(
+        "Каталог результата полностью и долговечно опубликован, но финальное "
+        "машиночитаемое подтверждение начали передавать, а завершение команды после "
+        "начала передачи не подтверждено. Стандартный вывод мог остаться пустым или частичным либо "
+        "выглядеть как полная строка JSON; во всех случаях считайте его "
+        "недействительным и не разбирайте. Координаты результата: "
+        f"устройство родительской папки {parent_identity[0]}, inode "
+        f"{parent_identity[1]}, имя записи {recovery_entry_name}; устройство "
+        f"каталога {published_directory_identity[0]}, inode "
+        f"{published_directory_identity[1]}. Остановите автоматику, сохраните все "
+        "входы и этот каталог неизменными, не используйте результат дальше и не "
+        "повторяйте команду в ту же папку. После восстановления стандартного вывода "
+        "повторите команду с теми же входами в другую отсутствующую соседнюю папку, "
+        "получите одну полную строку JSON и побайтно сравните оба каталога. Для "
+        "пакета аудита сохраните manifest_sha256 только из успешного повторного "
+        "стандартного вывода по независимому каналу; не восстанавливайте этот якорь "
+        "из первого пакета. Для импорта используйте контрольную сумму квитанции и "
+        "флаги дальнейших действий только из полного успешного повторного вывода "
+        "после совпадения каталогов."
+    )
+
+
+def _publication_finalization_uncertain_error(
+    parent_identity: tuple[int, int],
+    destination_name: str,
+    published_directory_identity: tuple[int, int],
+) -> _PublicationRecoveryError:
+    recovery_entry_name = json.dumps(destination_name, ensure_ascii=True)
+    return _PublicationRecoveryError(
+        "Каталог результата уже прошёл публикацию, но завершение команды после "
+        "публикации не подтверждено из-за ошибки или прерывания до начала "
+        "формирования финального стандартного вывода, в том числе при закрытии "
+        "служебного дескриптора. "
+        "Финальный стандартный вывод ещё не формировался и должен быть пуст; код 2 "
+        "не доказывает отсутствия каталога. Координаты результата: устройство "
+        f"родительской папки {parent_identity[0]}, inode {parent_identity[1]}, имя "
+        f"записи {recovery_entry_name}; устройство каталога "
+        f"{published_directory_identity[0]}, inode "
+        f"{published_directory_identity[1]}. Остановите автоматику, сохраните все "
+        "входы и найденный каталог неизменными, не используйте его дальше и не "
+        "повторяйте команду в ту же папку. После устранения системной ошибки "
+        "повторите команду с теми же входами в другую отсутствующую соседнюю папку, "
+        "получите одну полную строку JSON и побайтно сравните оба каталога. Для "
+        "пакета аудита сохраните manifest_sha256 только из успешного повторного "
+        "стандартного вывода по независимому каналу; не восстанавливайте этот якорь "
+        "из первого пакета. Для импорта используйте контрольную сумму квитанции и "
+        "флаги дальнейших действий только из полного успешного повторного вывода "
+        "после совпадения каталогов."
+    )
+
+
+def _close_command_parent_descriptor(descriptor: int) -> None:
+    os.close(descriptor)
+
+
+def _close_published_descriptor(descriptor: int) -> None:
+    os.close(descriptor)
+
+
+def _neutralize_stdout_after_delivery_failure() -> None:
+    try:
+        stdout_descriptor = sys.stdout.fileno()
+    except (AttributeError, OSError, ValueError):
+        return
+    null_descriptor: int | None = None
+    try:
+        null_descriptor = os.open(
+            os.devnull,
+            os.O_WRONLY | getattr(os, "O_CLOEXEC", 0),
+        )
+        if null_descriptor != stdout_descriptor:
+            os.dup2(null_descriptor, stdout_descriptor)
+    except OSError:
+        return
+    finally:
+        if null_descriptor is not None and null_descriptor != stdout_descriptor:
+            try:
+                os.close(null_descriptor)
+            except OSError:
+                pass
+
+
+def _deliver_published_confirmation(
+    line: str,
+    *,
+    parent_identity: tuple[int, int],
+    destination_name: str,
+    published_directory_identity: tuple[int, int],
+    delivery_state: list[str],
+) -> None:
+    try:
+        delivery_state.append("started")
+        _write_stdout_line(line)
+        delivery_state.append("flushed")
+    except BaseException as exc:
+        try:
+            _neutralize_stdout_after_delivery_failure()
+        except BaseException:
+            pass
+        if isinstance(exc, _PublicationRecoveryError):
+            raise
+        raise _publication_confirmation_delivery_error(
+            parent_identity,
+            destination_name,
+            published_directory_identity,
+        ) from exc
+
+
+def _postpublication_command_error(
+    publication_state: list[_PublishedCommandRecord],
+    delivery_state: list[str],
+) -> _PublicationRecoveryError | None:
+    if not publication_state:
+        return None
+    parent_identity, destination_name, published_directory_identity = (
+        publication_state[-1]
+    )
+    if delivery_state:
+        try:
+            _neutralize_stdout_after_delivery_failure()
+        except BaseException:
+            pass
+        return _publication_confirmation_delivery_error(
+            parent_identity,
+            destination_name,
+            published_directory_identity,
+        )
+    return _publication_finalization_uncertain_error(
+        parent_identity,
+        destination_name,
+        published_directory_identity,
+    )
+
+
+def _complete_published_command() -> int:
+    return 0
+
+
 def _publish_new_audit_bundle(
     destination: Path,
     files: Mapping[str, bytes],
-) -> None:
+    *,
+    parent_descriptor: int | None = None,
+    publication_state: list[_PublishedCommandRecord] | None = None,
+) -> tuple[int, int]:
     if not destination.name or destination.name in {".", ".."}:
         raise ValueError("--output-dir должен называть новую папку.")
-    if destination.exists() or destination.is_symlink():
-        raise ValueError("--output-dir уже существует; перезапись audit-пакета запрещена.")
     parent = destination.parent
-    if not parent.is_dir() or parent.is_symlink():
-        raise ValueError("Родитель --output-dir должен быть существующей обычной папкой.")
-
-    staging: Path | None = Path(
-        tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=parent)
-    )
+    owns_parent_descriptor = parent_descriptor is None
+    if parent_descriptor is None:
+        flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+        try:
+            parent_stat = os.stat(parent, follow_symlinks=False)
+            parent_descriptor = os.open(parent, flags)
+        except OSError as exc:
+            raise ValueError(
+                "Родитель --output-dir должен быть существующей обычной папкой."
+            ) from exc
+        opened_parent_stat = os.fstat(parent_descriptor)
+        if not stat.S_ISDIR(opened_parent_stat.st_mode) or (
+            parent_stat.st_dev != opened_parent_stat.st_dev
+            or parent_stat.st_ino != opened_parent_stat.st_ino
+        ):
+            os.close(parent_descriptor)
+            raise ValueError("Родитель --output-dir изменился во время открытия.")
     try:
+        verified_parent_stat = _assert_safe_publication_parent(parent_descriptor)
+        publication_parent_identity = (
+            verified_parent_stat.st_dev,
+            verified_parent_stat.st_ino,
+        )
+        _assert_parent_path_matches_descriptor(parent, parent_descriptor)
+    except Exception:
+        if owns_parent_descriptor:
+            os.close(parent_descriptor)
+        raise
+
+    try:
+        os.stat(destination.name, dir_fd=parent_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        if owns_parent_descriptor:
+            os.close(parent_descriptor)
+        raise ValueError("Не удалось проверить --output-dir перед публикацией.") from exc
+    else:
+        if owns_parent_descriptor:
+            os.close(parent_descriptor)
+        raise ValueError("--output-dir уже существует; перезапись пакета аудита запрещена.")
+
+    staging_name: str | None = None
+    staging_created = False
+    staging_descriptor: int | None = None
+    staging_identity: tuple[int, int] | None = None
+    created_file_descriptors: dict[str, int] = {}
+    created_file_identities: dict[str, tuple[int, int]] = {}
+    published = False
+    try:
+        for _ in range(100):
+            candidate = f".{destination.name}.staging-{secrets.token_hex(12)}"
+            try:
+                os.mkdir(candidate, 0o700, dir_fd=parent_descriptor)
+            except FileExistsError:
+                continue
+            staging_name = candidate
+            staging_created = True
+            break
+        if staging_name is None:
+            raise OSError("Не удалось выбрать уникальное имя временной папки.")
+        directory_flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+        staging_descriptor = os.open(
+            staging_name, directory_flags, dir_fd=parent_descriptor
+        )
+        opened_staging_stat = os.fstat(staging_descriptor)
+        staging_identity = (opened_staging_stat.st_dev, opened_staging_stat.st_ino)
+        if (
+            not stat.S_ISDIR(opened_staging_stat.st_mode)
+            or opened_staging_stat.st_nlink < 1
+        ):
+            raise OSError("Не удалось безопасно открыть временную папку публикации.")
+        _assert_darwin_fd_has_no_extended_acl(
+            staging_descriptor,
+            object_label="Временная папка публикации",
+        )
+        os.fchmod(staging_descriptor, 0o700)
         for relative_path, content in files.items():
             if Path(relative_path).name != relative_path:
-                raise AssertionError("audit bundle paths must be flat")
-            target = staging / relative_path
-            target.write_bytes(content)
-            if target.read_bytes() != content:
-                raise OSError(f"Не удалось проверить записанный audit-файл {relative_path}.")
-        if destination.exists() or destination.is_symlink():
-            raise ValueError(
-                "--output-dir появился во время подготовки; audit-пакет не опубликован."
+                raise AssertionError("Пути файлов пакета аудита должны быть плоскими.")
+            descriptor = os.open(
+                relative_path,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=staging_descriptor,
             )
-        _atomic_rename_no_replace(staging, destination)
-        staging = None
+            created_file_descriptors[relative_path] = descriptor
+            created_stat = os.fstat(descriptor)
+            created_file_identities[relative_path] = (
+                created_stat.st_dev,
+                created_stat.st_ino,
+            )
+            if not stat.S_ISREG(created_stat.st_mode) or created_stat.st_nlink != 1:
+                raise OSError(
+                    f"Не удалось безопасно создать файл аудита {relative_path}."
+                )
+            _assert_darwin_fd_has_no_extended_acl(
+                descriptor,
+                object_label="Созданный файл пакета аудита",
+            )
+            offset = 0
+            while offset < len(content):
+                written = os.write(descriptor, content[offset:])
+                if written <= 0:
+                    raise OSError(f"Не удалось записать файл аудита {relative_path}.")
+                offset += written
+            os.fchmod(descriptor, 0o600)
+            os.fsync(descriptor)
+            target_stat = os.stat(
+                relative_path, dir_fd=staging_descriptor, follow_symlinks=False
+            )
+            verification_descriptor = os.open(
+                relative_path,
+                _no_follow_open_flags(),
+                dir_fd=staging_descriptor,
+            )
+            try:
+                _assert_darwin_fd_has_no_extended_acl(
+                    verification_descriptor,
+                    object_label="Повторно открытый файл пакета аудита",
+                )
+                written_content, _ = _read_bounded_regular_fd(
+                    verification_descriptor,
+                    label=relative_path,
+                    byte_limit=len(content),
+                    path_stat=target_stat,
+                )
+            finally:
+                os.close(verification_descriptor)
+            if written_content != content or stat.S_IMODE(target_stat.st_mode) != 0o600:
+                raise OSError(f"Не удалось проверить записанный файл аудита {relative_path}.")
+        _fsync_directory(staging_descriptor)
+        staging_entry_stat = os.stat(
+            staging_name, dir_fd=parent_descriptor, follow_symlinks=False
+        )
+        staging_descriptor_stat = os.fstat(staging_descriptor)
+        if (
+            not stat.S_ISDIR(staging_entry_stat.st_mode)
+            or staging_entry_stat.st_dev != staging_descriptor_stat.st_dev
+            or staging_entry_stat.st_ino != staging_descriptor_stat.st_ino
+            or set(
+                _bounded_directory_names(
+                    staging_descriptor,
+                    maximum_entries=len(files),
+                    label="Временная папка публикации",
+                )
+            )
+            != set(files)
+        ):
+            raise OSError("Временная папка публикации изменилась до переноса.")
+        _assert_published_audit_bundle(
+            parent_descriptor,
+            staging_name,
+            staging_identity,
+            files,
+            created_file_identities,
+        )
+        _assert_safe_publication_parent(parent_descriptor)
+        _assert_parent_path_matches_descriptor(parent, parent_descriptor)
+        try:
+            os.stat(destination.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise ValueError(
+                "--output-dir появился во время подготовки; пакет аудита не опубликован."
+            )
+        _assert_safe_publication_parent(parent_descriptor)
+        _atomic_rename_no_replace_at(
+            parent_descriptor,
+            staging_name,
+            destination.name,
+            expected_source_identity=staging_identity,
+        )
+        published = True
+
+        def assert_published_state() -> None:
+            _assert_safe_publication_parent(parent_descriptor)
+            _assert_parent_path_matches_descriptor(parent, parent_descriptor)
+            _assert_published_audit_bundle(
+                parent_descriptor,
+                destination.name,
+                staging_identity,
+                files,
+                created_file_identities,
+            )
+
+        try:
+            assert_published_state()
+        except (OSError, ValueError) as exc:
+            if isinstance(exc, _PublicationRecoveryError):
+                raise
+            raise _publication_state_uncertain_error(
+                publication_parent_identity,
+                destination.name,
+                staging_identity,
+                created_file_identities,
+            ) from exc
+        try:
+            _fsync_directory(parent_descriptor)
+        except OSError as exc:
+            if isinstance(exc, _PublicationRecoveryError):
+                raise
+            try:
+                assert_published_state()
+            except (OSError, ValueError) as location_exc:
+                if isinstance(location_exc, _PublicationRecoveryError):
+                    raise
+                raise _publication_state_uncertain_error(
+                    publication_parent_identity,
+                    destination.name,
+                    staging_identity,
+                    created_file_identities,
+                ) from location_exc
+            raise _PublicationRecoveryError(
+                "Долговечность публикации не подтверждена: полный "
+                "каталог уже может быть виден после атомарного переноса; не удаляйте "
+                "его автоматически "
+                "и не передавайте его дальше. После восстановления файловой системы "
+                "повторите эту команду с теми же неизменными входами, указав другую "
+                "отсутствующую папку, и сравните оба результата побайтно."
+            ) from exc
+        try:
+            assert_published_state()
+        except (OSError, ValueError) as exc:
+            if isinstance(exc, _PublicationRecoveryError):
+                raise
+            raise _publication_state_uncertain_error(
+                publication_parent_identity,
+                destination.name,
+                staging_identity,
+                created_file_identities,
+            ) from exc
+
+        close_failure: BaseException | None = None
+        for descriptor in created_file_descriptors.values():
+            try:
+                _close_published_descriptor(descriptor)
+            except BaseException as exc:
+                if close_failure is None:
+                    close_failure = exc
+        created_file_descriptors.clear()
+        if staging_descriptor is not None:
+            try:
+                _close_published_descriptor(staging_descriptor)
+            except BaseException as exc:
+                if close_failure is None:
+                    close_failure = exc
+            staging_descriptor = None
+        if close_failure is not None:
+            if isinstance(close_failure, _PublicationRecoveryError):
+                raise close_failure
+            raise _publication_finalization_uncertain_error(
+                publication_parent_identity,
+                destination.name,
+                staging_identity,
+            ) from close_failure
+        if publication_state is not None:
+            if publication_state:
+                raise AssertionError(
+                    "Состояние успешной публикации уже было зарегистрировано."
+                )
+            publication_state.append(
+                (
+                    publication_parent_identity,
+                    destination.name,
+                    staging_identity,
+                )
+            )
+    except BaseException as exc:
+        if (
+            published
+            and staging_identity is not None
+            and not isinstance(exc, _PublicationRecoveryError)
+        ):
+            raise _publication_state_uncertain_error(
+                publication_parent_identity,
+                destination.name,
+                staging_identity,
+                created_file_identities,
+            ) from exc
+        raise
     finally:
-        if staging is not None and staging.exists():
-            shutil.rmtree(staging)
+        cleanup_error: _PublicationRecoveryError | None = None
+        publication_error: _PublicationRecoveryError | None = None
+        bookkeeping_failure: BaseException | None = None
+        close_failure: BaseException | None = None
+        if (
+            not published
+            and staging_created
+            and staging_name is not None
+        ):
+            cleanup_error = _staging_cleanup_uncertain_error(
+                publication_parent_identity,
+                staging_name,
+                staging_identity,
+                created_file_identities,
+            )
+            if staging_identity is not None:
+                try:
+                    destination_path_stat = os.stat(
+                        destination.name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    destination_name_matches = (
+                        destination_path_stat.st_dev,
+                        destination_path_stat.st_ino,
+                    ) == staging_identity
+                except BaseException as exc:
+                    bookkeeping_failure = exc
+                else:
+                    if destination_name_matches:
+                        publication_error = _publication_state_uncertain_error(
+                            publication_parent_identity,
+                            destination.name,
+                            staging_identity,
+                            created_file_identities,
+                        )
+
+        for descriptor in created_file_descriptors.values():
+            try:
+                os.close(descriptor)
+            except BaseException as exc:
+                if close_failure is None:
+                    close_failure = exc
+        created_file_descriptors.clear()
+
+        if staging_descriptor is not None:
+            try:
+                os.close(staging_descriptor)
+            except BaseException as exc:
+                if close_failure is None:
+                    close_failure = exc
+            staging_descriptor = None
+        if owns_parent_descriptor:
+            try:
+                os.close(parent_descriptor)
+            except BaseException as exc:
+                if close_failure is None:
+                    close_failure = exc
+        if publication_error is not None:
+            raise publication_error
+        if cleanup_error is not None:
+            raise cleanup_error
+        if close_failure is not None:
+            if (
+                published
+                and staging_identity is not None
+                and not isinstance(close_failure, _PublicationRecoveryError)
+            ):
+                raise _publication_finalization_uncertain_error(
+                    publication_parent_identity,
+                    destination.name,
+                    staging_identity,
+                ) from close_failure
+            raise close_failure
+        if bookkeeping_failure is not None:
+            raise bookkeeping_failure
+    if staging_identity is None:
+        raise AssertionError("Не сохранена идентичность опубликованного каталога.")
+    return staging_identity
 
 
 def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
+    raw_destination = Path(args.output_dir).expanduser()
+    if not raw_destination.is_absolute():
+        raw_destination = Path.cwd() / raw_destination
+    if not raw_destination.name or raw_destination.name in {".", ".."}:
+        raise ValueError("--output-dir должен называть новую папку.")
+    try:
+        destination_parent = raw_destination.parent.resolve(strict=True)
+        parent_path_stat = os.stat(destination_parent, follow_symlinks=False)
+        flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+        parent_descriptor = os.open(destination_parent, flags)
+    except OSError as exc:
+        raise ValueError(
+            "Родитель --output-dir должен быть существующей обычной папкой."
+        ) from exc
+    publication_state: list[_PublishedCommandRecord] = []
+    delivery_state: list[str] = []
+    parent_close_attempted = False
+    try:
+        parent_stat = _assert_safe_publication_parent(parent_descriptor)
+        if (
+            parent_path_stat.st_dev != parent_stat.st_dev
+            or parent_path_stat.st_ino != parent_stat.st_ino
+        ):
+            raise ValueError("Родитель --output-dir изменился во время открытия.")
+        confirmation_line, published_directory_identity = (
+            _cmd_quality_coding_audit_prepare(
+                args,
+                output_parent_descriptor=parent_descriptor,
+                output_parent_identity=(parent_stat.st_dev, parent_stat.st_ino),
+                publication_state=publication_state,
+            )
+        )
+        parent_identity = (parent_stat.st_dev, parent_stat.st_ino)
+        parent_close_attempted = True
+        _close_command_parent_descriptor(parent_descriptor)
+        _deliver_published_confirmation(
+            confirmation_line,
+            parent_identity=parent_identity,
+            destination_name=raw_destination.name,
+            published_directory_identity=published_directory_identity,
+            delivery_state=delivery_state,
+        )
+        return _complete_published_command()
+    except BaseException as exc:
+        if not parent_close_attempted:
+            parent_close_attempted = True
+            try:
+                _close_command_parent_descriptor(parent_descriptor)
+            except BaseException:
+                pass
+        if isinstance(exc, _PublicationRecoveryError):
+            raise
+        recovery_error = _postpublication_command_error(
+            publication_state,
+            delivery_state,
+        )
+        if recovery_error is not None:
+            raise recovery_error from exc
+        raise
+
+
+def _cmd_quality_coding_audit_prepare(
+    args: argparse.Namespace,
+    *,
+    output_parent_descriptor: int,
+    output_parent_identity: tuple[int, int],
+    publication_state: list[_PublishedCommandRecord],
+) -> tuple[str, tuple[int, int]]:
     workspace = Path(args.workspace).expanduser().resolve()
     if not workspace.is_dir():
         raise ValueError("--workspace должен указывать на существующую рабочую папку.")
@@ -3380,8 +5335,27 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
     except OSError as exc:
         raise ValueError("Родитель --output-dir должен существовать.") from exc
     destination = destination_parent / raw_destination.name
-    if destination.exists() or destination.is_symlink():
-        raise ValueError("--output-dir уже существует; перезапись audit-пакета запрещена.")
+    current_parent_stat = os.stat(destination_parent, follow_symlinks=False)
+    held_parent_stat = os.fstat(output_parent_descriptor)
+    if (
+        (current_parent_stat.st_dev, current_parent_stat.st_ino)
+        != output_parent_identity
+        or (held_parent_stat.st_dev, held_parent_stat.st_ino)
+        != output_parent_identity
+    ):
+        raise ValueError("Родитель --output-dir изменился во время проверки.")
+    try:
+        os.stat(
+            raw_destination.name,
+            dir_fd=output_parent_descriptor,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        pass
+    else:
+        raise ValueError(
+            "--output-dir уже существует; перезапись пакета аудита запрещена."
+        )
     inside_workspace = False
     try:
         destination.relative_to(workspace)
@@ -3472,6 +5446,7 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
         plan_sha256=frozen_plan["plan_sha256"],
         codebook_content=codebook_content,
         coding_brief_content=coding_brief_content,
+        bundle_contract_version=_CURRENT_AUDIT_BUNDLE_CONTRACT_VERSION,
     )
     file_entries = [
         {
@@ -3484,7 +5459,7 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
     audit_plan = bundle["audit_plan"]
     unsigned_manifest = {
         "schema_version": "1.0",
-        "bundle_contract_version": "1.1",
+        "bundle_contract_version": _CURRENT_AUDIT_BUNDLE_CONTRACT_VERSION,
         "artifact_type": "coding_audit_input_bundle",
         "producer": "judicial_meaning.quality.coding_audit_prepare",
         "plan_sha256": frozen_plan["plan_sha256"],
@@ -3530,16 +5505,26 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
         or _load_audit_codebook(args.codebook_version) != codebook_content
     ):
         raise ValueError(
-            "Рабочие входы изменились во время подготовки; audit-пакет не опубликован."
+            "Рабочие входы изменились во время подготовки; пакет аудита не опубликован."
         )
     published_files = {
         **content_files,
         "coding-audit-inputs-manifest.json": _canonical_json_bytes(manifest),
     }
-    _publish_new_audit_bundle(destination, published_files)
-    _print_json(
+    _load_native_coding_audit_bundle(
+        {
+            "files": {
+                name: {"content": content}
+                for name, content in published_files.items()
+            }
+        },
+        expected_manifest_sha256=manifest["manifest_sha256"],
+        installed_codebook_content=codebook_content,
+    )
+    confirmation_line = _json_output_line(
         {
             "artifact_type": manifest["artifact_type"],
+            "bundle_contract_version": manifest["bundle_contract_version"],
             "output_dir": str(destination),
             "manifest_sha256": manifest["manifest_sha256"],
             "independent_review_packet_sha256": hashlib.sha256(
@@ -3552,7 +5537,351 @@ def cmd_quality_coding_audit_prepare(args: argparse.Namespace) -> int:
             "legal_readiness": False,
         }
     )
-    return 0
+    published_directory_identity = _publish_new_audit_bundle(
+        destination,
+        published_files,
+        parent_descriptor=output_parent_descriptor,
+        publication_state=publication_state,
+    )
+    return confirmation_line, published_directory_identity
+
+
+def _resolve_new_import_output(
+    raw_value: str,
+    *,
+    bundle_parent_descriptor: int,
+) -> Path:
+    raw_destination = Path(raw_value).expanduser()
+    if not raw_destination.is_absolute():
+        raw_destination = Path.cwd() / raw_destination
+    if not raw_destination.name or raw_destination.name in {".", ".."}:
+        raise ValueError("--output-dir должен называть новую папку.")
+    try:
+        destination_parent = raw_destination.parent.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("Родитель --output-dir должен существовать.") from exc
+    flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    try:
+        destination_parent_stat = os.stat(
+            destination_parent, follow_symlinks=False
+        )
+        destination_parent_descriptor = os.open(destination_parent, flags)
+    except OSError as exc:
+        raise ValueError("Родитель --output-dir должен быть обычной папкой.") from exc
+    try:
+        opened_parent_stat = os.fstat(destination_parent_descriptor)
+        bundle_parent_stat = _assert_safe_publication_parent(
+            bundle_parent_descriptor
+        )
+        if (
+            not stat.S_ISDIR(opened_parent_stat.st_mode)
+            or destination_parent_stat.st_dev != opened_parent_stat.st_dev
+            or destination_parent_stat.st_ino != opened_parent_stat.st_ino
+        ):
+            raise ValueError("Родитель --output-dir изменился во время открытия.")
+        if (
+            opened_parent_stat.st_dev != bundle_parent_stat.st_dev
+            or opened_parent_stat.st_ino != bundle_parent_stat.st_ino
+        ):
+            raise ValueError(
+                "--output-dir должен быть новой соседней папкой рядом с --bundle."
+            )
+    finally:
+        os.close(destination_parent_descriptor)
+    destination = destination_parent / raw_destination.name
+    try:
+        os.stat(
+            raw_destination.name,
+            dir_fd=bundle_parent_descriptor,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ValueError("Не удалось проверить --output-dir.") from exc
+    else:
+        raise ValueError("--output-dir уже существует; перезапись запрещена.")
+    return destination
+
+
+def _secure_codebook_capture(codebook_version: str) -> dict[str, Any]:
+    filename = _AUDIT_CODEBOOK_PATHS.get(codebook_version)
+    if filename is None:
+        raise ValueError("Пакет использует неподдерживаемую версию справочника кодирования.")
+    path = Path(__file__).resolve().parents[2] / "references" / filename
+    capture = _capture_regular_file(
+        path,
+        label="штатный справочник кодирования",
+        byte_limit=_AUDIT_IMPORT_CODEBOOK_LIMIT,
+    )
+    try:
+        decoded = capture["content"].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Штатный справочник кодирования не является UTF-8.") from exc
+    if not decoded.strip():
+        raise ValueError("Штатный справочник кодирования пуст.")
+    return capture
+
+
+def cmd_quality_coding_audit_review_import(args: argparse.Namespace) -> int:
+    raw_bundle = Path(args.bundle).expanduser()
+    if not raw_bundle.is_absolute():
+        raw_bundle = Path.cwd() / raw_bundle
+    parent_descriptor, bundle_name, bundle_capture = _open_audit_bundle_parent(
+        raw_bundle
+    )
+    publication_state: list[_PublishedCommandRecord] = []
+    delivery_state: list[str] = []
+    parent_close_attempted = False
+    try:
+        destination = _resolve_new_import_output(
+            args.output_dir,
+            bundle_parent_descriptor=parent_descriptor,
+        )
+        parent_stat = os.fstat(parent_descriptor)
+        confirmation_line, published_directory_identity = (
+            _cmd_quality_coding_audit_review_import(
+                args,
+                destination=destination,
+                parent_descriptor=parent_descriptor,
+                bundle_name=bundle_name,
+                bundle_capture=bundle_capture,
+                publication_state=publication_state,
+            )
+        )
+        parent_identity = (parent_stat.st_dev, parent_stat.st_ino)
+        parent_close_attempted = True
+        _close_command_parent_descriptor(parent_descriptor)
+        _deliver_published_confirmation(
+            confirmation_line,
+            parent_identity=parent_identity,
+            destination_name=destination.name,
+            published_directory_identity=published_directory_identity,
+            delivery_state=delivery_state,
+        )
+        return _complete_published_command()
+    except BaseException as exc:
+        if not parent_close_attempted:
+            parent_close_attempted = True
+            try:
+                _close_command_parent_descriptor(parent_descriptor)
+            except BaseException:
+                pass
+        if isinstance(exc, _PublicationRecoveryError):
+            raise
+        recovery_error = _postpublication_command_error(
+            publication_state,
+            delivery_state,
+        )
+        if recovery_error is not None:
+            raise recovery_error from exc
+        raise
+
+
+def _cmd_quality_coding_audit_review_import(
+    args: argparse.Namespace,
+    *,
+    destination: Path,
+    parent_descriptor: int,
+    bundle_name: str,
+    bundle_capture: Mapping[str, Any],
+    publication_state: list[_PublishedCommandRecord],
+) -> tuple[str, tuple[int, int]]:
+
+    manifest_preview = _strict_json_bytes(
+        bundle_capture["files"]["coding-audit-inputs-manifest.json"]["content"],
+        label="coding-audit-inputs-manifest.json",
+    )
+    if not isinstance(manifest_preview, Mapping):
+        raise ValueError("coding-audit-inputs-manifest.json должен содержать объект.")
+    codebook_version = manifest_preview.get("codebook_version")
+    if not isinstance(codebook_version, str):
+        raise ValueError("Манифест не содержит версию справочника кодирования.")
+    codebook_capture = _secure_codebook_capture(codebook_version)
+    bundle = _load_native_coding_audit_bundle(
+        bundle_capture,
+        expected_manifest_sha256=args.expected_manifest_sha256,
+        installed_codebook_content=codebook_capture["content"],
+    )
+
+    raw_secondary = Path(args.secondary_coding).expanduser()
+    if not raw_secondary.is_absolute():
+        raw_secondary = Path.cwd() / raw_secondary
+    secondary_capture = _capture_regular_file(
+        raw_secondary,
+        label="--secondary-coding",
+        byte_limit=_AUDIT_IMPORT_SECONDARY_LIMIT,
+    )
+    secondary_identity = secondary_capture["identity"][:2]
+    if any(
+        item["identity"][:2] == secondary_identity
+        for item in bundle_capture["files"].values()
+    ):
+        raise ValueError("--secondary-coding не должен совпадать с файлом --bundle.")
+    secondary_records = _strict_jsonl_bytes(
+        secondary_capture["content"], label="--secondary-coding"
+    )
+    coding_brief = bundle["packet"]["coding_brief"]
+    norm_editions = coding_brief.get("norm_editions")
+    if not isinstance(norm_editions, list):
+        raise ValueError("CODING-BRIEF.json не содержит допустимые редакции норм.")
+    result = build_native_coding_review_import(
+        bundle["audit_plan"],
+        bundle["primary"],
+        bundle["queue"],
+        bundle["packet"]["review_materials"],
+        secondary_records,
+        codebook_version=codebook_version,
+        norm_edition_ids=[
+            edition.get("id") for edition in norm_editions if isinstance(edition, Mapping)
+        ],
+        expected_secondary_coder=args.expected_secondary_coder,
+    )
+    audit_decisions_content = _canonical_jsonl_bytes(result["audit_decisions"])
+    manifest = bundle["manifest"]
+    unsigned_receipt = {
+        "schema_version": "1.0",
+        "artifact_type": "coding_audit_review_import_receipt",
+        "producer": "judicial_meaning.quality.coding_audit_review_import",
+        "bundle_contract_version": manifest["bundle_contract_version"],
+        "plan_sha256": manifest["plan_sha256"],
+        "audit_plan_sha256": bundle["audit_plan"]["audit_plan_sha256"],
+        "codebook_version": codebook_version,
+        "source_bundle_manifest_sha256": manifest["manifest_sha256"],
+        "expected_source_bundle_manifest_sha256": args.expected_manifest_sha256,
+        "source_bundle_manifest_file_sha256": hashlib.sha256(
+            bundle["manifest_content"]
+        ).hexdigest(),
+        "review_packet_sha256": hashlib.sha256(
+            bundle["review_packet_content"]
+        ).hexdigest(),
+        "secondary_coding_file_sha256": hashlib.sha256(
+            secondary_capture["content"]
+        ).hexdigest(),
+        "secondary_coding_sha256": result["secondary_coding_sha256"],
+        "codebook_sha256": manifest["codebook_sha256"],
+        "coding_brief_file_sha256": manifest["coding_brief_file_sha256"],
+        "audit_decisions_file_sha256": hashlib.sha256(
+            audit_decisions_content
+        ).hexdigest(),
+        "candidate_ids": result["candidate_ids"],
+        "audited_fields": result["audited_fields"],
+        "non_audited_content_fields": result["non_audited_content_fields"],
+        "audited_field_agreement_candidate_ids": result[
+            "audited_field_agreement_candidate_ids"
+        ],
+        "audited_field_disagreement_candidate_ids": result[
+            "audited_field_disagreement_candidate_ids"
+        ],
+        "non_audited_content_difference_candidate_ids": result[
+            "non_audited_content_difference_candidate_ids"
+        ],
+        "audited_field_differences": result["audited_field_differences"],
+        "non_audited_content_differences": result[
+            "non_audited_content_differences"
+        ],
+        "non_audited_content_review_required": result[
+            "non_audited_content_review_required"
+        ],
+        "adjudication_required": result["adjudication_required"],
+        "expected_secondary_coder_label_sha256": hashlib.sha256(
+            result["expected_secondary_coder_label"].encode("utf-8")
+        ).hexdigest(),
+        "secondary_coder_label_precommit_verified": False,
+        "returned_quote_literal_presence_verified": True,
+        "quote_locator_verified": False,
+        "secondary_coder_label_differs_from_each_sampled_primary_label": True,
+        "single_secondary_coder_label": True,
+        "bundle_internal_consistency_verified": True,
+        "expected_manifest_digest_match_verified": True,
+        "norm_edition_allowlist_membership_verified": True,
+        "source_workspace_reverified": False,
+        "reviewer_packet_use_attested": False,
+        "norm_edition_temporal_applicability_verified": False,
+        "reviewer_identity_authenticated": False,
+        "human_review_authenticated": False,
+        "independence_verified": False,
+        "receipt_authenticated": False,
+        "publication_safe": False,
+        "legal_readiness": False,
+    }
+    receipt = {
+        **unsigned_receipt,
+        "receipt_sha256": canonical_digest(unsigned_receipt),
+    }
+    receipt_content = _canonical_json_bytes(receipt)
+
+    if (
+        _capture_audit_bundle_at(parent_descriptor, bundle_name) != bundle_capture
+        or _capture_regular_file(
+            raw_secondary,
+            label="--secondary-coding",
+            byte_limit=_AUDIT_IMPORT_SECONDARY_LIMIT,
+        )
+        != secondary_capture
+        or _secure_codebook_capture(codebook_version) != codebook_capture
+    ):
+        raise ValueError(
+            "Входы изменились во время импорта; решения и квитанция не опубликованы."
+        )
+    confirmation_line = _json_output_line(
+        {
+            "artifact_type": receipt["artifact_type"],
+            "output_dir": str(destination),
+            "receipt_sha256": receipt["receipt_sha256"],
+            "audit_decisions_file_sha256": receipt[
+                "audit_decisions_file_sha256"
+            ],
+            "candidate_count": len(result["candidate_ids"]),
+            "audited_field_agreement_count": len(
+                result["audited_field_agreement_candidate_ids"]
+            ),
+            "audited_field_disagreement_count": len(
+                result["audited_field_disagreement_candidate_ids"]
+            ),
+            "non_audited_content_difference_count": len(
+                result["non_audited_content_difference_candidate_ids"]
+            ),
+            "audited_field_differences": result["audited_field_differences"],
+            "non_audited_content_differences": result[
+                "non_audited_content_differences"
+            ],
+            "non_audited_content_review_required": result[
+                "non_audited_content_review_required"
+            ],
+            "adjudication_required": result["adjudication_required"],
+            "expected_secondary_coder_label_sha256": receipt[
+                "expected_secondary_coder_label_sha256"
+            ],
+            "secondary_coder_label_precommit_verified": False,
+            "returned_quote_literal_presence_verified": True,
+            "quote_locator_verified": False,
+            "secondary_coder_label_differs_from_each_sampled_primary_label": True,
+            "single_secondary_coder_label": True,
+            "bundle_internal_consistency_verified": True,
+            "expected_manifest_digest_match_verified": True,
+            "norm_edition_allowlist_membership_verified": True,
+            "source_workspace_reverified": False,
+            "reviewer_packet_use_attested": False,
+            "norm_edition_temporal_applicability_verified": False,
+            "reviewer_identity_authenticated": False,
+            "human_review_authenticated": False,
+            "independence_verified": False,
+            "receipt_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+        }
+    )
+    published_directory_identity = _publish_new_audit_bundle(
+        destination,
+        {
+            "audit-decisions.jsonl": audit_decisions_content,
+            "coding-audit-review-import-receipt.json": receipt_content,
+        },
+        parent_descriptor=parent_descriptor,
+        publication_state=publication_state,
+    )
+    return confirmation_line, published_directory_identity
 
 
 def cmd_quality_coding_reliability(args: argparse.Namespace) -> int:
@@ -4726,7 +7055,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Команда без сетевого доступа повторно проверяет замороженный план, "
-            "screening-candidates.jsonl, первичную разметку и сохранённые полные "
+            "файл screening-candidates.jsonl, первичную разметку и сохранённые полные "
             "тексты. Она создаёт screening-candidates.audit.jsonl, "
             "primary-decisions.audit.jsonl, coding-audit-plan.json, "
             "secondary-review-queue.jsonl, secondary-coding-template.jsonl и "
@@ -4734,11 +7063,13 @@ def build_parser() -> argparse.ArgumentParser:
             "independent-review-packet.zip: в нём CODING-BRIEF.json, штатный "
             "CODING-CODEBOOK.md, REVIEW-INSTRUCTIONS.md, выбранные полные тексты, "
             "пустые шаблоны без ответов и хешей первого кодировщика и внутренний "
-            "manifest. Передавайте "
+            "манифест. Передавайте "
             "независимому проверяющему только ZIP, а не родительский каталог с "
-            "первичной разметкой. Сохраните показанный в stdout "
-            "independent_review_packet_sha256, сообщите его проверяющему отдельно "
-            "по независимому каналу и потребуйте сверить SHA-256 до распаковки. "
+            "первичной разметкой. Новый пакет имеет контракт 1.2. Сохраните "
+            "показанные в стандартном выводе manifest_sha256 для последующего штатного импорта "
+            "и independent_review_packet_sha256 для проверки передачи; второй "
+            "хеш сообщите проверяющему отдельно "
+            "по независимому каналу. Сверьте SHA-256 до распаковки. "
             "Такая слепая проверка скрывает только ответ "
             "первого кодировщика: факты и исход дела видны в судебном тексте. "
             "Версия справочника задаётся отдельно через --codebook-version и "
@@ -4749,10 +7080,53 @@ def build_parser() -> argparse.ArgumentParser:
             "полными текстами не считается "
             "автоматически безопасным для "
             "публикации. Папка --output-dir должна не существовать: перезапись "
-            "запрещена. Шаблон остаётся ожидающим "
+            "запрещена. На macOS родительская, временная и итоговая папки, а также "
+            "каждый файл пакета должны вовсе не иметь расширенных ACL. Любая запись "
+            "ACL отклоняется, включая запрещающую запись и запись без наследования. "
+            "Выберите приватную родительскую папку без ACL либо обратитесь к системному "
+            "администратору; обычная смена режима через chmod сама по себе не "
+            "подтверждает удаление ACL. Ошибка до создания временной папки не создаёт "
+            "итоговую папку. "
+            "После создания временной папки любая ошибка до атомарного переноса "
+            "сохраняет её для безопасного разбора: программа намеренно не удаляет "
+            "файлы или папку по изменяемому имени, чтобы при гонке не удалить чужой "
+            "объект. Код 2 требует остановки без повтора и передачи всей строки ошибки "
+            "системному администратору. По устройству и inode родителя, прежнему имени, "
+            "inode временной папки и каждого созданного файла он должен найти, учесть "
+            "и поместить в карантин папку и все имена либо жёсткие ссылки файлов. Если "
+            "хотя бы один inode или все его ссылки не учтены, чувствительная временная "
+            "копия считается неучтённой. Если после переноса отказала только синхронизация, а "
+            "расположение родителя подтверждено, команда возвращает код 2: не удаляйте "
+            "и не передавайте видимый каталог; восстановите файловую систему, повторите "
+            "подготовку из тех же неизменных входов в другую отсутствующую папку и "
+            "сравните оба результата побайтно. Если не подтверждено состояние "
+            "публикации, её расположение, целостность или защищённость могли измениться, "
+            "а путь --output-dir может уже не вести к результату: остановитесь, сохраните "
+            "входы неизменными, не повторяйте команду и не передавайте результат. "
+            "Это аварийная работа системного администратора, не штатная пользовательская "
+            "команда: передайте ему всю строку ошибки для поиска и карантина по "
+            "устройству и inode родителя, прежнему имени записи, а также устройству и "
+            "inode опубликованного каталога и каждого созданного файла. Нужно учесть "
+            "и поместить в карантин все имена и жёсткие ссылки; если каталог, хотя бы "
+            "один inode или все его ссылки не найдены, считайте чувствительную копию "
+            "неучтённой. Если завершение после публикации прервано до начала передачи "
+            "подтверждения, в том числе при закрытии служебного дескриптора, финальный "
+            "стандартный вывод ещё не создавался и должен быть пуст: код 2 не означает, "
+            "что каталога нет. Если завершение не подтверждено после начала передачи "
+            "либо после того, как удалось явно сбросить финальный JSON, стандартный "
+            "вывод может быть пустым или частичным, а "
+            "также выглядеть полным; он всегда недействителен. В обоих случаях сохраните входы "
+            "и каталог, не "
+            "используйте результат и не повторяйте команду в ту же папку. После "
+            "устранения ошибки повторите те же входы в другую отсутствующую соседнюю "
+            "папку, получите одну полную строку JSON и побайтно сравните каталоги. "
+            "Сохраните manifest_sha256 только из успешного повторного стандартного "
+            "вывода по независимому каналу и не восстанавливайте якорь из первого пакета. "
+            "Шаблон остаётся ожидающим "
             "независимой вторичной проверки и сам не является её доказательством. "
-            "После отдельной ручной разметки и разрешения расхождений используйте "
-            "quality coding-reliability. Создание пакета не означает юридическую "
+            "После возврата отдельной ручной разметки используйте quality "
+            "coding-audit-review-import, затем разрешите отмеченные расхождения и "
+            "запустите quality coding-reliability. Создание пакета не означает юридическую "
             "готовность, одобрение или разрешение на подачу жалобы."
         ),
         formatter_class=RussianHelpFormatter,
@@ -4761,7 +7135,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--workspace",
         required=True,
         help=(
-            "Существующая рабочая папка с замороженным планом, полным screening, "
+            "Существующая рабочая папка с замороженным планом, полной рамкой отбора, "
             "одобренной первичной разметкой и экспортом исходных текстов."
         ),
     )
@@ -4797,11 +7171,186 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         required=True,
         help=(
-            "Новая отсутствующая папка для целиком опубликованного audit-пакета; "
-            "она должна быть вне --workspace, существующий путь не изменяется."
+            "Новая, ещё не существующая папка для полного пакета аудита; "
+            "она должна быть вне рабочей папки, а её родитель — принадлежать текущему "
+            "пользователю и не допускать запись группы или других пользователей. "
+            "На macOS родитель и создаваемые папки и файлы не должны иметь ни одной "
+            "расширенной записи ACL, даже запрещающей или ненаследуемой."
         ),
     )
     quality_audit_prepare.set_defaults(func=cmd_quality_coding_audit_prepare)
+
+    quality_audit_import = quality_sub.add_parser(
+        "coding-audit-review-import",
+        help=(
+            "Проверить возвращённую вторичную разметку и собрать решения аудита"
+        ),
+        epilog=(
+            "Запускайте команду у хранителя после возврата отдельного JSONL "
+            "вторым кодировщиком. Передайте --expected-manifest-sha256 из заранее "
+            "сохранённого стандартного вывода успешной coding-audit-prepare, а не "
+            "считывайте его заново из пакета. Для нового пакета 1.2 до передачи ZIP "
+            "процедурно выберите одну псевдонимную метку без реального имени, сообщите "
+            "её проверяющему отдельно и затем передайте в --expected-secondary-coder. "
+            "Команда связывает хеш нормализованной метки с квитанцией, но не может "
+            "доказать момент её выбора: secondary_coder_label_precommit_verified=false. "
+            "Для уже возвращённого пакета 1.1 аргумент лишь проверяет единообразие "
+            "имеющейся метки; если там реальное имя, запросите новую псевдонимную "
+            "копию у автора и не исправляйте файл молча. Совпадение метки во всех "
+            "строках не удостоверяет личность и независимость. "
+            "Команда не изменяет пакет или возвращённый файл. Она проверяет "
+            "закрытую структуру, нормализованное соответствие цитат тексту, а затем "
+            "буквальное присутствие основной и альтернативных цитат в точном тексте, но не "
+            "подтверждает формулировки, факты или "
+            "рассуждение, не проверяет локаторы или юридическую правильность и не проверяет "
+            "временную применимость редакции нормы. Обычная ошибка до атомарного "
+            "переноса не создаёт итоговую папку только до создания временной папки. "
+            "После её создания любая ошибка до переноса сохраняет временную папку для "
+            "безопасного разбора: программа намеренно не удаляет файлы или папку по "
+            "изменяемому имени, чтобы при гонке не удалить чужой объект. Код 2 требует "
+            "остановки без повтора и передачи всей строки ошибки системному "
+            "администратору. По устройству и inode родителя, прежнему имени, inode "
+            "временной папки и каждого файла он должен найти, учесть и поместить в "
+            "карантин папку и все имена либо жёсткие ссылки. Если хотя бы один inode "
+            "или все его ссылки не учтены, чувствительная временная копия считается "
+            "неучтённой. Если после переноса "
+            "отказала только синхронизация, а расположение родителя подтверждено, "
+            "команда возвращает код 2 с пустым стандартным выводом: не удаляйте и не "
+            "передавайте видимый каталог; восстановите файловую систему, повторите "
+            "импорт из тех же неизменных входов в другую отсутствующую соседнюю папку "
+            "и сравните оба результата побайтно. Если не подтверждено состояние "
+            "публикации, её расположение, целостность или защищённость могли измениться, "
+            "а путь --output-dir может уже не вести к результату: "
+            "остановитесь, сохраните входы неизменными, не повторяйте команду и не "
+            "передавайте результат. Это аварийная работа системного администратора, "
+            "не штатная пользовательская команда: передайте ему всю строку ошибки для "
+            "поиска и карантина по устройству и inode родителя, прежнему имени записи, "
+            "а также устройству и inode опубликованного каталога и каждого созданного "
+            "файла. Нужно учесть и поместить в карантин все имена и жёсткие ссылки; "
+            "если каталог, хотя бы один inode или все его ссылки не найдены, считайте "
+            "чувствительную копию неучтённой. Если завершение после публикации "
+            "прервано до начала передачи подтверждения, в том числе при закрытии "
+            "служебного дескриптора, финальный стандартный вывод ещё не создавался и "
+            "должен быть пуст: код 2 не означает, что каталога нет. Если завершение "
+            "не подтверждено после начала передачи либо после того, как удалось явно "
+            "сбросить финальный JSON, стандартный вывод "
+            "может быть пустым или частичным, а также выглядеть полным; он всегда "
+            "недействителен. В обоих случаях "
+            "сохраните входы и каталог, не используйте результат и не повторяйте "
+            "команду в ту же папку. После устранения ошибки повторите те же входы в "
+            "другую отсутствующую соседнюю папку, получите одну полную строку JSON, "
+            "побайтно сравните каталоги и только затем используйте контрольную сумму "
+            "квитанции и флаги из успешного повторного вывода. При "
+            "подтверждённом успехе папка имеет режим "
+            "0700, а два файла — 0600: "
+            "audit-decisions.jsonl и coding-audit-review-import-receipt.json. "
+            "На macOS родительская, временная и итоговая папки, а также оба файла "
+            "должны вовсе не иметь расширенных ACL. Любая запись ACL отклоняется, "
+            "включая запрещающую запись и запись без наследования. Выберите приватную "
+            "родительскую папку без ACL либо обратитесь к системному администратору; "
+            "обычная смена режима через chmod сама по себе не подтверждает удаление ACL. "
+            "Первый передаётся в coding-reliability. Квитанция и стандартный вывод "
+            "ставят returned_quote_literal_presence_verified=true только для "
+            "возвращённых цитат и "
+            "secondary_coder_label_differs_from_each_sampled_primary_label=true только для "
+            "сравнения строковых меток, не личностей. Они также "
+            "показывают карты audited_field_differences и "
+            "non_audited_content_differences: для каждого кандидата они называют "
+            "различающиеся поля без их значений. Расхождения восьми аудируемых полей "
+            "требуют adjudications.jsonl. "
+            "Основные поля quote и quote_locator относятся к отдельной ручной проверке, а "
+            "вложенные поля quote и quote_locator внутри alternative_grounds входят в это "
+            "аудируемое поле. После любого разрешения поля alternative_grounds отдельно "
+            "сверьте итоговые цитаты с текстом пакета: coding-reliability этого не "
+            "делает, и complete=true не доказывает такую сверку. Сохраните внешнюю "
+            "запись с candidate_id, полем alternative_grounds, псевдонимом проверяющего, "
+            "reviewed_at, выводом, контрольной суммой пакета, манифеста или квитанции, "
+            "канонической контрольной суммой решения расхождения и "
+            "final_resolved_value_sha256 — SHA-256 от результата "
+            "json.dumps(значение, sort_keys=True, separators=(\",\", \":\"), "
+            "ensure_ascii=False, allow_nan=False).encode(\"utf-8\") без "
+            "завершающего перевода строки — либо канонической "
+            "контрольной суммой всей итоговой 20-полевой разметки. Штатной проверки или "
+            "возобновления по этой записи пока нет: при нужной правке создайте новое "
+            "решение расхождения и повторите проверку, при неразрешённом вопросе "
+            "остановитесь. Различия в полях "
+            "proposition, quote, quote_locator или material_facts требуют отдельной ручной записи "
+            "проверки содержания. Этот сигнал пока предупредительный: coding-reliability "
+            "не читает квитанцию и complete=true не доказывает его закрытие. Ни одна "
+            "штатная команда выпуска 15 не сбрасывает этот флаг и не подтверждает "
+            "возобновление. Продолжение возможно только по отдельному решению оператора, "
+            "связанному с сохранённой внешней записью, без заявления о машинном "
+            "закрытии. Если ошиблась вторичная разметка, получите исправленный полный "
+            "JSONL и выполните новый импорт в новую папку. Если ошиблась первичная "
+            "разметка, исправьте исходную первичную запись и заново пройдите подготовку "
+            "пакета, вторичную проверку и импорт. Если вопрос не разрешён, остановитесь. "
+            "При этом код 0 "
+            "означает только успешное завершение импорта и публикации; автоматика обязана разобрать "
+            "оба флага adjudication_required и non_audited_content_review_required и "
+            "остановиться, если хотя бы один равен true. Квитанция не является "
+            "аутентификацией, юридическим "
+            "одобрением, разрешением на публикацию или готовностью к подаче. "
+            "Пакет и решения могут содержать чувствительные судебные сведения. "
+            "Закреплённый пакет версии 1.1 и новые пакеты версии 1.2 поддерживаются; "
+            "старые пятифайловые пакеты остаются на ручном пути."
+            "\n\nПример команды:\n"
+            "  KSRF_SKILLS_ROOT=\"${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}\"\n"
+            "  JM=\"$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py\"\n"
+            "  AUDIT_BUNDLE=\"./coding-audit-inputs\"\n"
+            "  EXPECTED_MANIFEST_SHA256=\"<manifest_sha256 из сохранённого стандартного вывода>\"\n"
+            "  EXPECTED_SECONDARY_CODER=\"псевдоним-второго-кодировщика\"\n"
+            "  RETURNED_SECONDARY=\"./secondary-coding.completed.jsonl\"\n"
+            "  AUDIT_IMPORT=\"./coding-audit-review-import\"\n"
+            "  python3 \"$JM\" quality coding-audit-review-import \\\n"
+            "    --bundle \"$AUDIT_BUNDLE\" \\\n"
+            "    --expected-manifest-sha256 \"$EXPECTED_MANIFEST_SHA256\" \\\n"
+            "    --expected-secondary-coder \"$EXPECTED_SECONDARY_CODER\" \\\n"
+            "    --secondary-coding \"$RETURNED_SECONDARY\" \\\n"
+            "    --output-dir \"$AUDIT_IMPORT\""
+        ),
+        formatter_class=RussianExampleHelpFormatter,
+    )
+    quality_audit_import.add_argument(
+        "--bundle",
+        required=True,
+        help=(
+            "Родительская папка штатного пакета аудита; второму кодировщику её не "
+            "передают, потому что она содержит разметку первого кодировщика."
+        ),
+    )
+    quality_audit_import.add_argument(
+        "--expected-manifest-sha256",
+        required=True,
+        help=(
+            "Отдельно сохранённый manifest_sha256 из успешного стандартного вывода "
+            "coding-audit-prepare."
+        ),
+    )
+    quality_audit_import.add_argument(
+        "--expected-secondary-coder",
+        required=True,
+        help=(
+            "Одна ожидаемая метка второго кодировщика для всего файла; это "
+            "проверка согласованности строки, а не личности или момента выбора метки."
+        ),
+    )
+    quality_audit_import.add_argument(
+        "--secondary-coding",
+        required=True,
+        help="Отдельный строгий UTF-8 JSONL, возвращённый вторым кодировщиком.",
+    )
+    quality_audit_import.add_argument(
+        "--output-dir",
+        required=True,
+        help=(
+            "Новая, ещё не существующая соседняя папка рядом с --bundle для решений и "
+            "квитанции; родитель должен принадлежать текущему пользователю и не быть "
+            "доступным для записи группе или другим пользователям. На macOS родитель "
+            "и создаваемые папки и файлы не должны иметь ни одной расширенной записи "
+            "ACL, даже запрещающей или ненаследуемой."
+        ),
+    )
+    quality_audit_import.set_defaults(func=cmd_quality_coding_audit_review_import)
 
     quality_gate_exit_help = (
         "Коды завершения проверки качества: 0 — ограниченная проверка "

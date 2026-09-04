@@ -73,6 +73,12 @@ AUDITED_CODING_FIELDS = (
     "alternative_grounds",
     "remedy",
 )
+NON_AUDITED_CODING_CONTENT_FIELDS = (
+    "proposition",
+    "quote",
+    "quote_locator",
+    "material_facts",
+)
 AUDIT_CODING_RECORD_FIELDS = frozenset(
     {
         "candidate_id",
@@ -2328,6 +2334,13 @@ def _native_audit_candidate_id(
     return "audit-candidate-sha256:" + canonical_digest(identity)
 
 
+def _is_native_audit_candidate_id(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"audit-candidate-sha256:[0-9a-f]{64}", value) is not None
+    )
+
+
 def _native_audit_match_valid(value: Any) -> bool:
     if not isinstance(value, Mapping) or set(value) != {
         "lane",
@@ -2359,26 +2372,33 @@ def build_native_coding_audit_inputs(
     sample_size: int,
     exclusion_sample_size: int,
 ) -> dict[str, Any]:
-    """Project one verified ordinary workspace into deterministic audit inputs.
+    """Преобразовать проверенную рабочую папку в детерминированные входы аудита.
 
-    File-system capture and re-screening belong to the CLI adapter. This pure
-    builder closes identities, validates primary coding against the supplied
-    text snapshot, and creates only visibly pending independent-review aids.
+    Захват файлов и повторный отбор выполняет командная оболочка. Эта чистая
+    функция замыкает идентификаторы, сверяет первичную разметку с переданным
+    снимком текста и создаёт только явно незавершённые материалы проверки.
     """
 
     if not _is_sha256(plan_sha256):
-        raise ValueError("Хеш замороженного плана должен быть lowercase SHA-256.")
+        raise ValueError(
+            "Контрольная сумма замороженного плана должна быть SHA-256 "
+            "из строчных шестнадцатеричных символов."
+        )
     if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
         raise ValueError(
-            "Версия справочника кодирования не поддерживается этим runtime."
+            "Версия справочника кодирования не поддерживается этой версией программы."
         )
     if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in (sample_size, exclusion_sample_size)
     ):
-        raise ValueError("Размеры audit-выборок должны быть неотрицательными целыми числами.")
+        raise ValueError(
+            "Размеры аудиторских выборок должны быть неотрицательными целыми числами."
+        )
     if sample_size == 0 and exclusion_sample_size == 0:
-        raise ValueError("Хотя бы одна audit-выборка должна иметь ненулевой максимум.")
+        raise ValueError(
+            "Хотя бы одна аудиторская выборка должна иметь ненулевой максимум."
+        )
 
     sources_by_id: dict[int, dict[str, Any]] = {}
     for row_number, value in enumerate(source_texts, start=1):
@@ -2409,7 +2429,7 @@ def build_native_coding_audit_inputs(
             document_id
         ):
             raise ValueError(
-                f"У полного текста source_id={source_id} неканоническая identity."
+                f"У полного текста source_id={source_id} неканонические идентификаторы."
             )
         if not _is_captured_full_text(text):
             raise ValueError(
@@ -2439,7 +2459,7 @@ def build_native_coding_audit_inputs(
     for row_number, value in enumerate(screening_candidates, start=1):
         if not isinstance(value, Mapping) or set(value) != ordinary_screening_fields:
             raise ValueError(
-                f"Строка screening {row_number} имеет неверный закрытый формат."
+                f"Строка рамки отбора {row_number} имеет неверный закрытый формат."
             )
         source_id = value.get("source_id")
         chain_id = value.get("chain_id")
@@ -2452,14 +2472,15 @@ def build_native_coding_audit_inputs(
             or source_id in seen_screening_source_ids
         ):
             raise ValueError(
-                f"Строка screening {row_number} содержит неверный или повторный source_id."
+                f"Строка рамки отбора {row_number} содержит неверный или повторный source_id."
             )
         seen_screening_source_ids.add(source_id)
         if not _is_canonical_identifier(chain_id) or not _is_canonical_identifier(
             document_id
         ):
             raise ValueError(
-                f"Строка screening source_id={source_id} имеет неканоническую identity."
+                f"Строка рамки отбора source_id={source_id} имеет "
+                "неканонические идентификаторы."
             )
         if (
             value.get("status") != "candidate_needs_full_text_review"
@@ -2469,19 +2490,21 @@ def build_native_coding_audit_inputs(
             or len({canonical_digest(match) for match in matches}) != len(matches)
         ):
             raise ValueError(
-                f"Строка screening source_id={source_id} имеет неверные matches/status."
+                f"Строка рамки отбора source_id={source_id} имеет неверные "
+                "поля `matches` или `status`."
             )
         source = sources_by_id.get(source_id)
         if source is None or (
             source.get("chain_id"), source.get("document_id")
         ) != (chain_id, document_id):
             raise ValueError(
-                f"Строка screening source_id={source_id} не связана с тем же полным текстом."
+                f"Строка рамки отбора source_id={source_id} не связана "
+                "с тем же полным текстом."
             )
         screening_by_pair.setdefault((chain_id, document_id), []).append(dict(value))
 
     if not screening_by_pair:
-        raise ValueError("Замороженная screening-рамка пуста.")
+        raise ValueError("Замороженная рамка отбора пуста.")
 
     audit_screening: list[dict[str, Any]] = []
     text_by_pair: dict[tuple[str, str], str] = {}
@@ -2495,7 +2518,7 @@ def build_native_coding_audit_inputs(
         if source_ids != sorted(source_ids_by_pair.get((chain_id, document_id), [])):
             raise ValueError(
                 "Реестр полных текстов содержит неразрешённый источник той же "
-                f"chain/document identity: {chain_id}/{document_id}."
+                f"пары `chain_id` / `document_id`: {chain_id}/{document_id}."
             )
         texts = [sources_by_id[source_id]["text"] for source_id in source_ids]
         text_digests = {
@@ -2511,8 +2534,8 @@ def build_native_coding_audit_inputs(
             or len(match_digests) != 1
         ):
             raise ValueError(
-                "Несколько источников одной chain/document identity содержат "
-                "разные точные тексты или screening matches: "
+                "Несколько источников одной пары `chain_id` / `document_id` содержат "
+                "разные точные тексты или совпадения рамки отбора: "
                 f"{chain_id}/{document_id}."
             )
         candidate_id = _native_audit_candidate_id(
@@ -2531,7 +2554,7 @@ def build_native_coding_audit_inputs(
             "status": "candidate_needs_full_text_review",
         }
         if set(audit_record) != NATIVE_AUDIT_SCREENING_FIELDS:
-            raise AssertionError("unexpected native audit screening shape")
+            raise AssertionError("неожиданный формат строки аудиторской рамки отбора")
         audit_screening.append(audit_record)
         text_by_pair[(chain_id, document_id)] = texts[0]
         text_digest_by_pair[(chain_id, document_id)] = next(iter(text_digests))
@@ -2539,19 +2562,23 @@ def build_native_coding_audit_inputs(
     primary_by_pair: dict[tuple[str, str], dict[str, Any]] = {}
     for row_number, value in enumerate(primary_decisions, start=1):
         if not isinstance(value, Mapping):
-            raise ValueError(f"Строка primary coding {row_number} должна быть объектом.")
+            raise ValueError(
+                f"Строка первичной разметки {row_number} должна быть объектом."
+            )
         chain_id = value.get("chain_id")
         document_id = value.get("document_id")
         if not _is_canonical_identifier(chain_id) or not _is_canonical_identifier(
             document_id
         ):
             raise ValueError(
-                f"Строка primary coding {row_number} имеет неканоническую identity."
+                f"Строка первичной разметки {row_number} имеет "
+                "неканонические идентификаторы."
             )
         pair = (chain_id, document_id)
         if pair in primary_by_pair:
             raise ValueError(
-                f"Primary coding повторяет chain/document identity: {chain_id}/{document_id}."
+                "Первичная разметка повторяет пару `chain_id` / `document_id`: "
+                f"{chain_id}/{document_id}."
             )
         primary_by_pair[pair] = dict(value)
 
@@ -2561,15 +2588,17 @@ def build_native_coding_audit_inputs(
         details: list[str] = []
         if missing_primary:
             details.append(
-                "нет primary coding для "
+                "нет первичной разметки для "
                 + ", ".join(f"{chain}/{document}" for chain, document in missing_primary)
             )
         if extra_primary:
             details.append(
-                "лишний primary coding для "
+                "лишняя первичная разметка для "
                 + ", ".join(f"{chain}/{document}" for chain, document in extra_primary)
             )
-        raise ValueError("Primary coding не совпадает со screening-рамкой: " + "; ".join(details))
+        raise ValueError(
+            "Первичная разметка не совпадает с рамкой отбора: " + "; ".join(details)
+        )
 
     projected_primary: list[dict[str, Any]] = []
     primary_by_candidate: dict[str, dict[str, Any]] = {}
@@ -2580,7 +2609,8 @@ def build_native_coding_audit_inputs(
         supplied_candidate_id = ordinary.get("candidate_id")
         if "candidate_id" in ordinary and supplied_candidate_id != candidate_id:
             raise ValueError(
-                f"Primary coding {pair[0]}/{pair[1]} связан с чужим candidate_id."
+                f"Первичная разметка {pair[0]}/{pair[1]} связана "
+                "с чужим candidate_id."
             )
         projected = {
             field: ordinary.get(field) for field in AUDIT_CODING_RECORD_FIELDS
@@ -2588,13 +2618,13 @@ def build_native_coding_audit_inputs(
         projected["candidate_id"] = candidate_id
         if projected.get("codebook_version") != codebook_version:
             raise ValueError(
-                f"Primary coding {pair[0]}/{pair[1]} использует другую "
+                f"Первичная разметка {pair[0]}/{pair[1]} использует другую "
                 "версию справочника кодирования."
             )
         errors = validate_coding_against_text(projected, text_by_pair[pair])
         if errors:
             raise ValueError(
-                f"Primary coding {pair[0]}/{pair[1]} не прошёл проверку: "
+                f"Первичная разметка {pair[0]}/{pair[1]} не прошла проверку: "
                 + "; ".join(errors)
             )
         canonical_digest(projected)
@@ -2613,10 +2643,14 @@ def build_native_coding_audit_inputs(
     if audit_plan["invalid_screening_record_ids"] or audit_plan[
         "invalid_primary_record_ids"
     ]:
-        raise ValueError("Производный audit-план содержит невалидные входные записи.")
+        raise ValueError(
+            "Производный план аудита содержит недопустимые входные записи."
+        )
     required_candidate_ids = audit_plan["required_candidate_ids"]
     if not required_candidate_ids:
-        raise ValueError("Заданные максимумы не выбрали ни одного audit-кандидата.")
+        raise ValueError(
+            "Заданные максимумы не выбрали ни одного кандидата для аудита."
+        )
 
     secondary_queue: list[dict[str, Any]] = []
     secondary_templates: list[dict[str, Any]] = []
@@ -2648,7 +2682,7 @@ def build_native_coding_audit_inputs(
             "text": packet_text,
         }
         if set(review_material) != NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS:
-            raise AssertionError("unexpected native audit review material shape")
+            raise AssertionError("неожиданный формат материала аудиторской проверки")
         secondary_review_materials.append(review_material)
         queue_record = {
             "schema_version": SCHEMA_VERSION,
@@ -2662,7 +2696,7 @@ def build_native_coding_audit_inputs(
             "review_state": "independent_secondary_required",
         }
         if set(queue_record) != NATIVE_AUDIT_QUEUE_FIELDS:
-            raise AssertionError("unexpected native audit queue shape")
+            raise AssertionError("неожиданный формат очереди аудиторской проверки")
         secondary_queue.append(queue_record)
         template = {field: None for field in AUDIT_CODING_RECORD_FIELDS}
         template.update(
@@ -2689,6 +2723,366 @@ def build_native_coding_audit_inputs(
         "secondary_review_materials": secondary_review_materials,
         "codebook_version": codebook_version,
         "source_text_inventory_sha256": canonical_digest(source_text_inventory),
+    }
+
+
+def build_native_coding_review_import(
+    audit_plan: Mapping[str, Any],
+    primary_decisions: Iterable[Any],
+    secondary_review_queue: Iterable[Any],
+    secondary_review_materials: Iterable[Any],
+    secondary_codings: Iterable[Any],
+    *,
+    codebook_version: str,
+    norm_edition_ids: Iterable[str],
+    expected_secondary_coder: str,
+) -> dict[str, Any]:
+    """Проверить возвращённую разметку и собрать решения для оценки надёжности.
+
+    Функция намеренно не работает с файловой системой. Вызывающая сторона
+    должна сначала проверить внутреннюю согласованность пакета и привязать его
+    к отдельно сохранённому значению, а затем атомарно записать результат.
+    Здесь замыкаются наборы записей, каждый ответ связывается с замороженной
+    первичной разметкой и точным текстом, после чего заново проверяются цитаты.
+    """
+
+    if not isinstance(audit_plan, Mapping) or not _coding_audit_plan_contract_valid(
+        audit_plan
+    ):
+        raise ValueError("Замороженный план аудита имеет неверный закрытый контракт.")
+    if audit_plan.get("invalid_screening_record_ids") or audit_plan.get(
+        "invalid_primary_record_ids"
+    ):
+        raise ValueError("План аудита содержит недопустимые входные записи.")
+    required_candidate_ids = list(audit_plan["required_candidate_ids"])
+    if (
+        not required_candidate_ids
+        or any(
+            not _is_native_audit_candidate_id(candidate_id)
+            for candidate_id in required_candidate_ids
+        )
+    ):
+        raise ValueError(
+            "План аудита не содержит канонический набор обязательных кандидатов."
+        )
+
+    if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError(
+            "Версия справочника кодирования не поддерживается этой версией программы."
+        )
+
+    if isinstance(norm_edition_ids, (str, bytes)):
+        raise ValueError("Список допустимых редакций норм имеет неверный формат.")
+    allowed_norm_editions = list(norm_edition_ids)
+    if (
+        not allowed_norm_editions
+        or not all(_is_canonical_identifier(value) for value in allowed_norm_editions)
+        or len(allowed_norm_editions) != len(set(allowed_norm_editions))
+    ):
+        raise ValueError("Список допустимых редакций норм пуст или неканоничен.")
+    allowed_norm_edition_set = set(allowed_norm_editions)
+
+    expected_coder = _canonical_reviewer(expected_secondary_coder)
+    if expected_coder is None:
+        raise ValueError("Ожидаемая метка второго кодировщика неканонична.")
+
+    def closed_index(
+        values: Iterable[Any],
+        *,
+        record_kind: str,
+        fields: frozenset[str],
+    ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        if isinstance(values, (str, bytes, Mapping)):
+            raise ValueError(f"Набор {record_kind} имеет неверный формат.")
+        records: list[dict[str, Any]] = []
+        indexed: dict[str, dict[str, Any]] = {}
+        for row_number, value in enumerate(values, start=1):
+            if not isinstance(value, Mapping) or set(value) != fields:
+                raise ValueError(
+                    f"Строка {record_kind} {row_number} имеет неверный закрытый формат."
+                )
+            record = dict(value)
+            candidate_id = record.get("candidate_id")
+            if not _is_native_audit_candidate_id(candidate_id):
+                raise ValueError(
+                    f"Строка {record_kind} {row_number} имеет неканонический candidate_id."
+                )
+            if candidate_id in indexed:
+                raise ValueError(f"Набор {record_kind} повторяет candidate_id.")
+            records.append(record)
+            indexed[candidate_id] = record
+        return records, indexed
+
+    primary_records, primary_by_candidate = closed_index(
+        primary_decisions,
+        record_kind="первичной разметки",
+        fields=AUDIT_CODING_RECORD_FIELDS,
+    )
+    for candidate_id, record in primary_by_candidate.items():
+        errors = validate_coding_record(record)
+        if errors or not _audit_coding_identity_valid(record):
+            raise ValueError(
+                "Первичная разметка не завершена или неканонична: "
+                + "; ".join(errors or ["неверные идентификаторы"])
+            )
+        if record.get("codebook_version") != codebook_version:
+            raise ValueError("Первичная разметка использует другую версию справочника.")
+    try:
+        primary_records_in_digest_order = sorted(primary_records, key=canonical_digest)
+        primary_coding_sha256 = canonical_digest(primary_records_in_digest_order)
+    except (TypeError, ValueError, UnicodeEncodeError) as exc:
+        raise ValueError("Первичная разметка не является каноническим JSON.") from exc
+    if primary_coding_sha256 != audit_plan.get("primary_coding_sha256"):
+        raise ValueError(
+            "Первичная разметка не совпадает с контрольной суммой "
+            "замороженного плана аудита."
+        )
+
+    _, queue_by_candidate = closed_index(
+        secondary_review_queue,
+        record_kind="очереди вторичной проверки",
+        fields=NATIVE_AUDIT_QUEUE_FIELDS,
+    )
+    _, material_by_candidate = closed_index(
+        secondary_review_materials,
+        record_kind="материалов проверки",
+        fields=NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS,
+    )
+    secondary_records, secondary_by_candidate = closed_index(
+        secondary_codings,
+        record_kind="вторичной разметки",
+        fields=AUDIT_CODING_RECORD_FIELDS,
+    )
+
+    expected_population = set(required_candidate_ids)
+    for name, population in (
+        ("первичной разметки", set(primary_by_candidate)),
+        ("очереди вторичной проверки", set(queue_by_candidate)),
+        ("материалов проверки", set(material_by_candidate)),
+        ("вторичной разметки", set(secondary_by_candidate)),
+    ):
+        missing = expected_population - population
+        extra = population - expected_population
+        if name == "первичной разметки":
+            extra = set()
+        if missing or extra:
+            raise ValueError(
+                f"Набор {name} не совпадает с замороженной выборкой: "
+                f"отсутствуют {len(missing)}, лишние {len(extra)}."
+            )
+
+    audit_decisions: list[dict[str, Any]] = []
+    audited_agreement: list[str] = []
+    audited_disagreement: list[str] = []
+    non_audited_difference: list[str] = []
+    audited_field_differences: list[dict[str, Any]] = []
+    non_audited_content_differences: list[dict[str, Any]] = []
+    adjudication_required_candidate_ids: list[str] = []
+
+    for candidate_id in required_candidate_ids:
+        primary = primary_by_candidate[candidate_id]
+        queue = queue_by_candidate[candidate_id]
+        material = material_by_candidate[candidate_id]
+        secondary = secondary_by_candidate[candidate_id]
+        chain_id = primary["chain_id"]
+        document_id = primary["document_id"]
+
+        if candidate_id != _native_audit_candidate_id(
+            plan_sha256=audit_plan["plan_sha256"],
+            chain_id=chain_id,
+            document_id=document_id,
+        ):
+            raise ValueError(
+                "candidate_id не связан с идентификаторами `plan_sha256`, "
+                "`chain_id` и `document_id`."
+            )
+        if (
+            queue.get("schema_version") != SCHEMA_VERSION
+            or queue.get("review_state") != "independent_secondary_required"
+            or queue.get("codebook_version") != codebook_version
+            or any(
+                queue.get(field) != expected
+                for field, expected in (
+                    ("candidate_id", candidate_id),
+                    ("chain_id", chain_id),
+                    ("document_id", document_id),
+                )
+            )
+        ):
+            raise ValueError("Очередь имеет неверные идентификаторы или статус.")
+        source_ids = queue.get("source_ids")
+        if (
+            not isinstance(source_ids, list)
+            or not source_ids
+            or any(
+                isinstance(source_id, bool)
+                or not isinstance(source_id, int)
+                or source_id < 1
+                for source_id in source_ids
+            )
+            or source_ids != sorted(set(source_ids))
+            or not _is_sha256(queue.get("source_text_sha256"))
+        ):
+            raise ValueError("Очередь содержит неверный реестр источников.")
+        primary_sha256 = canonical_digest(primary)
+        if queue.get("primary_coding_sha256") != primary_sha256:
+            raise ValueError("Очередь не связана с первичной разметкой.")
+
+        text = material.get("text")
+        if (
+            material.get("schema_version") != SCHEMA_VERSION
+            or any(
+                material.get(field) != expected
+                for field, expected in (
+                    ("candidate_id", candidate_id),
+                    ("chain_id", chain_id),
+                    ("document_id", document_id),
+                    ("source_text_sha256", queue["source_text_sha256"]),
+                )
+            )
+            or not _is_captured_full_text(text)
+        ):
+            raise ValueError("Материал имеет неверные идентификаторы или текст.")
+        packet_text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        normalized_text = re.sub(
+            r"\s+", " ", unicodedata.normalize("NFC", text)
+        ).strip()
+        source_text_sha256 = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
+        if (
+            material.get("packet_text_sha256") != packet_text_sha256
+            or material.get("source_text_sha256") != source_text_sha256
+        ):
+            raise ValueError("Хеш полного текста не совпадает.")
+
+        primary_errors = validate_coding_against_text(primary, text)
+        if primary_errors:
+            raise ValueError(
+                "Первичная разметка не прошла повторную проверку текста: "
+                + "; ".join(primary_errors)
+            )
+        if primary.get("norm_edition_id") not in allowed_norm_edition_set:
+            raise ValueError(
+                "Первичная разметка ссылается на редакцию, "
+                "не указанную в `CODING-BRIEF.json`."
+            )
+
+        if any(
+            secondary.get(field) != expected
+            for field, expected in (
+                ("candidate_id", candidate_id),
+                ("chain_id", chain_id),
+                ("document_id", document_id),
+                ("codebook_version", codebook_version),
+            )
+        ):
+            raise ValueError(
+                "Вторичная разметка имеет неверные идентификаторы или версию справочника."
+            )
+        if secondary.get("norm_edition_id") not in allowed_norm_edition_set:
+            raise ValueError(
+                "Вторичная разметка ссылается на редакцию, "
+                "не указанную в `CODING-BRIEF.json`."
+            )
+        secondary_coder = _canonical_reviewer(secondary.get("coder"))
+        primary_coder = _canonical_reviewer(primary.get("coder"))
+        if secondary_coder != expected_coder:
+            raise ValueError(
+                "Поле coder вторичной разметки не совпадает с ожидаемой меткой "
+                "второго кодирования."
+            )
+        if primary_coder is None or secondary_coder == primary_coder:
+            raise ValueError(
+                "Метка coder вторичной разметки совпадает с меткой "
+                "первичного кодирования или первичная метка неканонична."
+            )
+
+        secondary_errors = validate_coding_against_text(secondary, text)
+        if secondary_errors:
+            raise ValueError(
+                "Вторичная разметка не прошла проверку: "
+                + "; ".join(secondary_errors)
+            )
+        quote = secondary.get("quote")
+        if not isinstance(quote, str) or quote not in text:
+            raise ValueError(
+                "Основная цитата вторичной разметки не является буквальной подстрокой."
+            )
+        for ground_number, ground in enumerate(
+            secondary.get("alternative_grounds", []), start=1
+        ):
+            ground_quote = ground.get("quote")
+            if ground_quote is not None and ground_quote not in text:
+                raise ValueError(
+                    "Цитата альтернативного основания "
+                    f"{ground_number} вторичной разметки "
+                    "не является буквальной подстрокой."
+                )
+
+        secondary_sha256 = canonical_digest(secondary)
+        decision = {
+            "candidate_id": candidate_id,
+            "primary_coding_sha256": primary_sha256,
+            "secondary_coding": secondary,
+            "secondary_coding_sha256": secondary_sha256,
+        }
+        if set(decision) != CODING_AUDIT_DECISION_FIELDS:
+            raise AssertionError("неожиданный формат решения аудита разметки")
+        audit_decisions.append(decision)
+
+        differing_audited_fields = [
+            field
+            for field in AUDITED_CODING_FIELDS
+            if primary.get(field) != secondary.get(field)
+        ]
+        differing_non_audited_fields = [
+            field
+            for field in NON_AUDITED_CODING_CONTENT_FIELDS
+            if primary.get(field) != secondary.get(field)
+        ]
+        has_audited_difference = bool(differing_audited_fields)
+        has_non_audited_difference = bool(differing_non_audited_fields)
+        if has_audited_difference:
+            audited_disagreement.append(candidate_id)
+            audited_field_differences.append(
+                {
+                    "candidate_id": candidate_id,
+                    "fields": differing_audited_fields,
+                }
+            )
+        else:
+            audited_agreement.append(candidate_id)
+        if has_non_audited_difference:
+            non_audited_difference.append(candidate_id)
+            non_audited_content_differences.append(
+                {
+                    "candidate_id": candidate_id,
+                    "fields": differing_non_audited_fields,
+                }
+            )
+        if has_audited_difference:
+            adjudication_required_candidate_ids.append(candidate_id)
+
+    secondary_records_in_digest_order = sorted(
+        secondary_records, key=canonical_digest
+    )
+    return {
+        "audit_decisions": audit_decisions,
+        "audit_decisions_sha256": canonical_digest(audit_decisions),
+        "secondary_coding_sha256": canonical_digest(
+            secondary_records_in_digest_order
+        ),
+        "candidate_ids": required_candidate_ids,
+        "audited_fields": list(AUDITED_CODING_FIELDS),
+        "non_audited_content_fields": list(NON_AUDITED_CODING_CONTENT_FIELDS),
+        "audited_field_agreement_candidate_ids": audited_agreement,
+        "audited_field_disagreement_candidate_ids": audited_disagreement,
+        "audited_field_differences": audited_field_differences,
+        "non_audited_content_difference_candidate_ids": non_audited_difference,
+        "non_audited_content_differences": non_audited_content_differences,
+        "non_audited_content_review_required": bool(non_audited_difference),
+        "adjudication_required_candidate_ids": adjudication_required_candidate_ids,
+        "adjudication_required": bool(adjudication_required_candidate_ids),
+        "expected_secondary_coder_label": expected_coder,
     }
 
 
@@ -3443,6 +3837,7 @@ def assess_prefiling_refresh(
 
 __all__ = [
     "AUDITED_CODING_FIELDS",
+    "NON_AUDITED_CODING_CONTENT_FIELDS",
     "CHAIN_STAGES",
     "CHAIN_TREATMENTS",
     "UNCERTAINTY_DIMENSIONS",
@@ -3451,6 +3846,7 @@ __all__ = [
     "assess_prefiling_refresh",
     "build_coding_audit_plan",
     "build_native_coding_audit_inputs",
+    "build_native_coding_review_import",
     "build_uncertainty_profile",
     "canonical_digest",
 ]
