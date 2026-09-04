@@ -300,11 +300,11 @@ The three existing `complaint-patterns.md` paths, the judicial-meaning acquisiti
 
 ### Requirement: Installed retrospective examples use user-facing two-pass language
 
-The eight installed KSRF worked examples MUST describe their method in language a user can follow without an evaluation harness. They MUST distinguish the initial material, a portfolio frozen before comparison, and the later official act. They MUST NOT instruct the user to run an unavailable benchmark, forward test, eval contour, replay, fixture, blind firewall, hash/private evaluation run, or artifact commit. The installed examples MUST NOT retain the evaluation labels `Input-only`, `Outcome-blind`, or `Held-out outcome`. A canonical English contract label MAY appear elsewhere only when it is needed to identify an existing interface and the same sentence explains the concrete action in plain Russian.
+The nine installed KSRF worked examples MUST describe their method in language a user can follow without an evaluation harness. They MUST distinguish the initial material, a portfolio frozen before comparison, and the later official act. They MUST NOT instruct the user to run an unavailable benchmark, forward test, eval contour, replay, fixture, blind firewall, hash/private evaluation run, or artifact commit. The installed examples MUST NOT retain the evaluation labels `Input-only`, `Outcome-blind`, or `Held-out outcome`. A canonical English contract label MAY appear elsewhere only when it is needed to identify an existing interface and the same sentence explains the concrete action in plain Russian.
 
 #### Scenario: User opens a retrospective example
 
-- **WHEN** any of the eight worked examples was prepared after the later KSRF act became known
+- **WHEN** any of the nine worked examples was prepared after the later KSRF act became known
 - **THEN** it says that it is neither a complaint template nor a prediction and instructs the reader to freeze initial findings and gaps before comparing with the act
 
 #### Scenario: Later act is opened
@@ -343,11 +343,11 @@ Each retrospective example MUST end with a checklist for applying the method to 
 
 ### Requirement: Public documentation distinguishes retrospective examples from blind evaluation
 
-`README.md`, `docs/KSRF_SKILLS_METHODOLOGY.md`, and `docs/KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md` MUST state that the eight installed cards are retrospective and were prepared after the later acts became known, so they are not evidence of blind evaluation or predictive accuracy. The same files MUST state that development evals are source-only and excluded from user installation. If a registered blind workflow is named, the documentation MUST explain in plain Russian that it requires a separate frozen input without the known outcome and cannot be inferred from the eight cards.
+`README.md`, `docs/KSRF_SKILLS_METHODOLOGY.md`, and `docs/KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md` MUST state that the nine installed cards are retrospective and were prepared after the later acts became known, so they are not evidence of blind evaluation or predictive accuracy. The same files MUST state that development evals are source-only and excluded from user installation. If a registered blind workflow is named, the documentation MUST explain in plain Russian that it requires a separate frozen input without the known outcome and cannot be inferred from the nine cards.
 
 #### Scenario: User reads public methodology documentation
 
-- **WHEN** a reader compares the eight retrospective cards with the described expert evaluation workflow
+- **WHEN** a reader compares the nine retrospective cards with the described expert evaluation workflow
 - **THEN** the documentation presents them as separate artifacts with separate evidence and makes no capability or validation claim based on the cards
 
 #### Scenario: Public documentation explains the two routes
@@ -357,7 +357,7 @@ Each retrospective example MUST end with a checklist for applying the method to 
 
 ### Requirement: Development eval remains source-only
 
-The current `ksrf-explore-arguments/evals/evals.json`, `ksrf-explore-arguments/evals/trigger-evals.json`, `ksrf-complaint-qa/evals/evals.json`, and `ksrf-decision-execution/evals/evals.json` MUST remain digest-bound after review, validated by the source profile, and excluded from the runtime payload. The eight example filenames and owning-skill backlinks MUST remain stable, and clean-room installation MUST contain the examples but no `evals` directory.
+The current `ksrf-explore-arguments/evals/evals.json`, `ksrf-explore-arguments/evals/trigger-evals.json`, `ksrf-complaint-qa/evals/evals.json`, and `ksrf-decision-execution/evals/evals.json` MUST remain digest-bound after review, validated by the source profile, and excluded from the runtime payload. The nine example filenames and owning-skill backlinks MUST remain stable, and clean-room installation MUST contain the examples but no `evals` directory.
 
 #### Scenario: Source release QA runs
 
@@ -367,5 +367,5 @@ The current `ksrf-explore-arguments/evals/evals.json`, `ksrf-explore-arguments/e
 #### Scenario: Clean-room install is created
 
 - **WHEN** the exact manifest payload is installed to an empty directory
-- **THEN** all eight retrospective cards are present, the private complaints and explanations remain absent, and no `evals` directory is installed
+- **THEN** all nine retrospective cards are present, the private complaints and explanations remain absent, and no `evals` directory is installed
 
