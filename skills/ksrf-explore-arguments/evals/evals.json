@@ -121,6 +121,18 @@
         "The portfolio evaluates registry reliance, transaction-date information, accessible red flags, acquisition checks and burden of proof without back-projecting a later criminal judgment or treating registration as conclusive title.",
         "Principal, reserve and adverse routes remain separate: narrow public-risk allocation, objective good-faith criteria, less restrictive public remedies and the ordinary protection of ownership are tested without promising factual good faith, review, return of the apartment or compensation."
       ]
+    },
+    {
+      "id": 12,
+      "prompt": "Синтетическое дело: гражданин не участвовал в прежнем деле КС, но ссылается на его обязательную позицию. Суд отказал сначала в пересмотре, затем в прекращении исполнения выселения в пользу муниципалитета. Представлены оба отказа, первоначальное решение и документы пристава: титул переоформлен, выселение не исполнено на дату прежнего постановления и сейчас. Полные тексты постановления и действующих норм доступны. Разработай гипотезы нового процессуального дефекта без обещания результата.",
+      "expected_output": "Separate normative gap, enforcement and reopening.",
+      "files": [],
+      "expectations": [
+        "Проверяет применимость прежней позиции и отличает исполнение существующей позиции от самостоятельной новой конституционной проблемы.",
+        "Разделяет статус в каждом деле, две цепочки отказов, состояние исполнения по датам, прямую ссылку, отсылку и отклонённый судом нормативный довод.",
+        "Даёт конкурирующие гипотезы и опровержения, проверяет интерес взыскателя и более узкую защиту до пересмотра, а не объявляет исходное решение отменённым.",
+        "Проверяет действующее право, допустимость и сроки; не имитирует второй проход без нового акта и не требует исторической жалобы."
+      ]
     }
   ]
 }

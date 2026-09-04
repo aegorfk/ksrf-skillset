@@ -264,6 +264,18 @@
         "The repair distinguishes information available at purchase from later criminal findings, treats registry reliance as significant but non-conclusive, and separately proves causal contributions and less restrictive public remedies.",
         "The prayer separates public-owner risk allocation from the legal-certainty route and keeps constitutional meaning, factual good faith, review, return of property and compensation as distinct outcomes; success on one route does not validate the whole complaint."
       ]
+    },
+    {
+      "id": 25,
+      "prompt": "Синтетический проект требует по № 30-П/2020 навсегда прекратить взыскание в пользу частной компании: решение полностью исполнено до постановления КС. Статья 79 ФКЗ была только названа стороной, отказ суда отсутствует. Проект также утверждает, что подача жалобы и уведомление пристава автоматически приостанавливают любые действия, а отмена решения и восстановление права уже гарантированы. Проведи проверку.",
+      "expected_output": "Block overbroad nonparticipant enforcement transfer.",
+      "files": [],
+      "expectations": [
+        "Блокирует перенос специального жилищного правила на частного взыскателя и исполненное решение без самостоятельного правового основания.",
+        "Требует судебную мотивировку применения нормы и документы об исполнении; ссылка стороны не считается установленным применением.",
+        "Разделяет подачу, принятие, уведомление, отдельное решение о приостановлении, непродолжение исполнения, пересмотр и восстановление права.",
+        "Не исправляет пробелы известным исходом исторического дела или общим баллом; требует текущую процедуру и ручной выбор."
+      ]
     }
   ]
 }

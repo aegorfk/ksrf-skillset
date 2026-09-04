@@ -21,6 +21,7 @@ OWNER = SKILL_ROOT / "SKILL.md"
 EXAMPLES = {
     "16": SKILL_ROOT / "references" / "example-16-p-2017.md",
     "22": SKILL_ROOT / "references" / "example-22-p-2021.md",
+    "30": SKILL_ROOT / "references" / "example-30-p-2020.md",
     "275": SKILL_ROOT / "references" / "example-275-o-p-2007.md",
     "33": SKILL_ROOT / "references" / "example-33-p-2026.md",
     "37": SKILL_ROOT / "references" / "example-37-p-2024.md",
@@ -42,16 +43,21 @@ NORM_MAP = (
 )
 QA_SKILL = REPO / "skills" / "ksrf-complaint-qa" / "SKILL.md"
 EVAL = SKILL_ROOT / "evals" / "evals.json"
-EVAL_SHA256 = "3ce78a18ec3127e5a4816010a16eb5573fac5b2a77513837fcc5256c001d6570"
+EVAL_SHA256 = "5008c945ab03c571fd51cc95c442ba63cea70675da839aae0ea05b8de977f97d"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
 QA_EVAL = REPO / "skills" / "ksrf-complaint-qa" / "evals" / "evals.json"
-QA_EVAL_SHA256 = "edac3487dbaa69f3c4c3defdecd4132b119560212f1547dfce850a068774c65d"
+QA_EVAL_SHA256 = "5242a255884a0bf94ad12922dcb2f46cf83f8a6f760e4e71fcbb75b26f24c18d"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        209,
-        31_563,
-        "f77c7d0a449d71240be80753719eba2ac608671536922459295a9a905096112d",
+        210,
+        31_854,
+        "e64e7173dd6113112025668d8ba4cf31ea5ffc485bfd7a9979f3dc030e4573ad",
+    ),
+    EXAMPLES["30"]: (
+        80,
+        17_811,
+        "67a8acab2aa483527b1aec1536ddd1ef707d536f4bc1b1e40eea528338fe6511",
     ),
     EXAMPLES["16"]: (
         139,
@@ -121,6 +127,34 @@ COMMON_HEADINGS = (
 )
 
 CASE_SURFACE = {
+    "30": {
+        "sha": "8cb93fd1ea54bd034c4e3988cd871bffda514d67379a47c67b99b9e51b311a61",
+        "urls": (
+            "https://academia.ilpp.ru/wp-content/uploads/2020/03/%D0%9E%D0%B4%D0%BD%D0%BE%D0%B4%D0%B2%D0%BE%D1%80%D1%86%D0%B5%D0%B2%D1%8B-%D0%A1%D0%90%D0%99%D0%A2-19.03.2020.pdf",
+            "https://ilpp.ru/legal-practice/zhilye",
+            "https://academia.ilpp.ru/blog/30x30/good-faith-purchaser/",
+            "https://doc.ksrf.ru/decision/KSRFDecision476600.pdf",
+        ),
+        "hypotheses": ("H1.", "H2.", "H3.", "H4."),
+        "facts": (),
+        "gate_rows": 0,
+        "result_points": 5,
+        "checklist_points": 8,
+        "markers": (
+            "Григорий Викторович Вайпан",
+            "представителем заявителей и подписантом",
+            "28 ноября 2019 года",
+            "ч. 1 ст. 439 ГПК РФ",
+            "п. 4 ч. 1 ст. 43",
+            "ч. 3 и 5 ст. 79",
+            "Единоличное авторство из подписи не выводится",
+            "на дату соответствующего постановления",
+            "не является текстом жалобы или актом суда",
+            "повторная загрузка с сайта КС возвращала 403",
+            "непродолжение исполнения не равно отмене решения",
+            "сохраняющее толкование",
+        ),
+    },
     "16": {
         "sha": "ce95e77dbe8ba7a6ae576d734e77347704879a64420049debd8e87fbdced9624",
         "urls": (
@@ -380,7 +414,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
 
         for wording in FORBIDDEN_RUNTIME_WORDING:
             self.assertNotIn(wording.casefold(), self.owner.casefold())
-        self.assertIn("семь ретроспективных двухпроходных разборов", self.owner)
+        self.assertIn("восемь ретроспективных двухпроходных разборов", self.owner)
 
     def test_case_specific_legal_and_source_surface_is_preserved(self) -> None:
         for name, expected in CASE_SURFACE.items():
@@ -569,14 +603,14 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Каталог `evals/` проверяется отдельно и не входит в пользовательскую установку",
             "заранее зафиксированный вход без известного исхода",
-            "Семь ретроспективных карточек не являются такими прогонами",
+            "Восемь ретроспективных карточек не являются такими прогонами",
         ):
             self.assertIn(wording, docs["readme"])
 
         for wording in (
             "Служебные файлы проверки остаются только в исходном репозитории",
             "не устанавливаются пользователю",
-            "Семь пользовательских карточек — ретроспективные двухпроходные разборы",
+            "Восемь пользовательских карточек — ретроспективные двухпроходные разборы",
             "Для активного дела без последующего акта КС РФ работа на этом останавливается",
         ):
             self.assertIn(wording, docs["methodology"])
@@ -584,7 +618,7 @@ class RuntimeRetrospectiveExamplesTests(unittest.TestCase):
         for wording in (
             "Служебные `evals.json` и `trigger-evals.json` остаются в исходном репозитории",
             "не устанавливаются пользователю",
-            "Семь опубликованных карточек — не такие прогоны",
+            "Восемь опубликованных карточек — не такие прогоны",
             "В активном новом деле без последующего акта КС РФ",
             "В историческом деле второй проход допустим только по официальному полному тексту",
         ):
