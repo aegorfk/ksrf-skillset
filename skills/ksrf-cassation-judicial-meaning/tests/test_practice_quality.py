@@ -637,6 +637,189 @@ class PracticeQualityTests(unittest.TestCase):
         )
         self.assertIn("build_native_reliability_doctor_report", api.__all__)
 
+    def test_publication_recovery_diagnostic_is_public_closed_and_exact(self):
+        api = self.api()
+        builder = getattr(
+            api,
+            "build_coding_audit_publication_recovery_diagnostic",
+            None,
+        )
+        route_for = getattr(
+            api,
+            "coding_audit_publication_recovery_route",
+            None,
+        )
+        self.assertTrue(callable(builder))
+        self.assertTrue(callable(route_for))
+        self.assertIn(
+            "build_coding_audit_publication_recovery_diagnostic",
+            api.__all__,
+        )
+        self.assertIn(
+            "coding_audit_publication_recovery_route",
+            api.__all__,
+        )
+        self.assertEqual(
+            (
+                "coding-audit-prepare",
+                "coding-audit-review-import",
+                "coding-audit-finalize",
+            ),
+            api.CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS,
+        )
+        expected_routes = {
+            "staging_cleanup_uncertain": "administrator_only",
+            "publication_state_uncertain": "administrator_only",
+            "publication_durability_uncertain": "repeat_then_compare_candidate",
+            "publication_finalization_uncertain": "repeat_then_compare_candidate",
+            "confirmation_delivery_uncertain": "repeat_then_compare_candidate",
+        }
+        self.assertEqual(
+            tuple(expected_routes),
+            api.CODING_AUDIT_PUBLICATION_RECOVERY_ERROR_CODES,
+        )
+        self.assertIn(
+            "CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS",
+            api.__all__,
+        )
+        self.assertIn(
+            "CODING_AUDIT_PUBLICATION_RECOVERY_ERROR_CODES",
+            api.__all__,
+        )
+        self.assertEqual(
+            ["command", "error_code", "message_ru"],
+            list(inspect.signature(builder).parameters),
+        )
+
+        message = "  Координаты: inode 42.\nОстановите автоматику.  "
+        expected_scope = {
+            "diagnostic_only": True,
+            "same_destination_retry_allowed": False,
+            "recovery_eligibility_verified": False,
+            "recovery_action_authorized": False,
+            "downstream_use_allowed": False,
+            "automatic_retry_performed": False,
+            "automatic_delete_performed": False,
+            "automatic_quarantine_performed": False,
+            "diagnostic_provenance_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+            "filing_authorized": False,
+        }
+        expected_root_fields = {
+            "schema_version",
+            "artifact_type",
+            "command",
+            "error_code",
+            "recovery_route",
+            "stdout_disposition",
+            "message_ru",
+            "exit_code",
+            "scope",
+        }
+        for command in api.CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS:
+            for error_code, recovery_route in expected_routes.items():
+                with self.subTest(command=command, error_code=error_code):
+                    report = builder(command, error_code, message)
+                    self.assertEqual(expected_root_fields, set(report))
+                    self.assertEqual("1.0", report["schema_version"])
+                    self.assertEqual(
+                        "coding_audit_publication_recovery_diagnostic",
+                        report["artifact_type"],
+                    )
+                    self.assertEqual(command, report["command"])
+                    self.assertEqual(error_code, report["error_code"])
+                    self.assertEqual(recovery_route, report["recovery_route"])
+                    self.assertEqual(recovery_route, route_for(error_code))
+                    self.assertEqual(
+                        (
+                            "empty_partial_or_apparent_complete_invalid"
+                            if error_code == "confirmation_delivery_uncertain"
+                            else "empty_invalid"
+                        ),
+                        report["stdout_disposition"],
+                    )
+                    self.assertEqual(message, report["message_ru"])
+                    self.assertEqual(2, report["exit_code"])
+                    self.assertEqual(expected_scope, report["scope"])
+                    self.assertEqual(set(expected_scope), set(report["scope"]))
+
+    def test_publication_recovery_diagnostic_rejects_invalid_inputs(self):
+        api = self.api()
+        builder = api.build_coding_audit_publication_recovery_diagnostic
+        valid = (
+            "coding-audit-prepare",
+            "publication_state_uncertain",
+            "Остановите автоматику.",
+        )
+        invalid_commands = (
+            True,
+            None,
+            7,
+            b"coding-audit-prepare",
+            "",
+            " \t\r\n",
+            "coding-audit-prepare ",
+            "coding-audit-unknown",
+        )
+        invalid_codes = (
+            False,
+            None,
+            7,
+            b"publication_state_uncertain",
+            "",
+            " \t\r\n",
+            "publication_state_uncertain ",
+            "unknown",
+        )
+        invalid_messages = (
+            True,
+            None,
+            7,
+            b"message",
+            "",
+            " \t\r\n",
+            "\u200b",
+            "текст\u2060",
+            "текст\x00",
+        )
+        for command in invalid_commands:
+            with self.subTest(field="command", value=repr(command)):
+                with self.assertRaises(ValueError):
+                    builder(command, valid[1], valid[2])
+        for error_code in invalid_codes:
+            with self.subTest(field="error_code", value=repr(error_code)):
+                with self.assertRaises(ValueError):
+                    builder(valid[0], error_code, valid[2])
+                with self.assertRaises(ValueError):
+                    api.coding_audit_publication_recovery_route(error_code)
+        for message_ru in invalid_messages:
+            with self.subTest(field="message_ru", value=repr(message_ru)):
+                with self.assertRaises(ValueError):
+                    builder(valid[0], valid[1], message_ru)
+
+    def test_publication_recovery_diagnostic_results_are_independent(self):
+        api = self.api()
+        arguments = (
+            "coding-audit-finalize",
+            "confirmation_delivery_uncertain",
+            "Стандартный вывод недействителен.",
+        )
+        first = api.build_coding_audit_publication_recovery_diagnostic(*arguments)
+        pristine = api.build_coding_audit_publication_recovery_diagnostic(*arguments)
+
+        first["message_ru"] = "изменено"
+        first["scope"]["diagnostic_only"] = False
+        first["scope"]["invented"] = True
+
+        rebuilt = api.build_coding_audit_publication_recovery_diagnostic(*arguments)
+        self.assertEqual(pristine, rebuilt)
+        self.assertIsNot(pristine, rebuilt)
+        self.assertIsNot(pristine["scope"], rebuilt["scope"])
+        self.assertEqual("Стандартный вывод недействителен.", rebuilt["message_ru"])
+        self.assertIs(rebuilt["scope"]["diagnostic_only"], True)
+        self.assertNotIn("invented", rebuilt["scope"])
+
     def test_native_finalization_comparison_builder_is_public_and_keyword_only(self):
         api = self.api()
         builder = getattr(

@@ -72,6 +72,7 @@ from .practice_quality import (
     assess_coding_reliability,
     assess_prefiling_refresh,
     build_coding_audit_plan,
+    build_coding_audit_publication_recovery_diagnostic,
     build_native_coding_audit_inputs,
     build_native_coding_audit_finalization,
     build_native_coding_review_import,
@@ -80,6 +81,7 @@ from .practice_quality import (
     build_native_reliability_doctor_report,
     build_uncertainty_profile,
     canonical_digest,
+    coding_audit_publication_recovery_route,
     NON_AUDITED_CODING_CONTENT_FIELDS,
     _audit_coding_identity_valid,
     _canonical_reviewer,
@@ -5843,6 +5845,13 @@ def _write_stdout_line(line: str) -> None:
     sys.stdout.flush()
 
 
+def _write_stderr_line(line: str) -> None:
+    written = sys.stderr.write(line)
+    if written != len(line):
+        raise OSError("Стандартный поток ошибок принял не всю строку диагностики.")
+    sys.stderr.flush()
+
+
 def _write_stdout_bytes(content: bytes) -> None:
     """Write exact UTF-8 bytes, with a text-stream fallback for unit tests."""
 
@@ -9016,6 +9025,18 @@ def _assert_published_audit_bundle(
 class _PublicationRecoveryError(OSError):
     """A classified failure that already contains the publication stop rule."""
 
+    def __init__(self, message: str, *, error_code: str) -> None:
+        coding_audit_publication_recovery_route(error_code)
+        super().__init__(message)
+        self.error_code = error_code
+
+
+def _publication_recovery_error(
+    error_code: str,
+    message: str,
+) -> _PublicationRecoveryError:
+    return _PublicationRecoveryError(message, error_code=error_code)
+
 
 _PublishedCommandRecord = tuple[tuple[int, int], str, tuple[int, int]]
 
@@ -9037,7 +9058,8 @@ def _publication_state_uncertain_error(
             for name, identity in sorted(created_file_identities.items())
         )
         file_coordinates = f" Идентификаторы созданных файлов: {coordinates}."
-    return _PublicationRecoveryError(
+    return _publication_recovery_error(
+        "publication_state_uncertain",
         "Состояние публикации после атомарного переноса не подтверждено: её "
         "расположение, целостность или защищённость могли измениться, а путь "
         "--output-dir может уже не вести к опубликованному каталогу. "
@@ -9086,7 +9108,8 @@ def _staging_cleanup_uncertain_error(
             for name, identity in sorted(created_file_identities.items())
         )
         file_coordinates = f" Созданные файлы: {coordinates}."
-    return _PublicationRecoveryError(
+    return _publication_recovery_error(
+        "staging_cleanup_uncertain",
         "Очистка временной публикации не подтверждена: чувствительные файлы "
         "могли остаться в перемещённой, заменённой, изменённой или уже перенесённой "
         "временной папке. После создания временной папки автоматическое удаление "
@@ -9115,7 +9138,8 @@ def _publication_confirmation_delivery_error(
     published_directory_identity: tuple[int, int],
 ) -> _PublicationRecoveryError:
     recovery_entry_name = json.dumps(destination_name, ensure_ascii=True)
-    return _PublicationRecoveryError(
+    return _publication_recovery_error(
+        "confirmation_delivery_uncertain",
         "Каталог результата полностью и долговечно опубликован, но финальное "
         "машиночитаемое подтверждение начали передавать, а завершение команды после "
         "начала передачи не подтверждено. Стандартный вывод мог остаться пустым или частичным либо "
@@ -9144,7 +9168,8 @@ def _publication_finalization_uncertain_error(
     published_directory_identity: tuple[int, int],
 ) -> _PublicationRecoveryError:
     recovery_entry_name = json.dumps(destination_name, ensure_ascii=True)
-    return _PublicationRecoveryError(
+    return _publication_recovery_error(
+        "publication_finalization_uncertain",
         "Каталог результата уже прошёл публикацию, но завершение команды после "
         "публикации не подтверждено из-за ошибки или прерывания до начала "
         "формирования финального стандартного вывода, в том числе при закрытии "
@@ -9165,6 +9190,18 @@ def _publication_finalization_uncertain_error(
         "сумму соответствующей квитанции и флаги дальнейших действий только из "
         "полного успешного повторного вывода "
         "после совпадения каталогов."
+    )
+
+
+def _publication_durability_uncertain_error() -> _PublicationRecoveryError:
+    return _publication_recovery_error(
+        "publication_durability_uncertain",
+        "Долговечность публикации не подтверждена: полный "
+        "каталог уже может быть виден после атомарного переноса; не удаляйте "
+        "его автоматически "
+        "и не передавайте его дальше. После восстановления файловой системы "
+        "повторите эту команду с теми же неизменными входами, указав другую "
+        "отсутствующую папку, и сравните оба результата побайтно.",
     )
 
 
@@ -9251,6 +9288,42 @@ def _postpublication_command_error(
     )
 
 
+def _publication_recovery_diagnostic_line(
+    error: _PublicationRecoveryError,
+    *,
+    command: str,
+) -> str:
+    diagnostic = build_coding_audit_publication_recovery_diagnostic(
+        command,
+        error.error_code,
+        str(error),
+    )
+    return (
+        json.dumps(
+            diagnostic,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    )
+
+
+def _select_publication_recovery_error(
+    *errors: _PublicationRecoveryError | None,
+) -> _PublicationRecoveryError | None:
+    for route in ("administrator_only", "repeat_then_compare_candidate"):
+        for error in errors:
+            if error is None:
+                continue
+            if not isinstance(error, _PublicationRecoveryError):
+                raise TypeError("Ожидалась классифицированная ошибка публикации.")
+            if coding_audit_publication_recovery_route(error.error_code) == route:
+                return error
+    return None
+
+
 def _complete_published_command() -> int:
     return 0
 
@@ -9317,6 +9390,7 @@ def _publish_new_audit_bundle(
     created_file_descriptors: dict[str, int] = {}
     created_file_identities: dict[str, tuple[int, int]] = {}
     published = False
+    propagating_recovery_error: _PublicationRecoveryError | None = None
     try:
         for _ in range(100):
             candidate = f".{destination.name}.staging-{secrets.token_hex(12)}"
@@ -9540,14 +9614,7 @@ def _publish_new_audit_bundle(
                     staging_identity,
                     created_file_identities,
                 ) from location_exc
-            raise _PublicationRecoveryError(
-                "Долговечность публикации не подтверждена: полный "
-                "каталог уже может быть виден после атомарного переноса; не удаляйте "
-                "его автоматически "
-                "и не передавайте его дальше. После восстановления файловой системы "
-                "повторите эту команду с теми же неизменными входами, указав другую "
-                "отсутствующую папку, и сравните оба результата побайтно."
-            ) from exc
+            raise _publication_durability_uncertain_error() from exc
         try:
             assert_published_state()
         except (OSError, ValueError) as exc:
@@ -9601,14 +9668,18 @@ def _publish_new_audit_bundle(
             and staging_identity is not None
             and not isinstance(exc, _PublicationRecoveryError)
         ):
-            raise _publication_state_uncertain_error(
+            propagating_recovery_error = _publication_state_uncertain_error(
                 publication_parent_identity,
                 destination.name,
                 staging_identity,
                 created_file_identities,
-            ) from exc
+            )
+            raise propagating_recovery_error from exc
+        if isinstance(exc, _PublicationRecoveryError):
+            propagating_recovery_error = exc
         raise
     finally:
+        active_recovery_error = propagating_recovery_error
         cleanup_error: _PublicationRecoveryError | None = None
         publication_error: _PublicationRecoveryError | None = None
         bookkeeping_failure: BaseException | None = None
@@ -9667,23 +9738,35 @@ def _publish_new_audit_bundle(
             except BaseException as exc:
                 if close_failure is None:
                     close_failure = exc
-        if publication_error is not None:
-            raise publication_error
-        if cleanup_error is not None:
-            raise cleanup_error
-        if close_failure is not None:
-            if (
-                published
-                and staging_identity is not None
-                and not isinstance(close_failure, _PublicationRecoveryError)
-            ):
-                raise _publication_finalization_uncertain_error(
-                    publication_parent_identity,
-                    destination.name,
-                    staging_identity,
-                ) from close_failure
+        close_recovery_error: _PublicationRecoveryError | None = None
+        if isinstance(close_failure, _PublicationRecoveryError):
+            close_recovery_error = close_failure
+        elif (
+            close_failure is not None
+            and published
+            and staging_identity is not None
+        ):
+            close_recovery_error = _publication_finalization_uncertain_error(
+                publication_parent_identity,
+                destination.name,
+                staging_identity,
+            )
+        selected_recovery_error = _select_publication_recovery_error(
+            publication_error,
+            cleanup_error,
+            active_recovery_error,
+            close_recovery_error,
+        )
+        if selected_recovery_error is not None:
+            if selected_recovery_error is not active_recovery_error:
+                if selected_recovery_error is close_recovery_error:
+                    if selected_recovery_error is close_failure:
+                        raise selected_recovery_error
+                    raise selected_recovery_error from close_failure
+                raise selected_recovery_error
+        elif close_failure is not None:
             raise close_failure
-        if bookkeeping_failure is not None:
+        elif bookkeeping_failure is not None:
             raise bookkeeping_failure
     if staging_identity is None:
         raise AssertionError("Не сохранена идентичность опубликованного каталога.")
@@ -12687,6 +12770,27 @@ def cmd_source_promote_enumerator(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_publication_recovery_diagnostic_argument(
+    parser: argparse.ArgumentParser,
+) -> None:
+    parser.add_argument(
+        "--recovery-diagnostic-json",
+        action="store_true",
+        help=(
+            "Только при классифицированной неопределённости транзакции публикации "
+            "заменить обычную строку ошибки одной компактной ASCII-строкой JSON в "
+            "стандартном потоке ошибок. Диагностика может содержать приватные имена "
+            "записей, device и inode: храните её приватно. Маршрут "
+            "administrator_only требует администратора; "
+            "repeat_then_compare_candidate лишь обозначает возможный повтор в новую "
+            "папку после устранения причины и не разрешает его автоматически. "
+            "Стандартный вывод остаётся недействительным; команда ничего не "
+            "повторяет, не удаляет и не помещает в карантин и не подтверждает "
+            "безопасность публикации, юридическую готовность или право подачи."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = RussianHelpArgumentParser(
         prog="judicial_meaning.py",
@@ -13440,6 +13544,7 @@ def build_parser() -> argparse.ArgumentParser:
             "расширенной записи ACL, даже запрещающей или ненаследуемой."
         ),
     )
+    _add_publication_recovery_diagnostic_argument(quality_audit_prepare)
     quality_audit_prepare.set_defaults(func=cmd_quality_coding_audit_prepare)
 
     quality_audit_import = quality_sub.add_parser(
@@ -13612,6 +13717,7 @@ def build_parser() -> argparse.ArgumentParser:
             "ACL, даже запрещающей или ненаследуемой."
         ),
     )
+    _add_publication_recovery_diagnostic_argument(quality_audit_import)
     quality_audit_import.set_defaults(func=cmd_quality_coding_audit_review_import)
 
     quality_audit_finalize = quality_sub.add_parser(
@@ -13743,6 +13849,7 @@ def build_parser() -> argparse.ArgumentParser:
             "перезапись запрещена."
         ),
     )
+    _add_publication_recovery_diagnostic_argument(quality_audit_finalize)
     quality_audit_finalize.set_defaults(func=cmd_quality_coding_audit_finalize)
 
     quality_gate_exit_help = (
@@ -14311,6 +14418,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return int(args.func(args))
+    except _PublicationRecoveryError as exc:
+        if getattr(args, "recovery_diagnostic_json", False):
+            diagnostic_line = _publication_recovery_diagnostic_line(
+                exc,
+                command=args.quality_command,
+            )
+            try:
+                _write_stderr_line(diagnostic_line)
+            except BaseException:
+                # The recovery diagnostic itself must never trigger a second
+                # stderr attempt, stdout fallback, or traceback path.
+                return 2
+        else:
+            print(f"Ошибка: {exc}", file=sys.stderr)
+        return 2
     except (
         OSError,
         TypeError,

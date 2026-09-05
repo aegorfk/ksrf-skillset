@@ -1689,6 +1689,208 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         self.assertNotEqual(combined["remediation"], reversed_remediation["remediation"])
         validator.validate(reversed_remediation)
 
+    def test_publication_recovery_diagnostic_schema_is_additive_closed_and_exact(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual("1.5", schema["contract_version"])
+        reference = {
+            "$ref": (
+                "#/definitions/"
+                "coding_audit_publication_recovery_diagnostic"
+            )
+        }
+        self.assertEqual(1, schema["oneOf"].count(reference))
+
+        definition = schema["definitions"][
+            "coding_audit_publication_recovery_diagnostic"
+        ]
+        self.assertEqual("1.0", definition["x-contract-version"])
+        root_keys = {
+            "schema_version",
+            "artifact_type",
+            "command",
+            "error_code",
+            "recovery_route",
+            "stdout_disposition",
+            "message_ru",
+            "exit_code",
+            "scope",
+        }
+        scope_values = {
+            "diagnostic_only": True,
+            "same_destination_retry_allowed": False,
+            "recovery_eligibility_verified": False,
+            "recovery_action_authorized": False,
+            "downstream_use_allowed": False,
+            "automatic_retry_performed": False,
+            "automatic_delete_performed": False,
+            "automatic_quarantine_performed": False,
+            "diagnostic_provenance_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+            "filing_authorized": False,
+        }
+        self.assertEqual(root_keys, set(definition["required"]))
+        self.assertEqual(root_keys, set(definition["properties"]))
+        self.assertFalse(definition["additionalProperties"])
+        scope_definition = definition["properties"]["scope"]
+        self.assertEqual(set(scope_values), set(scope_definition["required"]))
+        self.assertEqual(set(scope_values), set(scope_definition["properties"]))
+        self.assertFalse(scope_definition["additionalProperties"])
+        for key, expected in scope_values.items():
+            self.assertEqual(
+                expected,
+                scope_definition["properties"][key]["const"],
+            )
+
+        commands = (
+            "coding-audit-prepare",
+            "coding-audit-review-import",
+            "coding-audit-finalize",
+        )
+        correlations = {
+            "staging_cleanup_uncertain": (
+                "administrator_only",
+                "empty_invalid",
+            ),
+            "publication_state_uncertain": (
+                "administrator_only",
+                "empty_invalid",
+            ),
+            "publication_durability_uncertain": (
+                "repeat_then_compare_candidate",
+                "empty_invalid",
+            ),
+            "publication_finalization_uncertain": (
+                "repeat_then_compare_candidate",
+                "empty_invalid",
+            ),
+            "confirmation_delivery_uncertain": (
+                "repeat_then_compare_candidate",
+                "empty_partial_or_apparent_complete_invalid",
+            ),
+        }
+        self.assertEqual(
+            set(commands),
+            set(definition["properties"]["command"]["enum"]),
+        )
+        self.assertEqual(
+            set(correlations),
+            set(definition["properties"]["error_code"]["enum"]),
+        )
+        self.assertEqual(
+            {route for route, _ in correlations.values()},
+            set(definition["properties"]["recovery_route"]["enum"]),
+        )
+        self.assertEqual(
+            {disposition for _, disposition in correlations.values()},
+            set(definition["properties"]["stdout_disposition"]["enum"]),
+        )
+        self.assertEqual(2, len(definition["allOf"]))
+        self.assertTrue(
+            all(len(correlation["oneOf"]) == 5 for correlation in definition["allOf"])
+        )
+
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": reference["$ref"],
+                "definitions": schema["definitions"],
+            }
+        )
+        root_validator = Draft202012Validator(schema)
+        report = {
+            "schema_version": "1.0",
+            "artifact_type": "coding_audit_publication_recovery_diagnostic",
+            "command": commands[0],
+            "error_code": "staging_cleanup_uncertain",
+            "recovery_route": "administrator_only",
+            "stdout_disposition": "empty_invalid",
+            "message_ru": "Состояние публикации не подтверждено.",
+            "exit_code": 2,
+            "scope": scope_values,
+        }
+        for index, (error_code, pair) in enumerate(correlations.items()):
+            route, disposition = pair
+            candidate = copy.deepcopy(report)
+            candidate.update(
+                {
+                    "command": commands[index % len(commands)],
+                    "error_code": error_code,
+                    "recovery_route": route,
+                    "stdout_disposition": disposition,
+                }
+            )
+            with self.subTest(valid_pair=error_code):
+                validator.validate(candidate)
+                root_validator.validate(candidate)
+
+        for missing in root_keys:
+            candidate = copy.deepcopy(report)
+            del candidate[missing]
+            with self.subTest(missing_root=missing):
+                self.assertTrue(list(validator.iter_errors(candidate)))
+        extra_root = copy.deepcopy(report)
+        extra_root["retry_allowed"] = True
+        self.assertTrue(list(validator.iter_errors(extra_root)))
+
+        for missing in scope_values:
+            candidate = copy.deepcopy(report)
+            del candidate["scope"][missing]
+            with self.subTest(missing_scope=missing):
+                self.assertTrue(list(validator.iter_errors(candidate)))
+        extra_scope = copy.deepcopy(report)
+        extra_scope["scope"]["human_approval_created"] = False
+        self.assertTrue(list(validator.iter_errors(extra_scope)))
+
+        for key, expected in scope_values.items():
+            candidate = copy.deepcopy(report)
+            candidate["scope"][key] = not expected
+            with self.subTest(forged_scope=key):
+                self.assertTrue(list(validator.iter_errors(candidate)))
+
+        for error_code, pair in correlations.items():
+            route, disposition = pair
+            wrong_route = (
+                "repeat_then_compare_candidate"
+                if route == "administrator_only"
+                else "administrator_only"
+            )
+            wrong_disposition = (
+                "empty_partial_or_apparent_complete_invalid"
+                if disposition == "empty_invalid"
+                else "empty_invalid"
+            )
+            forged_route = copy.deepcopy(report)
+            forged_route.update(
+                {
+                    "error_code": error_code,
+                    "recovery_route": wrong_route,
+                    "stdout_disposition": disposition,
+                }
+            )
+            forged_disposition = copy.deepcopy(report)
+            forged_disposition.update(
+                {
+                    "error_code": error_code,
+                    "recovery_route": route,
+                    "stdout_disposition": wrong_disposition,
+                }
+            )
+            with self.subTest(wrong_route=error_code):
+                self.assertTrue(list(validator.iter_errors(forged_route)))
+            with self.subTest(wrong_stdout_disposition=error_code):
+                self.assertTrue(list(validator.iter_errors(forged_disposition)))
+
+        for forged in (
+            {**report, "error_code": "unknown_recovery"},
+            {**report, "command": "coding-audit-compare"},
+            {**report, "message_ru": ""},
+            {**report, "exit_code": 3},
+        ):
+            with self.subTest(forged=forged):
+                self.assertTrue(list(validator.iter_errors(forged)))
+
     def test_native_profile_fields_are_required_only_for_claim_use(self):
         dimension = {
             "state": "verified",

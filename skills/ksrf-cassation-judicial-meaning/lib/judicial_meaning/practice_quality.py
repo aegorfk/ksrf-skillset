@@ -28,6 +28,22 @@ from .public_corpus import (
 
 SCHEMA_VERSION = "1.0"
 
+CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS = (
+    "coding-audit-prepare",
+    "coding-audit-review-import",
+    "coding-audit-finalize",
+)
+_CODING_AUDIT_PUBLICATION_RECOVERY_ROUTE_BY_ERROR = {
+    "staging_cleanup_uncertain": "administrator_only",
+    "publication_state_uncertain": "administrator_only",
+    "publication_durability_uncertain": "repeat_then_compare_candidate",
+    "publication_finalization_uncertain": "repeat_then_compare_candidate",
+    "confirmation_delivery_uncertain": "repeat_then_compare_candidate",
+}
+CODING_AUDIT_PUBLICATION_RECOVERY_ERROR_CODES = tuple(
+    _CODING_AUDIT_PUBLICATION_RECOVERY_ROUTE_BY_ERROR
+)
+
 UNCERTAINTY_DIMENSIONS = (
     "comparable_reading_plurality",
     "fact_sensitivity",
@@ -581,6 +597,66 @@ def _coding_visible_text(value: Any) -> bool:
             for character in value
         )
     )
+
+
+def coding_audit_publication_recovery_route(error_code: str) -> str:
+    """Return the closed recovery route for one publication error code."""
+
+    if (
+        type(error_code) is not str
+        or error_code not in _CODING_AUDIT_PUBLICATION_RECOVERY_ROUTE_BY_ERROR
+    ):
+        raise ValueError("Неизвестный код восстановления публикации аудита.")
+    return _CODING_AUDIT_PUBLICATION_RECOVERY_ROUTE_BY_ERROR[error_code]
+
+
+def build_coding_audit_publication_recovery_diagnostic(
+    command: str,
+    error_code: str,
+    message_ru: str,
+) -> dict[str, Any]:
+    """Build a closed, side-effect-free diagnostic for a publication failure."""
+
+    state_error = "Внутреннее состояние диагностики публикации аудита некорректно."
+    if (
+        type(command) is not str
+        or command not in CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS
+        or type(error_code) is not str
+        or error_code not in CODING_AUDIT_PUBLICATION_RECOVERY_ERROR_CODES
+        or type(message_ru) is not str
+        or not _coding_visible_text(message_ru)
+    ):
+        raise ValueError(state_error)
+    recovery_route = coding_audit_publication_recovery_route(error_code)
+    stdout_disposition = (
+        "empty_partial_or_apparent_complete_invalid"
+        if error_code == "confirmation_delivery_uncertain"
+        else "empty_invalid"
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": "coding_audit_publication_recovery_diagnostic",
+        "command": command,
+        "error_code": error_code,
+        "recovery_route": recovery_route,
+        "stdout_disposition": stdout_disposition,
+        "message_ru": message_ru,
+        "exit_code": 2,
+        "scope": {
+            "diagnostic_only": True,
+            "same_destination_retry_allowed": False,
+            "recovery_eligibility_verified": False,
+            "recovery_action_authorized": False,
+            "downstream_use_allowed": False,
+            "automatic_retry_performed": False,
+            "automatic_delete_performed": False,
+            "automatic_quarantine_performed": False,
+            "diagnostic_provenance_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+            "filing_authorized": False,
+        },
+    }
 
 
 def _coding_adjudication_field_value_valid(field: str, value: Any) -> bool:
@@ -6601,6 +6677,8 @@ def assess_prefiling_refresh(
 __all__ = [
     "AUDIT_CODING_RECORD_FIELDS",
     "AUDITED_CODING_FIELDS",
+    "CODING_AUDIT_PUBLICATION_RECOVERY_COMMANDS",
+    "CODING_AUDIT_PUBLICATION_RECOVERY_ERROR_CODES",
     "CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS",
     "CODING_REVIEW_CUSTOM_FIELD_RESOLUTION_FIELDS",
     "CODING_REVIEW_FIELD_RESOLUTION_FIELDS",
@@ -6614,6 +6692,7 @@ __all__ = [
     "assess_coding_reliability",
     "assess_prefiling_refresh",
     "build_coding_audit_plan",
+    "build_coding_audit_publication_recovery_diagnostic",
     "build_native_coding_audit_finalization",
     "build_native_coding_audit_inputs",
     "build_native_coding_review_import",
@@ -6622,5 +6701,6 @@ __all__ = [
     "build_native_reliability_doctor_report",
     "build_uncertainty_profile",
     "canonical_digest",
+    "coding_audit_publication_recovery_route",
     "verify_native_coding_reliability",
 ]

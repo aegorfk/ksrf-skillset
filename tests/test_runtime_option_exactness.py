@@ -133,8 +133,101 @@ for family, parser in families.items():
 print(json.dumps({"counts": counts, "violations": violations}, sort_keys=True))
 """
 
+_RECOVERY_DIAGNOSTIC_OPTION_CODE = r"""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+skills_root = root / "skills" if (root / "skills").is_dir() else root
+sys.path.insert(0, str(skills_root / "ksrf-cassation-judicial-meaning" / "lib"))
+
+from judicial_meaning.cli import build_parser
+
+found = []
+pending = [((), build_parser())]
+seen = set()
+while pending:
+    route, parser = pending.pop()
+    if id(parser) in seen:
+        continue
+    seen.add(id(parser))
+    for action in parser._actions:
+        if "--recovery-diagnostic-json" in action.option_strings:
+            found.append(
+                {
+                    "route": route,
+                    "options": action.option_strings,
+                    "action_class": type(action).__name__,
+                    "required": action.required,
+                    "default": action.default,
+                    "const": action.const,
+                    "nargs": action.nargs,
+                }
+            )
+        if isinstance(action, argparse._SubParsersAction):
+            for name, child in action.choices.items():
+                pending.append(((*route, name), child))
+
+print(json.dumps(sorted(found, key=lambda item: item["route"]), sort_keys=True))
+"""
+
 
 class RuntimeOptionExactnessTests(unittest.TestCase):
+    def test_recovery_diagnostic_flag_is_exact_and_limited_to_publishers(self) -> None:
+        expected = [
+            {
+                "route": ["quality", "coding-audit-finalize"],
+                "options": ["--recovery-diagnostic-json"],
+                "action_class": "_StoreTrueAction",
+                "required": False,
+                "default": False,
+                "const": True,
+                "nargs": 0,
+            },
+            {
+                "route": ["quality", "coding-audit-prepare"],
+                "options": ["--recovery-diagnostic-json"],
+                "action_class": "_StoreTrueAction",
+                "required": False,
+                "default": False,
+                "const": True,
+                "nargs": 0,
+            },
+            {
+                "route": ["quality", "coding-audit-review-import"],
+                "options": ["--recovery-diagnostic-json"],
+                "action_class": "_StoreTrueAction",
+                "required": False,
+                "default": False,
+                "const": True,
+                "nargs": 0,
+            },
+        ]
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            installed = root / "installed skills"
+            self._install(installed, cwd=root)
+
+            for location, payload_root in (("source", REPO), ("installed", installed)):
+                with self.subTest(location=location):
+                    completed = subprocess.run(
+                        [
+                            PYTHON,
+                            "-c",
+                            _RECOVERY_DIAGNOSTIC_OPTION_CODE,
+                            str(payload_root),
+                        ],
+                        cwd=root,
+                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertEqual(json.loads(completed.stdout), expected)
+
     def test_every_public_custom_parser_disables_abbreviation_in_source_and_install(
         self,
     ) -> None:

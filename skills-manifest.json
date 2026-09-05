@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-05T03:43:48Z",
+  "generated_at": "2026-09-05T04:47:39Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "acdcc3ebc06fb807fdc45d3f0c76981e217f71f7",
+  "remote_base_commit": "797cf93d355c6fa6d0b0fc46ecea598493a5902c",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 254,
-  "total_bytes": 9947054,
-  "tree_sha256": "7caf2bb552e64f7f7d2bfa16a4f7a62aca2eeb34b8920b794ceeb9c78edaa555",
+  "total_bytes": 9971417,
+  "tree_sha256": "160b3f5818fc9f8231bb0d242ff4560b756d7f410df33940d3fbe3d9b152bd61",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -46,8 +46,8 @@
     {
       "name": "ksrf-cassation-judicial-meaning",
       "files": 33,
-      "bytes": 2178444,
-      "tree_sha256": "28fbd5ac1e9dd49a29ec127a6c6823110350d1b15bde6722491ffaf4c8c059b2"
+      "bytes": 2202807,
+      "tree_sha256": "ac4077d42e6a8ba46dbb53df9c014c81ae881564c37c342ac9cc6b7436e86cbc"
     },
     {
       "name": "ksrf-complaint-cycle",

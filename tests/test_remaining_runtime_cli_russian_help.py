@@ -115,11 +115,23 @@ EXPECTED_ROUTE_COUNTS = {
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "c817ae16bd49d229cc068ca439cd775c0ecb4961e8fdceae77d98f47a0efba0c",
+    "judicial": "d7747093a946409372f75d840cd199cc7f496fe9c660bbd28934f66b4425a8f9",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
 }
+
+PUBLICATION_RECOVERY_DIAGNOSTIC_HELP = (
+    "--recovery-diagnostic-json",
+    "одной компактной ASCII-строкой JSON в стандартном потоке ошибок",
+    "может содержать приватные имена записей, device и inode",
+    "administrator_only требует администратора",
+    "repeat_then_compare_candidate лишь обозначает возможный повтор",
+    "не разрешает его автоматически",
+    "Стандартный вывод остаётся недействительным",
+    "ничего не повторяет, не удаляет и не помещает в карантин",
+    "не подтверждает безопасность публикации, юридическую готовность или право подачи",
+)
 
 ALLOWED_EXPLICIT_PRESENTATION_METAVARS = {
     (
@@ -347,6 +359,7 @@ REQUIRED_ROUTE_HELP = {
         "точные связи и все независимые барьеры",
     ),
     ("judicial", ("quality", "coding-audit-prepare")): (
+        *PUBLICATION_RECOVERY_DIAGNOSTIC_HELP,
         "--workspace",
         "--codebook-version",
         "--sample-size",
@@ -380,6 +393,7 @@ REQUIRED_ROUTE_HELP = {
         "не означает юридическую готовность",
     ),
     ("judicial", ("quality", "coding-audit-review-import")): (
+        *PUBLICATION_RECOVERY_DIAGNOSTIC_HELP,
         "--bundle",
         "--expected-manifest-sha256",
         "--expected-secondary-coder",
@@ -428,6 +442,9 @@ REQUIRED_ROUTE_HELP = {
         "канонической контрольной суммой решения расхождения",
         "1.1",
         "1.2",
+    ),
+    ("judicial", ("quality", "coding-audit-finalize")): (
+        *PUBLICATION_RECOVERY_DIAGNOSTIC_HELP,
     ),
     ("judicial", ("handoff", "create")): (
         "selected_authorities — устаревший тип версии 1 только для аудита",
