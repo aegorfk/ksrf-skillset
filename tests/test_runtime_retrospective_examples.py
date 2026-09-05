@@ -51,9 +51,9 @@ QA_EVAL = REPO / "skills" / "ksrf-complaint-qa" / "evals" / "evals.json"
 QA_EVAL_SHA256 = "3fd8b3495006a16a717fca127905b5b99908169f4753c2c0c603702efb730b71"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        211,
-        32154,
-        "a524815c150b7b1c2b5a176cb5ea92400f99a6752827e06f5cd08eb2adaf9ab6",
+        227,
+        33892,
+        "bc5d83a23252829317042b12c9c59bec83f3909b3511f29c0be502fd31725f76",
     ),
     EXAMPLES["39"]: (
         83,
