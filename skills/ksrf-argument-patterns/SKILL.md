@@ -53,6 +53,17 @@ Pattern match становится опорой только после ручн
    Если спор касается уровня абстракции, правила и его основания, holding/analogy либо цели толкования, открой `references/legal-reasoning-model-branches.md`: запускай конкурирующие модели параллельно и сохраняй `model_conflict`, не выбирая школу голосованием. Для воспроизводимой реконструкции ratio, силы прецедента, различения и defeasible argument graph дополнительно используй `references/precedent-analogy-and-justification.md`; сходство, найденное retrieval, не является relevance rule. Для иностранного института или довода заполни `references/institutional-discourse-and-comparative-transfer.md`, а при вопросах доступа, предмета жалобы, взаимодействия институтов или эффекта решения — `references/constitutional-institutions-access-and-remedy.md`; сходство названия или функции не закрывает contextual transfer и российский competence gate.
 8. Передай findings обратно в argument ledger. Если практика высших судов исследуется через CasusLegal, маршрутизируй проверенные кандидаты через `ksrf-practice-authority-builder`: сохрани тот же relation, добавь authority role, source status, transfer limit и adverse pass. Не собирай обязательный пакет `основной + усиливающий + сохраняющий + remedy`, если структура дела требует иного портфеля.
 
+## От нижестоящего акта к переносимому доводу
+
+Когда задача начинается с текста дела, используй [приёмы контролируемого
+переноса](references/transfer-methods.md) и [их условия](references/transfer-methods.json):
+выдели механизм, необходимые посылки, опровергающие случаи и самостоятельные
+основания отказа. Это автономная методика постановки вопроса, а не набор
+ответов по исходам дел. При необходимости проверь полноту доказательных
+условий через `scripts/check_transfer.py`; результат candidate не доказывает
+истинность посылок или готовность жалобы. Новая evaluator-derived методика
+от 2026-09-05 не допускается в исторический EVAL и не имеет обратной даты.
+
 ## Семейства как поисковые seeds
 
 Текущий реестр включает practice split, certainty, constitutional meaning, proportionality, balance, effective remedy, procedural guarantees, equality, expectations, retroactivity, non-mechanical application, liability fairness, compensation, positive obligations, competence, legislative gaps, good faith, dignity, international standards и execution.
