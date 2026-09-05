@@ -101,6 +101,8 @@ description: "Скилл организует полный цикл обраще
 
 ## Дополнительные references
 
+Если материалы касаются вынужденного выбора между правовыми статусами, открой [проверку запретов совмещения](../ksrf-rights-argument-builder/references/status-incompatibility-and-qualified-silence.md). Если передано заключение amicus, сначала установи его собственный предмет по [карточке заключения и толкования](../ksrf-doctrine-research/references/amicus-interpretation-and-remedy.md); соседняя жалоба не определяет его дело.
+
 Открывай только по совпавшему trigger:
 
 - `references/offline-practice-core.md` — автономный правовой baseline;

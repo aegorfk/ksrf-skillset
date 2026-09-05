@@ -82,6 +82,8 @@ description: Скилл превращает утверждённый портф
 
 ## Справочники
 
+- [Совмещение статусов и квалифицированное умолчание](references/status-incompatibility-and-qualified-silence.md) — если толкование вынуждает отказаться от одного статуса ради другого; отдельно проверь функции, последствия и возможное оправдание запрета.
+
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная архитектура аргумента, safety-valve, determinacy и evidence-role тесты.
 - `../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md` — connector-first, exact hydration, actor lanes, `ECHRArgumentPacket` и method-only lifecycle.
 - `../ksrf-complaint-cycle/references/strategic-complaint-design.md` — государственная связка частного спора, профессиональные гарантии и внешний эффект решения.
