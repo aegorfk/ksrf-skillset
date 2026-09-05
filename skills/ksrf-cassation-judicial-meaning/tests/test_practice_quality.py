@@ -488,6 +488,137 @@ class PracticeQualityTests(unittest.TestCase):
                         changed = True
         return checks
 
+    def native_review_import_comparison_checks(self, **changes):
+        checks = {
+            "common_parent_valid": True,
+            "directories_distinct": True,
+            "source_bundle_readable": True,
+            "source_bundle_private": True,
+            "source_bundle_inventory_exact": True,
+            "expected_manifest_sha256_valid": True,
+            "source_bundle_contract_valid": True,
+            "source_bundle_external_manifest_digest_valid": True,
+            "installed_codebook_readable": True,
+            "installed_codebook_binding_valid": True,
+            "uncertain_directory_readable": True,
+            "repeated_directory_readable": True,
+            "uncertain_directory_private": True,
+            "repeated_directory_private": True,
+            "uncertain_inventory_exact": True,
+            "repeated_inventory_exact": True,
+            "expected_import_receipt_sha256_valid": True,
+            "uncertain_artifact_contracts_valid": True,
+            "repeated_artifact_contracts_valid": True,
+            "uncertain_receipt_self_digest_valid": True,
+            "repeated_receipt_self_digest_valid": True,
+            "repeated_external_receipt_digest_valid": True,
+            "uncertain_receipt_file_binding_valid": True,
+            "repeated_receipt_file_binding_valid": True,
+            "uncertain_bundle_relation_valid": True,
+            "repeated_bundle_relation_valid": True,
+            "import_directory_file_bytes_equal": True,
+            "final_recapture_valid": True,
+        }
+        checks.update(changes)
+        return checks
+
+    def review_import_comparison_checks_with_failure(self, failed_check):
+        checks = self.native_review_import_comparison_checks(
+            **{failed_check: False}
+        )
+        prerequisites = {
+            "directories_distinct": (
+                "common_parent_valid",
+                "source_bundle_readable",
+                "uncertain_directory_readable",
+                "repeated_directory_readable",
+            ),
+            "source_bundle_private": (
+                "common_parent_valid",
+                "source_bundle_readable",
+            ),
+            "uncertain_directory_private": (
+                "common_parent_valid",
+                "uncertain_directory_readable",
+            ),
+            "repeated_directory_private": (
+                "common_parent_valid",
+                "repeated_directory_readable",
+            ),
+            "source_bundle_inventory_exact": ("source_bundle_private",),
+            "uncertain_inventory_exact": ("uncertain_directory_private",),
+            "repeated_inventory_exact": ("repeated_directory_private",),
+            "source_bundle_contract_valid": (
+                "source_bundle_inventory_exact",
+            ),
+            "source_bundle_external_manifest_digest_valid": (
+                "source_bundle_contract_valid",
+                "expected_manifest_sha256_valid",
+            ),
+            "installed_codebook_readable": (
+                "source_bundle_inventory_exact",
+            ),
+            "installed_codebook_binding_valid": (
+                "source_bundle_contract_valid",
+                "installed_codebook_readable",
+            ),
+            "uncertain_artifact_contracts_valid": (
+                "uncertain_inventory_exact",
+            ),
+            "repeated_artifact_contracts_valid": (
+                "repeated_inventory_exact",
+            ),
+            "uncertain_receipt_self_digest_valid": (
+                "uncertain_artifact_contracts_valid",
+            ),
+            "repeated_receipt_self_digest_valid": (
+                "repeated_artifact_contracts_valid",
+            ),
+            "repeated_external_receipt_digest_valid": (
+                "repeated_artifact_contracts_valid",
+                "expected_import_receipt_sha256_valid",
+            ),
+            "uncertain_receipt_file_binding_valid": (
+                "uncertain_artifact_contracts_valid",
+            ),
+            "repeated_receipt_file_binding_valid": (
+                "repeated_artifact_contracts_valid",
+            ),
+            "uncertain_bundle_relation_valid": (
+                "source_bundle_contract_valid",
+                "uncertain_artifact_contracts_valid",
+            ),
+            "repeated_bundle_relation_valid": (
+                "source_bundle_contract_valid",
+                "repeated_artifact_contracts_valid",
+            ),
+            "import_directory_file_bytes_equal": (
+                "directories_distinct",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+            ),
+            "final_recapture_valid": (
+                "common_parent_valid",
+                "directories_distinct",
+                "source_bundle_inventory_exact",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+                "source_bundle_contract_valid",
+                "installed_codebook_readable",
+            ),
+        }
+        changed = True
+        while changed:
+            changed = False
+            for check, required in prerequisites.items():
+                if check == failed_check:
+                    continue
+                if any(checks[item] is not True for item in required):
+                    if checks[check] is not None:
+                        checks[check] = None
+                        changed = True
+        return checks
+
     def test_native_reliability_verifier_is_public(self):
         api = self.api()
         self.assertTrue(
@@ -935,6 +1066,321 @@ class PracticeQualityTests(unittest.TestCase):
                         input_reason_codes=reason_input,
                     )
                 self.assertNotIn(hostile, str(invalid_reason.exception))
+
+    def test_native_review_import_comparison_builder_is_public_and_keyword_only(self):
+        api = self.api()
+        builder = getattr(
+            api,
+            "build_native_review_import_comparison_report",
+            None,
+        )
+        self.assertTrue(callable(builder))
+        self.assertIn(
+            "build_native_review_import_comparison_report",
+            api.__all__,
+        )
+        parameters = inspect.signature(builder).parameters
+        self.assertEqual(["checks", "input_reason_codes"], list(parameters))
+        self.assertTrue(
+            all(
+                parameter.kind is inspect.Parameter.KEYWORD_ONLY
+                for parameter in parameters.values()
+            )
+        )
+        self.assertEqual((), parameters["input_reason_codes"].default)
+
+    def test_native_review_import_comparison_match_is_exact_and_value_free(self):
+        api = self.api()
+        checks = self.native_review_import_comparison_checks()
+        snapshot = copy.deepcopy(checks)
+        report = api.build_native_review_import_comparison_report(checks=checks)
+
+        self.assertEqual(
+            {
+                "schema_version",
+                "artifact_type",
+                "status",
+                "recovery_comparison_valid",
+                "reason_codes",
+                "checks",
+                "remediation",
+                "scope",
+            },
+            set(report),
+        )
+        self.assertEqual("1.0", report["schema_version"])
+        self.assertEqual(
+            "native_review_import_comparison_report",
+            report["artifact_type"],
+        )
+        self.assertEqual("match", report["status"])
+        self.assertIs(report["recovery_comparison_valid"], True)
+        self.assertEqual([], report["reason_codes"])
+        self.assertEqual(checks, report["checks"])
+        self.assertEqual([], report["remediation"])
+        self.assertEqual(
+            {
+                "technical_recovery_comparison_only": True,
+                "original_recovery_eligibility_verified": False,
+                "prepare_normal_return_verified": False,
+                "repeat_normal_return_verified": False,
+                "external_manifest_digest_provenance_authenticated": False,
+                "external_import_receipt_digest_provenance_authenticated": False,
+                "original_durability_verified": False,
+                "source_workspace_reverified": False,
+                "returned_secondary_file_reverified": False,
+                "consumer_revalidation_required": True,
+                "reviewer_identity_authenticated": False,
+                "publication_safe": False,
+                "legal_readiness": False,
+                "filing_authorized": False,
+            },
+            report["scope"],
+        )
+        self.assertEqual(snapshot, checks)
+        self.assertEqual(
+            report,
+            api.build_native_review_import_comparison_report(
+                checks=copy.deepcopy(checks)
+            ),
+        )
+
+    def test_native_review_import_comparison_maps_every_false_check(self):
+        api = self.api()
+        reason_by_check = {
+            "common_parent_valid": "comparison_topology_invalid",
+            "directories_distinct": "comparison_topology_invalid",
+            "source_bundle_readable": "source_bundle_unreadable",
+            "source_bundle_private": "source_bundle_privacy_invalid",
+            "source_bundle_inventory_exact": "source_bundle_inventory_invalid",
+            "expected_manifest_sha256_valid": "expected_manifest_sha256_invalid",
+            "source_bundle_contract_valid": "source_bundle_artifact_contract_invalid",
+            "source_bundle_external_manifest_digest_valid": "external_manifest_digest_mismatch",
+            "installed_codebook_readable": "installed_codebook_unreadable",
+            "installed_codebook_binding_valid": "source_bundle_artifact_contract_invalid",
+            "uncertain_directory_readable": "uncertain_review_import_unreadable",
+            "repeated_directory_readable": "repeated_review_import_unreadable",
+            "uncertain_directory_private": "uncertain_review_import_privacy_invalid",
+            "repeated_directory_private": "repeated_review_import_privacy_invalid",
+            "uncertain_inventory_exact": "uncertain_review_import_inventory_invalid",
+            "repeated_inventory_exact": "repeated_review_import_inventory_invalid",
+            "expected_import_receipt_sha256_valid": "expected_import_receipt_sha256_invalid",
+            "uncertain_artifact_contracts_valid": "uncertain_review_import_artifact_contract_invalid",
+            "repeated_artifact_contracts_valid": "repeated_review_import_artifact_contract_invalid",
+            "uncertain_receipt_self_digest_valid": "uncertain_review_import_receipt_self_digest_mismatch",
+            "repeated_receipt_self_digest_valid": "repeated_review_import_receipt_self_digest_mismatch",
+            "repeated_external_receipt_digest_valid": "external_import_receipt_digest_mismatch",
+            "uncertain_receipt_file_binding_valid": "uncertain_review_import_file_binding_mismatch",
+            "repeated_receipt_file_binding_valid": "repeated_review_import_file_binding_mismatch",
+            "uncertain_bundle_relation_valid": "uncertain_review_import_bundle_relation_mismatch",
+            "repeated_bundle_relation_valid": "repeated_review_import_bundle_relation_mismatch",
+            "import_directory_file_bytes_equal": "review_import_directory_bytes_mismatch",
+            "final_recapture_valid": "comparison_input_changed",
+        }
+        unreadable = {
+            "source_bundle_unreadable",
+            "installed_codebook_unreadable",
+            "uncertain_review_import_unreadable",
+            "repeated_review_import_unreadable",
+            "comparison_input_changed",
+        }
+        invalid = {
+            "comparison_topology_invalid",
+            "source_bundle_privacy_invalid",
+            "uncertain_review_import_privacy_invalid",
+            "repeated_review_import_privacy_invalid",
+            "source_bundle_inventory_invalid",
+            "uncertain_review_import_inventory_invalid",
+            "repeated_review_import_inventory_invalid",
+            "expected_manifest_sha256_invalid",
+            "expected_import_receipt_sha256_invalid",
+            "source_bundle_artifact_contract_invalid",
+            "uncertain_review_import_artifact_contract_invalid",
+            "repeated_review_import_artifact_contract_invalid",
+        }
+        for check, reason in reason_by_check.items():
+            with self.subTest(check=check):
+                report = api.build_native_review_import_comparison_report(
+                    checks=self.review_import_comparison_checks_with_failure(check)
+                )
+                self.assertEqual([reason], report["reason_codes"])
+                self.assertEqual(
+                    "unreadable"
+                    if reason in unreadable
+                    else "invalid"
+                    if reason in invalid
+                    else "mismatch",
+                    report["status"],
+                )
+                if reason in unreadable - {"comparison_input_changed"}:
+                    remediation = ["check_local_read_access"]
+                elif reason == "comparison_input_changed":
+                    remediation = [
+                        "preserve_and_stop",
+                        "administrator_quarantine",
+                    ]
+                elif reason in invalid - {
+                    "expected_manifest_sha256_invalid",
+                    "expected_import_receipt_sha256_invalid",
+                }:
+                    remediation = [
+                        "preserve_and_stop",
+                        "use_safe_complete_siblings",
+                        "administrator_quarantine",
+                    ]
+                elif reason in {
+                    "expected_manifest_sha256_invalid",
+                    "external_manifest_digest_mismatch",
+                }:
+                    remediation = [
+                        "preserve_and_stop",
+                        "retain_successful_prepare_digest",
+                    ]
+                elif reason in {
+                    "expected_import_receipt_sha256_invalid",
+                    "external_import_receipt_digest_mismatch",
+                }:
+                    remediation = [
+                        "preserve_and_stop",
+                        "retain_successful_repeat_digest",
+                    ]
+                else:
+                    remediation = [
+                        "preserve_and_stop",
+                        "repeat_import_after_mismatch",
+                    ]
+                self.assertEqual(
+                    remediation,
+                    [item["code"] for item in report["remediation"]],
+                )
+
+    def test_native_review_import_comparison_preserves_independent_checks(self):
+        api = self.api()
+        receipt_self_mismatch = (
+            self.native_review_import_comparison_checks(
+                repeated_receipt_self_digest_valid=False
+            )
+        )
+        report = api.build_native_review_import_comparison_report(
+            checks=receipt_self_mismatch
+        )
+        self.assertIs(
+            report["checks"]["repeated_external_receipt_digest_valid"],
+            True,
+        )
+        self.assertIs(report["checks"]["repeated_bundle_relation_valid"], True)
+
+        external_manifest_mismatch = (
+            self.native_review_import_comparison_checks(
+                source_bundle_external_manifest_digest_valid=False
+            )
+        )
+        report = api.build_native_review_import_comparison_report(
+            checks=external_manifest_mismatch
+        )
+        self.assertIs(report["checks"]["uncertain_bundle_relation_valid"], True)
+        self.assertIs(report["checks"]["repeated_bundle_relation_valid"], True)
+
+        codebook_unreadable = self.review_import_comparison_checks_with_failure(
+            "installed_codebook_readable"
+        )
+        report = api.build_native_review_import_comparison_report(
+            checks=codebook_unreadable
+        )
+        self.assertEqual(["installed_codebook_unreadable"], report["reason_codes"])
+        self.assertIsNone(report["checks"]["installed_codebook_binding_valid"])
+        self.assertIsNone(report["checks"]["final_recapture_valid"])
+        self.assertIs(report["checks"]["source_bundle_readable"], True)
+
+        codebook_mismatch = self.native_review_import_comparison_checks(
+            installed_codebook_binding_valid=False
+        )
+        report = api.build_native_review_import_comparison_report(
+            checks=codebook_mismatch
+        )
+        self.assertEqual(
+            ["source_bundle_artifact_contract_invalid"],
+            report["reason_codes"],
+        )
+        self.assertIs(report["checks"]["final_recapture_valid"], True)
+
+    def test_native_review_import_comparison_admin_fault_suppresses_repeat(self):
+        api = self.api()
+        checks = self.review_import_comparison_checks_with_failure(
+            "uncertain_artifact_contracts_valid"
+        )
+        checks["import_directory_file_bytes_equal"] = False
+        report = api.build_native_review_import_comparison_report(checks=checks)
+        self.assertEqual(
+            [
+                "uncertain_review_import_artifact_contract_invalid",
+                "review_import_directory_bytes_mismatch",
+            ],
+            report["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "preserve_and_stop",
+                "use_safe_complete_siblings",
+                "administrator_quarantine",
+            ],
+            [item["code"] for item in report["remediation"]],
+        )
+
+    def test_native_review_import_comparison_rejects_contradictory_or_hostile_state(self):
+        api = self.api()
+        valid = self.native_review_import_comparison_checks()
+        hostile = "СЕКРЕТНЫЙ-ПУТЬ-И-ДАЙДЖЕСТ"
+        source_unreadable = self.review_import_comparison_checks_with_failure(
+            "source_bundle_readable"
+        )
+        contradiction_cases = (
+            [],
+            {key: value for key, value in valid.items() if key != "final_recapture_valid"},
+            {**valid, "private_check": False},
+            {**valid, "common_parent_valid": None},
+            {**valid, "installed_codebook_readable": False},
+            {
+                **valid,
+                "repeated_artifact_contracts_valid": False,
+                "repeated_external_receipt_digest_valid": False,
+            },
+            {
+                **source_unreadable,
+                "installed_codebook_readable": True,
+            },
+            {**valid, "import_directory_file_bytes_equal": None},
+            {**valid, "final_recapture_valid": None},
+            {**valid, "common_parent_valid": hostile},
+        )
+        for checks in contradiction_cases:
+            with self.subTest(checks=checks):
+                with self.assertRaises(ValueError) as invalid:
+                    api.build_native_review_import_comparison_report(checks=checks)
+                self.assertNotIn(hostile, str(invalid.exception))
+
+        unreadable = self.review_import_comparison_checks_with_failure(
+            "installed_codebook_readable"
+        )
+        accepted = api.build_native_review_import_comparison_report(
+            checks=unreadable,
+            input_reason_codes=("installed_codebook_unreadable",),
+        )
+        self.assertEqual(["installed_codebook_unreadable"], accepted["reason_codes"])
+        for invalid_reasons in (
+            hostile,
+            (hostile,),
+            ("installed_codebook_unreadable",) * 2,
+            (1,),
+            ("source_bundle_unreadable",),
+        ):
+            with self.subTest(input_reason_codes=invalid_reasons):
+                with self.assertRaises(ValueError) as invalid:
+                    api.build_native_review_import_comparison_report(
+                        checks=unreadable,
+                        input_reason_codes=invalid_reasons,
+                    )
+                self.assertNotIn(hostile, str(invalid.exception))
 
     def test_native_reliability_doctor_accepts_exact_triple_value_free(self):
         api = self.api()

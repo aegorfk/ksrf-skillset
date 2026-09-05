@@ -85,6 +85,27 @@ python3 "$JM" quality coding-audit-review-import \
 
 Любая ошибка или прерывание после публикации, но до начала передачи подтверждения, образует отдельное состояние неопределённой финализации. Сюда входят отказ или прерывание закрытия удерживаемого дескриптора созданного файла, опубликованного каталога или родителя, а также прерывание оболочки после возврата внутреннего издателя либо после закрытия родителя, но до входа в доставку. Финальное подтверждение в stdout к этому моменту ещё не формировалось и вывод должен быть пустым; код `2` не доказывает отсутствия уже созданного каталога. Эта диагностика не должна описываться как самостоятельное подтверждение долговечности результата. Сохраните входы и найденный каталог неизменными, не используйте его и не повторяйте команду в ту же папку; после устранения системной ошибки повторите операцию с теми же входами в новую отсутствующую соседнюю папку, получите успешный stdout и сравните каталоги побайтно. Якоря подготовки либо контрольную сумму квитанции и флаги импорта берите только из успешного повтора. Отличие этой ветки от сбоя stdout закреплено тестами [`test_parent_close_failure_after_publish_has_distinct_empty_stdout_route`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_review_import_cli.py), [`test_published_file_or_directory_close_failure_blocks_confirmation`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_review_import_cli.py), [`test_keyboard_interrupt_during_published_descriptor_close_is_classified`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_review_import_cli.py), [`test_import_interrupt_after_inner_return_uses_publisher_state`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_review_import_cli.py), [`test_prepare_interrupt_after_inner_return_uses_publisher_state`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_audit_producer.py) и [`test_prepare_interrupt_after_parent_close_before_delivery_is_finalization`](skills/ksrf-cassation-judicial-meaning/tests/test_native_coding_audit_producer.py).
 
+#### Сверка двух импортов после разрешённого повтора
+
+Один код `2` не разрешает этот маршрут. Используйте его только тогда, когда полная исходная диагностика импорта прямо разрешила сохранить всё неизменным, повторить импорт в новую соседнюю папку и сравнить результаты. Если диагностика требует очистки, проверки местоположения, целостности или ACL, учёта inode/жёстких ссылок либо карантина, остановите автоматику и передайте состояние системному администратору.
+
+```bash
+AUDIT_BUNDLE="./coding-audit-inputs"
+UNCERTAIN_REVIEW_IMPORT_DIR="./coding-audit-review-import-uncertain"
+REPEATED_REVIEW_IMPORT_DIR="./coding-audit-review-import-repeated"
+EXPECTED_MANIFEST_SHA256="<manifest_sha256 из полного stdout успешной подготовки>"
+EXPECTED_IMPORT_RECEIPT_SHA256="<receipt_sha256 из полного stdout успешного повтора импорта>"
+
+python3 "$JM" quality native-reliability compare-review-imports \
+  --bundle "$AUDIT_BUNDLE" \
+  --expected-manifest-sha256 "$EXPECTED_MANIFEST_SHA256" \
+  --uncertain-review-import-dir "$UNCERTAIN_REVIEW_IMPORT_DIR" \
+  --repeated-review-import-dir "$REPEATED_REVIEW_IMPORT_DIR" \
+  --expected-import-receipt-sha256 "$EXPECTED_IMPORT_RECEIPT_SHA256"
+```
+
+Пакет и обе полные двухфайловые папки импорта должны быть тремя разными прямыми соседями у одного безопасного приватного родителя. Первый SHA берите только из отдельно сохранённого stdout нормально завершившегося `coding-audit-prepare`, второй — только из отдельно сохранённого stdout нормально завершившегося повторного импорта; не восстанавливайте их из манифеста или квитанции. Пакет обязателен, потому что две одинаковые папки могут одинаково не соответствовать плану, кандидатам, ZIP или установленному справочнику. `match`/`0` означает техническую связь, точное равенство сырых байтов двух файлов и успешный финальный повторный снимок; `mismatch` даёт `3`, `invalid` или `unreadable` — `2`. Команда только читает входы и выдаёт детерминированный отчёт без путей, хешей, идентификаторов и содержимого: она ничего не повторяет, не исправляет, не удаляет и не помещает в карантин. Даже `match` не подтверждает допустимость исходного восстановления, нормальное завершение повтора, происхождение SHA, личность проверяющего, юридическую правильность, разрешение на публикацию или готовность к подаче. Для дальнейшей работы берите повторную папку и её внешний SHA только после новых проверок получателя и необходимых решений человека.
+
 Квитанция и стандартный вывод содержат карты `audited_field_differences` и `non_audited_content_differences`: для каждого кандидата они называют различающиеся поля без их значений. Если хотя бы одна карта непуста, подготовьте один строгий `resolutions.jsonl`: по одной строке на затронутого кандидата и по одному решению `primary`, `secondary` или `custom` на каждое указанное поле. `receipt_sha256` берётся из успешного stdout импорта, обе индивидуальные контрольные суммы — из строки кандидата в `audit-decisions.jsonl`, первичное значение — из `primary-decisions.audit.jsonl`, вторичное — из вложенного `secondary_coding`. Поля идут сначала в порядке аудируемой карты, затем неаудируемой. Строки фиксируют заявленное решение, но не аутентифицируют человека или сам факт проверки. Полный закрытый JSONL-шаблон приведён в установленном [`practice-quality.md`](skills/ksrf-cassation-judicial-meaning/references/practice-quality.md).
 
 Затем хранитель одним запуском закрывает обе карты и повторно проверяет итоговые цитаты:

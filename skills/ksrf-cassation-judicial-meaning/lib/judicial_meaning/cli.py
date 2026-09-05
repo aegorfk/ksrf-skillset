@@ -22,7 +22,7 @@ import unicodedata
 import zipfile
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, NoReturn
 
 from .analysis import (
     analyze_reviewed_chains,
@@ -61,6 +61,7 @@ from .public_corpus import PublicCorpus
 from .practice_quality import (
     AUDIT_CODING_RECORD_FIELDS,
     AUDITED_CODING_FIELDS,
+    CODING_AUDIT_DECISION_FIELDS,
     CODING_AUDIT_REVIEW_IMPORT_RECEIPT_FIELDS,
     CODING_AUDIT_PLAN_FIELDS,
     NATIVE_AUDIT_QUEUE_FIELDS,
@@ -75,11 +76,18 @@ from .practice_quality import (
     build_native_coding_audit_finalization,
     build_native_coding_review_import,
     build_native_finalization_comparison_report,
+    build_native_review_import_comparison_report,
     build_native_reliability_doctor_report,
     build_uncertainty_profile,
     canonical_digest,
     NON_AUDITED_CODING_CONTENT_FIELDS,
+    _audit_coding_identity_valid,
+    _canonical_reviewer,
+    _coding_audit_record_contract_valid,
     _evaluate_native_coding_reliability,
+    _is_captured_full_text,
+    _native_audit_candidate_id,
+    _is_native_audit_candidate_id,
 )
 from .reporting import derive_research_status, write_offline_report
 from .source_reconciliation import (
@@ -591,6 +599,62 @@ _FINALIZATION_COMPARISON_CHECKS = (
     "directory_file_bytes_equal",
     "final_recapture_valid",
 )
+_REVIEW_IMPORT_COMPARISON_CHECKS = (
+    "common_parent_valid",
+    "directories_distinct",
+    "source_bundle_readable",
+    "source_bundle_private",
+    "source_bundle_inventory_exact",
+    "expected_manifest_sha256_valid",
+    "source_bundle_contract_valid",
+    "source_bundle_external_manifest_digest_valid",
+    "installed_codebook_readable",
+    "installed_codebook_binding_valid",
+    "uncertain_directory_readable",
+    "repeated_directory_readable",
+    "uncertain_directory_private",
+    "repeated_directory_private",
+    "uncertain_inventory_exact",
+    "repeated_inventory_exact",
+    "expected_import_receipt_sha256_valid",
+    "uncertain_artifact_contracts_valid",
+    "repeated_artifact_contracts_valid",
+    "uncertain_receipt_self_digest_valid",
+    "repeated_receipt_self_digest_valid",
+    "repeated_external_receipt_digest_valid",
+    "uncertain_receipt_file_binding_valid",
+    "repeated_receipt_file_binding_valid",
+    "uncertain_bundle_relation_valid",
+    "repeated_bundle_relation_valid",
+    "import_directory_file_bytes_equal",
+    "final_recapture_valid",
+)
+_FINALIZATION_COMPARISON_PROFILE: Mapping[str, Any] = {
+    "paths": _AUDIT_FINALIZATION_PATHS,
+    "file_limits": _AUDIT_FINALIZATION_FILE_LIMITS,
+    "directory_label": "Каталог сравниваемой финализации",
+    "file_label": "Файл сравниваемой финализации",
+}
+_AUDIT_BUNDLE_COMPARISON_PATHS = (
+    *_AUDIT_BUNDLE_CONTENT_PATHS,
+    "coding-audit-inputs-manifest.json",
+)
+_AUDIT_BUNDLE_COMPARISON_PROFILE: Mapping[str, Any] = {
+    "paths": _AUDIT_BUNDLE_COMPARISON_PATHS,
+    "file_limits": _AUDIT_IMPORT_FILE_LIMITS,
+    "directory_label": "Каталог пакета аудита",
+    "file_label": "Файл пакета аудита",
+}
+_REVIEW_IMPORT_COMPARISON_PATHS = (
+    "audit-decisions.jsonl",
+    "coding-audit-review-import-receipt.json",
+)
+_REVIEW_IMPORT_COMPARISON_PROFILE: Mapping[str, Any] = {
+    "paths": _REVIEW_IMPORT_COMPARISON_PATHS,
+    "file_limits": _AUDIT_REVIEW_IMPORT_FILE_LIMITS,
+    "directory_label": "Каталог результата импорта",
+    "file_label": "Файл результата импорта",
+}
 _AUDIT_IMPORT_CODEBOOK_LIMIT = 2 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_MEMBER_LIMIT = 192 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_TOTAL_LIMIT = 256 * 1024 * 1024
@@ -704,14 +768,34 @@ _FINALIZATION_COMPARISON_JSON_NUMBER = re.compile(
 )
 
 
-def _preflight_finalization_comparison_json(content: bytes) -> None:
+def _preflight_finalization_comparison_json(
+    content: bytes,
+    *,
+    include_leaf_depth: bool = False,
+) -> None:
     """Bound a JSON graph lexically before the parser materializes it."""
 
-    maximum_integer_digits = getattr(
+    if include_leaf_depth:
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError:
+            return
+    default_integer_digits = getattr(
         sys.int_info,
         "default_max_str_digits",
         4300,
     )
+    maximum_integer_digits = default_integer_digits
+    if include_leaf_depth:
+        active_limit_getter = getattr(sys, "get_int_max_str_digits", None)
+        active_integer_digits = (
+            active_limit_getter() if callable(active_limit_getter) else 0
+        )
+        if active_integer_digits > 0:
+            maximum_integer_digits = min(
+                default_integer_digits,
+                active_integer_digits,
+            )
     nodes = 0
     root_state = "value"
     stack: list[dict[str, Any]] = []
@@ -765,10 +849,16 @@ def _preflight_finalization_comparison_json(content: bytes) -> None:
                                 decoded_bytes += 4
                                 position += 6
                             else:
+                                if include_leaf_depth:
+                                    return None
                                 decoded_bytes += 3
                         else:
+                            if include_leaf_depth:
+                                return None
                             decoded_bytes += 3
                     elif 0xDC00 <= codepoint <= 0xDFFF:
+                        if include_leaf_depth:
+                            return None
                         decoded_bytes += 3
                     elif codepoint <= 0x7F:
                         decoded_bytes += 1
@@ -809,9 +899,12 @@ def _preflight_finalization_comparison_json(content: bytes) -> None:
         nodes += 1
         if nodes > _AUDIT_IMPORT_MAX_JSON_NODES:
             raise _FinalizationComparisonJSONResourceError
+        if (
+            (container is not None or include_leaf_depth)
+            and len(stack) + 1 > _AUDIT_IMPORT_MAX_JSON_DEPTH
+        ):
+            raise _FinalizationComparisonJSONResourceError
         if container is not None:
-            if len(stack) + 1 > _AUDIT_IMPORT_MAX_JSON_DEPTH:
-                raise _FinalizationComparisonJSONResourceError
             stack.append(
                 {
                     "kind": container,
@@ -902,6 +995,31 @@ def _preflight_finalization_comparison_json(content: bytes) -> None:
         if not begin_value():
             return
         index = number_match.end()
+
+
+def _preflight_comparison_jsonl_resources(content: bytes) -> None:
+    """Bound JSONL lines and lexical graphs without interpreting their values."""
+
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return
+    record_count = 0
+    for number, line in enumerate(io.StringIO(text), start=1):
+        if number > _AUDIT_IMPORT_MAX_PHYSICAL_LINES:
+            raise _FinalizationComparisonJSONResourceError
+        line_bytes = line.encode("utf-8")
+        if len(line_bytes) > _AUDIT_IMPORT_MAX_STRING_BYTES:
+            raise _FinalizationComparisonJSONResourceError
+        if not line.strip():
+            continue
+        record_count += 1
+        if record_count > _AUDIT_IMPORT_MAX_RECORDS:
+            raise _FinalizationComparisonJSONResourceError
+        _preflight_finalization_comparison_json(
+            line_bytes,
+            include_leaf_depth=True,
+        )
 
 
 def _parse_finalization_comparison_json_integer(raw_value: str) -> int:
@@ -1586,6 +1704,8 @@ def _open_captured_finalization_file(
     directory_descriptor: int,
     name: str,
     expected: Mapping[str, Any],
+    *,
+    file_label: str = "Файл сравниваемой финализации",
 ) -> int:
     try:
         path_stat = os.stat(
@@ -1668,7 +1788,7 @@ def _open_captured_finalization_file(
             descriptor,
             expected_identity=opened_identity,
             identity_getter=_stable_file_identity,
-            object_label="Файл сравниваемой финализации",
+            object_label=file_label,
             inventory_exact=True,
         )
     except BaseException as exc:
@@ -1680,12 +1800,19 @@ def _open_captured_finalization_file(
     return descriptor
 
 
-def _capture_private_finalization_descriptor(
+def _capture_private_comparison_descriptor(
     descriptor: int,
     *,
+    profile: Mapping[str, Any],
     expected_initial_identity: tuple[int, ...] | None = None,
+    invalid_observer: Any = None,
 ) -> dict[str, Any]:
     """Stream-capture exact metadata and digests through one held directory."""
+
+    paths = tuple(profile["paths"])
+    file_limits = profile["file_limits"]
+    directory_label = str(profile["directory_label"])
+    file_label = str(profile["file_label"])
 
     try:
         directory_stat = os.fstat(descriptor)
@@ -1700,7 +1827,13 @@ def _capture_private_finalization_descriptor(
 
     def capture_invalid_observation() -> dict[str, Any] | None:
         try:
-            return _capture_finalization_comparison_invalid_observation(
+            if invalid_observer is None:
+                return _capture_comparison_invalid_observation(
+                    descriptor,
+                    expected_directory_identity=directory_identity,
+                    profile=profile,
+                )
+            return invalid_observer(
                 descriptor,
                 expected_directory_identity=directory_identity,
             )
@@ -1708,6 +1841,10 @@ def _capture_private_finalization_descriptor(
             if observation_error.kind == "changed":
                 raise
             return None
+        except (MemoryError, RecursionError):
+            if invalid_observer is None:
+                return None
+            raise
 
     effective_uid = (
         os.geteuid()
@@ -1730,7 +1867,7 @@ def _capture_private_finalization_descriptor(
             descriptor,
             expected_identity=directory_identity,
             identity_getter=_stable_finalization_directory_identity,
-            object_label="Каталог сравниваемой финализации",
+            object_label=directory_label,
             inventory_exact=None,
         )
     except _FinalizationComparisonCaptureError as exc:
@@ -1744,7 +1881,7 @@ def _capture_private_finalization_descriptor(
                 descriptor,
                 expected_identity=directory_identity,
                 identity_getter=_stable_finalization_directory_identity,
-                object_label="Каталог сравниваемой финализации",
+                object_label=directory_label,
                 inventory_exact=inventory_exact,
             )
         except _FinalizationComparisonCaptureError as exc:
@@ -1761,7 +1898,7 @@ def _capture_private_finalization_descriptor(
         try:
             with os.scandir(descriptor) as entries:
                 for entry in entries:
-                    if len(recaptured_names) >= len(_AUDIT_FINALIZATION_PATHS):
+                    if len(recaptured_names) >= len(paths):
                         too_many = True
                         break
                     recaptured_names.append(entry.name)
@@ -1775,15 +1912,13 @@ def _capture_private_finalization_descriptor(
                 inventory_exact=True,
             ) from exc
         assert_directory_unchanged(inventory_exact=True)
-        return not too_many and set(recaptured_names) == set(
-            _AUDIT_FINALIZATION_PATHS
-        )
+        return not too_many and set(recaptured_names) == set(paths)
 
     def raise_stable_file_error(
         kind: str,
         *,
         cause: BaseException | None = None,
-    ) -> None:
+    ) -> NoReturn:
         """Prefer directory drift over a stale leaf-level classification."""
 
         try:
@@ -1806,7 +1941,7 @@ def _capture_private_finalization_descriptor(
     try:
         with os.scandir(descriptor) as entries:
             for entry in entries:
-                if len(names) >= len(_AUDIT_FINALIZATION_PATHS):
+                if len(names) >= len(paths):
                     too_many = True
                     break
                 names.append(entry.name)
@@ -1817,7 +1952,7 @@ def _capture_private_finalization_descriptor(
             raise state_error from exc
         raise _FinalizationComparisonCaptureError("unreadable") from exc
     assert_directory_unchanged(inventory_exact=None)
-    if too_many or set(names) != set(_AUDIT_FINALIZATION_PATHS):
+    if too_many or set(names) != set(paths):
         raise _FinalizationComparisonCaptureError(
             "inventory",
             observation=capture_invalid_observation(),
@@ -1825,7 +1960,7 @@ def _capture_private_finalization_descriptor(
 
     files: dict[str, dict[str, Any]] = {}
     seen_file_identities: set[tuple[int, int]] = set()
-    for name in _AUDIT_FINALIZATION_PATHS:
+    for name in paths:
         try:
             path_stat = os.stat(
                 name,
@@ -1851,9 +1986,7 @@ def _capture_private_finalization_descriptor(
             or (os.name == "posix" and path_stat.st_uid != effective_uid)
         ):
             raise_stable_file_error("privacy")
-        if path_stat.st_size < 0 or path_stat.st_size > _AUDIT_FINALIZATION_FILE_LIMITS[
-            name
-        ]:
+        if path_stat.st_size < 0 or path_stat.st_size > file_limits[name]:
             raise_stable_file_error("unreadable")
         try:
             child_descriptor = os.open(
@@ -1906,7 +2039,7 @@ def _capture_private_finalization_descriptor(
                     child_descriptor,
                     expected_identity=opened_identity,
                     identity_getter=_stable_file_identity,
-                    object_label="Файл сравниваемой финализации",
+                    object_label=file_label,
                     inventory_exact=True,
                 )
             except _FinalizationComparisonCaptureError as exc:
@@ -1916,13 +2049,13 @@ def _capture_private_finalization_descriptor(
             digest, identity = _digest_finalization_comparison_file(
                 child_descriptor,
                 expected_identity=opened_identity,
-                byte_limit=_AUDIT_FINALIZATION_FILE_LIMITS[name],
+                byte_limit=file_limits[name],
             )
             _assert_finalization_comparison_acl(
                 child_descriptor,
                 expected_identity=identity,
                 identity_getter=_stable_file_identity,
-                object_label="Файл сравниваемой финализации",
+                object_label=file_label,
                 inventory_exact=True,
             )
             try:
@@ -1955,7 +2088,7 @@ def _capture_private_finalization_descriptor(
         descriptor,
         expected_identity=directory_identity,
         identity_getter=_stable_finalization_directory_identity,
-        object_label="Каталог сравниваемой финализации",
+        object_label=directory_label,
         inventory_exact=True,
     )
     try:
@@ -1975,12 +2108,31 @@ def _capture_private_finalization_descriptor(
     return {"directory_identity": directory_identity, "files": files}
 
 
-def _capture_finalization_comparison_invalid_observation(
+def _capture_private_finalization_descriptor(
+    descriptor: int,
+    *,
+    expected_initial_identity: tuple[int, ...] | None = None,
+) -> dict[str, Any]:
+    """Compatibility wrapper for the Release19 finalization profile."""
+
+    return _capture_private_comparison_descriptor(
+        descriptor,
+        profile=_FINALIZATION_COMPARISON_PROFILE,
+        expected_initial_identity=expected_initial_identity,
+        invalid_observer=_capture_finalization_comparison_invalid_observation,
+    )
+
+
+def _capture_comparison_invalid_observation(
     descriptor: int,
     *,
     expected_directory_identity: tuple[int, ...],
+    profile: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Boundedly fingerprint a rejected directory without reading file values."""
+
+    paths = tuple(profile["paths"])
+    directory_label = str(profile["directory_label"])
 
     try:
         observed_identity = _stable_finalization_directory_identity(
@@ -1997,7 +2149,7 @@ def _capture_finalization_comparison_invalid_observation(
                 descriptor,
                 expected_identity=expected_directory_identity,
                 identity_getter=_stable_finalization_directory_identity,
-                object_label="Каталог сравниваемой финализации",
+                object_label=directory_label,
                 inventory_exact=None,
             )
         except _FinalizationComparisonCaptureError as exc:
@@ -2012,7 +2164,7 @@ def _capture_finalization_comparison_invalid_observation(
     try:
         with os.scandir(descriptor) as entries:
             for entry in entries:
-                if len(names) >= len(_AUDIT_FINALIZATION_PATHS):
+                if len(names) >= len(paths):
                     too_many = True
                     break
                 names.append(entry.name)
@@ -2031,7 +2183,7 @@ def _capture_finalization_comparison_invalid_observation(
         raise _FinalizationComparisonCaptureError(kind) from exc
 
     file_identities: dict[str, tuple[int, ...] | None] = {}
-    for name in _AUDIT_FINALIZATION_PATHS:
+    for name in paths:
         try:
             file_identities[name] = _stable_file_identity(
                 os.stat(
@@ -2080,25 +2232,42 @@ def _capture_finalization_comparison_invalid_observation(
         "names": tuple(sorted(names)),
         "too_many": too_many,
         "inventory_exact": not too_many
-        and set(names) == set(_AUDIT_FINALIZATION_PATHS),
+        and set(names) == set(paths),
         "file_identities": file_identities,
     }
 
 
-def _read_captured_finalization_file(
+def _capture_finalization_comparison_invalid_observation(
+    descriptor: int,
+    *,
+    expected_directory_identity: tuple[int, ...],
+) -> dict[str, Any]:
+    """Compatibility wrapper for the Release19 finalization profile."""
+
+    return _capture_comparison_invalid_observation(
+        descriptor,
+        expected_directory_identity=expected_directory_identity,
+        profile=_FINALIZATION_COMPARISON_PROFILE,
+    )
+
+
+def _read_captured_comparison_file(
     directory_descriptor: int,
     name: str,
     expected: Mapping[str, Any],
+    *,
+    profile: Mapping[str, Any],
 ) -> bytes:
     descriptor = _open_captured_finalization_file(
         directory_descriptor,
         name,
         expected,
+        file_label=str(profile["file_label"]),
     )
     try:
         expected_identity = expected["identity"]
         expected_size = expected_identity[7]
-        if expected_size < 0 or expected_size > _AUDIT_FINALIZATION_FILE_LIMITS[name]:
+        if expected_size < 0 or expected_size > profile["file_limits"][name]:
             raise _FinalizationComparisonCaptureError(
                 "unreadable",
                 inventory_exact=True,
@@ -2166,7 +2335,7 @@ def _read_captured_finalization_file(
             descriptor,
             expected_identity=identity,
             identity_getter=_stable_file_identity,
-            object_label="Файл сравниваемой финализации",
+            object_label=str(profile["file_label"]),
             inventory_exact=True,
         )
         try:
@@ -2192,13 +2361,53 @@ def _read_captured_finalization_file(
         _close_finalization_comparison_descriptor(descriptor)
 
 
-def _assert_finalization_comparison_leaf_seal(
+def _read_captured_finalization_file(
+    directory_descriptor: int,
+    name: str,
+    expected: Mapping[str, Any],
+) -> bytes:
+    """Compatibility wrapper for the Release19 finalization profile."""
+
+    return _read_captured_comparison_file(
+        directory_descriptor,
+        name,
+        expected,
+        profile=_FINALIZATION_COMPARISON_PROFILE,
+    )
+
+
+def _materialize_comparison_capture(
     directory_descriptor: int,
     capture: Mapping[str, Any],
+    *,
+    profile: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Materialize bounded bytes from an already sealed descriptor capture."""
+
+    return {
+        "files": {
+            name: {
+                "content": _read_captured_comparison_file(
+                    directory_descriptor,
+                    name,
+                    capture["files"][name],
+                    profile=profile,
+                )
+            }
+            for name in profile["paths"]
+        }
+    }
+
+
+def _assert_comparison_leaf_seal(
+    directory_descriptor: int,
+    capture: Mapping[str, Any],
+    *,
+    profile: Mapping[str, Any],
 ) -> None:
     """Rebind every fixed leaf after both sequential full recaptures."""
 
-    for name in _AUDIT_FINALIZATION_PATHS:
+    for name in profile["paths"]:
         try:
             observed_identity = _stable_file_identity(
                 os.stat(
@@ -2221,11 +2430,26 @@ def _assert_finalization_comparison_leaf_seal(
         raise _FinalizationComparisonCaptureError("changed")
 
 
-def _finalization_directory_bytes_equal(
+def _assert_finalization_comparison_leaf_seal(
+    directory_descriptor: int,
+    capture: Mapping[str, Any],
+) -> None:
+    """Compatibility wrapper for the Release19 finalization profile."""
+
+    _assert_comparison_leaf_seal(
+        directory_descriptor,
+        capture,
+        profile=_FINALIZATION_COMPARISON_PROFILE,
+    )
+
+
+def _comparison_directory_bytes_equal(
     uncertain_descriptor: int,
     uncertain_capture: Mapping[str, Any],
     repeated_descriptor: int,
     repeated_capture: Mapping[str, Any],
+    *,
+    profile: Mapping[str, Any],
 ) -> bool:
     def read_exact_chunk(
         descriptor: int,
@@ -2269,12 +2493,13 @@ def _finalization_directory_bytes_equal(
         return b"".join(chunks)
 
     equal = True
-    for name in _AUDIT_FINALIZATION_PATHS:
+    for name in profile["paths"]:
         try:
             uncertain_file = _open_captured_finalization_file(
                 uncertain_descriptor,
                 name,
                 uncertain_capture["files"][name],
+                file_label=str(profile["file_label"]),
             )
         except _FinalizationComparisonCaptureError as exc:
             exc.side = "uncertain"
@@ -2285,6 +2510,7 @@ def _finalization_directory_bytes_equal(
                     repeated_descriptor,
                     name,
                     repeated_capture["files"][name],
+                    file_label=str(profile["file_label"]),
                 )
             except _FinalizationComparisonCaptureError as exc:
                 exc.side = "repeated"
@@ -2386,7 +2612,7 @@ def _finalization_directory_bytes_equal(
                             file_descriptor,
                             expected_identity=observed_identity,
                             identity_getter=_stable_file_identity,
-                            object_label="Файл сравниваемой финализации",
+                            object_label=str(profile["file_label"]),
                             inventory_exact=True,
                         )
                         final_path_identity = _stable_file_identity(
@@ -2424,6 +2650,23 @@ def _finalization_directory_bytes_equal(
                 exc.side = "uncertain"
                 raise
     return equal
+
+
+def _finalization_directory_bytes_equal(
+    uncertain_descriptor: int,
+    uncertain_capture: Mapping[str, Any],
+    repeated_descriptor: int,
+    repeated_capture: Mapping[str, Any],
+) -> bool:
+    """Compatibility wrapper for the Release19 finalization profile."""
+
+    return _comparison_directory_bytes_equal(
+        uncertain_descriptor,
+        uncertain_capture,
+        repeated_descriptor,
+        repeated_capture,
+        profile=_FINALIZATION_COMPARISON_PROFILE,
+    )
 
 
 def _evaluate_finalization_comparison_capture(
@@ -2621,24 +2864,27 @@ def _finalization_comparison_path_info(raw_value: str) -> dict[str, Any]:
     }
 
 
-def _open_finalization_comparison_parent(
-    uncertain_info: Mapping[str, Any],
-    repeated_info: Mapping[str, Any],
+def _open_comparison_parent(
+    path_infos: Iterable[Mapping[str, Any]],
 ) -> tuple[int, tuple[int, ...]]:
-    if uncertain_info["parent_identity"] != repeated_info["parent_identity"]:
+    infos = tuple(path_infos)
+    if not infos:
+        raise _FinalizationComparisonCaptureError("topology")
+    expected_identity = infos[0]["parent_identity"]
+    if any(info["parent_identity"] != expected_identity for info in infos[1:]):
         raise _FinalizationComparisonCaptureError("topology")
     try:
         flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
     except ValueError as exc:
         raise _FinalizationComparisonCaptureError("unreadable") from exc
-    expected_identity = uncertain_info["parent_identity"]
+    first_info = infos[0]
     try:
-        descriptor = os.open(uncertain_info["resolved_parent"], flags)
+        descriptor = os.open(first_info["resolved_parent"], flags)
     except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
         try:
             fresh_identity = _stable_finalization_directory_identity(
                 os.stat(
-                    uncertain_info["resolved_parent"],
+                    first_info["resolved_parent"],
                     follow_symlinks=False,
                 )
             )
@@ -2684,6 +2930,15 @@ def _open_finalization_comparison_parent(
     except BaseException:
         _close_finalization_comparison_descriptor(descriptor)
         raise
+
+
+def _open_finalization_comparison_parent(
+    uncertain_info: Mapping[str, Any],
+    repeated_info: Mapping[str, Any],
+) -> tuple[int, tuple[int, ...]]:
+    """Compatibility wrapper for the Release19 two-directory parent."""
+
+    return _open_comparison_parent((uncertain_info, repeated_info))
 
 
 def _assert_finalization_comparison_parent_bindings(
@@ -3376,6 +3631,7 @@ def _build_blinded_review_packet(
     coding_brief_content: bytes,
     bundle_contract_version: str = _CURRENT_AUDIT_BUNDLE_CONTRACT_VERSION,
     installed_codebook_content: bytes | None = None,
+    require_installed_codebook_match: bool = True,
 ) -> bytes:
     """Validate and serialize the selected reviewer-only projection."""
 
@@ -3417,13 +3673,14 @@ def _build_blinded_review_packet(
         raise ValueError("Внутренний справочник кодирования не является UTF-8.") from exc
     if not decoded_codebook.strip():
         raise ValueError("Внутренний справочник кодирования пуст.")
-    trusted_codebook_content = (
-        _load_audit_codebook(codebook_version)
-        if installed_codebook_content is None
-        else installed_codebook_content
-    )
-    if codebook_content != trusted_codebook_content:
-        raise ValueError("Внутренний справочник не совпадает со штатной версией.")
+    if require_installed_codebook_match:
+        trusted_codebook_content = (
+            _load_audit_codebook(codebook_version)
+            if installed_codebook_content is None
+            else installed_codebook_content
+        )
+        if codebook_content != trusted_codebook_content:
+            raise ValueError("Внутренний справочник не совпадает со штатной версией.")
     codebook_sha256 = hashlib.sha256(codebook_content).hexdigest()
     try:
         coding_brief = json.loads(coding_brief_content.decode("utf-8"))
@@ -3811,6 +4068,99 @@ def _preflight_blinded_review_zip(content: bytes) -> None:
         )
 
 
+def _preflight_blinded_review_zip_resources(content: bytes) -> None:
+    """Detect only bounded-resource ZIP faults before contract validation."""
+
+    end_record_size = 22
+    if len(content) < end_record_size or content[-end_record_size:-18] != b"PK\x05\x06":
+        return
+    try:
+        (
+            signature,
+            disk_number,
+            central_directory_disk,
+            entries_on_disk,
+            entries_total,
+            central_directory_size,
+            central_directory_offset,
+            comment_size,
+        ) = struct.unpack("<4s4H2LH", content[-end_record_size:])
+    except struct.error:
+        return
+    if central_directory_size > _AUDIT_IMPORT_ZIP_CENTRAL_DIRECTORY_LIMIT:
+        raise _FinalizationComparisonJSONResourceError
+    if (
+        signature != b"PK\x05\x06"
+        or disk_number != 0
+        or central_directory_disk != 0
+        or entries_on_disk != len(_BLINDED_REVIEW_PACKET_PATHS)
+        or entries_total != len(_BLINDED_REVIEW_PACKET_PATHS)
+        or comment_size != 0
+        or central_directory_offset > len(content) - end_record_size
+        or central_directory_offset + central_directory_size
+        != len(content) - end_record_size
+    ):
+        return
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content), mode="r") as archive:
+            infos = archive.infolist()
+            stored_total = sum(info.compress_size for info in infos)
+            uncompressed_total = sum(info.file_size for info in infos)
+            if (
+                any(
+                    info.file_size > _AUDIT_IMPORT_ZIP_MEMBER_LIMIT
+                    for info in infos
+                )
+                or stored_total > _AUDIT_IMPORT_ZIP_TOTAL_LIMIT
+                or uncompressed_total > _AUDIT_IMPORT_ZIP_TOTAL_LIMIT
+            ):
+                raise _FinalizationComparisonJSONResourceError
+            names = [info.filename for info in infos]
+            if (
+                names != list(_BLINDED_REVIEW_PACKET_PATHS)
+                or len(names) != len(set(names))
+                or any(
+                    info.compress_type != zipfile.ZIP_STORED
+                    or info.compress_size != info.file_size
+                    for info in infos
+                )
+            ):
+                return
+            json_members = {
+                name: archive.read(name)
+                for name in (
+                    "CODING-BRIEF.json",
+                    "review-materials.jsonl",
+                    "secondary-coding-template.jsonl",
+                    "review-packet-manifest.json",
+                )
+            }
+    except (MemoryError, RecursionError) as exc:
+        raise _FinalizationComparisonJSONResourceError from exc
+    except (
+        OSError,
+        RuntimeError,
+        NotImplementedError,
+        KeyError,
+        zipfile.BadZipFile,
+    ):
+        return
+
+    _preflight_finalization_comparison_json(
+        json_members["CODING-BRIEF.json"],
+        include_leaf_depth=True,
+    )
+    _preflight_comparison_jsonl_resources(json_members["review-materials.jsonl"])
+    _preflight_comparison_jsonl_resources(
+        json_members["secondary-coding-template.jsonl"]
+    )
+    _preflight_finalization_comparison_json(
+        json_members["review-packet-manifest.json"],
+        include_leaf_depth=True,
+    )
+
+
 def _read_blinded_review_packet(
     content: bytes,
     *,
@@ -3820,7 +4170,8 @@ def _read_blinded_review_packet(
     queue_records: list[dict[str, Any]],
     template_records: list[dict[str, Any]],
     codebook_version: str,
-    installed_codebook_content: bytes,
+    installed_codebook_content: bytes | None,
+    require_installed_codebook_match: bool = True,
 ) -> dict[str, Any]:
     _preflight_blinded_review_zip(content)
     try:
@@ -3908,6 +4259,7 @@ def _read_blinded_review_packet(
         coding_brief_content=member_bytes["CODING-BRIEF.json"],
         bundle_contract_version=bundle_contract_version,
         installed_codebook_content=installed_codebook_content,
+        require_installed_codebook_match=require_installed_codebook_match,
     )
     if expected != content:
         raise ValueError(
@@ -3923,11 +4275,94 @@ def _read_blinded_review_packet(
     }
 
 
-def _load_native_coding_audit_bundle(
+def _preflight_native_coding_audit_bundle_resources(
+    capture: Mapping[str, Any],
+) -> None:
+    """Detect comparator resource faults without changing legacy loader order."""
+
+    files = capture.get("files")
+    if not isinstance(files, Mapping) or set(files) != _AUDIT_BUNDLE_PATHS:
+        return
+
+    def content(name: str) -> bytes | None:
+        item = files.get(name)
+        if not isinstance(item, Mapping):
+            return None
+        value = item.get("content")
+        return value if isinstance(value, bytes) else None
+
+    for name in (
+        "coding-audit-inputs-manifest.json",
+        "coding-audit-plan.json",
+    ):
+        value = content(name)
+        if value is not None:
+            _preflight_finalization_comparison_json(
+                value,
+                include_leaf_depth=True,
+            )
+    for name in (
+        "screening-candidates.audit.jsonl",
+        "primary-decisions.audit.jsonl",
+        "secondary-review-queue.jsonl",
+        "secondary-coding-template.jsonl",
+    ):
+        value = content(name)
+        if value is not None:
+            _preflight_comparison_jsonl_resources(value)
+    packet = content("independent-review-packet.zip")
+    if packet is not None:
+        _preflight_blinded_review_zip_resources(packet)
+
+
+def _preview_native_coding_audit_bundle_manifest(
+    capture: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Read only the strict manifest fields needed to select the codebook."""
+
+    files = capture.get("files")
+    if not isinstance(files, Mapping) or set(files) != _AUDIT_BUNDLE_PATHS:
+        raise ValueError("Внутренний снимок --bundle неполон.")
+    item = files.get("coding-audit-inputs-manifest.json")
+    if not isinstance(item, Mapping) or not isinstance(item.get("content"), bytes):
+        raise ValueError(
+            "Внутренний снимок coding-audit-inputs-manifest.json повреждён."
+        )
+    content = item["content"]
+    if len(content) > _AUDIT_IMPORT_FILE_LIMITS[
+        "coding-audit-inputs-manifest.json"
+    ]:
+        raise ValueError(
+            "coding-audit-inputs-manifest.json: файл превышает безопасный предел."
+        )
+    value = _strict_json_bytes(
+        content,
+        label="coding-audit-inputs-manifest.json",
+    )
+    if not isinstance(value, Mapping) or set(value) != _NATIVE_AUDIT_PARENT_MANIFEST_FIELDS:
+        raise ValueError("Родительский манифест имеет неверный закрытый формат.")
+    manifest = dict(value)
+    if _canonical_json_bytes(manifest) != content:
+        raise ValueError("Родительский манифест не является каноническим JSON.")
+    unsigned_manifest = {
+        key: item_value
+        for key, item_value in manifest.items()
+        if key != "manifest_sha256"
+    }
+    if manifest.get("manifest_sha256") != canonical_digest(unsigned_manifest):
+        raise ValueError("Собственная контрольная сумма родительского манифеста не совпадает.")
+    if manifest.get("codebook_version") not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+        raise ValueError("Пакет использует неподдерживаемую версию справочника кодирования.")
+    return manifest
+
+
+def _load_native_coding_audit_bundle_contract(
     capture: Mapping[str, Any],
     *,
-    expected_manifest_sha256: str,
-    installed_codebook_content: bytes,
+    expected_manifest_sha256: str | None = None,
+    installed_codebook_content: bytes | None = None,
+    validate_external_manifest: bool = False,
+    validate_installed_codebook: bool = False,
 ) -> dict[str, Any]:
     files = capture.get("files")
     if not isinstance(files, Mapping) or set(files) != _AUDIT_BUNDLE_PATHS:
@@ -3956,14 +4391,17 @@ def _load_native_coding_audit_bundle(
     }
     if manifest.get("manifest_sha256") != canonical_digest(unsigned_manifest):
         raise ValueError("Собственная контрольная сумма родительского манифеста не совпадает.")
-    if not _is_lower_sha256(expected_manifest_sha256):
-        raise ValueError(
-            "--expected-manifest-sha256 должен содержать 64 строчные шестнадцатеричные цифры."
-        )
-    if manifest["manifest_sha256"] != expected_manifest_sha256:
-        raise ValueError(
-            "Родительский манифест не совпадает с отдельно сохранённым ожидаемым SHA-256."
-        )
+    if validate_external_manifest:
+        if not _is_lower_sha256(expected_manifest_sha256):
+            raise ValueError(
+                "--expected-manifest-sha256 должен содержать 64 строчные "
+                "шестнадцатеричные цифры."
+            )
+        if manifest["manifest_sha256"] != expected_manifest_sha256:
+            raise ValueError(
+                "Родительский манифест не совпадает с отдельно сохранённым "
+                "ожидаемым SHA-256."
+            )
     bundle_contract_version = manifest.get("bundle_contract_version")
     if (
         manifest.get("schema_version") != "1.0"
@@ -4082,6 +4520,7 @@ def _load_native_coding_audit_bundle(
         template_records=templates,
         codebook_version=str(manifest["codebook_version"]),
         installed_codebook_content=installed_codebook_content,
+        require_installed_codebook_match=validate_installed_codebook,
     )
     if (
         packet["templates"] != templates
@@ -4102,6 +4541,43 @@ def _load_native_coding_audit_bundle(
         "packet": packet,
         "review_packet_content": file_bytes("independent-review-packet.zip"),
     }
+
+
+def _native_coding_audit_bundle_external_manifest_matches(
+    bundle: Mapping[str, Any],
+    expected_manifest_sha256: str,
+) -> bool:
+    """Compare the external anchor after independent contract validation."""
+
+    return bool(
+        bundle["manifest"]["manifest_sha256"] == expected_manifest_sha256
+    )
+
+
+def _native_coding_audit_bundle_installed_codebook_matches(
+    bundle: Mapping[str, Any],
+    installed_codebook_content: bytes,
+) -> bool:
+    """Keep installed-codebook binding separate from bundle self-consistency."""
+
+    return bool(bundle["packet"]["codebook_content"] == installed_codebook_content)
+
+
+def _load_native_coding_audit_bundle(
+    capture: Mapping[str, Any],
+    *,
+    expected_manifest_sha256: str,
+    installed_codebook_content: bytes,
+) -> dict[str, Any]:
+    """Legacy orchestration with its historical validation and error order."""
+
+    return _load_native_coding_audit_bundle_contract(
+        capture,
+        expected_manifest_sha256=expected_manifest_sha256,
+        installed_codebook_content=installed_codebook_content,
+        validate_external_manifest=True,
+        validate_installed_codebook=True,
+    )
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
@@ -7151,6 +7627,901 @@ def cmd_quality_native_reliability_compare_finalizations(
     }.get(report.get("status"), 2)
 
 
+def cmd_quality_native_reliability_compare_review_imports(
+    args: argparse.Namespace,
+) -> int:
+    """Compare two review-import outputs against one exact source bundle."""
+
+    checks: dict[str, bool | None] = {
+        name: None for name in _REVIEW_IMPORT_COMPARISON_CHECKS
+    }
+    for key in (
+        "source_bundle_readable",
+        "uncertain_directory_readable",
+        "repeated_directory_readable",
+    ):
+        checks[key] = False
+    checks["expected_manifest_sha256_valid"] = _is_lower_sha256(
+        args.expected_manifest_sha256
+    )
+    checks["expected_import_receipt_sha256_valid"] = _is_lower_sha256(
+        args.expected_import_receipt_sha256
+    )
+
+    def emit_report() -> int:
+        report = build_native_review_import_comparison_report(
+            checks=checks,
+            input_reason_codes=tuple(
+                reason
+                for reason in (
+                    "source_bundle_unreadable",
+                    "installed_codebook_unreadable",
+                    "uncertain_review_import_unreadable",
+                    "repeated_review_import_unreadable",
+                    "comparison_input_changed",
+                )
+                if reason in input_reason_codes
+            ),
+        )
+        _write_stdout_bytes(_canonical_json_bytes(report))
+        report_status = report.get("status")
+        return {
+            "match": 0,
+            "mismatch": 3,
+            "invalid": 2,
+            "unreadable": 2,
+        }.get(report_status if isinstance(report_status, str) else "", 2)
+
+    input_reason_codes: set[str] = set()
+    if not _finalization_comparison_capabilities_available():
+        return emit_report()
+
+    role_specs = (
+        (
+            "source_bundle",
+            args.bundle,
+            _AUDIT_BUNDLE_COMPARISON_PROFILE,
+        ),
+        (
+            "uncertain",
+            args.uncertain_review_import_dir,
+            _REVIEW_IMPORT_COMPARISON_PROFILE,
+        ),
+        (
+            "repeated",
+            args.repeated_review_import_dir,
+            _REVIEW_IMPORT_COMPARISON_PROFILE,
+        ),
+    )
+    profiles = {role: profile for role, _, profile in role_specs}
+    infos: dict[str, dict[str, Any]] = {}
+    descriptors: dict[str, int] = {}
+    captures: dict[str, dict[str, Any]] = {}
+    invalid_observations: dict[str, dict[str, Any]] = {}
+    open_identities: dict[str, tuple[int, ...]] = {}
+    open_failure_identities: dict[str, tuple[int, ...]] = {}
+    parent_descriptor: int | None = None
+    parent_identity: tuple[int, ...] | None = None
+    codebook_capture: dict[str, Any] | None = None
+    codebook_version: str | None = None
+
+    def readable_key(role: str) -> str:
+        return (
+            "source_bundle_readable"
+            if role == "source_bundle"
+            else f"{role}_directory_readable"
+        )
+
+    def private_key(role: str) -> str:
+        return (
+            "source_bundle_private"
+            if role == "source_bundle"
+            else f"{role}_directory_private"
+        )
+
+    def inventory_key(role: str) -> str:
+        return (
+            "source_bundle_inventory_exact"
+            if role == "source_bundle"
+            else f"{role}_inventory_exact"
+        )
+
+    def entry_readable(raw_value: str) -> bool:
+        if type(raw_value) is not str or not raw_value or "\x00" in raw_value:
+            return False
+        try:
+            os.fsencode(raw_value)
+            raw_path = Path(raw_value).expanduser()
+            if not raw_path.is_absolute():
+                raw_path = Path.cwd() / raw_path
+            os.stat(raw_path, follow_symlinks=False)
+            return True
+        except (
+            MemoryError,
+            RecursionError,
+            *_FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS,
+        ):
+            return False
+
+    def clear_semantic_checks(role: str) -> None:
+        if role == "source_bundle":
+            checks["source_bundle_contract_valid"] = None
+            checks["source_bundle_external_manifest_digest_valid"] = None
+            checks["installed_codebook_readable"] = None
+            checks["installed_codebook_binding_valid"] = None
+            checks["uncertain_bundle_relation_valid"] = None
+            checks["repeated_bundle_relation_valid"] = None
+        else:
+            checks[f"{role}_artifact_contracts_valid"] = None
+            checks[f"{role}_receipt_self_digest_valid"] = None
+            checks[f"{role}_receipt_file_binding_valid"] = None
+            checks[f"{role}_bundle_relation_valid"] = None
+            if role == "repeated":
+                checks["repeated_external_receipt_digest_valid"] = None
+
+    def clear_role_after_unreadable(role: str) -> None:
+        checks[readable_key(role)] = False
+        checks[private_key(role)] = None
+        checks[inventory_key(role)] = None
+        clear_semantic_checks(role)
+        checks["directories_distinct"] = None
+        checks["import_directory_file_bytes_equal"] = None
+        if checks["final_recapture_valid"] is not False:
+            checks["final_recapture_valid"] = None
+
+    def mark_input_changed() -> None:
+        input_reason_codes.add("comparison_input_changed")
+        checks["final_recapture_valid"] = False
+
+    def apply_initial_capture_error(
+        role: str,
+        error: _FinalizationComparisonCaptureError,
+    ) -> None:
+        if error.kind == "changed":
+            clear_role_after_unreadable(role)
+            mark_input_changed()
+        elif error.kind == "privacy":
+            checks[readable_key(role)] = True
+            checks[private_key(role)] = False
+            checks[inventory_key(role)] = None
+            clear_semantic_checks(role)
+            if error.observation is None:
+                mark_input_changed()
+        elif error.kind == "inventory":
+            checks[readable_key(role)] = True
+            checks[private_key(role)] = True
+            checks[inventory_key(role)] = False
+            clear_semantic_checks(role)
+            if error.observation is None:
+                mark_input_changed()
+        else:
+            clear_role_after_unreadable(role)
+
+    def observed_directory_identity(
+        role: str,
+        descriptor: int,
+    ) -> tuple[int, ...] | None:
+        try:
+            return _stable_finalization_directory_identity(os.fstat(descriptor))
+        except (
+            MemoryError,
+            RecursionError,
+            *_FINALIZATION_COMPARISON_PRIMITIVE_ERRORS,
+        ):
+            clear_role_after_unreadable(role)
+            return None
+
+    try:
+        path_errors: dict[str, _FinalizationComparisonCaptureError] = {}
+        for role, raw_value, _ in role_specs:
+            try:
+                infos[role] = _finalization_comparison_path_info(raw_value)
+            except (
+                MemoryError,
+                RecursionError,
+                _FinalizationComparisonCaptureError,
+            ) as raw_exc:
+                path_errors[role] = (
+                    raw_exc
+                    if isinstance(raw_exc, _FinalizationComparisonCaptureError)
+                    else _FinalizationComparisonCaptureError("unreadable")
+                )
+
+        if len(infos) != len(role_specs):
+            checks["common_parent_valid"] = (
+                False
+                if any(error.kind == "topology" for error in path_errors.values())
+                else None
+            )
+            for role, raw_value, _ in role_specs:
+                info = infos.get(role)
+                error = path_errors.get(role)
+                checks[readable_key(role)] = bool(
+                    entry_readable(raw_value)
+                    if info is not None or (error and error.kind == "topology")
+                    else False
+                )
+        else:
+            first_parent_identity = infos["source_bundle"]["parent_identity"]
+            parent_inode_identities = {
+                tuple(info["parent_identity"][:2]) for info in infos.values()
+            }
+            if len(parent_inode_identities) != 1:
+                checks["common_parent_valid"] = False
+                for role, raw_value, _ in role_specs:
+                    checks[readable_key(role)] = entry_readable(raw_value)
+            elif any(
+                info["parent_identity"] != first_parent_identity
+                for info in infos.values()
+            ):
+                checks["common_parent_valid"] = None
+                for role, _, _ in role_specs:
+                    checks[readable_key(role)] = False
+                mark_input_changed()
+            else:
+                try:
+                    parent_descriptor, parent_identity = _open_comparison_parent(
+                        infos[role] for role, _, _ in role_specs
+                    )
+                except (
+                    MemoryError,
+                    RecursionError,
+                    NotImplementedError,
+                    _FinalizationComparisonCaptureError,
+                ) as raw_exc:
+                    exc = (
+                        raw_exc
+                        if isinstance(raw_exc, _FinalizationComparisonCaptureError)
+                        else _FinalizationComparisonCaptureError("unreadable")
+                    )
+                    if exc.kind == "topology":
+                        checks["common_parent_valid"] = False
+                        for role, raw_value, _ in role_specs:
+                            checks[readable_key(role)] = entry_readable(raw_value)
+                    else:
+                        checks["common_parent_valid"] = None
+                        for role, _, _ in role_specs:
+                            checks[readable_key(role)] = False
+                        if exc.kind == "changed":
+                            mark_input_changed()
+                else:
+                    checks["common_parent_valid"] = True
+                    for role, _, profile in role_specs:
+                        info = infos[role]
+                        try:
+                            descriptor, open_identity = (
+                                _open_finalization_comparison_directory_at(
+                                    parent_descriptor,
+                                    info["directory_name"],
+                                )
+                            )
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            _FinalizationComparisonCaptureError,
+                        ) as raw_exc:
+                            exc = (
+                                raw_exc
+                                if isinstance(
+                                    raw_exc,
+                                    _FinalizationComparisonCaptureError,
+                                )
+                                else _FinalizationComparisonCaptureError("unreadable")
+                            )
+                            observation = exc.observation
+                            failure_identity = (
+                                observation.get("directory_identity")
+                                if observation is not None
+                                else None
+                            )
+                            if isinstance(failure_identity, tuple):
+                                open_failure_identities[role] = failure_identity
+                            apply_initial_capture_error(role, exc)
+                            continue
+
+                        descriptors[role] = descriptor
+                        open_identities[role] = open_identity
+                        checks[readable_key(role)] = True
+
+                    if (
+                        parent_identity is not None
+                        and any(
+                            identity[0] != parent_identity[0]
+                            for identity in open_identities.values()
+                        )
+                    ):
+                        checks["common_parent_valid"] = False
+
+                    for role, _, profile in role_specs:
+                        descriptor = descriptors.get(role)
+                        open_identity = open_identities.get(role)
+                        if (
+                            descriptor is None
+                            or open_identity is None
+                            or checks["common_parent_valid"] is not True
+                        ):
+                            continue
+                        try:
+                            capture = _capture_private_comparison_descriptor(
+                                descriptor,
+                                profile=profile,
+                                expected_initial_identity=open_identity,
+                            )
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            _FinalizationComparisonCaptureError,
+                        ) as raw_exc:
+                            exc = (
+                                raw_exc
+                                if isinstance(
+                                    raw_exc,
+                                    _FinalizationComparisonCaptureError,
+                                )
+                                else _FinalizationComparisonCaptureError("unreadable")
+                            )
+                            if exc.observation is not None:
+                                invalid_observations[role] = dict(exc.observation)
+                            apply_initial_capture_error(role, exc)
+                        else:
+                            captures[role] = capture
+                            checks[private_key(role)] = True
+                            checks[inventory_key(role)] = True
+
+                    if (
+                        checks["common_parent_valid"] is True
+                        and all(
+                            checks[readable_key(role)] is True
+                            for role, _, _ in role_specs
+                        )
+                    ):
+                        directory_identities: dict[str, tuple[int, ...]] = {}
+                        for role, _, _ in role_specs:
+                            descriptor = descriptors.get(role)
+                            if descriptor is None:
+                                continue
+                            identity = observed_directory_identity(role, descriptor)
+                            if identity is not None:
+                                directory_identities[role] = identity
+                        checks["directories_distinct"] = bool(
+                            len(directory_identities) == len(role_specs)
+                            and len(
+                                {
+                                    tuple(identity[:2])
+                                    for identity in directory_identities.values()
+                                }
+                            )
+                            == len(role_specs)
+                        )
+
+                    if (
+                        checks["directories_distinct"] is True
+                        and len(captures) == len(role_specs)
+                    ):
+                        owners_by_inode: dict[tuple[int, int], set[str]] = {}
+                        for role, capture in captures.items():
+                            for item in capture["files"].values():
+                                inode = tuple(item["identity"][:2])
+                                owners_by_inode.setdefault(inode, set()).add(role)
+                        implicated_roles = set().union(
+                            *(
+                                owners
+                                for owners in owners_by_inode.values()
+                                if len(owners) > 1
+                            ),
+                            set(),
+                        )
+                        for role in implicated_roles:
+                            checks[private_key(role)] = False
+                            checks[inventory_key(role)] = None
+                            clear_semantic_checks(role)
+
+                    bundle: dict[str, Any] | None = None
+                    bundle_materialized: dict[str, Any] | None = None
+                    if checks["source_bundle_inventory_exact"] is True:
+                        try:
+                            bundle_materialized = _materialize_comparison_capture(
+                                descriptors["source_bundle"],
+                                captures["source_bundle"],
+                                profile=_AUDIT_BUNDLE_COMPARISON_PROFILE,
+                            )
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            _FinalizationComparisonCaptureError,
+                        ) as raw_exc:
+                            exc = (
+                                raw_exc
+                                if isinstance(
+                                    raw_exc,
+                                    _FinalizationComparisonCaptureError,
+                                )
+                                else _FinalizationComparisonCaptureError("unreadable")
+                            )
+                            clear_role_after_unreadable("source_bundle")
+                            if exc.kind == "changed":
+                                mark_input_changed()
+                        else:
+                            manifest_preview: dict[str, Any] | None = None
+                            try:
+                                _preflight_native_coding_audit_bundle_resources(
+                                    bundle_materialized
+                                )
+                                manifest_preview = (
+                                    _preview_native_coding_audit_bundle_manifest(
+                                        bundle_materialized
+                                    )
+                                )
+                            except (
+                                MemoryError,
+                                RecursionError,
+                                _FinalizationComparisonJSONResourceError,
+                            ):
+                                clear_role_after_unreadable("source_bundle")
+                            except (TypeError, ValueError, UnicodeError):
+                                checks["source_bundle_contract_valid"] = False
+
+                            if manifest_preview is not None:
+                                codebook_version = str(
+                                    manifest_preview["codebook_version"]
+                                )
+                                try:
+                                    codebook_capture = _secure_codebook_capture(
+                                        codebook_version
+                                    )
+                                except (
+                                    MemoryError,
+                                    RecursionError,
+                                    OSError,
+                                    TypeError,
+                                    ValueError,
+                                    UnicodeError,
+                                ):
+                                    codebook_capture = None
+                                    checks["installed_codebook_readable"] = False
+                                else:
+                                    checks["installed_codebook_readable"] = True
+                                try:
+                                    bundle = _load_native_coding_audit_bundle_contract(
+                                        bundle_materialized
+                                    )
+                                except (MemoryError, RecursionError):
+                                    clear_role_after_unreadable("source_bundle")
+                                    bundle = None
+                                except (TypeError, ValueError, UnicodeError):
+                                    checks["source_bundle_contract_valid"] = False
+                                    bundle = None
+                                else:
+                                    try:
+                                        source_import_contract_valid = (
+                                            _native_coding_audit_bundle_import_contract_valid(
+                                                bundle
+                                            )
+                                        )
+                                    except (MemoryError, RecursionError):
+                                        clear_role_after_unreadable("source_bundle")
+                                        bundle = None
+                                    else:
+                                        checks["source_bundle_contract_valid"] = (
+                                            source_import_contract_valid
+                                        )
+                                        if source_import_contract_valid is False:
+                                            bundle = None
+
+                            if (
+                                checks["source_bundle_contract_valid"] is True
+                                and bundle is not None
+                            ):
+                                if checks["expected_manifest_sha256_valid"] is True:
+                                    checks[
+                                        "source_bundle_external_manifest_digest_valid"
+                                    ] = _native_coding_audit_bundle_external_manifest_matches(
+                                        bundle,
+                                        args.expected_manifest_sha256,
+                                    )
+                                if (
+                                    checks["installed_codebook_readable"] is True
+                                    and codebook_capture is not None
+                                ):
+                                    checks["installed_codebook_binding_valid"] = (
+                                        _native_coding_audit_bundle_installed_codebook_matches(
+                                            bundle,
+                                            codebook_capture["content"],
+                                        )
+                                    )
+
+                    for role in ("uncertain", "repeated"):
+                        if checks[inventory_key(role)] is not True:
+                            continue
+                        try:
+                            materialized = _materialize_comparison_capture(
+                                descriptors[role],
+                                captures[role],
+                                profile=_REVIEW_IMPORT_COMPARISON_PROFILE,
+                            )
+                            evaluation = _evaluate_native_coding_review_import_stages(
+                                materialized,
+                                bundle=(
+                                    bundle
+                                    if checks["source_bundle_contract_valid"] is True
+                                    else None
+                                ),
+                                expected_import_receipt_sha256=(
+                                    args.expected_import_receipt_sha256
+                                    if role == "repeated"
+                                    and checks[
+                                        "expected_import_receipt_sha256_valid"
+                                    ]
+                                    is True
+                                    else None
+                                ),
+                            )
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            _FinalizationComparisonCaptureError,
+                        ) as raw_exc:
+                            exc = (
+                                raw_exc
+                                if isinstance(
+                                    raw_exc,
+                                    _FinalizationComparisonCaptureError,
+                                )
+                                else _FinalizationComparisonCaptureError("unreadable")
+                            )
+                            clear_role_after_unreadable(role)
+                            if exc.kind == "changed":
+                                mark_input_changed()
+                            continue
+                        checks[f"{role}_artifact_contracts_valid"] = evaluation[
+                            "artifact_contracts_valid"
+                        ]
+                        checks[f"{role}_receipt_self_digest_valid"] = evaluation[
+                            "receipt_self_digest_valid"
+                        ]
+                        checks[f"{role}_receipt_file_binding_valid"] = evaluation[
+                            "receipt_file_binding_valid"
+                        ]
+                        checks[f"{role}_bundle_relation_valid"] = evaluation[
+                            "bundle_relation_valid"
+                        ]
+                        if role == "repeated":
+                            checks["repeated_external_receipt_digest_valid"] = (
+                                evaluation["external_receipt_digest_valid"]
+                            )
+
+                    raw_comparison_prerequisites = bool(
+                        checks["directories_distinct"] is True
+                        and checks["uncertain_inventory_exact"] is True
+                        and checks["repeated_inventory_exact"] is True
+                    )
+                    if raw_comparison_prerequisites:
+                        try:
+                            checks["import_directory_file_bytes_equal"] = (
+                                _comparison_directory_bytes_equal(
+                                    descriptors["uncertain"],
+                                    captures["uncertain"],
+                                    descriptors["repeated"],
+                                    captures["repeated"],
+                                    profile=_REVIEW_IMPORT_COMPARISON_PROFILE,
+                                )
+                            )
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            _FinalizationComparisonCaptureError,
+                        ) as raw_exc:
+                            exc = (
+                                raw_exc
+                                if isinstance(
+                                    raw_exc,
+                                    _FinalizationComparisonCaptureError,
+                                )
+                                else _FinalizationComparisonCaptureError("unreadable")
+                            )
+                            if exc.side in {"uncertain", "repeated"}:
+                                clear_role_after_unreadable(exc.side)
+                            mark_input_changed()
+
+                    recapture_failed = False
+                    recaptured_roles: set[str] = set()
+                    final_directory_identities: dict[str, tuple[int, ...]] = {}
+                    for role, _, profile in role_specs:
+                        descriptor = descriptors.get(role)
+                        capture = captures.get(role)
+                        invalid_observation = invalid_observations.get(role)
+                        info = infos[role]
+                        expected_directory_identity: tuple[int, ...] | None = None
+                        if descriptor is None:
+                            expected_directory_identity = open_failure_identities.get(
+                                role
+                            )
+                        elif capture is not None:
+                            expected_directory_identity = capture["directory_identity"]
+                            try:
+                                recapture = _capture_private_comparison_descriptor(
+                                    descriptor,
+                                    profile=profile,
+                                    expected_initial_identity=(
+                                        expected_directory_identity
+                                    ),
+                                )
+                                if recapture != capture:
+                                    raise _FinalizationComparisonCaptureError("changed")
+                            except (
+                                MemoryError,
+                                RecursionError,
+                                NotImplementedError,
+                                OSError,
+                                TypeError,
+                                AttributeError,
+                                ValueError,
+                                _FinalizationComparisonCaptureError,
+                            ):
+                                recapture_failed = True
+                            else:
+                                recaptured_roles.add(role)
+                        elif invalid_observation is not None:
+                            invalid_directory_identity = invalid_observation.get(
+                                "directory_identity"
+                            )
+                            if not isinstance(invalid_directory_identity, tuple):
+                                recapture_failed = True
+                                clear_role_after_unreadable(role)
+                                continue
+                            expected_directory_identity = invalid_directory_identity
+                            try:
+                                observed = _capture_comparison_invalid_observation(
+                                    descriptor,
+                                    expected_directory_identity=(
+                                        expected_directory_identity
+                                    ),
+                                    profile=profile,
+                                )
+                                if observed != invalid_observation:
+                                    raise _FinalizationComparisonCaptureError("changed")
+                            except (
+                                MemoryError,
+                                RecursionError,
+                                NotImplementedError,
+                                OSError,
+                                TypeError,
+                                AttributeError,
+                                ValueError,
+                                _FinalizationComparisonCaptureError,
+                            ):
+                                recapture_failed = True
+                                clear_role_after_unreadable(role)
+                            else:
+                                recaptured_roles.add(role)
+                        elif role in open_identities:
+                            expected_directory_identity = open_identities[role]
+                            try:
+                                if (
+                                    _stable_finalization_directory_identity(
+                                        os.fstat(descriptor)
+                                    )
+                                    != expected_directory_identity
+                                ):
+                                    raise _FinalizationComparisonCaptureError("changed")
+                            except (
+                                NotImplementedError,
+                                OSError,
+                                TypeError,
+                                AttributeError,
+                                ValueError,
+                                _FinalizationComparisonCaptureError,
+                            ):
+                                recapture_failed = True
+                                clear_role_after_unreadable(role)
+                            else:
+                                recaptured_roles.add(role)
+
+                        if expected_directory_identity is None:
+                            continue
+                        final_directory_identities[role] = (
+                            expected_directory_identity
+                        )
+                        for binding_check in (
+                            lambda info=info, expected=expected_directory_identity: (
+                                _assert_finalization_comparison_name_binding(
+                                    parent_descriptor,
+                                    info["directory_name"],
+                                    expected,
+                                )
+                            ),
+                            lambda info=info, expected=expected_directory_identity: (
+                                _assert_finalization_comparison_supplied_path(
+                                    info,
+                                    expected,
+                                )
+                            ),
+                        ):
+                            try:
+                                binding_check()
+                            except (
+                                NotImplementedError,
+                                OSError,
+                                TypeError,
+                                AttributeError,
+                                ValueError,
+                                _FinalizationComparisonCaptureError,
+                            ):
+                                recapture_failed = True
+                                if capture is None:
+                                    clear_role_after_unreadable(role)
+
+                    codebook_recaptured = False
+                    if codebook_capture is not None and codebook_version is not None:
+                        try:
+                            final_codebook_capture = _secure_codebook_capture(
+                                codebook_version
+                            )
+                            if final_codebook_capture != codebook_capture:
+                                raise _FinalizationComparisonCaptureError("changed")
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            OSError,
+                            TypeError,
+                            ValueError,
+                            UnicodeError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                        else:
+                            codebook_recaptured = True
+
+                    if (
+                        "uncertain" in captures
+                        and "repeated" in captures
+                        and checks["import_directory_file_bytes_equal"] is not None
+                    ):
+                        try:
+                            final_bytes_equal = _comparison_directory_bytes_equal(
+                                descriptors["uncertain"],
+                                captures["uncertain"],
+                                descriptors["repeated"],
+                                captures["repeated"],
+                                profile=_REVIEW_IMPORT_COMPARISON_PROFILE,
+                            )
+                            if (
+                                final_bytes_equal
+                                is not checks[
+                                    "import_directory_file_bytes_equal"
+                                ]
+                            ):
+                                raise _FinalizationComparisonCaptureError("changed")
+                        except (
+                            MemoryError,
+                            RecursionError,
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+
+                    for role, capture in captures.items():
+                        try:
+                            _assert_comparison_leaf_seal(
+                                descriptors[role],
+                                capture,
+                                profile=profiles[role],
+                            )
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+
+                    for role, expected_directory_identity in (
+                        final_directory_identities.items()
+                    ):
+                        info = infos[role]
+                        for binding_check in (
+                            lambda info=info, expected=expected_directory_identity: (
+                                _assert_finalization_comparison_name_binding(
+                                    parent_descriptor,
+                                    info["directory_name"],
+                                    expected,
+                                )
+                            ),
+                            lambda info=info, expected=expected_directory_identity: (
+                                _assert_finalization_comparison_supplied_path(
+                                    info,
+                                    expected,
+                                )
+                            ),
+                        ):
+                            try:
+                                binding_check()
+                            except (
+                                NotImplementedError,
+                                OSError,
+                                TypeError,
+                                AttributeError,
+                                ValueError,
+                                _FinalizationComparisonCaptureError,
+                            ):
+                                recapture_failed = True
+
+                    try:
+                        _assert_finalization_comparison_parent_bindings(
+                            parent_descriptor,
+                            parent_identity,
+                            (infos[role] for role, _, _ in role_specs),
+                        )
+                        _assert_safe_publication_parent(parent_descriptor)
+                    except (
+                        NotImplementedError,
+                        OSError,
+                        TypeError,
+                        AttributeError,
+                        ValueError,
+                        _FinalizationComparisonCaptureError,
+                    ):
+                        recapture_failed = True
+
+                    if recapture_failed:
+                        mark_input_changed()
+                    else:
+                        normal_recapture_prerequisites = bool(
+                            checks["common_parent_valid"] is True
+                            and checks["directories_distinct"] is True
+                            and checks["source_bundle_inventory_exact"] is True
+                            and checks["uncertain_inventory_exact"] is True
+                            and checks["repeated_inventory_exact"] is True
+                            and checks["source_bundle_contract_valid"] is True
+                            and checks["installed_codebook_readable"] is True
+                        )
+                        if (
+                            normal_recapture_prerequisites
+                            and checks["final_recapture_valid"] is not False
+                        ):
+                            checks["final_recapture_valid"] = bool(
+                                recaptured_roles
+                                == {"source_bundle", "uncertain", "repeated"}
+                                and codebook_recaptured
+                            )
+                            if checks["final_recapture_valid"] is False:
+                                mark_input_changed()
+    except (MemoryError, RecursionError):
+        for role, _, _ in role_specs:
+            clear_role_after_unreadable(role)
+        mark_input_changed()
+    finally:
+        close_failed = False
+        for role, _, _ in role_specs:
+            descriptor = descriptors.get(role)
+            if descriptor is None:
+                continue
+            try:
+                _close_finalization_comparison_descriptor(descriptor)
+            except _FinalizationComparisonCaptureError:
+                close_failed = True
+        if parent_descriptor is not None:
+            try:
+                _close_finalization_comparison_descriptor(parent_descriptor)
+            except _FinalizationComparisonCaptureError:
+                close_failed = True
+        if close_failed:
+            mark_input_changed()
+
+    return emit_report()
+
+
 def cmd_quality_coding_audit_plan(args: argparse.Namespace) -> int:
     result = build_coding_audit_plan(
         _read_records(Path(args.screening_candidates).expanduser().resolve()),
@@ -8688,26 +10059,29 @@ def _secure_codebook_capture(codebook_version: str) -> dict[str, Any]:
     return capture
 
 
-def _load_native_coding_review_import(
+def _native_review_import_file_bytes(
     capture: Mapping[str, Any],
-    *,
-    bundle: Mapping[str, Any],
-    expected_import_receipt_sha256: str,
-) -> dict[str, Any]:
+    name: str,
+) -> bytes:
     files = capture.get("files")
     if not isinstance(files, Mapping) or set(files) != _AUDIT_REVIEW_IMPORT_PATHS:
         raise ValueError("Внутренний снимок --audit-import неполон.")
+    item = files.get(name)
+    if not isinstance(item, Mapping) or not isinstance(item.get("content"), bytes):
+        raise ValueError(f"Внутренний снимок {name} повреждён.")
+    content = item["content"]
+    if len(content) > _AUDIT_REVIEW_IMPORT_FILE_LIMITS[name]:
+        raise ValueError(f"{name}: файл превышает безопасный предел.")
+    return content
 
-    def file_bytes(name: str) -> bytes:
-        item = files.get(name)
-        if not isinstance(item, Mapping) or not isinstance(item.get("content"), bytes):
-            raise ValueError(f"Внутренний снимок {name} повреждён.")
-        content = item["content"]
-        if len(content) > _AUDIT_REVIEW_IMPORT_FILE_LIMITS[name]:
-            raise ValueError(f"{name}: файл превышает безопасный предел.")
-        return content
 
-    receipt_content = file_bytes("coding-audit-review-import-receipt.json")
+def _parse_native_coding_review_import_receipt(
+    capture: Mapping[str, Any],
+) -> tuple[dict[str, Any], bytes]:
+    receipt_content = _native_review_import_file_bytes(
+        capture,
+        "coding-audit-review-import-receipt.json",
+    )
     receipt_value = _strict_json_bytes(
         receipt_content,
         label="coding-audit-review-import-receipt.json",
@@ -8720,25 +10094,185 @@ def _load_native_coding_review_import(
     receipt = dict(receipt_value)
     if _canonical_json_bytes(receipt) != receipt_content:
         raise ValueError("Квитанция импорта не является каноническим JSON.")
-    unsigned_receipt = {
-        key: value for key, value in receipt.items() if key != "receipt_sha256"
-    }
-    if receipt.get("receipt_sha256") != canonical_digest(unsigned_receipt):
-        raise ValueError("Собственная контрольная сумма квитанции импорта не совпадает.")
-    if not _is_lower_sha256(expected_import_receipt_sha256):
-        raise ValueError(
-            "--expected-import-receipt-sha256 должен содержать 64 строчные "
-            "шестнадцатеричные цифры."
-        )
-    if receipt["receipt_sha256"] != expected_import_receipt_sha256:
-        raise ValueError(
-            "Квитанция импорта не совпадает с отдельно сохранённым ожидаемым SHA-256."
-        )
+    return receipt, receipt_content
 
+
+def _native_coding_review_import_recomputed_receipt_sha256(
+    receipt: Mapping[str, Any],
+) -> str:
+    return canonical_digest(
+        {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    )
+
+
+def _native_coding_audit_bundle_import_contract_valid(
+    bundle: Mapping[str, Any],
+) -> bool:
+    """Validate the source-bundle relations required by the native importer."""
+
+    try:
+        audit_plan = bundle["audit_plan"]
+        manifest = bundle["manifest"]
+        primary_records = bundle["primary"]
+        queue_records = bundle["queue"]
+        material_records = bundle["packet"]["review_materials"]
+        if (
+            not isinstance(audit_plan, Mapping)
+            or not isinstance(primary_records, list)
+            or not isinstance(queue_records, list)
+            or not isinstance(material_records, list)
+        ):
+            return False
+        required_candidate_ids = audit_plan.get("required_candidate_ids")
+        if (
+            not isinstance(required_candidate_ids, list)
+            or not required_candidate_ids
+            or any(
+                not _is_native_audit_candidate_id(candidate_id)
+                for candidate_id in required_candidate_ids
+            )
+            or len(required_candidate_ids) != len(set(required_candidate_ids))
+        ):
+            return False
+
+        def closed_index(
+            records: list[Any],
+            fields: frozenset[str],
+        ) -> tuple[list[str], dict[str, Mapping[str, Any]]] | None:
+            observed: list[str] = []
+            indexed: dict[str, Mapping[str, Any]] = {}
+            for record in records:
+                if not isinstance(record, Mapping) or set(record) != fields:
+                    return None
+                candidate_id = record.get("candidate_id")
+                if (
+                    not _is_native_audit_candidate_id(candidate_id)
+                    or candidate_id in indexed
+                ):
+                    return None
+                observed.append(candidate_id)
+                indexed[candidate_id] = record
+            return observed, indexed
+
+        primary_index = closed_index(primary_records, AUDIT_CODING_RECORD_FIELDS)
+        queue_index = closed_index(queue_records, NATIVE_AUDIT_QUEUE_FIELDS)
+        material_index = closed_index(
+            material_records,
+            NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS,
+        )
+        if primary_index is None or queue_index is None or material_index is None:
+            return False
+        _, primary_by_candidate = primary_index
+        queue_order, queue_by_candidate = queue_index
+        material_order, material_by_candidate = material_index
+        if (
+            not set(required_candidate_ids).issubset(primary_by_candidate)
+            or queue_order != required_candidate_ids
+            or material_order != required_candidate_ids
+        ):
+            return False
+
+        codebook_version = manifest.get("codebook_version")
+        if codebook_version not in NATIVE_AUDIT_CODEBOOK_VERSIONS:
+            return False
+        if any(
+            validate_coding_record(primary)
+            or not _audit_coding_identity_valid(primary)
+            or primary.get("codebook_version") != codebook_version
+            for primary in primary_records
+        ):
+            return False
+        norm_editions = bundle["packet"]["coding_brief"].get("norm_editions")
+        if not isinstance(norm_editions, list):
+            return False
+        allowed_norm_editions = {
+            edition.get("id")
+            for edition in norm_editions
+            if isinstance(edition, Mapping)
+        }
+        if None in allowed_norm_editions:
+            return False
+
+        for candidate_id in required_candidate_ids:
+            primary = primary_by_candidate[candidate_id]
+            queue = queue_by_candidate[candidate_id]
+            material = material_by_candidate[candidate_id]
+            chain_id = primary.get("chain_id")
+            document_id = primary.get("document_id")
+            if (
+                primary.get("norm_edition_id") not in allowed_norm_editions
+                or candidate_id
+                != _native_audit_candidate_id(
+                    plan_sha256=audit_plan["plan_sha256"],
+                    chain_id=chain_id,
+                    document_id=document_id,
+                )
+                or queue.get("schema_version") != "1.0"
+                or queue.get("review_state")
+                != "independent_secondary_required"
+                or queue.get("codebook_version") != codebook_version
+                or any(
+                    queue.get(field) != expected
+                    for field, expected in (
+                        ("candidate_id", candidate_id),
+                        ("chain_id", chain_id),
+                        ("document_id", document_id),
+                    )
+                )
+                or queue.get("primary_coding_sha256")
+                != canonical_digest(primary)
+            ):
+                return False
+            source_ids = queue.get("source_ids")
+            if (
+                not isinstance(source_ids, list)
+                or not source_ids
+                or any(
+                    isinstance(source_id, bool)
+                    or not isinstance(source_id, int)
+                    or source_id < 1
+                    for source_id in source_ids
+                )
+                or source_ids != sorted(set(source_ids))
+                or not _is_lower_sha256(queue.get("source_text_sha256"))
+            ):
+                return False
+
+            text = material.get("text")
+            if (
+                material.get("schema_version") != "1.0"
+                or material.get("candidate_id") != candidate_id
+                or material.get("chain_id") != chain_id
+                or material.get("document_id") != document_id
+                or material.get("source_text_sha256")
+                != queue.get("source_text_sha256")
+                or not _is_captured_full_text(text)
+            ):
+                return False
+            packet_text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            normalized_text = re.sub(
+                r"\s+", " ", unicodedata.normalize("NFC", text)
+            ).strip()
+            source_text_sha256 = hashlib.sha256(
+                normalized_text.encode("utf-8")
+            ).hexdigest()
+            if (
+                material.get("packet_text_sha256") != packet_text_sha256
+                or material.get("source_text_sha256") != source_text_sha256
+                or validate_coding_against_text(primary, text)
+            ):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        return False
+
+
+def _native_coding_review_import_fixed_contract(
+    bundle: Mapping[str, Any],
+) -> dict[str, Any]:
     manifest = bundle["manifest"]
     audit_plan = bundle["audit_plan"]
-    required_candidate_ids = audit_plan.get("required_candidate_ids")
-    fixed_contract = {
+    return {
         "schema_version": "1.0",
         "artifact_type": "coding_audit_review_import_receipt",
         "producer": "judicial_meaning.quality.coding_audit_review_import",
@@ -8756,7 +10290,7 @@ def _load_native_coding_review_import(
         ).hexdigest(),
         "codebook_sha256": manifest["codebook_sha256"],
         "coding_brief_file_sha256": manifest["coding_brief_file_sha256"],
-        "candidate_ids": required_candidate_ids,
+        "candidate_ids": audit_plan.get("required_candidate_ids"),
         "audited_fields": list(AUDITED_CODING_FIELDS),
         "non_audited_content_fields": list(NON_AUDITED_CODING_CONTENT_FIELDS),
         "secondary_coder_label_precommit_verified": False,
@@ -8777,42 +10311,614 @@ def _load_native_coding_review_import(
         "publication_safe": False,
         "legal_readiness": False,
     }
+
+
+_NATIVE_REVIEW_IMPORT_RECEIPT_DIGEST_FIELDS = (
+    "secondary_coding_file_sha256",
+    "secondary_coding_sha256",
+    "audit_decisions_file_sha256",
+    "expected_secondary_coder_label_sha256",
+)
+
+_NATIVE_REVIEW_IMPORT_RECEIPT_HASH_FIELDS = (
+    "plan_sha256",
+    "audit_plan_sha256",
+    "source_bundle_manifest_sha256",
+    "expected_source_bundle_manifest_sha256",
+    "source_bundle_manifest_file_sha256",
+    "review_packet_sha256",
+    "secondary_coding_file_sha256",
+    "secondary_coding_sha256",
+    "codebook_sha256",
+    "coding_brief_file_sha256",
+    "audit_decisions_file_sha256",
+    "expected_secondary_coder_label_sha256",
+    "receipt_sha256",
+)
+
+_NATIVE_REVIEW_IMPORT_RECEIPT_TRUE_FIELDS = (
+    "returned_quote_literal_presence_verified",
+    "secondary_coder_label_differs_from_each_sampled_primary_label",
+    "single_secondary_coder_label",
+    "bundle_internal_consistency_verified",
+    "expected_manifest_digest_match_verified",
+    "norm_edition_allowlist_membership_verified",
+)
+
+_NATIVE_REVIEW_IMPORT_RECEIPT_FALSE_FIELDS = (
+    "secondary_coder_label_precommit_verified",
+    "quote_locator_verified",
+    "source_workspace_reverified",
+    "reviewer_packet_use_attested",
+    "norm_edition_temporal_applicability_verified",
+    "reviewer_identity_authenticated",
+    "human_review_authenticated",
+    "independence_verified",
+    "receipt_authenticated",
+    "publication_safe",
+    "legal_readiness",
+)
+
+
+def _native_review_import_ordered_identifier_subset(
+    value: Any,
+    candidate_ids: list[str],
+) -> bool:
+    """Validate one duplicate-free candidate subset in frozen candidate order."""
+
+    if not isinstance(value, list) or not all(
+        _is_native_audit_candidate_id(item) for item in value
+    ):
+        return False
+    value_set = set(value)
+    return bool(
+        len(value) == len(value_set)
+        and value_set.issubset(set(candidate_ids))
+        and value
+        == [
+            candidate_id
+            for candidate_id in candidate_ids
+            if candidate_id in value_set
+        ]
+    )
+
+
+def _native_review_import_difference_list_contract_valid(
+    value: Any,
+    *,
+    candidate_ids: list[str],
+    expected_candidate_ids: list[str],
+    allowed_fields: tuple[str, ...],
+) -> bool:
+    """Validate one closed, ordered difference map without reading source text."""
+
+    if not isinstance(value, list) or len(value) != len(expected_candidate_ids):
+        return False
+    allowed_field_set = set(allowed_fields)
+    candidate_id_set = set(candidate_ids)
+    normalized_candidate_ids: list[str] = []
+    for item in value:
+        if not isinstance(item, Mapping) or set(item) != {"candidate_id", "fields"}:
+            return False
+        candidate_id = item.get("candidate_id")
+        fields = item.get("fields")
+        if (
+            not _is_native_audit_candidate_id(candidate_id)
+            or candidate_id not in candidate_id_set
+            or not isinstance(fields, list)
+            or not fields
+            or any(type(field) is not str for field in fields)
+        ):
+            return False
+        field_set = set(fields)
+        if (
+            len(fields) != len(field_set)
+            or not field_set.issubset(allowed_field_set)
+            or fields
+            != [field for field in allowed_fields if field in field_set]
+        ):
+            return False
+        normalized_candidate_ids.append(candidate_id)
+    return normalized_candidate_ids == expected_candidate_ids
+
+
+def _native_coding_review_import_artifact_contract_valid(
+    receipt: Mapping[str, Any],
+    decisions: list[dict[str, Any]],
+) -> bool:
+    """Validate closed receipt/decision contracts before evaluating relations."""
+
+    candidate_ids = receipt.get("candidate_ids")
+    agreement_ids = receipt.get("audited_field_agreement_candidate_ids")
+    disagreement_ids = receipt.get("audited_field_disagreement_candidate_ids")
+    non_audited_difference_ids = receipt.get(
+        "non_audited_content_difference_candidate_ids"
+    )
+    if (
+        receipt.get("schema_version") != "1.0"
+        or receipt.get("artifact_type") != "coding_audit_review_import_receipt"
+        or receipt.get("producer")
+        != "judicial_meaning.quality.coding_audit_review_import"
+        or not isinstance(receipt.get("bundle_contract_version"), str)
+        or receipt.get("bundle_contract_version") not in {"1.1", "1.2"}
+        or not isinstance(receipt.get("codebook_version"), str)
+        or receipt.get("codebook_version") not in NATIVE_AUDIT_CODEBOOK_VERSIONS
+        or any(
+            not _is_lower_sha256(receipt.get(field))
+            for field in _NATIVE_REVIEW_IMPORT_RECEIPT_HASH_FIELDS
+        )
+        or not isinstance(candidate_ids, list)
+        or not candidate_ids
+        or any(not _is_native_audit_candidate_id(item) for item in candidate_ids)
+        or len(candidate_ids) != len(set(candidate_ids))
+        or receipt.get("audited_fields") != list(AUDITED_CODING_FIELDS)
+        or receipt.get("non_audited_content_fields")
+        != list(NON_AUDITED_CODING_CONTENT_FIELDS)
+        or not _native_review_import_ordered_identifier_subset(
+            agreement_ids, candidate_ids
+        )
+        or not _native_review_import_ordered_identifier_subset(
+            disagreement_ids, candidate_ids
+        )
+        or set(agreement_ids) & set(disagreement_ids)
+        or set(agreement_ids) | set(disagreement_ids) != set(candidate_ids)
+        or not _native_review_import_ordered_identifier_subset(
+            non_audited_difference_ids, candidate_ids
+        )
+        or not _native_review_import_difference_list_contract_valid(
+            receipt.get("audited_field_differences"),
+            candidate_ids=candidate_ids,
+            expected_candidate_ids=disagreement_ids,
+            allowed_fields=tuple(AUDITED_CODING_FIELDS),
+        )
+        or not _native_review_import_difference_list_contract_valid(
+            receipt.get("non_audited_content_differences"),
+            candidate_ids=candidate_ids,
+            expected_candidate_ids=non_audited_difference_ids,
+            allowed_fields=tuple(NON_AUDITED_CODING_CONTENT_FIELDS),
+        )
+        or receipt.get("adjudication_required") is not bool(disagreement_ids)
+        or receipt.get("non_audited_content_review_required")
+        is not bool(non_audited_difference_ids)
+        or any(
+            receipt.get(field) is not True
+            for field in _NATIVE_REVIEW_IMPORT_RECEIPT_TRUE_FIELDS
+        )
+        or any(
+            receipt.get(field) is not False
+            for field in _NATIVE_REVIEW_IMPORT_RECEIPT_FALSE_FIELDS
+        )
+        or not isinstance(decisions, list)
+        or len(decisions) != len(candidate_ids)
+    ):
+        return False
+
+    for candidate_id, decision in zip(candidate_ids, decisions):
+        if (
+            not isinstance(decision, Mapping)
+            or set(decision) != CODING_AUDIT_DECISION_FIELDS
+            or decision.get("candidate_id") != candidate_id
+            or not _coding_audit_record_contract_valid(decision, candidate_id)
+        ):
+            return False
+        secondary = decision.get("secondary_coding")
+        if (
+            not isinstance(secondary, Mapping)
+            or secondary.get("candidate_id") != candidate_id
+            or secondary.get("codebook_version") != receipt.get("codebook_version")
+        ):
+            return False
+        try:
+            if validate_coding_record(secondary):
+                return False
+        except (TypeError, ValueError, UnicodeError):
+            return False
+    return True
+
+
+def _native_coding_review_import_bundle_relation_valid(
+    receipt: Mapping[str, Any],
+    decisions: list[dict[str, Any]],
+    bundle: Mapping[str, Any],
+) -> bool:
+    try:
+        fixed_contract = _native_coding_review_import_fixed_contract(bundle)
+        if not (
+            all(receipt.get(key) == value for key, value in fixed_contract.items())
+            and all(
+                _is_lower_sha256(receipt.get(field))
+                for field in _NATIVE_REVIEW_IMPORT_RECEIPT_DIGEST_FIELDS
+            )
+        ):
+            return False
+
+        required_candidate_ids = list(
+            bundle["audit_plan"]["required_candidate_ids"]
+        )
+        primary_by_candidate = {
+            record["candidate_id"]: record for record in bundle["primary"]
+        }
+        queue_by_candidate = {
+            record["candidate_id"]: record for record in bundle["queue"]
+        }
+        material_by_candidate = {
+            record["candidate_id"]: record
+            for record in bundle["packet"]["review_materials"]
+        }
+        decision_by_candidate = {
+            decision["candidate_id"]: decision for decision in decisions
+        }
+        if (
+            list(decision_by_candidate) != required_candidate_ids
+            or set(required_candidate_ids) - set(primary_by_candidate)
+            or set(queue_by_candidate) != set(required_candidate_ids)
+            or set(material_by_candidate) != set(required_candidate_ids)
+        ):
+            return False
+
+        norm_editions = bundle["packet"]["coding_brief"].get("norm_editions")
+        if not isinstance(norm_editions, list):
+            return False
+        allowed_norm_editions = {
+            edition.get("id")
+            for edition in norm_editions
+            if isinstance(edition, Mapping)
+        }
+        if None in allowed_norm_editions:
+            return False
+
+        secondary_records: list[dict[str, Any]] = []
+        audited_agreement_ids: list[str] = []
+        audited_disagreement_ids: list[str] = []
+        non_audited_difference_ids: list[str] = []
+        audited_field_differences: list[dict[str, Any]] = []
+        non_audited_content_differences: list[dict[str, Any]] = []
+        secondary_coder_sha256: str | None = None
+
+        for candidate_id in required_candidate_ids:
+            primary = primary_by_candidate[candidate_id]
+            queue = queue_by_candidate[candidate_id]
+            material = material_by_candidate[candidate_id]
+            decision = decision_by_candidate[candidate_id]
+            secondary_value = decision["secondary_coding"]
+            if not isinstance(secondary_value, Mapping):
+                return False
+            secondary = dict(secondary_value)
+            secondary_records.append(secondary)
+
+            if (
+                set(primary) != AUDIT_CODING_RECORD_FIELDS
+                or set(queue) != NATIVE_AUDIT_QUEUE_FIELDS
+                or set(material) != NATIVE_AUDIT_REVIEW_MATERIAL_FIELDS
+            ):
+                return False
+
+            chain_id = primary.get("chain_id")
+            document_id = primary.get("document_id")
+            primary_sha256 = canonical_digest(primary)
+            if (
+                candidate_id
+                != _native_audit_candidate_id(
+                    plan_sha256=bundle["audit_plan"]["plan_sha256"],
+                    chain_id=chain_id,
+                    document_id=document_id,
+                )
+                or queue.get("schema_version") != "1.0"
+                or queue.get("review_state")
+                != "independent_secondary_required"
+                or queue.get("codebook_version") != receipt.get("codebook_version")
+                or any(
+                    queue.get(field) != expected
+                    for field, expected in (
+                        ("candidate_id", candidate_id),
+                        ("chain_id", chain_id),
+                        ("document_id", document_id),
+                    )
+                )
+                or queue.get("primary_coding_sha256") != primary_sha256
+            ):
+                return False
+            source_ids = queue.get("source_ids")
+            if (
+                not isinstance(source_ids, list)
+                or not source_ids
+                or any(
+                    isinstance(source_id, bool)
+                    or not isinstance(source_id, int)
+                    or source_id < 1
+                    for source_id in source_ids
+                )
+                or source_ids != sorted(set(source_ids))
+                or not _is_lower_sha256(queue.get("source_text_sha256"))
+            ):
+                return False
+
+            text = material.get("text")
+            if (
+                material.get("schema_version") != "1.0"
+                or material.get("candidate_id") != candidate_id
+                or material.get("chain_id") != chain_id
+                or material.get("document_id") != document_id
+                or material.get("source_text_sha256")
+                != queue.get("source_text_sha256")
+                or not _is_captured_full_text(text)
+            ):
+                return False
+            packet_text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            normalized_text = re.sub(
+                r"\s+", " ", unicodedata.normalize("NFC", text)
+            ).strip()
+            source_text_sha256 = hashlib.sha256(
+                normalized_text.encode("utf-8")
+            ).hexdigest()
+            if (
+                material.get("packet_text_sha256") != packet_text_sha256
+                or material.get("source_text_sha256") != source_text_sha256
+            ):
+                return False
+
+            if (
+                decision.get("primary_coding_sha256")
+                != primary_sha256
+                or decision.get("secondary_coding_sha256")
+                != canonical_digest(secondary)
+                or any(
+                    secondary.get(field) != primary.get(field)
+                    for field in (
+                        "candidate_id",
+                        "chain_id",
+                        "document_id",
+                        "codebook_version",
+                    )
+                )
+                or primary.get("norm_edition_id") not in allowed_norm_editions
+                or secondary.get("norm_edition_id") not in allowed_norm_editions
+            ):
+                return False
+
+            primary_coder = _canonical_reviewer(primary.get("coder"))
+            secondary_coder = _canonical_reviewer(secondary.get("coder"))
+            if (
+                primary_coder is None
+                or secondary_coder is None
+                or primary_coder == secondary_coder
+            ):
+                return False
+            current_coder_sha256 = hashlib.sha256(
+                secondary_coder.encode("utf-8")
+            ).hexdigest()
+            if secondary_coder_sha256 is None:
+                secondary_coder_sha256 = current_coder_sha256
+            elif secondary_coder_sha256 != current_coder_sha256:
+                return False
+
+            for coding in (primary, secondary):
+                if validate_coding_against_text(coding, text):
+                    return False
+            quote = secondary.get("quote")
+            if not isinstance(quote, str) or quote not in text:
+                return False
+            alternative_grounds = secondary.get("alternative_grounds")
+            if not isinstance(alternative_grounds, list):
+                return False
+            for ground in alternative_grounds:
+                if not isinstance(ground, Mapping):
+                    return False
+                ground_quote = ground.get("quote")
+                if ground_quote is not None and ground_quote not in text:
+                    return False
+
+            audited_differences = [
+                field
+                for field in AUDITED_CODING_FIELDS
+                if primary.get(field) != secondary.get(field)
+            ]
+            content_differences = [
+                field
+                for field in NON_AUDITED_CODING_CONTENT_FIELDS
+                if primary.get(field) != secondary.get(field)
+            ]
+            if audited_differences:
+                audited_disagreement_ids.append(candidate_id)
+                audited_field_differences.append(
+                    {"candidate_id": candidate_id, "fields": audited_differences}
+                )
+            else:
+                audited_agreement_ids.append(candidate_id)
+            if content_differences:
+                non_audited_difference_ids.append(candidate_id)
+                non_audited_content_differences.append(
+                    {"candidate_id": candidate_id, "fields": content_differences}
+                )
+
+        secondary_records.sort(key=canonical_digest)
+        return bool(
+            receipt.get("secondary_coding_sha256")
+            == canonical_digest(secondary_records)
+            and receipt.get("expected_secondary_coder_label_sha256")
+            == secondary_coder_sha256
+            and receipt.get("audited_field_agreement_candidate_ids")
+            == audited_agreement_ids
+            and receipt.get("audited_field_disagreement_candidate_ids")
+            == audited_disagreement_ids
+            and receipt.get("non_audited_content_difference_candidate_ids")
+            == non_audited_difference_ids
+            and receipt.get("audited_field_differences")
+            == audited_field_differences
+            and receipt.get("non_audited_content_differences")
+            == non_audited_content_differences
+            and receipt.get("adjudication_required")
+            is bool(audited_disagreement_ids)
+            and receipt.get("non_audited_content_review_required")
+            is bool(non_audited_difference_ids)
+        )
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        return False
+
+
+def _parse_native_coding_review_import_decisions(
+    capture: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], bytes]:
+    content = _native_review_import_file_bytes(capture, "audit-decisions.jsonl")
+    records = _strict_jsonl_bytes(content, label="audit-decisions.jsonl")
+    if _canonical_jsonl_bytes(records) != content:
+        raise ValueError("audit-decisions.jsonl не является каноническим JSONL.")
+    return records, content
+
+
+def _native_coding_review_import_difference_relation_valid(
+    receipt: Mapping[str, Any],
+) -> bool:
+    audited_differences = receipt.get("audited_field_differences")
+    content_differences = receipt.get("non_audited_content_differences")
+    return bool(
+        isinstance(audited_differences, list)
+        and isinstance(content_differences, list)
+        and receipt.get("adjudication_required") is bool(audited_differences)
+        and receipt.get("non_audited_content_review_required")
+        is bool(content_differences)
+    )
+
+
+def _preflight_native_review_import_json_resources(
+    capture: Mapping[str, Any],
+) -> None:
+    """Reject resource-bound JSON before the comparator materializes it."""
+
+    receipt_content = _native_review_import_file_bytes(
+        capture,
+        "coding-audit-review-import-receipt.json",
+    )
+    _preflight_finalization_comparison_json(
+        receipt_content,
+        include_leaf_depth=True,
+    )
+
+    decisions_content = _native_review_import_file_bytes(
+        capture,
+        "audit-decisions.jsonl",
+    )
+    _preflight_comparison_jsonl_resources(decisions_content)
+
+
+def _evaluate_native_coding_review_import_stages(
+    capture: Mapping[str, Any],
+    *,
+    bundle: Mapping[str, Any] | None,
+    expected_import_receipt_sha256: str | None,
+) -> dict[str, Any]:
+    """Evaluate independent pure stages without classifying exception messages."""
+
+    try:
+        _preflight_native_review_import_json_resources(capture)
+        receipt, receipt_content = _parse_native_coding_review_import_receipt(capture)
+        decisions, decisions_content = _parse_native_coding_review_import_decisions(
+            capture
+        )
+    except (
+        MemoryError,
+        RecursionError,
+        _FinalizationComparisonJSONResourceError,
+    ) as exc:
+        raise _FinalizationComparisonCaptureError("resource") from exc
+    except (TypeError, ValueError, UnicodeError):
+        return {
+            "artifact_contracts_valid": False,
+            "receipt_self_digest_valid": None,
+            "external_receipt_digest_valid": None,
+            "receipt_file_binding_valid": None,
+            "bundle_relation_valid": None,
+        }
+    if not _native_coding_review_import_artifact_contract_valid(
+        receipt,
+        decisions,
+    ):
+        return {
+            "artifact_contracts_valid": False,
+            "receipt_self_digest_valid": None,
+            "external_receipt_digest_valid": None,
+            "receipt_file_binding_valid": None,
+            "bundle_relation_valid": None,
+        }
+    recomputed_receipt_sha256 = (
+        _native_coding_review_import_recomputed_receipt_sha256(receipt)
+    )
+    return {
+        "artifact_contracts_valid": True,
+        "receipt_self_digest_valid": (
+            receipt.get("receipt_sha256") == recomputed_receipt_sha256
+        ),
+        "external_receipt_digest_valid": (
+            recomputed_receipt_sha256 == expected_import_receipt_sha256
+            if expected_import_receipt_sha256 is not None
+            else None
+        ),
+        "receipt_file_binding_valid": (
+            receipt.get("audit_decisions_file_sha256")
+            == hashlib.sha256(decisions_content).hexdigest()
+        ),
+        "bundle_relation_valid": (
+            _native_coding_review_import_bundle_relation_valid(
+                receipt,
+                decisions,
+                bundle,
+            )
+            if bundle is not None
+            else None
+        ),
+        "receipt": receipt,
+        "receipt_content": receipt_content,
+        "audit_decisions": decisions,
+        "audit_decisions_content": decisions_content,
+    }
+
+
+def _load_native_coding_review_import(
+    capture: Mapping[str, Any],
+    *,
+    bundle: Mapping[str, Any],
+    expected_import_receipt_sha256: str,
+) -> dict[str, Any]:
+    files = capture.get("files")
+    if not isinstance(files, Mapping) or set(files) != _AUDIT_REVIEW_IMPORT_PATHS:
+        raise ValueError("Внутренний снимок --audit-import неполон.")
+
+    receipt, receipt_content = _parse_native_coding_review_import_receipt(capture)
+    if (
+        receipt.get("receipt_sha256")
+        != _native_coding_review_import_recomputed_receipt_sha256(receipt)
+    ):
+        raise ValueError("Собственная контрольная сумма квитанции импорта не совпадает.")
+    if not _is_lower_sha256(expected_import_receipt_sha256):
+        raise ValueError(
+            "--expected-import-receipt-sha256 должен содержать 64 строчные "
+            "шестнадцатеричные цифры."
+        )
+    if receipt["receipt_sha256"] != expected_import_receipt_sha256:
+        raise ValueError(
+            "Квитанция импорта не совпадает с отдельно сохранённым ожидаемым SHA-256."
+        )
+
+    fixed_contract = _native_coding_review_import_fixed_contract(bundle)
     if any(receipt.get(key) != value for key, value in fixed_contract.items()):
         raise ValueError(
             "Квитанция импорта не связана с точным пакетом либо имеет неверные "
             "границы доказанного."
         )
-    for field in (
-        "secondary_coding_file_sha256",
-        "secondary_coding_sha256",
-        "audit_decisions_file_sha256",
-        "expected_secondary_coder_label_sha256",
-    ):
+    for field in _NATIVE_REVIEW_IMPORT_RECEIPT_DIGEST_FIELDS:
         if not _is_lower_sha256(receipt.get(field)):
             raise ValueError(f"Квитанция импорта содержит неверное поле {field}.")
 
-    audit_decisions_content = file_bytes("audit-decisions.jsonl")
-    audit_decisions = _strict_jsonl_bytes(
-        audit_decisions_content,
-        label="audit-decisions.jsonl",
+    audit_decisions, audit_decisions_content = (
+        _parse_native_coding_review_import_decisions(capture)
     )
-    if _canonical_jsonl_bytes(audit_decisions) != audit_decisions_content:
-        raise ValueError("audit-decisions.jsonl не является каноническим JSONL.")
     if receipt["audit_decisions_file_sha256"] != hashlib.sha256(
         audit_decisions_content
     ).hexdigest():
         raise ValueError(
             "Квитанция импорта не совпадает с точными байтами audit-decisions.jsonl."
         )
-    audited_differences = receipt.get("audited_field_differences")
-    content_differences = receipt.get("non_audited_content_differences")
-    if (
-        not isinstance(audited_differences, list)
-        or not isinstance(content_differences, list)
-        or receipt.get("adjudication_required") is not bool(audited_differences)
-        or receipt.get("non_audited_content_review_required")
-        is not bool(content_differences)
-    ):
+    if not _native_coding_review_import_difference_relation_valid(receipt):
         raise ValueError("Карты расхождений квитанции импорта неканоничны.")
     return {
         "receipt": receipt,
@@ -11090,6 +13196,102 @@ def build_parser() -> argparse.ArgumentParser:
     )
     quality_native_reliability_compare.set_defaults(
         func=cmd_quality_native_reliability_compare_finalizations
+    )
+
+    quality_native_reliability_compare_imports = (
+        quality_native_reliability_sub.add_parser(
+            "compare-review-imports",
+            help="Сопоставить два результата штатного импорта проверки",
+            description=(
+                "Локально и только для чтения сопоставить один полный "
+                "семифайловый пакет аудита и две разные полные двухфайловые "
+                "папки импорта — прямые соседние каталоги одного фактического "
+                "безопасного родителя."
+            ),
+            epilog=(
+                "SHA-256 манифеста передавайте только из полного стандартного "
+                "вывода успешно и нормально завершившейся подготовки пакета, а "
+                "SHA-256 квитанции — только из полного стандартного вывода "
+                "успешного повторного импорта; не берите эти значения из "
+                "манифеста, квитанции или сомнительного запуска. Не передавайте "
+                "отдельные файлы, частичную папку или staging-папку. Равенства двух "
+                "папок недостаточно без точной связи с пакетом. Команда повторяет "
+                "те же штатные проверки потребителя импорта, которые связывают "
+                "квитанцию с пакетом, проверяет сырые байты обоих файлов импорта "
+                "и выполняет полный повторный "
+                "снимок пакета, обеих папок и встроенного справочника. Коды "
+                "завершения: 0 — match; 3 — mismatch; 2 — invalid или unreadable. "
+                "Стандартный вывод содержит один детерминированный канонический "
+                "JSON-отчёт без значений. Команда не создаёт выходных файлов, не "
+                "изменяет, не исправляет, не удаляет и не помещает в карантин входы, "
+                "не запускает импорт, повтор или другой процесс и не обращается к "
+                "сети или базе данных. Она не перечитывает исходный возвращённый "
+                "файл вторичной разметки, не аутентифицирует метку кодировщика и не "
+                "разрешает расхождения проверки. "
+                "Один код 2 исходного импортера недостаточен: полная исходная "
+                "диагностика должна прямо разрешить повтор неизменённых входов в "
+                "новую соседнюю папку и побайтовое сравнение. Если она требует "
+                "очистку staging, учёт inode или жёстких ссылок, проверку "
+                "местоположения, целостности, ACL или безопасности либо карантин, "
+                "остановите автоматику и передайте состояние системному "
+                "администратору. Даже match сохраняет "
+                "original_recovery_eligibility_verified=false, "
+                "prepare_normal_return_verified=false, "
+                "repeat_normal_return_verified=false, "
+                "external_manifest_digest_provenance_authenticated=false и "
+                "external_import_receipt_digest_provenance_authenticated=false, "
+                "original_durability_verified=false, "
+                "source_workspace_reverified=false и "
+                "returned_secondary_file_reverified=false; "
+                "он не подтверждает личность проверяющего, юридическую "
+                "правильность, актуальность права, разрешение на публикацию, "
+                "одобрение, готовность тезиса или право на подачу. После допустимого "
+                "match используйте "
+                "только повторную папку и её отдельно сохранённый SHA-256 квитанции; "
+                "получатель заново проверяет точный пакет, внешний SHA-256 "
+                "манифеста, текущие последующие входы, флаги различий и каждый "
+                "независимый барьер."
+            ),
+        )
+    )
+    quality_native_reliability_compare_imports.add_argument(
+        "--bundle",
+        required=True,
+        metavar="ПАПКА_ПАКЕТА_АУДИТА",
+        help="Полный неизменённый семифайловый пакет аудита.",
+    )
+    quality_native_reliability_compare_imports.add_argument(
+        "--expected-manifest-sha256",
+        required=True,
+        metavar="СОХРАНЁННЫЙ_SHA256_МАНИФЕСТА",
+        help=(
+            "Строчный SHA-256 из успешного стандартного вывода подготовки; "
+            "не из манифеста."
+        ),
+    )
+    quality_native_reliability_compare_imports.add_argument(
+        "--uncertain-review-import-dir",
+        required=True,
+        metavar="СОМНИТЕЛЬНАЯ_ПАПКА_ИМПОРТА",
+        help="Сохранённая без изменений полная сомнительная папка импорта.",
+    )
+    quality_native_reliability_compare_imports.add_argument(
+        "--repeated-review-import-dir",
+        required=True,
+        metavar="ПОВТОРНАЯ_ПАПКА_ИМПОРТА",
+        help="Новая полная папка нормально завершившегося повторного импорта.",
+    )
+    quality_native_reliability_compare_imports.add_argument(
+        "--expected-import-receipt-sha256",
+        required=True,
+        metavar="SHA256_УСПЕШНОГО_ПОВТОРА",
+        help=(
+            "Строчный SHA-256 квитанции из успешного стандартного вывода "
+            "повторного импорта; не из квитанции."
+        ),
+    )
+    quality_native_reliability_compare_imports.set_defaults(
+        func=cmd_quality_native_reliability_compare_review_imports
     )
 
     quality_audit_plan = quality_sub.add_parser(

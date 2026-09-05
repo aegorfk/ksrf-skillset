@@ -30,6 +30,24 @@ description: "Скилл исследует материалы дела заяв
 9. **Только после проверки сформируй handoff.** Локальный compatibility-статус `drafting_ready` требует текущие хеши fingerprint/плана/evidence/quality/refresh, человеческую проверку и формулировку не сильнее `maximum_permitted_claim`, но означает лишь готовность evidence bundle к центральному gate. Reviewed v2 result строится CLI из текущих одобренных артефактов по selectors; произвольный findings payload запрещён. Получатель сначала выполняет `handoff check` с этим source workspace и ожидаемым target, затем требует pre-existing host-attested approval полного issue/practice/adverse binding. Bundle без внешнего anchor остаётся audit-only; filesystem anchor и SHA-256 не являются подписью или filing authority.
 10. **Перед release свяжи exact practice-строку.** Для каждой строки жалобы отдельно сохрани constitutional `claim_id`, native `practice_claim_id`, selected `issue_option_id`, exact finding IDs, reviewed wording и byte-equal `maximum_permitted_claim`. Host заново проверяет current practice workspace, result, trust anchors, target-claim state, refresh, approvals `practice:<id>` и `selection`, а также независимый полный draft index — включая пустой. Правила и стоп-матрица: [привязка тезиса к filing](references/filing-evidence-binding.md).
 
+### Если неопределён именно импорт вторичной разметки
+
+Один код `2` не разрешает повтор. Только если полная исходная диагностика прямо разрешила сохранить неизменные входы, повторить импорт в новую соседнюю папку и сравнить результаты, дождись нормального кода `0` повтора и выполни:
+
+```bash
+KSRF_SKILLS_ROOT="${KSRF_SKILLS_ROOT:-${CODEX_HOME:-$HOME/.codex}/skills}"
+JM="$KSRF_SKILLS_ROOT/ksrf-cassation-judicial-meaning/scripts/judicial_meaning.py"
+
+python3 "$JM" quality native-reliability compare-review-imports \
+  --bundle ./coding-audit-inputs \
+  --expected-manifest-sha256 "<manifest_sha256 из полного stdout успешной подготовки>" \
+  --uncertain-review-import-dir ./coding-audit-review-import-uncertain \
+  --repeated-review-import-dir ./coding-audit-review-import-repeated \
+  --expected-import-receipt-sha256 "<receipt_sha256 из полного stdout успешного повтора импорта>"
+```
+
+Нужны один точный пакет и две разные полные двухфайловые папки — прямые соседи у одного безопасного приватного родителя. Пакет обязателен: побайтово одинаковые копии могут одинаково не соответствовать исходному плану, кандидатам, ZIP или установленному справочнику. Оба SHA передаются извне и не берутся из проверяемых файлов. `match`/`0` подтверждает только технические связи, равенство сырых байтов и финальный повторный снимок; `mismatch` возвращает `3`, `invalid` или `unreadable` — `2`. Отчёт не содержит входных значений, а команда ничего не изменяет и не выполняет повтор. Если исходная диагностика требует очистки, учёта inode/жёстких ссылок, проверки местоположения, целостности, ACL/безопасности или карантина, останови автоматику и обратись к системному администратору. Даже после `match` получатель заново проверяет повторную папку и внешний SHA; человеческое одобрение, юридическая проверка, публикация и подача остаются отдельными закрытыми этапами.
+
 Минимальный старт из любого каталога:
 
 ```bash

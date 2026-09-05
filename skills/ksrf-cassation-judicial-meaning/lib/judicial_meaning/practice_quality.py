@@ -1858,6 +1858,461 @@ def build_native_finalization_comparison_report(
     }
 
 
+_NATIVE_REVIEW_IMPORT_COMPARISON_CHECK_ORDER = (
+    "common_parent_valid",
+    "directories_distinct",
+    "source_bundle_readable",
+    "source_bundle_private",
+    "source_bundle_inventory_exact",
+    "expected_manifest_sha256_valid",
+    "source_bundle_contract_valid",
+    "source_bundle_external_manifest_digest_valid",
+    "installed_codebook_readable",
+    "installed_codebook_binding_valid",
+    "uncertain_directory_readable",
+    "repeated_directory_readable",
+    "uncertain_directory_private",
+    "repeated_directory_private",
+    "uncertain_inventory_exact",
+    "repeated_inventory_exact",
+    "expected_import_receipt_sha256_valid",
+    "uncertain_artifact_contracts_valid",
+    "repeated_artifact_contracts_valid",
+    "uncertain_receipt_self_digest_valid",
+    "repeated_receipt_self_digest_valid",
+    "repeated_external_receipt_digest_valid",
+    "uncertain_receipt_file_binding_valid",
+    "repeated_receipt_file_binding_valid",
+    "uncertain_bundle_relation_valid",
+    "repeated_bundle_relation_valid",
+    "import_directory_file_bytes_equal",
+    "final_recapture_valid",
+)
+_NATIVE_REVIEW_IMPORT_COMPARISON_REASON_ORDER = (
+    "source_bundle_unreadable",
+    "installed_codebook_unreadable",
+    "uncertain_review_import_unreadable",
+    "repeated_review_import_unreadable",
+    "comparison_input_changed",
+    "comparison_topology_invalid",
+    "source_bundle_privacy_invalid",
+    "uncertain_review_import_privacy_invalid",
+    "repeated_review_import_privacy_invalid",
+    "source_bundle_inventory_invalid",
+    "uncertain_review_import_inventory_invalid",
+    "repeated_review_import_inventory_invalid",
+    "expected_manifest_sha256_invalid",
+    "expected_import_receipt_sha256_invalid",
+    "source_bundle_artifact_contract_invalid",
+    "uncertain_review_import_artifact_contract_invalid",
+    "repeated_review_import_artifact_contract_invalid",
+    "external_manifest_digest_mismatch",
+    "uncertain_review_import_receipt_self_digest_mismatch",
+    "repeated_review_import_receipt_self_digest_mismatch",
+    "external_import_receipt_digest_mismatch",
+    "uncertain_review_import_file_binding_mismatch",
+    "repeated_review_import_file_binding_mismatch",
+    "uncertain_review_import_bundle_relation_mismatch",
+    "repeated_review_import_bundle_relation_mismatch",
+    "review_import_directory_bytes_mismatch",
+)
+_NATIVE_REVIEW_IMPORT_COMPARISON_INPUT_REASON_BY_CHECK = {
+    "source_bundle_readable": "source_bundle_unreadable",
+    "installed_codebook_readable": "installed_codebook_unreadable",
+    "uncertain_directory_readable": "uncertain_review_import_unreadable",
+    "repeated_directory_readable": "repeated_review_import_unreadable",
+    "final_recapture_valid": "comparison_input_changed",
+}
+_NATIVE_REVIEW_IMPORT_COMPARISON_REASON_BY_CHECK = {
+    "common_parent_valid": "comparison_topology_invalid",
+    "directories_distinct": "comparison_topology_invalid",
+    **_NATIVE_REVIEW_IMPORT_COMPARISON_INPUT_REASON_BY_CHECK,
+    "source_bundle_private": "source_bundle_privacy_invalid",
+    "uncertain_directory_private": "uncertain_review_import_privacy_invalid",
+    "repeated_directory_private": "repeated_review_import_privacy_invalid",
+    "source_bundle_inventory_exact": "source_bundle_inventory_invalid",
+    "uncertain_inventory_exact": "uncertain_review_import_inventory_invalid",
+    "repeated_inventory_exact": "repeated_review_import_inventory_invalid",
+    "expected_manifest_sha256_valid": "expected_manifest_sha256_invalid",
+    "expected_import_receipt_sha256_valid": (
+        "expected_import_receipt_sha256_invalid"
+    ),
+    "source_bundle_contract_valid": "source_bundle_artifact_contract_invalid",
+    "installed_codebook_binding_valid": (
+        "source_bundle_artifact_contract_invalid"
+    ),
+    "uncertain_artifact_contracts_valid": (
+        "uncertain_review_import_artifact_contract_invalid"
+    ),
+    "repeated_artifact_contracts_valid": (
+        "repeated_review_import_artifact_contract_invalid"
+    ),
+    "source_bundle_external_manifest_digest_valid": (
+        "external_manifest_digest_mismatch"
+    ),
+    "uncertain_receipt_self_digest_valid": (
+        "uncertain_review_import_receipt_self_digest_mismatch"
+    ),
+    "repeated_receipt_self_digest_valid": (
+        "repeated_review_import_receipt_self_digest_mismatch"
+    ),
+    "repeated_external_receipt_digest_valid": (
+        "external_import_receipt_digest_mismatch"
+    ),
+    "uncertain_receipt_file_binding_valid": (
+        "uncertain_review_import_file_binding_mismatch"
+    ),
+    "repeated_receipt_file_binding_valid": (
+        "repeated_review_import_file_binding_mismatch"
+    ),
+    "uncertain_bundle_relation_valid": (
+        "uncertain_review_import_bundle_relation_mismatch"
+    ),
+    "repeated_bundle_relation_valid": (
+        "repeated_review_import_bundle_relation_mismatch"
+    ),
+    "import_directory_file_bytes_equal": (
+        "review_import_directory_bytes_mismatch"
+    ),
+}
+_NATIVE_REVIEW_IMPORT_COMPARISON_PREREQUISITES = {
+    "directories_distinct": (
+        "common_parent_valid",
+        "source_bundle_readable",
+        "uncertain_directory_readable",
+        "repeated_directory_readable",
+    ),
+    "source_bundle_private": (
+        "common_parent_valid",
+        "source_bundle_readable",
+    ),
+    "uncertain_directory_private": (
+        "common_parent_valid",
+        "uncertain_directory_readable",
+    ),
+    "repeated_directory_private": (
+        "common_parent_valid",
+        "repeated_directory_readable",
+    ),
+    "source_bundle_inventory_exact": ("source_bundle_private",),
+    "uncertain_inventory_exact": ("uncertain_directory_private",),
+    "repeated_inventory_exact": ("repeated_directory_private",),
+    "source_bundle_contract_valid": ("source_bundle_inventory_exact",),
+    "source_bundle_external_manifest_digest_valid": (
+        "expected_manifest_sha256_valid",
+        "source_bundle_contract_valid",
+    ),
+    "installed_codebook_binding_valid": (
+        "source_bundle_contract_valid",
+        "installed_codebook_readable",
+    ),
+    "uncertain_artifact_contracts_valid": ("uncertain_inventory_exact",),
+    "repeated_artifact_contracts_valid": ("repeated_inventory_exact",),
+    "uncertain_receipt_self_digest_valid": (
+        "uncertain_artifact_contracts_valid",
+    ),
+    "repeated_receipt_self_digest_valid": (
+        "repeated_artifact_contracts_valid",
+    ),
+    "repeated_external_receipt_digest_valid": (
+        "expected_import_receipt_sha256_valid",
+        "repeated_artifact_contracts_valid",
+    ),
+    "uncertain_receipt_file_binding_valid": (
+        "uncertain_artifact_contracts_valid",
+    ),
+    "repeated_receipt_file_binding_valid": (
+        "repeated_artifact_contracts_valid",
+    ),
+    "uncertain_bundle_relation_valid": (
+        "source_bundle_contract_valid",
+        "uncertain_artifact_contracts_valid",
+    ),
+    "repeated_bundle_relation_valid": (
+        "source_bundle_contract_valid",
+        "repeated_artifact_contracts_valid",
+    ),
+    "import_directory_file_bytes_equal": (
+        "directories_distinct",
+        "uncertain_inventory_exact",
+        "repeated_inventory_exact",
+    ),
+    "final_recapture_valid": (
+        "common_parent_valid",
+        "directories_distinct",
+        "source_bundle_inventory_exact",
+        "uncertain_inventory_exact",
+        "repeated_inventory_exact",
+        "source_bundle_contract_valid",
+        "installed_codebook_readable",
+    ),
+}
+_NATIVE_REVIEW_IMPORT_COMPARISON_REMEDIATION = (
+    (
+        "check_local_read_access",
+        "Проверьте доступность указанных локальных папок и встроенного "
+        "справочника, не изменяя их; команда не выполняет восстановление.",
+    ),
+    (
+        "preserve_and_stop",
+        "Остановите использование обеих папок импорта и сохраните пакет и "
+        "результаты неизменными; команда ничего не исправляет и не удаляет.",
+    ),
+    (
+        "use_safe_complete_siblings",
+        "Передавайте один полный семифайловый пакет и две разные полные "
+        "двухфайловые папки импорта у одного приватного родителя; "
+        "небезопасное или неполное состояние передайте системному "
+        "администратору.",
+    ),
+    (
+        "retain_successful_prepare_digest",
+        "Передайте manifest_sha256 только из полного стандартного вывода "
+        "успешно и нормально завершившейся подготовки пакета; не "
+        "восстанавливайте его из манифеста.",
+    ),
+    (
+        "retain_successful_repeat_digest",
+        "Передайте receipt_sha256 только из полного стандартного вывода "
+        "успешно и нормально завершившегося повторного импорта; не "
+        "восстанавливайте его из квитанции.",
+    ),
+    (
+        "administrator_quarantine",
+        "При изменении inode, жёсткой ссылке, ACL, неучтённом или "
+        "перемещённом объекте остановите автоматику и передайте состояние "
+        "системному администратору для учёта всех ссылок и карантина.",
+    ),
+    (
+        "repeat_import_after_mismatch",
+        "Не используйте несовпавшие результаты; проверьте пакет и внешние "
+        "якоря, затем только для разрешённого маршрута снова выполните "
+        "импорт тех же неизменённых входов в новую отсутствующую соседнюю "
+        "папку.",
+    ),
+)
+
+
+def build_native_review_import_comparison_report(
+    *,
+    checks: Mapping[str, bool | None],
+    input_reason_codes: Iterable[str] = (),
+) -> dict[str, Any]:
+    """Build the closed value-free Release 20 comparison report without I/O."""
+
+    state_error = "Внутреннее состояние сравнения папок импорта некорректно."
+    try:
+        if not isinstance(checks, Mapping):
+            raise ValueError(state_error)
+        supplied_checks = dict(checks.items())
+        if set(supplied_checks) != set(
+            _NATIVE_REVIEW_IMPORT_COMPARISON_CHECK_ORDER
+        ):
+            raise ValueError(state_error)
+        if any(
+            value is not None and type(value) is not bool
+            for value in supplied_checks.values()
+        ):
+            raise ValueError(state_error)
+        normalized_checks = {
+            key: supplied_checks[key]
+            for key in _NATIVE_REVIEW_IMPORT_COMPARISON_CHECK_ORDER
+        }
+
+        if isinstance(input_reason_codes, (str, bytes, bytearray, Mapping)):
+            raise ValueError(state_error)
+        supplied_reason_codes: list[str] = []
+        for code in input_reason_codes:
+            if len(supplied_reason_codes) == len(
+                _NATIVE_REVIEW_IMPORT_COMPARISON_INPUT_REASON_BY_CHECK
+            ):
+                raise ValueError(state_error)
+            if type(code) is not str or code in supplied_reason_codes:
+                raise ValueError(state_error)
+            supplied_reason_codes.append(code)
+        input_reason_codes_by_check = {
+            reason: check
+            for check, reason in (
+                _NATIVE_REVIEW_IMPORT_COMPARISON_INPUT_REASON_BY_CHECK.items()
+            )
+        }
+        if not set(supplied_reason_codes).issubset(input_reason_codes_by_check):
+            raise ValueError(state_error)
+
+        for required_boolean in (
+            "source_bundle_readable",
+            "uncertain_directory_readable",
+            "repeated_directory_readable",
+            "expected_manifest_sha256_valid",
+            "expected_import_receipt_sha256_valid",
+        ):
+            if type(normalized_checks[required_boolean]) is not bool:
+                raise ValueError(state_error)
+        if (
+            normalized_checks["common_parent_valid"] is None
+            and normalized_checks["source_bundle_readable"] is True
+            and normalized_checks["uncertain_directory_readable"] is True
+            and normalized_checks["repeated_directory_readable"] is True
+        ):
+            raise ValueError(state_error)
+
+        for check, prerequisites in (
+            _NATIVE_REVIEW_IMPORT_COMPARISON_PREREQUISITES.items()
+        ):
+            prerequisites_valid = all(
+                normalized_checks[prerequisite] is True
+                for prerequisite in prerequisites
+            )
+            check_value = normalized_checks[check]
+            if check == "final_recapture_valid":
+                invalid_state = (
+                    check_value is True and not prerequisites_valid
+                ) or (check_value is None and prerequisites_valid)
+            elif check == "import_directory_file_bytes_equal":
+                invalid_state = (
+                    not prerequisites_valid and check_value is not None
+                ) or (
+                    prerequisites_valid
+                    and check_value is None
+                    and normalized_checks["final_recapture_valid"] is not False
+                )
+            else:
+                invalid_state = prerequisites_valid is (check_value is None)
+            if invalid_state:
+                raise ValueError(state_error)
+
+        codebook_readable = normalized_checks["installed_codebook_readable"]
+        if normalized_checks["source_bundle_inventory_exact"] is not True:
+            if codebook_readable is not None:
+                raise ValueError(state_error)
+        elif normalized_checks["source_bundle_contract_valid"] is True:
+            if type(codebook_readable) is not bool:
+                raise ValueError(state_error)
+        for code in supplied_reason_codes:
+            if normalized_checks[input_reason_codes_by_check[code]] is not False:
+                raise ValueError(state_error)
+    except Exception:
+        raise ValueError(state_error) from None
+
+    reasons = set(supplied_reason_codes)
+    for check, reason in _NATIVE_REVIEW_IMPORT_COMPARISON_REASON_BY_CHECK.items():
+        if normalized_checks[check] is False:
+            reasons.add(reason)
+    reason_codes = [
+        reason
+        for reason in _NATIVE_REVIEW_IMPORT_COMPARISON_REASON_ORDER
+        if reason in reasons
+    ]
+
+    if reasons.intersection(
+        _NATIVE_REVIEW_IMPORT_COMPARISON_REASON_ORDER[:5]
+    ):
+        status = "unreadable"
+    elif reasons.intersection(
+        _NATIVE_REVIEW_IMPORT_COMPARISON_REASON_ORDER[5:17]
+    ):
+        status = "invalid"
+    elif reasons:
+        status = "mismatch"
+    else:
+        status = "match"
+
+    selected_remediation: set[str] = set()
+    if reasons.intersection(
+        {
+            "source_bundle_unreadable",
+            "installed_codebook_unreadable",
+            "uncertain_review_import_unreadable",
+            "repeated_review_import_unreadable",
+        }
+    ):
+        selected_remediation.add("check_local_read_access")
+    if "comparison_input_changed" in reasons:
+        selected_remediation.update(
+            {"preserve_and_stop", "administrator_quarantine"}
+        )
+    administrator_only_reasons = {
+        "comparison_input_changed",
+        "comparison_topology_invalid",
+        "source_bundle_privacy_invalid",
+        "uncertain_review_import_privacy_invalid",
+        "repeated_review_import_privacy_invalid",
+        "source_bundle_inventory_invalid",
+        "uncertain_review_import_inventory_invalid",
+        "repeated_review_import_inventory_invalid",
+        "source_bundle_artifact_contract_invalid",
+        "uncertain_review_import_artifact_contract_invalid",
+        "repeated_review_import_artifact_contract_invalid",
+    }
+    if reasons.intersection(administrator_only_reasons - {"comparison_input_changed"}):
+        selected_remediation.update(
+            {
+                "preserve_and_stop",
+                "use_safe_complete_siblings",
+                "administrator_quarantine",
+            }
+        )
+    if reasons.intersection(
+        {"expected_manifest_sha256_invalid", "external_manifest_digest_mismatch"}
+    ):
+        selected_remediation.update(
+            {"preserve_and_stop", "retain_successful_prepare_digest"}
+        )
+    if reasons.intersection(
+        {
+            "expected_import_receipt_sha256_invalid",
+            "external_import_receipt_digest_mismatch",
+        }
+    ):
+        selected_remediation.update(
+            {"preserve_and_stop", "retain_successful_repeat_digest"}
+        )
+    if reasons.intersection(
+        {
+            "uncertain_review_import_receipt_self_digest_mismatch",
+            "repeated_review_import_receipt_self_digest_mismatch",
+            "uncertain_review_import_file_binding_mismatch",
+            "repeated_review_import_file_binding_mismatch",
+            "uncertain_review_import_bundle_relation_mismatch",
+            "repeated_review_import_bundle_relation_mismatch",
+            "review_import_directory_bytes_mismatch",
+        }
+    ) and not reasons.intersection(administrator_only_reasons):
+        selected_remediation.update(
+            {"preserve_and_stop", "repeat_import_after_mismatch"}
+        )
+    remediation = [
+        {"code": code, "message_ru": message}
+        for code, message in _NATIVE_REVIEW_IMPORT_COMPARISON_REMEDIATION
+        if code in selected_remediation
+    ]
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": "native_review_import_comparison_report",
+        "status": status,
+        "recovery_comparison_valid": status == "match",
+        "reason_codes": reason_codes,
+        "checks": normalized_checks,
+        "remediation": remediation,
+        "scope": {
+            "technical_recovery_comparison_only": True,
+            "original_recovery_eligibility_verified": False,
+            "prepare_normal_return_verified": False,
+            "repeat_normal_return_verified": False,
+            "external_manifest_digest_provenance_authenticated": False,
+            "external_import_receipt_digest_provenance_authenticated": False,
+            "original_durability_verified": False,
+            "source_workspace_reverified": False,
+            "returned_secondary_file_reverified": False,
+            "consumer_revalidation_required": True,
+            "reviewer_identity_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+            "filing_authorized": False,
+        },
+    }
+
+
 def verify_native_coding_reliability(
     coding_reliability: Mapping[str, Any] | None,
     finalization_receipt: Mapping[str, Any] | None,
@@ -6163,6 +6618,7 @@ __all__ = [
     "build_native_coding_audit_inputs",
     "build_native_coding_review_import",
     "build_native_finalization_comparison_report",
+    "build_native_review_import_comparison_report",
     "build_native_reliability_doctor_report",
     "build_uncertainty_profile",
     "canonical_digest",

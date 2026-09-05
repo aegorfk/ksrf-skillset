@@ -17,7 +17,7 @@ PARSER_COUNTS = {
     "authority": 1,
     "autocollect": 1,
     "doctrine": 6,
-    "judicial": 70,
+    "judicial": 71,
     "ksrf": 15,
     "practice": 18,
     "validator": 1,

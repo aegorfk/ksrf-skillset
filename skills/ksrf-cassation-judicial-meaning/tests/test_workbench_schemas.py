@@ -1535,6 +1535,160 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         reordered["remediation"].reverse()
         self.assertTrue(list(validator.iter_errors(reordered)))
 
+    def test_native_review_import_comparison_schema_is_additive_closed_and_exact(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual("1.5", schema["contract_version"])
+        reference = {
+            "$ref": "#/definitions/native_review_import_comparison_report"
+        }
+        self.assertEqual(1, schema["oneOf"].count(reference))
+        definition = schema["definitions"][
+            "native_review_import_comparison_report"
+        ]
+        self.assertFalse(definition["additionalProperties"])
+        self.assertFalse(
+            definition["properties"]["checks"]["additionalProperties"]
+        )
+        self.assertFalse(
+            definition["properties"]["scope"]["additionalProperties"]
+        )
+        for name, remediation_definition in definition["$defs"].items():
+            if name.startswith("remediation_") and "after" not in name:
+                self.assertFalse(
+                    remediation_definition["additionalProperties"]
+                )
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": reference["$ref"],
+                "definitions": schema["definitions"],
+            }
+        )
+        root_validator = Draft202012Validator(schema)
+        fixture = test_practice_quality.PracticeQualityTests()
+        match = practice_quality.build_native_review_import_comparison_report(
+            checks=fixture.native_review_import_comparison_checks()
+        )
+        codebook_unreadable = (
+            practice_quality.build_native_review_import_comparison_report(
+                checks=fixture.review_import_comparison_checks_with_failure(
+                    "installed_codebook_readable"
+                )
+            )
+        )
+        raw_mismatch = (
+            practice_quality.build_native_review_import_comparison_report(
+                checks=fixture.review_import_comparison_checks_with_failure(
+                    "import_directory_file_bytes_equal"
+                )
+            )
+        )
+        manifest_invalid = (
+            practice_quality.build_native_review_import_comparison_report(
+                checks=fixture.review_import_comparison_checks_with_failure(
+                    "expected_manifest_sha256_valid"
+                )
+            )
+        )
+        admin_checks = fixture.review_import_comparison_checks_with_failure(
+            "uncertain_artifact_contracts_valid"
+        )
+        admin_checks["import_directory_file_bytes_equal"] = False
+        admin_mismatch = (
+            practice_quality.build_native_review_import_comparison_report(
+                checks=admin_checks
+            )
+        )
+        reports = [
+            match,
+            codebook_unreadable,
+            raw_mismatch,
+            manifest_invalid,
+            admin_mismatch,
+        ]
+
+        self.assertEqual(
+            {"match", "mismatch", "invalid", "unreadable"},
+            {report["status"] for report in reports},
+        )
+        reason_order = definition["properties"]["reason_codes"]["items"][
+            "enum"
+        ]
+        self.assertEqual(26, len(reason_order))
+        for report in reports:
+            with self.subTest(
+                status=report["status"], reasons=report["reason_codes"]
+            ):
+                validator.validate(report)
+        root_validator.validate(match)
+
+        reason_validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": (
+                    "#/definitions/native_review_import_comparison_report/"
+                    "properties/reason_codes"
+                ),
+                "definitions": schema["definitions"],
+            }
+        )
+        self.assertEqual([], list(reason_validator.iter_errors(reason_order)))
+        reason_rank = {reason: index for index, reason in enumerate(reason_order)}
+        for report in reports:
+            self.assertEqual(
+                sorted(
+                    report["reason_codes"],
+                    key=reason_rank.__getitem__,
+                ),
+                report["reason_codes"],
+            )
+
+        invalid_variants = (
+            {**match, "private_path": "СЕКРЕТНЫЙ-ПУТЬ"},
+            {**match, "status": "mismatch"},
+            {
+                **codebook_unreadable,
+                "checks": {
+                    **codebook_unreadable["checks"],
+                    "installed_codebook_binding_valid": True,
+                },
+            },
+            {
+                **admin_mismatch,
+                "remediation": [
+                    *admin_mismatch["remediation"],
+                    raw_mismatch["remediation"][-1],
+                ],
+            },
+        )
+        for forged in invalid_variants:
+            with self.subTest(forged=forged):
+                self.assertTrue(list(validator.iter_errors(forged)))
+
+        combined_checks = fixture.review_import_comparison_checks_with_failure(
+            "source_bundle_readable"
+        )
+        combined_checks["expected_manifest_sha256_valid"] = False
+        combined = (
+            practice_quality.build_native_review_import_comparison_report(
+                checks=combined_checks
+            )
+        )
+        validator.validate(combined)
+        self.assertGreater(len(combined["remediation"]), 1)
+        self.assertEqual(
+            sorted(
+                combined["reason_codes"],
+                key=reason_rank.__getitem__,
+            ),
+            combined["reason_codes"],
+        )
+        reversed_remediation = copy.deepcopy(combined)
+        reversed_remediation["remediation"].reverse()
+        self.assertNotEqual(combined["remediation"], reversed_remediation["remediation"])
+        validator.validate(reversed_remediation)
+
     def test_native_profile_fields_are_required_only_for_claim_use(self):
         dimension = {
             "state": "verified",

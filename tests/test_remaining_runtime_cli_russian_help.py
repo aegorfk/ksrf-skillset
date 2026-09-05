@@ -108,14 +108,14 @@ EXPECTED_PROGRAM_LABELS = {
 }
 
 EXPECTED_ROUTE_COUNTS = {
-    "judicial": 70,
+    "judicial": 71,
     "ksrf": 21,
     "practice": 18,
     "autocollect": 1,
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "27ff6c375e616d066e8a5f81701019cc42e886c231595e5fe3f054aa828c7cb6",
+    "judicial": "c817ae16bd49d229cc068ca439cd775c0ecb4961e8fdceae77d98f47a0efba0c",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
@@ -126,6 +126,16 @@ ALLOWED_EXPLICIT_PRESENTATION_METAVARS = {
         "judicial",
         ("quality", "native-reliability", "compare-finalizations"),
         "--expected-finalization-receipt-sha256",
+    ): "SHA256_УСПЕШНОГО_ПОВТОРА",
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-review-imports"),
+        "--expected-manifest-sha256",
+    ): "СОХРАНЁННЫЙ_SHA256_МАНИФЕСТА",
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-review-imports"),
+        "--expected-import-receipt-sha256",
     ): "SHA256_УСПЕШНОГО_ПОВТОРА",
 }
 
