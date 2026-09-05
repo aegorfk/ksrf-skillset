@@ -101,6 +101,8 @@ description: "Скилл организует полный цикл обраще
 
 ## Дополнительные references
 
+Для повторной жалобы или спора о доступности другого судебного порядка открой [проверку нового вопроса и способов защиты](../ksrf-complaint-qa/references/renewed-complaint-and-remedy-gap.md). Не связывай более поздний текст с прежним отказом как с его результатом.
+
 Если материалы касаются вынужденного выбора между правовыми статусами, открой [проверку запретов совмещения](../ksrf-rights-argument-builder/references/status-incompatibility-and-qualified-silence.md). Если передано заключение amicus, сначала установи его собственный предмет по [карточке заключения и толкования](../ksrf-doctrine-research/references/amicus-interpretation-and-remedy.md); соседняя жалоба не определяет его дело.
 
 Открывай только по совпавшему trigger:

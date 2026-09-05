@@ -88,7 +88,7 @@ class ReparativeGuaranteeAccessTests(unittest.TestCase):
     def test_synthetic_evals_are_complete_without_source_files(self) -> None:
         suites = {
             "ksrf-explore-arguments": (13, 16),
-            "ksrf-complaint-qa": (26, 30),
+            "ksrf-complaint-qa": (26, 40),
         }
         for skill, (first, last) in suites.items():
             payload = json.loads((REPO / "skills" / skill / "evals/evals.json").read_text())
