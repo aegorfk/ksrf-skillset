@@ -1689,6 +1689,343 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         self.assertNotEqual(combined["remediation"], reversed_remediation["remediation"])
         validator.validate(reversed_remediation)
 
+    def test_native_audit_bundle_comparison_schema_is_additive_closed_and_exact(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual("1.5", schema["contract_version"])
+        reference = {
+            "$ref": "#/definitions/native_audit_bundle_comparison_report"
+        }
+        self.assertEqual(1, schema["oneOf"].count(reference))
+
+        definition = schema["definitions"][
+            "native_audit_bundle_comparison_report"
+        ]
+        self.assertEqual("1.0", definition["x-contract-version"])
+        self.assertFalse(definition["additionalProperties"])
+        self.assertFalse(
+            definition["properties"]["checks"]["additionalProperties"]
+        )
+        self.assertFalse(
+            definition["properties"]["scope"]["additionalProperties"]
+        )
+
+        expected_checks = (
+            "common_parent_valid",
+            "directories_distinct",
+            "uncertain_bundle_readable",
+            "repeated_bundle_readable",
+            "uncertain_bundle_private",
+            "repeated_bundle_private",
+            "uncertain_inventory_exact",
+            "repeated_inventory_exact",
+            "expected_manifest_sha256_valid",
+            "expected_independent_review_packet_sha256_valid",
+            "uncertain_bundle_contract_valid",
+            "repeated_bundle_contract_valid",
+            "uncertain_installed_codebook_readable",
+            "repeated_installed_codebook_readable",
+            "uncertain_installed_codebook_binding_valid",
+            "repeated_installed_codebook_binding_valid",
+            "repeated_external_manifest_digest_valid",
+            "repeated_external_independent_review_packet_digest_valid",
+            "audit_bundle_file_bytes_equal",
+            "final_recapture_valid",
+        )
+        self.assertEqual(
+            expected_checks,
+            tuple(definition["properties"]["checks"]["required"]),
+        )
+        self.assertEqual(
+            set(expected_checks),
+            set(definition["properties"]["checks"]["properties"]),
+        )
+
+        expected_reasons = (
+            "uncertain_audit_bundle_unreadable",
+            "repeated_audit_bundle_unreadable",
+            "uncertain_installed_codebook_unreadable",
+            "repeated_installed_codebook_unreadable",
+            "comparison_input_changed",
+            "comparison_topology_invalid",
+            "uncertain_audit_bundle_privacy_invalid",
+            "repeated_audit_bundle_privacy_invalid",
+            "uncertain_audit_bundle_inventory_invalid",
+            "repeated_audit_bundle_inventory_invalid",
+            "expected_manifest_sha256_invalid",
+            "expected_independent_review_packet_sha256_invalid",
+            "uncertain_audit_bundle_artifact_contract_invalid",
+            "repeated_audit_bundle_artifact_contract_invalid",
+            "uncertain_installed_codebook_binding_mismatch",
+            "repeated_installed_codebook_binding_mismatch",
+            "external_manifest_digest_mismatch",
+            "external_independent_review_packet_digest_mismatch",
+            "audit_bundle_directory_bytes_mismatch",
+        )
+        self.assertEqual(
+            expected_reasons,
+            tuple(
+                definition["properties"]["reason_codes"]["items"]["enum"]
+            ),
+        )
+        self.assertTrue(
+            any(
+                "fixed native-audit-bundle-comparison order" in invariant
+                for invariant in definition["x-runtime-invariants"]
+            )
+        )
+
+        expected_scope = {
+            "technical_recovery_comparison_only": True,
+            "original_recovery_eligibility_verified": False,
+            "recovery_action_authorized": False,
+            "repeat_normal_return_verified": False,
+            "input_provenance_authenticated": False,
+            "external_manifest_digest_provenance_authenticated": False,
+            "external_independent_review_packet_digest_provenance_authenticated": False,
+            "original_durability_verified": False,
+            "source_workspace_reverified": False,
+            "result_selection_performed": False,
+            "downstream_use_authorized": False,
+            "consumer_revalidation_required": True,
+            "reviewer_identity_authenticated": False,
+            "publication_safe": False,
+            "legal_readiness": False,
+            "filing_authorized": False,
+        }
+        scope_schema = definition["properties"]["scope"]
+        self.assertEqual(tuple(expected_scope), tuple(scope_schema["required"]))
+        self.assertEqual(
+            expected_scope,
+            {
+                key: value["const"]
+                for key, value in scope_schema["properties"].items()
+            },
+        )
+
+        expected_remediation = {
+            "check_local_read_access": (
+                "Проверьте доступность двух указанных локальных папок пакета и "
+                "встроенных справочников, не изменяя их; команда не выполняет "
+                "восстановление."
+            ),
+            "preserve_and_stop": (
+                "Остановите использование обоих пакетов и сохраните их "
+                "неизменными; команда ничего не исправляет, не выбирает и не "
+                "удаляет."
+            ),
+            "use_safe_complete_siblings": (
+                "Сравнивайте только две разные полные приватные семифайловые "
+                "папки у одного безопасного родителя; небезопасное или неполное "
+                "состояние передайте системному администратору."
+            ),
+            "retain_successful_repeat_anchors": (
+                "Передайте оба SHA-256 только из одной полной строки стандартного "
+                "вывода успешно и нормально завершившегося повтора подготовки; "
+                "не восстанавливайте их из пакета."
+            ),
+            "use_exact_installed_codebook": (
+                "Используйте только встроенный справочник точной версии, "
+                "указанной каждым проверенным манифестом; не подменяйте и не "
+                "ищите его по произвольному пути."
+            ),
+            "administrator_quarantine": (
+                "При изменении inode, жёсткой ссылке, ACL, неучтённом или "
+                "перемещённом объекте остановите автоматику и передайте состояние "
+                "системному администратору для учёта всех ссылок и карантина."
+            ),
+            "investigate_without_selection": (
+                "Не выбирайте и не используйте ни один из несовпавших пакетов; "
+                "сохраните их раздельно и исследуйте причину без автоматического "
+                "повтора или назначения результата."
+            ),
+        }
+        remediation_definitions = {
+            item["properties"]["code"]["const"]: item["properties"][
+                "message_ru"
+            ]["const"]
+            for name, item in definition["$defs"].items()
+            if name.startswith("remediation_")
+        }
+        self.assertEqual(expected_remediation, remediation_definitions)
+        self.assertTrue(
+            all(
+                item["additionalProperties"] is False
+                for name, item in definition["$defs"].items()
+                if name.startswith("remediation_")
+            )
+        )
+
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": reference["$ref"],
+                "definitions": schema["definitions"],
+            }
+        )
+        root_validator = Draft202012Validator(schema)
+        fixture = test_practice_quality.PracticeQualityTests()
+        build_report = (
+            practice_quality.build_native_audit_bundle_comparison_report
+        )
+        match = build_report(
+            checks=fixture.native_audit_bundle_comparison_checks()
+        )
+        unreadable = build_report(
+            checks=fixture.audit_bundle_comparison_checks_with_failure(
+                "uncertain_bundle_readable"
+            )
+        )
+        invalid = build_report(
+            checks=fixture.audit_bundle_comparison_checks_with_failure(
+                "expected_manifest_sha256_valid"
+            )
+        )
+        codebook_invalid = build_report(
+            checks=fixture.audit_bundle_comparison_checks_with_failure(
+                "uncertain_installed_codebook_binding_valid"
+            )
+        )
+        mismatch = build_report(
+            checks=fixture.audit_bundle_comparison_checks_with_failure(
+                "audit_bundle_file_bytes_equal"
+            )
+        )
+        reports = [
+            match,
+            unreadable,
+            invalid,
+            codebook_invalid,
+            mismatch,
+        ]
+        self.assertEqual(
+            {"match", "mismatch", "invalid", "unreadable"},
+            {report["status"] for report in reports},
+        )
+        for report in reports:
+            with self.subTest(
+                status=report["status"], reasons=report["reason_codes"]
+            ):
+                validator.validate(report)
+        root_validator.validate(match)
+
+        reason_reports = [
+            build_report(
+                checks=fixture.audit_bundle_comparison_checks_with_failure(
+                    check
+                )
+            )
+            for check in expected_checks
+        ]
+        self.assertEqual(
+            set(expected_reasons),
+            {
+                reason
+                for report in reason_reports
+                for reason in report["reason_codes"]
+            },
+        )
+        reason_rank = {
+            reason: index for index, reason in enumerate(expected_reasons)
+        }
+        for report in reason_reports:
+            self.assertEqual(
+                sorted(report["reason_codes"], key=reason_rank.__getitem__),
+                report["reason_codes"],
+            )
+            validator.validate(report)
+
+        self.assertEqual([], match["remediation"])
+        self.assertEqual(
+            ["check_local_read_access"],
+            [item["code"] for item in unreadable["remediation"]],
+        )
+        self.assertEqual(
+            ["preserve_and_stop", "retain_successful_repeat_anchors"],
+            [item["code"] for item in invalid["remediation"]],
+        )
+        self.assertEqual(
+            ["preserve_and_stop", "use_exact_installed_codebook"],
+            [item["code"] for item in codebook_invalid["remediation"]],
+        )
+        self.assertEqual(
+            ["preserve_and_stop", "investigate_without_selection"],
+            [item["code"] for item in mismatch["remediation"]],
+        )
+
+        invalid_variants = (
+            {**match, "private_path": "СЕКРЕТНЫЙ-ПУТЬ"},
+            {**match, "status": "mismatch"},
+            {**match, "recovery_comparison_valid": False},
+            {
+                **match,
+                "checks": {**match["checks"], "private_check": True},
+            },
+            {
+                **match,
+                "checks": {
+                    **match["checks"],
+                    "audit_bundle_file_bytes_equal": None,
+                },
+            },
+            {
+                **unreadable,
+                "checks": {
+                    **unreadable["checks"],
+                    "uncertain_bundle_private": True,
+                },
+            },
+            {
+                **invalid,
+                "checks": {
+                    **invalid["checks"],
+                    "repeated_external_manifest_digest_valid": False,
+                },
+            },
+            {
+                **mismatch,
+                "checks": {
+                    **mismatch["checks"],
+                    "audit_bundle_file_bytes_equal": True,
+                },
+            },
+            {
+                **mismatch,
+                "reason_codes": ["comparison_topology_invalid"],
+            },
+            {
+                **match,
+                "scope": {
+                    **match["scope"],
+                    "downstream_use_authorized": True,
+                },
+            },
+            {
+                **match,
+                "remediation": [
+                    {
+                        "code": "preserve_and_stop",
+                        "message_ru": "СЕКРЕТНЫЙ-ПУТЬ",
+                    }
+                ],
+            },
+            {
+                **match,
+                "remediation": [
+                    {
+                        "code": "preserve_and_stop",
+                        "message_ru": expected_remediation[
+                            "preserve_and_stop"
+                        ],
+                        "private": "СЕКРЕТНЫЙ-ПУТЬ",
+                    }
+                ],
+            },
+        )
+        for forged in invalid_variants:
+            with self.subTest(forged=forged):
+                self.assertTrue(list(validator.iter_errors(forged)))
+
     def test_publication_recovery_diagnostic_schema_is_additive_closed_and_exact(self):
         schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)

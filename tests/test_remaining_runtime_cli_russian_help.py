@@ -108,14 +108,14 @@ EXPECTED_PROGRAM_LABELS = {
 }
 
 EXPECTED_ROUTE_COUNTS = {
-    "judicial": 71,
+    "judicial": 72,
     "ksrf": 21,
     "practice": 18,
     "autocollect": 1,
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "d7747093a946409372f75d840cd199cc7f496fe9c660bbd28934f66b4425a8f9",
+    "judicial": "19dfb40e1712e9201939330d651e53f4df9d928d7af1cbe2a80756df005f1dd3",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
@@ -134,6 +134,16 @@ PUBLICATION_RECOVERY_DIAGNOSTIC_HELP = (
 )
 
 ALLOWED_EXPLICIT_PRESENTATION_METAVARS = {
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-audit-bundles"),
+        "--expected-manifest-sha256",
+    ): "SHA256_МАНИФЕСТА_УСПЕШНОГО_ПОВТОРА",
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-audit-bundles"),
+        "--expected-independent-review-packet-sha256",
+    ): "SHA256_ZIP_УСПЕШНОГО_ПОВТОРА",
     (
         "judicial",
         ("quality", "native-reliability", "compare-finalizations"),
@@ -288,6 +298,7 @@ REQUIRED_ROUTE_HELP = {
         "Один совместимый файл coding-reliability.json не подтверждает штатное происхождение",
         "doctor Диагностировать сохранённую тройку без изменения файлов",
         "compare-finalizations",
+        "compare-audit-bundles",
     ),
     ("judicial", ("quality", "native-reliability", "doctor")): (
         "--coding-reliability ФАЙЛ_НАДЁЖНОСТИ_КОДИРОВАНИЯ",
@@ -357,6 +368,41 @@ REQUIRED_ROUTE_HELP = {
         "используйте повторную папку и отдельно сохранённый SHA-256",
         "заново проверьте текущий план, доверенное происхождение",
         "точные связи и все независимые барьеры",
+    ),
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-audit-bundles"),
+    ): (
+        "--uncertain-audit-bundle-dir СОМНИТЕЛЬНАЯ_ПАПКА_ПАКЕТА",
+        "--repeated-audit-bundle-dir ПОВТОРНАЯ_ПАПКА_ПАКЕТА",
+        "--expected-manifest-sha256 SHA256_МАНИФЕСТА_УСПЕШНОГО_ПОВТОРА",
+        "--expected-independent-review-packet-sha256 SHA256_ZIP_УСПЕШНОГО_ПОВТОРА",
+        "из одной полной строки стандартного вывода",
+        "нормального возврата с кодом 0",
+        "manifest_sha256 нужен последующему импорту",
+        "independent_review_packet_sha256 отдельно проверяет передачу ZIP",
+        "Не восстанавливайте ни один якорь из манифеста, ZIP или сомнительного запуска",
+        "две разные полные семифайловые папки",
+        "прямые соседи одного безопасного приватного родителя",
+        "отдельные файлы, разные родители, частичная или staging-папка недопустимы",
+        "сырые байты всех семи файлов",
+        "снимок обеих папок и справочников",
+        "Коды завершения: 0 — match",
+        "3 — mismatch; 2 — invalid или unreadable",
+        "один детерминированный канонический JSON-отчёт без входных значений",
+        "не создаёт выходной файл",
+        "не исправляет, не копирует, не удаляет, не помещает в карантин",
+        "не запускает подготовку, повтор или другой процесс",
+        "не обращается к сети или базе данных",
+        "Один исходный код 2",
+        "полная исходная диагностика предписала повтор тех же неизменённых входов и сравнение",
+        "только у системного администратора",
+        "нормальный возврат повтора, происхождение обоих SHA, исходную долговечность",
+        "не разрешает его дальнейшее использование",
+        "не подтверждает личность проверяющего",
+        "юридическую правильность, актуальность права, публикацию, готовность жалобы или подачу",
+        "Только повторная папка может перейти к новой полной проверке потребителем",
+        "Пример команды:",
     ),
     ("judicial", ("quality", "coding-audit-prepare")): (
         *PUBLICATION_RECOVERY_DIAGNOSTIC_HELP,

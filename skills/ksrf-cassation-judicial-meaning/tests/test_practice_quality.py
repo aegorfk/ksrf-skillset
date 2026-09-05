@@ -619,6 +619,108 @@ class PracticeQualityTests(unittest.TestCase):
                         changed = True
         return checks
 
+    def native_audit_bundle_comparison_checks(self, **changes):
+        checks = {
+            "common_parent_valid": True,
+            "directories_distinct": True,
+            "uncertain_bundle_readable": True,
+            "repeated_bundle_readable": True,
+            "uncertain_bundle_private": True,
+            "repeated_bundle_private": True,
+            "uncertain_inventory_exact": True,
+            "repeated_inventory_exact": True,
+            "expected_manifest_sha256_valid": True,
+            "expected_independent_review_packet_sha256_valid": True,
+            "uncertain_bundle_contract_valid": True,
+            "repeated_bundle_contract_valid": True,
+            "uncertain_installed_codebook_readable": True,
+            "repeated_installed_codebook_readable": True,
+            "uncertain_installed_codebook_binding_valid": True,
+            "repeated_installed_codebook_binding_valid": True,
+            "repeated_external_manifest_digest_valid": True,
+            "repeated_external_independent_review_packet_digest_valid": True,
+            "audit_bundle_file_bytes_equal": True,
+            "final_recapture_valid": True,
+        }
+        checks.update(changes)
+        return checks
+
+    def audit_bundle_comparison_checks_with_failure(self, failed_check):
+        checks = self.native_audit_bundle_comparison_checks(
+            **{failed_check: False}
+        )
+        prerequisites = {
+            "directories_distinct": (
+                "common_parent_valid",
+                "uncertain_bundle_readable",
+                "repeated_bundle_readable",
+            ),
+            "uncertain_bundle_private": (
+                "common_parent_valid",
+                "uncertain_bundle_readable",
+            ),
+            "repeated_bundle_private": (
+                "common_parent_valid",
+                "repeated_bundle_readable",
+            ),
+            "uncertain_inventory_exact": ("uncertain_bundle_private",),
+            "repeated_inventory_exact": ("repeated_bundle_private",),
+            "uncertain_bundle_contract_valid": (
+                "uncertain_inventory_exact",
+            ),
+            "repeated_bundle_contract_valid": (
+                "repeated_inventory_exact",
+            ),
+            "uncertain_installed_codebook_readable": (
+                "uncertain_bundle_contract_valid",
+            ),
+            "repeated_installed_codebook_readable": (
+                "repeated_bundle_contract_valid",
+            ),
+            "uncertain_installed_codebook_binding_valid": (
+                "uncertain_bundle_contract_valid",
+                "uncertain_installed_codebook_readable",
+            ),
+            "repeated_installed_codebook_binding_valid": (
+                "repeated_bundle_contract_valid",
+                "repeated_installed_codebook_readable",
+            ),
+            "repeated_external_manifest_digest_valid": (
+                "expected_manifest_sha256_valid",
+                "repeated_bundle_contract_valid",
+            ),
+            "repeated_external_independent_review_packet_digest_valid": (
+                "expected_independent_review_packet_sha256_valid",
+                "repeated_bundle_contract_valid",
+            ),
+            "audit_bundle_file_bytes_equal": (
+                "directories_distinct",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+            ),
+            "final_recapture_valid": (
+                "common_parent_valid",
+                "directories_distinct",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+                "uncertain_bundle_contract_valid",
+                "repeated_bundle_contract_valid",
+                "uncertain_installed_codebook_readable",
+                "repeated_installed_codebook_readable",
+            ),
+        }
+        changed = True
+        while changed:
+            changed = False
+            for check, required in prerequisites.items():
+                if check == failed_check:
+                    continue
+                if any(checks[item] is not True for item in required):
+                    if checks[check] is not None:
+                        checks[check] = None
+                        changed = True
+        return checks
+
     def test_native_reliability_verifier_is_public(self):
         api = self.api()
         self.assertTrue(
@@ -1560,6 +1662,453 @@ class PracticeQualityTests(unittest.TestCase):
             with self.subTest(input_reason_codes=invalid_reasons):
                 with self.assertRaises(ValueError) as invalid:
                     api.build_native_review_import_comparison_report(
+                        checks=unreadable,
+                        input_reason_codes=invalid_reasons,
+                    )
+                self.assertNotIn(hostile, str(invalid.exception))
+
+    def test_native_audit_bundle_comparison_builder_is_public_and_keyword_only(self):
+        api = self.api()
+        builder = getattr(
+            api,
+            "build_native_audit_bundle_comparison_report",
+            None,
+        )
+        self.assertTrue(callable(builder))
+        self.assertIn(
+            "build_native_audit_bundle_comparison_report",
+            api.__all__,
+        )
+        parameters = inspect.signature(builder).parameters
+        self.assertEqual(["checks", "input_reason_codes"], list(parameters))
+        self.assertTrue(
+            all(
+                parameter.kind is inspect.Parameter.KEYWORD_ONLY
+                for parameter in parameters.values()
+            )
+        )
+        self.assertEqual((), parameters["input_reason_codes"].default)
+
+    def test_native_audit_bundle_comparison_match_is_exact_and_value_free(self):
+        api = self.api()
+        checks = self.native_audit_bundle_comparison_checks()
+        snapshot = copy.deepcopy(checks)
+
+        report = api.build_native_audit_bundle_comparison_report(checks=checks)
+
+        self.assertEqual(
+            {
+                "schema_version",
+                "artifact_type",
+                "status",
+                "recovery_comparison_valid",
+                "reason_codes",
+                "checks",
+                "remediation",
+                "scope",
+            },
+            set(report),
+        )
+        self.assertEqual("1.0", report["schema_version"])
+        self.assertEqual(
+            "native_audit_bundle_comparison_report",
+            report["artifact_type"],
+        )
+        self.assertEqual("match", report["status"])
+        self.assertIs(report["recovery_comparison_valid"], True)
+        self.assertEqual([], report["reason_codes"])
+        self.assertEqual(checks, report["checks"])
+        self.assertEqual([], report["remediation"])
+        self.assertEqual(
+            {
+                "technical_recovery_comparison_only": True,
+                "original_recovery_eligibility_verified": False,
+                "recovery_action_authorized": False,
+                "repeat_normal_return_verified": False,
+                "input_provenance_authenticated": False,
+                "external_manifest_digest_provenance_authenticated": False,
+                "external_independent_review_packet_digest_provenance_authenticated": False,
+                "original_durability_verified": False,
+                "source_workspace_reverified": False,
+                "result_selection_performed": False,
+                "downstream_use_authorized": False,
+                "consumer_revalidation_required": True,
+                "reviewer_identity_authenticated": False,
+                "publication_safe": False,
+                "legal_readiness": False,
+                "filing_authorized": False,
+            },
+            report["scope"],
+        )
+        self.assertEqual(snapshot, checks)
+        self.assertEqual(
+            report,
+            api.build_native_audit_bundle_comparison_report(
+                checks=copy.deepcopy(checks)
+            ),
+        )
+
+        report["checks"]["common_parent_valid"] = False
+        report["scope"]["filing_authorized"] = True
+        rebuilt = api.build_native_audit_bundle_comparison_report(
+            checks=copy.deepcopy(checks)
+        )
+        self.assertIs(rebuilt["checks"]["common_parent_valid"], True)
+        self.assertIs(rebuilt["scope"]["filing_authorized"], False)
+
+    def test_native_audit_bundle_comparison_maps_every_false_check(self):
+        api = self.api()
+        reason_by_check = {
+            "common_parent_valid": "comparison_topology_invalid",
+            "directories_distinct": "comparison_topology_invalid",
+            "uncertain_bundle_readable": "uncertain_audit_bundle_unreadable",
+            "repeated_bundle_readable": "repeated_audit_bundle_unreadable",
+            "uncertain_bundle_private": (
+                "uncertain_audit_bundle_privacy_invalid"
+            ),
+            "repeated_bundle_private": "repeated_audit_bundle_privacy_invalid",
+            "uncertain_inventory_exact": (
+                "uncertain_audit_bundle_inventory_invalid"
+            ),
+            "repeated_inventory_exact": "repeated_audit_bundle_inventory_invalid",
+            "expected_manifest_sha256_valid": "expected_manifest_sha256_invalid",
+            "expected_independent_review_packet_sha256_valid": (
+                "expected_independent_review_packet_sha256_invalid"
+            ),
+            "uncertain_bundle_contract_valid": (
+                "uncertain_audit_bundle_artifact_contract_invalid"
+            ),
+            "repeated_bundle_contract_valid": (
+                "repeated_audit_bundle_artifact_contract_invalid"
+            ),
+            "uncertain_installed_codebook_readable": (
+                "uncertain_installed_codebook_unreadable"
+            ),
+            "repeated_installed_codebook_readable": (
+                "repeated_installed_codebook_unreadable"
+            ),
+            "uncertain_installed_codebook_binding_valid": (
+                "uncertain_installed_codebook_binding_mismatch"
+            ),
+            "repeated_installed_codebook_binding_valid": (
+                "repeated_installed_codebook_binding_mismatch"
+            ),
+            "repeated_external_manifest_digest_valid": (
+                "external_manifest_digest_mismatch"
+            ),
+            "repeated_external_independent_review_packet_digest_valid": (
+                "external_independent_review_packet_digest_mismatch"
+            ),
+            "audit_bundle_file_bytes_equal": (
+                "audit_bundle_directory_bytes_mismatch"
+            ),
+            "final_recapture_valid": "comparison_input_changed",
+        }
+        unreadable = {
+            "uncertain_audit_bundle_unreadable",
+            "repeated_audit_bundle_unreadable",
+            "uncertain_installed_codebook_unreadable",
+            "repeated_installed_codebook_unreadable",
+            "comparison_input_changed",
+        }
+        invalid = {
+            "comparison_topology_invalid",
+            "uncertain_audit_bundle_privacy_invalid",
+            "repeated_audit_bundle_privacy_invalid",
+            "uncertain_audit_bundle_inventory_invalid",
+            "repeated_audit_bundle_inventory_invalid",
+            "expected_manifest_sha256_invalid",
+            "expected_independent_review_packet_sha256_invalid",
+            "uncertain_audit_bundle_artifact_contract_invalid",
+            "repeated_audit_bundle_artifact_contract_invalid",
+            "uncertain_installed_codebook_binding_mismatch",
+            "repeated_installed_codebook_binding_mismatch",
+        }
+        administrator = {
+            "comparison_topology_invalid",
+            "uncertain_audit_bundle_privacy_invalid",
+            "repeated_audit_bundle_privacy_invalid",
+            "uncertain_audit_bundle_inventory_invalid",
+            "repeated_audit_bundle_inventory_invalid",
+            "uncertain_audit_bundle_artifact_contract_invalid",
+            "repeated_audit_bundle_artifact_contract_invalid",
+        }
+        anchor = {
+            "expected_manifest_sha256_invalid",
+            "expected_independent_review_packet_sha256_invalid",
+            "external_manifest_digest_mismatch",
+            "external_independent_review_packet_digest_mismatch",
+        }
+        codebook = {
+            "uncertain_installed_codebook_unreadable",
+            "repeated_installed_codebook_unreadable",
+            "uncertain_installed_codebook_binding_mismatch",
+            "repeated_installed_codebook_binding_mismatch",
+        }
+
+        for check, reason in reason_by_check.items():
+            with self.subTest(check=check):
+                report = api.build_native_audit_bundle_comparison_report(
+                    checks=self.audit_bundle_comparison_checks_with_failure(
+                        check
+                    )
+                )
+                self.assertEqual([reason], report["reason_codes"])
+                self.assertEqual(
+                    "unreadable"
+                    if reason in unreadable
+                    else "invalid"
+                    if reason in invalid
+                    else "mismatch",
+                    report["status"],
+                )
+                self.assertIs(report["recovery_comparison_valid"], False)
+                if reason in {
+                    "uncertain_audit_bundle_unreadable",
+                    "repeated_audit_bundle_unreadable",
+                }:
+                    remediation = ["check_local_read_access"]
+                elif reason == "comparison_input_changed":
+                    remediation = [
+                        "preserve_and_stop",
+                        "administrator_quarantine",
+                    ]
+                elif reason in administrator:
+                    remediation = [
+                        "preserve_and_stop",
+                        "use_safe_complete_siblings",
+                        "administrator_quarantine",
+                    ]
+                elif reason in anchor:
+                    remediation = [
+                        "preserve_and_stop",
+                        "retain_successful_repeat_anchors",
+                    ]
+                    if reason.startswith("external_"):
+                        remediation.append("investigate_without_selection")
+                elif reason in codebook:
+                    remediation = [
+                        *(
+                            ["check_local_read_access"]
+                            if reason.endswith("_unreadable")
+                            else []
+                        ),
+                        "preserve_and_stop",
+                        "use_exact_installed_codebook",
+                    ]
+                else:
+                    remediation = [
+                        "preserve_and_stop",
+                        "investigate_without_selection",
+                    ]
+                self.assertEqual(
+                    remediation,
+                    [item["code"] for item in report["remediation"]],
+                )
+
+    def test_native_audit_bundle_comparison_orders_and_prioritizes_states(self):
+        api = self.api()
+        checks = self.native_audit_bundle_comparison_checks(
+            uncertain_bundle_readable=False,
+            repeated_installed_codebook_readable=False,
+            expected_manifest_sha256_valid=False,
+        )
+        for key in (
+            "directories_distinct",
+            "uncertain_bundle_private",
+            "uncertain_inventory_exact",
+            "uncertain_bundle_contract_valid",
+            "uncertain_installed_codebook_readable",
+            "uncertain_installed_codebook_binding_valid",
+            "repeated_installed_codebook_binding_valid",
+            "repeated_external_manifest_digest_valid",
+            "audit_bundle_file_bytes_equal",
+            "final_recapture_valid",
+        ):
+            checks[key] = None
+        report = api.build_native_audit_bundle_comparison_report(checks=checks)
+        self.assertEqual("unreadable", report["status"])
+        self.assertEqual(
+            [
+                "uncertain_audit_bundle_unreadable",
+                "repeated_installed_codebook_unreadable",
+                "expected_manifest_sha256_invalid",
+            ],
+            report["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "check_local_read_access",
+                "preserve_and_stop",
+                "retain_successful_repeat_anchors",
+                "use_exact_installed_codebook",
+            ],
+            [item["code"] for item in report["remediation"]],
+        )
+
+    def test_native_audit_bundle_comparison_drift_and_admin_faults_suppress_investigation(self):
+        api = self.api()
+        drift = self.native_audit_bundle_comparison_checks(
+            audit_bundle_file_bytes_equal=None,
+            final_recapture_valid=False,
+        )
+        report = api.build_native_audit_bundle_comparison_report(checks=drift)
+        self.assertEqual(["comparison_input_changed"], report["reason_codes"])
+        self.assertEqual("unreadable", report["status"])
+        self.assertEqual(
+            ["preserve_and_stop", "administrator_quarantine"],
+            [item["code"] for item in report["remediation"]],
+        )
+
+    def test_native_audit_bundle_comparison_remediation_messages_are_fixed(self):
+        api = self.api()
+        observed = {}
+        for check in (
+            "uncertain_bundle_readable",
+            "common_parent_valid",
+            "uncertain_installed_codebook_binding_valid",
+            "repeated_external_manifest_digest_valid",
+            "audit_bundle_file_bytes_equal",
+        ):
+            report = api.build_native_audit_bundle_comparison_report(
+                checks=self.audit_bundle_comparison_checks_with_failure(check)
+            )
+            observed.update(
+                (item["code"], item["message_ru"])
+                for item in report["remediation"]
+            )
+        self.assertEqual(
+            {
+                "check_local_read_access": (
+                    "Проверьте доступность двух указанных локальных папок "
+                    "пакета и встроенных справочников, не изменяя их; "
+                    "команда не выполняет восстановление."
+                ),
+                "preserve_and_stop": (
+                    "Остановите использование обоих пакетов и сохраните их "
+                    "неизменными; команда ничего не исправляет, не выбирает "
+                    "и не удаляет."
+                ),
+                "use_safe_complete_siblings": (
+                    "Сравнивайте только две разные полные приватные "
+                    "семифайловые папки у одного безопасного родителя; "
+                    "небезопасное или неполное состояние передайте "
+                    "системному администратору."
+                ),
+                "retain_successful_repeat_anchors": (
+                    "Передайте оба SHA-256 только из одной полной строки "
+                    "стандартного вывода успешно и нормально завершившегося "
+                    "повтора подготовки; не восстанавливайте их из пакета."
+                ),
+                "use_exact_installed_codebook": (
+                    "Используйте только встроенный справочник точной версии, "
+                    "указанной каждым проверенным манифестом; не подменяйте и "
+                    "не ищите его по произвольному пути."
+                ),
+                "administrator_quarantine": (
+                    "При изменении inode, жёсткой ссылке, ACL, неучтённом или "
+                    "перемещённом объекте остановите автоматику и передайте "
+                    "состояние системному администратору для учёта всех "
+                    "ссылок и карантина."
+                ),
+                "investigate_without_selection": (
+                    "Не выбирайте и не используйте ни один из несовпавших "
+                    "пакетов; сохраните их раздельно и исследуйте причину без "
+                    "автоматического повтора или назначения результата."
+                ),
+            },
+            observed,
+        )
+
+        invalid = self.audit_bundle_comparison_checks_with_failure(
+            "uncertain_bundle_contract_valid"
+        )
+        invalid["audit_bundle_file_bytes_equal"] = False
+        report = api.build_native_audit_bundle_comparison_report(checks=invalid)
+        self.assertEqual(
+            [
+                "uncertain_audit_bundle_artifact_contract_invalid",
+                "audit_bundle_directory_bytes_mismatch",
+            ],
+            report["reason_codes"],
+        )
+        self.assertEqual("invalid", report["status"])
+        self.assertEqual(
+            [
+                "preserve_and_stop",
+                "use_safe_complete_siblings",
+                "administrator_quarantine",
+            ],
+            [item["code"] for item in report["remediation"]],
+        )
+
+    def test_native_audit_bundle_comparison_rejects_contradictory_or_hostile_state(self):
+        api = self.api()
+        valid = self.native_audit_bundle_comparison_checks()
+        hostile = "СЕКРЕТНЫЙ-ПУТЬ-И-ДАЙДЖЕСТ"
+        unreadable = self.audit_bundle_comparison_checks_with_failure(
+            "uncertain_bundle_readable"
+        )
+        contradiction_cases = (
+            [],
+            {key: value for key, value in valid.items() if key != "final_recapture_valid"},
+            {**valid, "private_check": False},
+            {**valid, "common_parent_valid": None},
+            {
+                **valid,
+                "uncertain_bundle_readable": False,
+                "uncertain_bundle_private": True,
+            },
+            {
+                **valid,
+                "uncertain_bundle_contract_valid": False,
+                "uncertain_installed_codebook_readable": True,
+            },
+            {
+                **valid,
+                "expected_manifest_sha256_valid": False,
+                "repeated_external_manifest_digest_valid": False,
+            },
+            {**valid, "audit_bundle_file_bytes_equal": None},
+            {**valid, "final_recapture_valid": None},
+            {**unreadable, "final_recapture_valid": True},
+            {**valid, "common_parent_valid": hostile},
+        )
+        for checks in contradiction_cases:
+            with self.subTest(checks=checks):
+                with self.assertRaises(ValueError) as invalid:
+                    api.build_native_audit_bundle_comparison_report(checks=checks)
+                self.assertNotIn(hostile, str(invalid.exception))
+
+        for check, reason in (
+            ("uncertain_bundle_readable", "uncertain_audit_bundle_unreadable"),
+            ("repeated_bundle_readable", "repeated_audit_bundle_unreadable"),
+            (
+                "uncertain_installed_codebook_readable",
+                "uncertain_installed_codebook_unreadable",
+            ),
+            (
+                "repeated_installed_codebook_readable",
+                "repeated_installed_codebook_unreadable",
+            ),
+            ("final_recapture_valid", "comparison_input_changed"),
+        ):
+            accepted = api.build_native_audit_bundle_comparison_report(
+                checks=self.audit_bundle_comparison_checks_with_failure(check),
+                input_reason_codes=(reason,),
+            )
+            self.assertEqual([reason], accepted["reason_codes"])
+        for invalid_reasons in (
+            hostile,
+            (hostile,),
+            ("uncertain_audit_bundle_unreadable",) * 2,
+            (1,),
+            ("repeated_audit_bundle_unreadable",),
+            ("comparison_input_changed",),
+        ):
+            with self.subTest(input_reason_codes=invalid_reasons):
+                with self.assertRaises(ValueError) as invalid:
+                    api.build_native_audit_bundle_comparison_report(
                         checks=unreadable,
                         input_reason_codes=invalid_reasons,
                     )
