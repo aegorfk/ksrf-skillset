@@ -797,7 +797,7 @@ class SentenceRoleIntegrityTests(unittest.TestCase):
         router.holding_binding_authority = None
         router.practice_binding_authority = None
         router.sentence_role_authority = None
-        router._latest_operation = lambda route: (  # type: ignore[method-assign]
+        router._latest_operation = lambda route, actions=None: (  # type: ignore[method-assign]
             copy.deepcopy(latest),
             {"complaint": {}},
         )

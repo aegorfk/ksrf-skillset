@@ -1,0 +1,74 @@
+[
+  {
+    "case_id": "synthetic-pending-evidence",
+    "case_kind": "synthetic",
+    "family": "research",
+    "split": "regression",
+    "input": "Evidence pending; working export requested",
+    "input_sha256": "80958e21447a17898e539618cf9ad6dd27eccf0c94f5df4b867a41bff6f86fc1",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-same-norm-different-meaning",
+    "case_kind": "synthetic",
+    "family": "analogy",
+    "split": "regression",
+    "input": "Same norm; judicial meanings differ",
+    "input_sha256": "87560d798510188845a3a9ebf8c1749918d6a1229ec864804ff36245b9cb032e",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-no-template",
+    "case_kind": "synthetic",
+    "family": "research",
+    "split": "regression",
+    "input": "No template for the constitutional question",
+    "input_sha256": "236c38ca33113bef7129062cc191bd48f3057d01f87e5ed59687c67c812c50f2",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-missing-cassation",
+    "case_kind": "synthetic",
+    "family": "admissibility",
+    "split": "regression",
+    "input": "Cassation complaint unavailable; preservation unverified",
+    "input_sha256": "3e9cfa0b957c63d536e5c29a2db184f9c53d0a6587091dd54de29c5c5bcb091c",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-same-signature",
+    "case_kind": "synthetic",
+    "family": "analogy",
+    "split": "regression",
+    "input": "Matching wording; facts and remedy not yet compared",
+    "input_sha256": "4253c1b6c440cff6f525e1824b384be254c67d3a96de1fa5ce99ed718c47e76e",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-missing-verifier",
+    "case_kind": "synthetic",
+    "family": "render",
+    "split": "regression",
+    "input": "No host verifier; review copy requested",
+    "input_sha256": "d10e4a22d29cc665afd5c0e47d67e5722d13bd1761f2c964740fa42ffb9279ef",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-changed-artifact",
+    "case_kind": "synthetic",
+    "family": "integrity",
+    "split": "regression",
+    "input": "Rendered PDF bytes changed after validation",
+    "input_sha256": "9ae56d84491578989731307cee47de418cd1a34526299b07cd817ea80708e70a",
+    "outcome_in_runner_input": false
+  },
+  {
+    "case_id": "synthetic-prior-refusal",
+    "case_kind": "synthetic",
+    "family": "admissibility",
+    "split": "regression",
+    "input": "Prior refusal exists; renewal delta unreviewed",
+    "input_sha256": "4ecf18cb1b0aeea697d58ec20e2d6c1b7a1c0351c5e120bd0a5de29160099a2c",
+    "outcome_in_runner_input": false
+  }
+]

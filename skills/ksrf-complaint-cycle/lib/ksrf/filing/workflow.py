@@ -93,7 +93,7 @@ SUPPORTED_ACTIONS = {
     "issues": frozenset({"generate", "status"}),
     "failures": frozenset({"ingest", "search", "coverage"}),
     "evaluate": frozenset({"run", "status"}),
-    "render": frozenset({"build", "status"}),
+    "render": frozenset({"build", "status", "draft", "draft-status"}),
     "release": frozenset({"approve", "build", "check", "validate", "status"}),
 }
 _SECRET_KEYS = frozenset(
@@ -438,10 +438,12 @@ class WorkflowRouter:
         return complete
 
     def _latest_operation(
-        self, route: str
+        self, route: str, actions: Optional[set[str]] = None
     ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]]]:
         for event in reversed(self.events.records()):
-            if event.get("route") != route or event.get("action") in {"status", "coverage"}:
+            if event.get("route") != route or event.get("action") in {"status", "coverage", "draft-status"}:
+                continue
+            if actions is not None and event.get("action") not in actions:
                 continue
             raw = self.objects.read_bytes(_mapping(event.get("result_object"), label="result_object"))
             value = json.loads(raw)
@@ -1678,12 +1680,45 @@ class WorkflowRouter:
         payload: Optional[Mapping[str, Any]],
         input_object: Optional[Mapping[str, Any]],
     ) -> dict[str, Any]:
+        if action in {"draft", "draft-status"}:
+            try:
+                from .working_draft import build_working_draft, verify_working_draft, render_error_details
+            except ImportError as exc:
+                return self._optional_runtime_block("render", action, exc)
+            if action == "draft-status":
+                latest, _ = self._latest_operation("render", actions={"draft"})
+                if latest is None:
+                    return self._base_result("render", action, state="blocked", implemented=True,
+                        message="Рабочий проект ещё не создавался.", result={"reason_code": "working_draft_missing"})
+                saved = latest.get("result", {})
+                errors = verify_working_draft(self.workspace, saved)
+                return self._base_result("render", action,
+                    state="blocked" if errors else str(saved.get("state", "blocked")), implemented=True,
+                    message="Проверены сохранённые файлы рабочего проекта; юридическое одобрение не предоставлено.",
+                    result={"latest": latest, "artifact_errors": errors, "artifacts_revalidated": not errors,
+                            "filing_authority": False, "release_eligible": False}, missing=tuple(errors))
+            if payload is None or input_object is None:
+                raise WorkflowInputError("Для render draft нужен версионированный --payload.")
+            complaint_payload = _mapping(payload.get("complaint"), label="complaint")
+            if complaint_payload.get("matter_id") != self.matter["matter_id"]:
+                raise WorkflowInputError("complaint.matter_id не совпадает с matter_id рабочей папки.")
+            try:
+                result = build_working_draft(self.workspace, payload, str(input_object["sha256"]))
+            except Exception as exc:
+                details = render_error_details(exc)
+                return self._base_result("render", action, state="blocked", implemented=True,
+                    message="Не удалось собрать рабочий проект.", result=details,
+                    next_actions=(details["next_action"],))
+            return self._base_result("render", action, state=result["state"], implemented=True,
+                message="Рабочий проект создан с пометками для проверки. Подписание и подача не разрешены.",
+                result=result, missing=tuple(g["message"] for g in result["gaps"]),
+                next_actions=("Проверьте PDF и список пробелов; подтвердите источники и юридические выводы.",))
         if action == "status":
-            latest, latest_payload = self._latest_operation("render")
+            latest, latest_payload = self._latest_operation("render", actions={"build"})
             if latest is None:
-                return self._operation_status(
-                    "render", "Рендеринг ещё не выполнялся."
-                )
+                return self._base_result("render", action, state="blocked", implemented=True,
+                    message="Строгая сборка ещё не выполнялась; рабочий проект её не заменяет.",
+                    result={"reason_code": "strict_render_missing", "support_revalidated": False})
             support_errors: list[str] = []
             latest_result = latest.get("result")
             stored_receipt = (
@@ -1811,8 +1846,10 @@ class WorkflowRouter:
         output_dir = self.workspace / "release" / "renders" / str(input_object["sha256"])
         artifacts_dir = output_dir / "artifacts"
         preview_dir = output_dir / "previews"
+        failure_stage = "input"
         try:
             complaint = build_structured_complaint(complaint_payload)
+            failure_stage = "authority"
             support_receipts = require_release_support(
                 complaint,
                 relief_binding_authority=self.relief_binding_authority,
@@ -1827,6 +1864,7 @@ class WorkflowRouter:
                 require_practice_index=True,
                 require_sentence_role_index=True,
             )
+            failure_stage = "render"
             docx = render_docx(complaint, artifacts_dir / "constitutional-complaint.docx")
             pdf = convert_docx_to_pdf(
                 docx.path,
@@ -1841,6 +1879,8 @@ class WorkflowRouter:
                 pdftoppm_path=payload.get("pdftoppm_path"),
             )
         except Exception as exc:
+            from .working_draft import render_error_details
+            details = render_error_details(exc, stage=failure_stage)
             return self._base_result(
                 "render",
                 action,
@@ -1848,12 +1888,11 @@ class WorkflowRouter:
                 implemented=True,
                 message="DOCX/PDF не прошли обязательную сборку и проверку.",
                 result={
-                    "error": str(exc),
-                    "reason_code": "artifact_generation_or_qa_failed",
+                    **details,
                     "output_dir": str(output_dir),
                 },
-                missing=("Исправный локальный renderer и успешная QA",),
-                next_actions=("Установите или укажите локальный LibreOffice и pdftoppm, затем повторите проверку.",),
+                missing=(details["reason_code"],),
+                next_actions=(details["next_action"],),
             )
         passed = qa.get("passed") is True
         if passed:

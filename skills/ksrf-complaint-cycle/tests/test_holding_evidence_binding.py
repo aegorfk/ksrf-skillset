@@ -853,7 +853,7 @@ class HoldingEvidenceBindingTests(unittest.TestCase):
                 self.assertEqual(result["state"], "blocked")
                 self.assertEqual(
                     result["result"]["reason_code"],
-                    "artifact_generation_or_qa_failed",
+                    "evidence_authority_required",
                 )
                 self.assertIn(
                     "holding_binding_index_set_mismatch",

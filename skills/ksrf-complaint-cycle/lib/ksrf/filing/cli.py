@@ -64,7 +64,7 @@ ROUTE_ACTION_HELP = {
     "issues": "generate — сформировать варианты конституционно-правовой проблемы",
     "failures": "research — исследовать неудачные обращения и неблагоприятную практику",
     "evaluate": "run — выполнить оценку качества материалов",
-    "render": "build — собрать документы для визуальной проверки",
+    "render": "build — собрать документы со строгой проверкой; draft — рабочий проект с пробелами; draft-status — проверить его файлы; status — состояние строгой сборки",
     "release": "check — проверить комплект перед ручной юридической проверкой",
 }
 
@@ -577,7 +577,7 @@ def main(
         else:
             route = str(args.route)
             action = str(args.action)
-            if args.payload is None and action not in {"status", "coverage"}:
+            if args.payload is None and action not in {"status", "coverage", "draft-status"}:
                 payload = _pending_route_payload(route, action, args.workspace)
                 rendered = _render_pending(payload)
                 exit_code = 3

@@ -266,6 +266,11 @@ class AdmissibilitySchemaTests(unittest.TestCase):
 
 
 class AdmissibilityDomainTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        # This suite must also run before the schema test class or on its own.
+        AdmissibilitySchemaTests.setUpClass()
+
     def assert_decision(
         self,
         matrix: dict[str, object],

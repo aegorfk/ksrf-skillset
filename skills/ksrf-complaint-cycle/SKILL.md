@@ -11,6 +11,8 @@ description: "Скилл организует полный цикл обраще
 
 ## Старт
 
+Для первого проверяемого документа и разграничения гипотезы, рабочего проекта и строгого выпуска прочитай [практический локальный путь](references/practical-working-route.md). При незакрытых доказательствах доступен `render draft`: помеченный DOCX/PDF и список пробелов. Его создание не требует удостоверения выпуска и не повышает готовность к подаче.
+
 1. Прочитай [машину состояний](references/router-and-state-machine.md).
 2. Если пользователь установил только skills либо setup неизвестен, прочитай [профили](references/setup-profiles-and-capabilities.md), выполни `scripts/ksrf.py start --profile basic --json` и покажи пользователю все три профиля: `basic`, `research`, `expert`. Если профиль не выбран, используй `basic` только как явно названный рекомендуемый безопасный default, затем выполни `scripts/ksrf_setup_doctor.py --profile basic --json`. Ничего не устанавливай и не передавай вовне автоматически.
 3. Создай или открой локальный matter по [контракту workspace](references/matter-workspace-and-artifacts.md). Пользовательские материалы по умолчанию `local_confidential`; при remote operation сначала примени [privacy gate](references/privacy-and-case-isolation.md).

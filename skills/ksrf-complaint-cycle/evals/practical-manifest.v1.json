@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "scope": "synthetic_contract_regression",
+  "legal_human_review": "pending",
+  "promotion_eligible": false,
+  "files": {
+    "practical-cases.v1.json": "15dee6e8911fe65086c0734960b0c11d26e2ab18ecc40f9f926ce9e8e55d170f",
+    "practical-reviews.pending.v1.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  }
+}
