@@ -107,6 +107,8 @@ description: "Скилл организует полный цикл обраще
 
 ## Дополнительные references
 
+Для архивных пояснений используй [проверку ролей и точного судебного ответа](../ksrf-doctrine-research/references/archived-submissions-and-role-transitions.md); для социальных прав — [проверку соразмерности и недостаточной защиты](../ksrf-rights-argument-builder/references/proportionality-and-social-protection.md). Архивная находка не устанавливает поддержку довода Судом, а отсутствие льготы не решает вопрос об объёме конституционного права.
+
 При изъятии материалов юридической помощи открой [проверку тайны и процессуальных гарантий](../ksrf-rights-argument-builder/references/confidentiality-and-procedural-safeguards.md): название процедуры не определяет содержание защиты, а недостаток одного довода не обнуляет остальные. Научные заключения о доступе к суду и действии нормы разбирай по [проверке личного интереса и опубликования](../ksrf-doctrine-research/references/protected-interest-and-official-publication.md); установи собственное дело и автора каждого текста.
 
 При разборе новых жалоб сравнивай [препятствие, группу и судебный ответ](../ksrf-rights-argument-builder/references/procedural-obstacles-and-benefit-comparators.md), а экспертные материалы — по [границам институциональных заключений](../ksrf-doctrine-research/references/institutional-opinions-and-normative-uncertainty.md). Незавершённые реквизиты не устанавливают подачу; мотивированный отказ и положительное постановление разбираются по отдельным доводам.

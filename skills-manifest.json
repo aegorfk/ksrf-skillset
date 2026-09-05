@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-05T18:10:51Z",
+  "generated_at": "2026-09-05T20:26:50Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "69f08ae87bf0d9b1edb6f5cba965fc1d28d71e09",
+  "remote_base_commit": "a6310ab12eb9a245a50793917356c351322efeb0",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,9 +27,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
-  "total_files": 271,
-  "total_bytes": 10381348,
-  "tree_sha256": "7e0b2ee7cc9ca1848e1d4aa5880fa9c0d6c7d3d8b0e60952626a3d714d0296e0",
+  "total_files": 273,
+  "total_bytes": 10406386,
+  "tree_sha256": "e3e2e4e5b1b5730e1432246a71c7a2e8bc40914b12dd465702b83a80226facb9",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 101,
-      "bytes": 2425351,
-      "tree_sha256": "a7c3df1d7fadf623413c7edc5e8b6fa850c398581723c014752b955894443871"
+      "bytes": 2426033,
+      "tree_sha256": "02d8f6e5356f6ff50806b9a7768b7aea69be286fc8880c62404f1d9157aef77a"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -64,8 +64,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 7,
-      "bytes": 139295,
-      "tree_sha256": "822f4190feb77220b2203dd38e7bbe2e956afaf30009b1a6025e8e2d44fb44cf"
+      "bytes": 140072,
+      "tree_sha256": "6e4c5a21fbe1022f9d91353396d74a1f0a594ae0584dd9382ae0bc9fe1bc5710"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -81,9 +81,9 @@
     },
     {
       "name": "ksrf-doctrine-research",
-      "files": 13,
-      "bytes": 211769,
-      "tree_sha256": "edae7f9e2fefbd2518d95803df641852f3a4dc3b542b9482b0c2419abaf3e83e"
+      "files": 14,
+      "bytes": 226155,
+      "tree_sha256": "2c33a70bb3d89c4dd25705c5c2f6a32db6ce61c2dd74f32fe29514ebc4f9469d"
     },
     {
       "name": "ksrf-echr-argumentation",
@@ -117,9 +117,9 @@
     },
     {
       "name": "ksrf-rights-argument-builder",
-      "files": 15,
-      "bytes": 260599,
-      "tree_sha256": "38a5a50a3eca102952fdc3fcbe8cfe69439c09a8fdf2f6765d397f4d8f73a3d9"
+      "files": 16,
+      "bytes": 269792,
+      "tree_sha256": "089b29b14faa6215ebd4b8b4d76c72f23c9a3ad59a1438500dfb2185973d39d0"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",

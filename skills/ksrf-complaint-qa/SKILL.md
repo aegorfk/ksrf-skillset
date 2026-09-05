@@ -98,6 +98,9 @@ QA получает input-only record, действующие official anchors, 
 
 ## Справочники
 
+- [Архивные пояснения и роли участников](../ksrf-doctrine-research/references/archived-submissions-and-role-transitions.md) — проверь исходный адрес и снимок, независимость источников, переход между лицами и отдельный судебный ответ на каждый довод.
+- [Соразмерность и недостаточная защита](../ksrf-rights-argument-builder/references/proportionality-and-social-protection.md) — исключи круговое определение права через спорный закон, необоснованную альтернативу и подмену компетенции взвешиванием.
+
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономная refusal-модель и финальный контроль полного цикла.
 - `../ksrf-echr-argumentation/references/mcp-argument-intelligence-contract.md` — exact-quote, actor-separated и method-only QA для HUDOC findings.
 - `../ksrf-complaint-cycle/references/uid-first-case-workflow.md` — UID-покрытие, единая матрица допустимости, варианты проблемы и go/no-go контракт.
