@@ -95,11 +95,11 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         source = EXECUTION / "evals/evals.json"
         self.assertEqual(
             hashlib.sha256(source.read_bytes()).hexdigest(),
-            "fcbe1313ad9c06c7fc5aa8a73c3a07c59ab8407db94382ac243e29d88c4692fa",
+            "32f18154bf9a26d7194e3f3ba64562fbc1450f316c5adec46546326967a0d816",
         )
         payload = json.loads(source.read_text())
         entries = {entry["id"]: entry for entry in payload["evals"]}
-        self.assertEqual(set(entries), set(range(1, 12)))
+        self.assertEqual(set(entries), set(range(1, 14)))
         for number in range(4, 9):
             with self.subTest(number=number):
                 self.assertEqual(entries[number]["files"], [])
