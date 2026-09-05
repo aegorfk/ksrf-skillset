@@ -64,6 +64,7 @@ HUMAN_ONLY_ACTIONS = (
     "filing",
 )
 ROUTE_TITLES = {
+    "writing": "Концепция, доводы и предлагаемая редакция жалобы",
     "sources": "Проверка официальных источников и редакций норм",
     "admissibility": "Проверка допустимости и выбор маршрута",
     "application": "Доказательство применения нормы",
@@ -74,6 +75,7 @@ ROUTE_TITLES = {
     "release": "Комплект для передачи человеку",
 }
 SUPPORTED_ACTIONS = {
+    "writing": frozenset({"plan", "compose", "review", "revise", "status"}),
     "sources": frozenset(
         {
             "browser",
@@ -530,6 +532,8 @@ class WorkflowRouter:
         *,
         allow_network: bool,
     ) -> dict[str, Any]:
+        if route == "writing":
+            return self._writing(action, payload)
         if route == "sources":
             return self._sources(action, payload, allow_network=allow_network)
         if route == "admissibility":
@@ -1673,6 +1677,44 @@ class WorkflowRouter:
                 "Проведите слепое человеческое сравнение и зафиксируйте reviewer, время и материальные ошибки.",
             ),
         )
+
+    def _writing(
+        self, action: str, payload: Optional[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        from .writing import WritingWorkflow
+        writer = WritingWorkflow(self.workspace, self.matter["matter_id"])
+        if action == "status":
+            latest, _ = self._latest_operation("writing", actions={"plan", "compose", "review", "revise"})
+            if latest is None:
+                return self._base_result("writing", action, state="blocked", implemented=True,
+                    message="Редакторский цикл ещё не запускался.", result={"reason_code": "writing_packet_missing"})
+            saved = latest.get("result", {})
+            try:
+                packet = writer.read(saved["packet"])
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                return self._base_result("writing", action, state="blocked", implemented=True,
+                    message="Сохранённая редакция не прошла проверку целостности.",
+                    result={"reason_code": "writing_integrity_failed", "error": str(exc),
+                            "filing_authority": False, "release_eligible": False})
+            return self._base_result("writing", action, state="working_proposal", implemented=True,
+                message="Файлы и источники редакции сверены; юридическая проверка остаётся незавершённой.",
+                result={**saved, "artifacts_revalidated": True, "latest_action": packet["action"]})
+        if payload is None:
+            raise WorkflowInputError("Для writing нужен версионированный --payload.")
+        if action != "plan":
+            latest, _ = self._latest_operation("writing", actions={"plan", "compose", "review", "revise"})
+            if latest is None or latest.get("result", {}).get("packet") != payload.get("parent"):
+                raise WorkflowInputError("Родительский пакет устарел; используйте последнюю редакцию writing status.")
+        try:
+            result = writer.run(action, payload)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise WorkflowInputError(f"Не удалось подготовить редакцию: {exc}") from exc
+        return self._base_result("writing", action, state="working_proposal", implemented=True,
+            message="Редакторский пакет сохранён. Предлагаемый текст требует проверки и принятия человеком.",
+            result=result, missing=tuple(result["gaps"]),
+            next_actions=("Откройте концепцию, основания доводов, возражения и изменения.",
+                          "После правки повторите writing review; для DOCX/PDF используйте render draft с сохранённым render-payload.json."))
+
 
     def _render(
         self,

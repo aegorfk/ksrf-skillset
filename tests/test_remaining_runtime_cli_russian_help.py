@@ -109,14 +109,14 @@ EXPECTED_PROGRAM_LABELS = {
 
 EXPECTED_ROUTE_COUNTS = {
     "judicial": 72,
-    "ksrf": 21,
+    "ksrf": 22,
     "practice": 18,
     "autocollect": 1,
 }
 
 EXPECTED_CONTRACT_SHA256 = {
     "judicial": "19dfb40e1712e9201939330d651e53f4df9d928d7af1cbe2a80756df005f1dd3",
-    "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
+    "ksrf": "e16776770afd69f2ad0ff90efb720d547634685603d0340cee56720176aba950",
     "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
 }
@@ -1318,7 +1318,7 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
                     ("-h",),
                 )
             )
-            self.assertEqual(len(invocations), 43)
+            self.assertEqual(len(invocations), 44)
 
             for script, arguments in invocations:
                 with self.subTest(script=script.name, arguments=arguments):

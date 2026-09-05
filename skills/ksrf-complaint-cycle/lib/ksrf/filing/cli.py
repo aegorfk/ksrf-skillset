@@ -20,6 +20,7 @@ from .matter import (
 
 
 ROUTE_COMMANDS = {
+    "writing",
     "intake",
     "sources",
     "admissibility",
@@ -32,6 +33,7 @@ ROUTE_COMMANDS = {
 }
 
 ROUTE_TITLES = {
+    "writing": "Концепция, основания доводов, возражения и предлагаемая редакция жалобы",
     "sources": "Проверка официальных источников и редакций норм",
     "admissibility": "Проверка допустимости и выбор маршрута обращения",
     "application": (
@@ -48,6 +50,7 @@ ROUTE_TITLES = {
 }
 
 ROUTE_ACTIONS = {
+    "writing": "plan",
     "sources": "verify",
     "admissibility": "derive",
     "application": "analyze",
@@ -59,6 +62,7 @@ ROUTE_ACTIONS = {
 }
 
 ROUTE_ACTION_HELP = {
+    "writing": "compose — проект и основания доводов; review — возражения и повторная проверка; revise — предлагаемая правка; status — сверить файлы; plan — концепция",
     "sources": "verify — проверить официальные источники и редакции норм",
     "application": "analyze — проанализировать применение нормы в деле",
     "issues": "generate — сформировать варианты конституционно-правовой проблемы",
@@ -314,6 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_flag(intake)
 
     aliases = {
+        "writing": [],
         "sources": ["source"],
         "admissibility": [],
         "application": ["norm-application"],
