@@ -102,9 +102,9 @@ REVIEWED_RUNTIME_FILES = {
         "75781bce49525d2413146d830a11c777db45f780689e8e6b12191367432a4927",
     ),
     REPO / "skills/ksrf-complaint-facts-demands/SKILL.md": (
-        77,
-        16_113,
-        "e871b3bdc30f285fa7e4ddded516f2e989c6e33333cda841a9363bc027c3e3f5",
+        78,
+        16_867,
+        "cac61907cdaadfbbc2e1876b34168134da3ad4bb63c2e3b5714f9622df425652",
     ),
     REPO / "skills/ksrf-complaint-facts-demands/references/complaint-patterns.md": (
         65,
