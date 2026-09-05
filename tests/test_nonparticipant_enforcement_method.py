@@ -68,6 +68,29 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         self.assertIn("с. 20", card)
         self.assertIn("свежая доступность не подтверждена", card)
 
+    def test_real_objection_method_preserves_counterexample_scope(self) -> None:
+        # Editorial contract only: this does not assess a generated legal response.
+        method = METHOD.read_text()
+        section = method.split(
+            "## Ответ на возражение о невозможности отдельной защиты\n", 1
+        )[1].split("## Границы переноса", 1)[0]
+        for wording in (
+            "отсутствие определённого основания",
+            "отсутствие автоматического эффекта",
+            "пересказ заявителей не заменяет сам отзыв",
+            "Согласие взыскателя и самостоятельное основание мирового соглашения не переносятся",
+            "не доказывает право заявителя на прекращение исполнения",
+            "не устраняет другие самостоятельные основания отказа",
+            "не наделяет суд новым полномочием",
+            "Это позиции участников, а не выводы КС РФ",
+            "актуальное право и результат нового дела проверяются отдельно",
+        ):
+            with self.subTest(wording=wording):
+                self.assertIn(wording, section)
+        self.assertIn("Отзыв-А.А.Клишаса.pdf), с. 9", section)
+        self.assertIn("Однодворцевы_ВозраженияФИН.pdf), с. 3–4", section)
+        self.assertIn("argument-quality-revision.md#35-", section)
+
     def test_synthetic_execution_cases_need_no_historical_source(self) -> None:
         source = EXECUTION / "evals/evals.json"
         self.assertEqual(
