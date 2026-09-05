@@ -7,6 +7,8 @@ description: Скилл независимо проверяет проект ж�
 
 ## Независимый refusal-first режим
 
+При сочетании экологического взыскания и восстановительных работ используй [проверку состава возмещения и результата восстановления](../ksrf-rights-argument-builder/references/environmental-compensation-and-restoration.md). Не приравнивай расходы к устранению всего вреда, успех по одному доводу — к поддержке всех требований, а условный пересмотр — к возврату денег.
+
 При повторной жалобе, новом аспекте прежнего вопроса или доводе о недоступности другого порядка используй [проверку повторного обращения и судебной защиты](references/renewed-complaint-and-remedy-gap.md). Раздели прежний отказ и результат новой жалобы, докажи отличие вопроса, применение каждой нормы и личную основу требования; исторический исход открывай только после самостоятельного первого прохода.
 
 QA получает input-only record, действующие official anchors, adverse records и draft, но не скрытый последующий исход исторического дела. Оригинальная жалоба, пересказ заявительского тезиса в акте КС РФ и уведомление Секретариата имеют разные evidence roles по `../ksrf-complaint-cycle/references/failed-complaint-corpus.md`. Проверяй реальные sentence IDs и FilingPackageManifest; eval score и любое human approval не закрывают legal/evidence gate, а filing-significant ReleaseGate принимает только pre-existing host-attested approval полного binding по `../ksrf-complaint-cycle/references/router-and-state-machine.md`.
