@@ -74,10 +74,12 @@ from .practice_quality import (
     build_native_coding_audit_inputs,
     build_native_coding_audit_finalization,
     build_native_coding_review_import,
+    build_native_finalization_comparison_report,
     build_native_reliability_doctor_report,
     build_uncertainty_profile,
     canonical_digest,
     NON_AUDITED_CODING_CONTENT_FIELDS,
+    _evaluate_native_coding_reliability,
 )
 from .reporting import derive_research_status, write_offline_report
 from .source_reconciliation import (
@@ -167,6 +169,7 @@ _RUSSIAN_METAVARS = {
     "observations": "ФАЙЛ_НАБЛЮДЕНИЙ",
     "output": "ВЫХОДНОЙ_ФАЙЛ",
     "output_dir": "НОВАЯ_ПАПКА_АУДИТА",
+    "repeated_finalization_dir": "ПОВТОРНАЯ_ПАПКА_ФИНАЛИЗАЦИИ",
     "parser_manifest": "ФАЙЛ_МАНИФЕСТА_ПАРСЕРА",
     "payload": "ФАЙЛ_ДАННЫХ",
     "period_id": "ИДЕНТИФИКАТОР_ПЕРИОДА",
@@ -178,6 +181,7 @@ _RUSSIAN_METAVARS = {
     "primary_decisions": "ФАЙЛ_ОСНОВНЫХ_РЕШЕНИЙ",
     "quality_binding": "ФАЙЛ_ПРИВЯЗКИ_КАЧЕСТВА",
     "query": "ЗАПРОС",
+    "uncertain_finalization_dir": "СОМНИТЕЛЬНАЯ_ПАПКА_ФИНАЛИЗАЦИИ",
     "query_id": "ИДЕНТИФИКАТОР_ЗАПРОСА",
     "quotas": "ФАЙЛ_КВОТ",
     "quote": "ЦИТАТА",
@@ -544,6 +548,49 @@ _AUDIT_REVIEW_IMPORT_FILE_LIMITS = {
     "audit-decisions.jsonl": 64 * 1024 * 1024,
     "coding-audit-review-import-receipt.json": 8 * 1024 * 1024,
 }
+_AUDIT_FINALIZATION_PATHS = (
+    "resolved-review-decisions.jsonl",
+    "adjudications.jsonl",
+    "coding-reliability.json",
+    "coding-audit-finalization-receipt.json",
+)
+_AUDIT_FINALIZATION_FILE_LIMITS = {
+    "resolved-review-decisions.jsonl": 64 * 1024 * 1024,
+    "adjudications.jsonl": 64 * 1024 * 1024,
+    "coding-reliability.json": 64 * 1024 * 1024,
+    "coding-audit-finalization-receipt.json": 8 * 1024 * 1024,
+}
+_AUDIT_FINALIZATION_RECEIPT_FILE_BINDINGS = (
+    (
+        "resolved-review-decisions.jsonl",
+        "resolved_review_decisions_file_sha256",
+    ),
+    ("adjudications.jsonl", "adjudications_file_sha256"),
+    ("coding-reliability.json", "coding_reliability_file_sha256"),
+)
+_FINALIZATION_COMPARISON_CHUNK_BYTES = 1024 * 1024
+_FINALIZATION_COMPARISON_CHECKS = (
+    "common_parent_valid",
+    "directories_distinct",
+    "uncertain_directory_readable",
+    "repeated_directory_readable",
+    "uncertain_directory_private",
+    "repeated_directory_private",
+    "uncertain_inventory_exact",
+    "repeated_inventory_exact",
+    "expected_receipt_sha256_valid",
+    "uncertain_artifact_contracts_valid",
+    "repeated_artifact_contracts_valid",
+    "uncertain_receipt_self_digest_valid",
+    "repeated_receipt_self_digest_valid",
+    "repeated_external_receipt_digest_valid",
+    "uncertain_receipt_file_bindings_valid",
+    "repeated_receipt_file_bindings_valid",
+    "uncertain_internal_relation_valid",
+    "repeated_native_relation_valid",
+    "directory_file_bytes_equal",
+    "final_recapture_valid",
+)
 _AUDIT_IMPORT_CODEBOOK_LIMIT = 2 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_MEMBER_LIMIT = 192 * 1024 * 1024
 _AUDIT_IMPORT_ZIP_TOTAL_LIMIT = 256 * 1024 * 1024
@@ -591,6 +638,333 @@ def _stable_directory_identity(value: os.stat_result) -> tuple[int, ...]:
         value.st_mtime_ns,
         value.st_ctime_ns,
     )
+
+
+def _stable_finalization_directory_identity(
+    value: os.stat_result,
+) -> tuple[int, ...]:
+    """Return the full metadata identity required by the comparison contract."""
+
+    return (
+        value.st_dev,
+        value.st_ino,
+        stat.S_IFMT(value.st_mode),
+        stat.S_IMODE(value.st_mode),
+        value.st_uid,
+        value.st_gid,
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+class _FinalizationComparisonCaptureError(Exception):
+    """Closed internal classification; its message is never serialized."""
+
+    def __init__(
+        self,
+        kind: str,
+        *,
+        inventory_exact: bool | None = None,
+        side: str | None = None,
+        observation: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(kind)
+        self.kind = kind
+        self.inventory_exact = inventory_exact
+        self.side = side
+        self.observation = observation
+
+
+class _FinalizationComparisonJSONResourceError(Exception):
+    """Distinguish bounded numeric conversion from malformed JSON."""
+
+
+_FINALIZATION_COMPARISON_PRIMITIVE_ERRORS = (
+    OSError,
+    TypeError,
+    AttributeError,
+    NotImplementedError,
+)
+_FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS = (
+    *_FINALIZATION_COMPARISON_PRIMITIVE_ERRORS,
+    RuntimeError,
+    ValueError,
+    UnicodeError,
+)
+_FINALIZATION_COMPARISON_OS_PRIMITIVES = {
+    name: getattr(os, name, None)
+    for name in ("open", "stat", "scandir", "fstat", "read", "close")
+}
+
+
+_FINALIZATION_COMPARISON_JSON_NUMBER = re.compile(
+    rb"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?"
+)
+
+
+def _preflight_finalization_comparison_json(content: bytes) -> None:
+    """Bound a JSON graph lexically before the parser materializes it."""
+
+    maximum_integer_digits = getattr(
+        sys.int_info,
+        "default_max_str_digits",
+        4300,
+    )
+    nodes = 0
+    root_state = "value"
+    stack: list[dict[str, Any]] = []
+    index = 0
+    length = len(content)
+
+    def skip_whitespace(position: int) -> int:
+        while position < length and content[position] in b" \t\r\n":
+            position += 1
+        return position
+
+    def scan_string(position: int) -> int | None:
+        decoded_bytes = 0
+        position += 1
+        while position < length:
+            byte = content[position]
+            if byte == 0x22:
+                return position + 1
+            if byte < 0x20:
+                return None
+            if byte != 0x5C:
+                decoded_bytes += 1
+                position += 1
+            else:
+                position += 1
+                if position >= length:
+                    return None
+                escaped = content[position]
+                if escaped in b'"\\/bfnrt':
+                    decoded_bytes += 1
+                    position += 1
+                elif escaped == ord("u"):
+                    if position + 4 >= length:
+                        return None
+                    raw_hex = content[position + 1 : position + 5]
+                    if any(byte not in b"0123456789abcdefABCDEF" for byte in raw_hex):
+                        return None
+                    codepoint = int(raw_hex, 16)
+                    position += 5
+                    if 0xD800 <= codepoint <= 0xDBFF:
+                        if (
+                            position + 5 < length
+                            and content[position : position + 2] == b"\\u"
+                            and all(
+                                byte in b"0123456789abcdefABCDEF"
+                                for byte in content[position + 2 : position + 6]
+                            )
+                        ):
+                            low = int(content[position + 2 : position + 6], 16)
+                            if 0xDC00 <= low <= 0xDFFF:
+                                decoded_bytes += 4
+                                position += 6
+                            else:
+                                decoded_bytes += 3
+                        else:
+                            decoded_bytes += 3
+                    elif 0xDC00 <= codepoint <= 0xDFFF:
+                        decoded_bytes += 3
+                    elif codepoint <= 0x7F:
+                        decoded_bytes += 1
+                    elif codepoint <= 0x7FF:
+                        decoded_bytes += 2
+                    else:
+                        decoded_bytes += 3
+                else:
+                    return None
+            if decoded_bytes > _AUDIT_IMPORT_MAX_STRING_BYTES:
+                raise _FinalizationComparisonJSONResourceError
+        return None
+
+    def current_state() -> str:
+        return stack[-1]["state"] if stack else root_state
+
+    def begin_value(*, container: str | None = None) -> bool:
+        nonlocal nodes, root_state
+        state = current_state()
+        if stack:
+            frame = stack[-1]
+            if frame["kind"] == "array" and state in {"value_or_end", "value"}:
+                frame["count"] += 1
+                if frame["count"] > _AUDIT_IMPORT_MAX_COLLECTION_ITEMS:
+                    raise _FinalizationComparisonJSONResourceError
+                frame["state"] = "comma_or_end"
+            elif frame["kind"] == "object" and state == "value":
+                frame["count"] += 1
+                if frame["count"] > _AUDIT_IMPORT_MAX_COLLECTION_ITEMS:
+                    raise _FinalizationComparisonJSONResourceError
+                frame["state"] = "comma_or_end"
+            else:
+                return False
+        elif root_state == "value":
+            root_state = "end"
+        else:
+            return False
+        nodes += 1
+        if nodes > _AUDIT_IMPORT_MAX_JSON_NODES:
+            raise _FinalizationComparisonJSONResourceError
+        if container is not None:
+            if len(stack) + 1 > _AUDIT_IMPORT_MAX_JSON_DEPTH:
+                raise _FinalizationComparisonJSONResourceError
+            stack.append(
+                {
+                    "kind": container,
+                    "count": 0,
+                    "state": "key_or_end" if container == "object" else "value_or_end",
+                }
+            )
+        return True
+
+    while True:
+        index = skip_whitespace(index)
+        if index >= length:
+            return
+        byte = content[index]
+        state = current_state()
+
+        if byte == 0x22:
+            end = scan_string(index)
+            if end is None:
+                return
+            if stack and stack[-1]["kind"] == "object" and state in {
+                "key_or_end",
+                "key",
+            }:
+                stack[-1]["state"] = "colon"
+            elif not begin_value():
+                return
+            index = end
+            continue
+        if byte == 0x7B:
+            if not begin_value(container="object"):
+                return
+            index += 1
+            continue
+        if byte == 0x5B:
+            if not begin_value(container="array"):
+                return
+            index += 1
+            continue
+        if byte in {0x7D, 0x5D}:
+            if not stack:
+                return
+            frame = stack[-1]
+            expected_kind = "object" if byte == 0x7D else "array"
+            allowed_states = (
+                {"key_or_end", "comma_or_end"}
+                if expected_kind == "object"
+                else {"value_or_end", "comma_or_end"}
+            )
+            if frame["kind"] != expected_kind or frame["state"] not in allowed_states:
+                return
+            stack.pop()
+            index += 1
+            continue
+        if byte == 0x3A:
+            if not stack or stack[-1]["kind"] != "object" or state != "colon":
+                return
+            stack[-1]["state"] = "value"
+            index += 1
+            continue
+        if byte == 0x2C:
+            if not stack or state != "comma_or_end":
+                return
+            stack[-1]["state"] = (
+                "key" if stack[-1]["kind"] == "object" else "value"
+            )
+            index += 1
+            continue
+        literal = next(
+            (
+                token
+                for token in (b"true", b"false", b"null")
+                if content.startswith(token, index)
+            ),
+            None,
+        )
+        if literal is not None:
+            if not begin_value():
+                return
+            index += len(literal)
+            continue
+        number_match = _FINALIZATION_COMPARISON_JSON_NUMBER.match(content, index)
+        if number_match is None:
+            return
+        number = number_match.group(0)
+        if sum(byte in b"0123456789" for byte in number) > maximum_integer_digits:
+            raise _FinalizationComparisonJSONResourceError
+        if not begin_value():
+            return
+        index = number_match.end()
+
+
+def _parse_finalization_comparison_json_integer(raw_value: str) -> int:
+    maximum_digits = getattr(sys.int_info, "default_max_str_digits", 4300)
+    digit_count = len(raw_value.removeprefix("-"))
+    if digit_count > maximum_digits:
+        raise _FinalizationComparisonJSONResourceError
+    try:
+        return int(raw_value)
+    except (MemoryError, ValueError) as exc:
+        raise _FinalizationComparisonJSONResourceError from exc
+
+
+def _finalization_stat_failure_kind(exc: BaseException) -> str:
+    disappearance_errnos = {
+        errno.ENOENT,
+        errno.ENOTDIR,
+        getattr(errno, "ESTALE", errno.ENOENT),
+    }
+    return (
+        "changed"
+        if isinstance(exc, (ValueError, UnicodeError))
+        or (isinstance(exc, OSError) and exc.errno in disappearance_errnos)
+        else "unreadable"
+    )
+
+
+def _finalization_comparison_capabilities_available() -> bool:
+    """Require the POSIX descriptor primitives used by the safe capture."""
+
+    def supports_operation(capabilities: object, name: str) -> bool:
+        current = getattr(os, name, None)
+        baseline = _FINALIZATION_COMPARISON_OS_PRIMITIVES[name]
+        if not callable(current) or not callable(baseline):
+            return False
+        try:
+            return baseline in capabilities
+        except TypeError:
+            return False
+
+    try:
+        effective_uid = os.geteuid()
+        current_primitives_available = all(
+            callable(getattr(os, name, None))
+            for name in _FINALIZATION_COMPARISON_OS_PRIMITIVES
+        )
+        return bool(
+            os.name == "posix"
+            and isinstance(effective_uid, int)
+            and effective_uid >= 0
+            and isinstance(getattr(os, "O_NOFOLLOW", 0), int)
+            and getattr(os, "O_NOFOLLOW", 0) != 0
+            and current_primitives_available
+            and supports_operation(getattr(os, "supports_dir_fd", ()), "open")
+            and supports_operation(getattr(os, "supports_dir_fd", ()), "stat")
+            and supports_operation(
+                getattr(os, "supports_follow_symlinks", ()),
+                "stat",
+            )
+            and supports_operation(getattr(os, "supports_fd", ()), "scandir")
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS:
+        return False
 
 
 def _read_bounded_regular_fd(
@@ -968,6 +1342,1383 @@ def _capture_audit_review_import_at(
         return capture
     finally:
         os.close(descriptor)
+
+
+def _close_finalization_comparison_descriptor(descriptor: int) -> None:
+    try:
+        os.close(descriptor)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        baseline_close = _FINALIZATION_COMPARISON_OS_PRIMITIVES["close"]
+        if (
+            callable(baseline_close)
+            and getattr(os, "close", None) is not baseline_close
+        ):
+            try:
+                baseline_close(descriptor)
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS:
+                pass
+        raise _FinalizationComparisonCaptureError("changed") from exc
+
+
+def _assert_finalization_comparison_acl(
+    descriptor: int,
+    *,
+    expected_identity: tuple[int, ...],
+    identity_getter: Any,
+    object_label: str,
+    inventory_exact: bool | None,
+) -> None:
+    """Reuse the Darwin ACL guard while retaining a closed error class."""
+
+    try:
+        _assert_darwin_fd_has_no_extended_acl(
+            descriptor,
+            object_label=object_label,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        try:
+            observed_identity = identity_getter(os.fstat(descriptor))
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError(
+                "unreadable",
+                inventory_exact=inventory_exact,
+            ) from stat_exc
+        if observed_identity != expected_identity:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=inventory_exact,
+            ) from exc
+        if isinstance(exc, ValueError):
+            raise _FinalizationComparisonCaptureError(
+                "privacy",
+                inventory_exact=inventory_exact,
+            ) from exc
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=inventory_exact,
+        ) from exc
+    try:
+        observed_identity = identity_getter(os.fstat(descriptor))
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=inventory_exact,
+        ) from exc
+    if observed_identity != expected_identity:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=inventory_exact,
+        )
+
+
+def _open_finalization_comparison_directory_at(
+    parent_descriptor: int,
+    directory_name: str,
+) -> tuple[int, tuple[int, ...]]:
+    if (
+        not directory_name
+        or directory_name in {".", ".."}
+        or Path(directory_name).name != directory_name
+    ):
+        raise _FinalizationComparisonCaptureError("topology")
+    try:
+        path_stat = os.stat(
+            directory_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    path_identity = _stable_finalization_directory_identity(path_stat)
+    if not stat.S_ISDIR(path_stat.st_mode):
+        raise _FinalizationComparisonCaptureError(
+            "privacy",
+            observation={"directory_identity": path_identity},
+        )
+    try:
+        flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    except ValueError as exc:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            observation={"directory_identity": path_identity},
+        ) from exc
+    try:
+        descriptor = os.open(
+            directory_name,
+            flags,
+            dir_fd=parent_descriptor,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        try:
+            fresh_path_stat = os.stat(
+                directory_name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError(
+                _finalization_stat_failure_kind(stat_exc)
+            ) from stat_exc
+        if _stable_finalization_directory_identity(fresh_path_stat) != path_identity:
+            raise _FinalizationComparisonCaptureError("changed") from exc
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            observation={"directory_identity": path_identity},
+        ) from exc
+    try:
+        descriptor_stat = os.fstat(descriptor)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        try:
+            _close_finalization_comparison_descriptor(descriptor)
+        except _FinalizationComparisonCaptureError as close_error:
+            raise close_error from exc
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            observation={"directory_identity": path_identity},
+        ) from exc
+    if (
+        not stat.S_ISDIR(descriptor_stat.st_mode)
+        or _stable_finalization_directory_identity(descriptor_stat) != path_identity
+    ):
+        try:
+            _close_finalization_comparison_descriptor(descriptor)
+        finally:
+            raise _FinalizationComparisonCaptureError("changed")
+    return descriptor, _stable_finalization_directory_identity(descriptor_stat)
+
+
+def _assert_finalization_comparison_name_binding(
+    parent_descriptor: int,
+    directory_name: str,
+    expected_identity: tuple[int, ...],
+) -> None:
+    try:
+        path_stat = os.stat(
+            directory_name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("changed") from exc
+    if _stable_finalization_directory_identity(path_stat) != expected_identity:
+        raise _FinalizationComparisonCaptureError("changed")
+
+
+def _digest_finalization_comparison_file(
+    descriptor: int,
+    *,
+    expected_identity: tuple[int, ...],
+    byte_limit: int,
+) -> tuple[str, tuple[int, ...]]:
+    try:
+        before = os.fstat(descriptor)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=True,
+        ) from exc
+    identity = _stable_file_identity(before)
+    if identity != expected_identity:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=True,
+        )
+    if before.st_size < 0 or before.st_size > byte_limit:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=True,
+        )
+    digest = hashlib.sha256()
+    remaining = before.st_size
+    try:
+        while remaining:
+            chunk = os.read(
+                descriptor,
+                min(_FINALIZATION_COMPARISON_CHUNK_BYTES, remaining),
+            )
+            if not chunk:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                )
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            )
+    except _FinalizationComparisonCaptureError:
+        raise
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        try:
+            current_identity = _stable_file_identity(os.fstat(descriptor))
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError(
+                "unreadable",
+                inventory_exact=True,
+            ) from stat_exc
+        if current_identity != identity:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            ) from exc
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=True,
+        ) from exc
+    try:
+        after_identity = _stable_file_identity(os.fstat(descriptor))
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=True,
+        ) from exc
+    if after_identity != identity:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=True,
+        )
+    return digest.hexdigest(), identity
+
+
+def _open_captured_finalization_file(
+    directory_descriptor: int,
+    name: str,
+    expected: Mapping[str, Any],
+) -> int:
+    try:
+        path_stat = os.stat(
+            name,
+            dir_fd=directory_descriptor,
+            follow_symlinks=False,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=True,
+        ) from exc
+    if _stable_file_identity(path_stat) != expected["identity"]:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=True,
+        )
+    try:
+        descriptor = os.open(
+            name,
+            _no_follow_open_flags(),
+            dir_fd=directory_descriptor,
+        )
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        try:
+            fresh_path_identity = _stable_file_identity(
+                os.stat(
+                    name,
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError(
+                _finalization_stat_failure_kind(stat_exc),
+                inventory_exact=True,
+            ) from stat_exc
+        kind = "changed" if fresh_path_identity != expected["identity"] else "unreadable"
+        raise _FinalizationComparisonCaptureError(
+            kind,
+            inventory_exact=True,
+        ) from exc
+    try:
+        opened_identity = _stable_file_identity(os.fstat(descriptor))
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        try:
+            fresh_path_identity = _stable_file_identity(
+                os.stat(
+                    name,
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as stat_exc:
+            kind = _finalization_stat_failure_kind(stat_exc)
+        else:
+            kind = (
+                "changed"
+                if fresh_path_identity != expected["identity"]
+                else "unreadable"
+            )
+        try:
+            _close_finalization_comparison_descriptor(descriptor)
+        except _FinalizationComparisonCaptureError as close_error:
+            raise close_error from exc
+        raise _FinalizationComparisonCaptureError(
+            kind,
+            inventory_exact=True,
+        ) from exc
+    if opened_identity != expected["identity"]:
+        try:
+            _close_finalization_comparison_descriptor(descriptor)
+        finally:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            )
+    try:
+        _assert_finalization_comparison_acl(
+            descriptor,
+            expected_identity=opened_identity,
+            identity_getter=_stable_file_identity,
+            object_label="Файл сравниваемой финализации",
+            inventory_exact=True,
+        )
+    except BaseException as exc:
+        try:
+            _close_finalization_comparison_descriptor(descriptor)
+        except _FinalizationComparisonCaptureError as close_error:
+            raise close_error from exc
+        raise
+    return descriptor
+
+
+def _capture_private_finalization_descriptor(
+    descriptor: int,
+    *,
+    expected_initial_identity: tuple[int, ...] | None = None,
+) -> dict[str, Any]:
+    """Stream-capture exact metadata and digests through one held directory."""
+
+    try:
+        directory_stat = os.fstat(descriptor)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    directory_identity = _stable_finalization_directory_identity(directory_stat)
+    if (
+        expected_initial_identity is not None
+        and directory_identity != expected_initial_identity
+    ):
+        raise _FinalizationComparisonCaptureError("changed")
+
+    def capture_invalid_observation() -> dict[str, Any] | None:
+        try:
+            return _capture_finalization_comparison_invalid_observation(
+                descriptor,
+                expected_directory_identity=directory_identity,
+            )
+        except _FinalizationComparisonCaptureError as observation_error:
+            if observation_error.kind == "changed":
+                raise
+            return None
+
+    effective_uid = (
+        os.geteuid()
+        if hasattr(os, "geteuid")
+        else os.getuid()
+        if hasattr(os, "getuid")
+        else directory_stat.st_uid
+    )
+    if (
+        not stat.S_ISDIR(directory_stat.st_mode)
+        or stat.S_IMODE(directory_stat.st_mode) != 0o700
+        or (os.name == "posix" and directory_stat.st_uid != effective_uid)
+    ):
+        raise _FinalizationComparisonCaptureError(
+            "privacy",
+            observation=capture_invalid_observation(),
+        )
+    try:
+        _assert_finalization_comparison_acl(
+            descriptor,
+            expected_identity=directory_identity,
+            identity_getter=_stable_finalization_directory_identity,
+            object_label="Каталог сравниваемой финализации",
+            inventory_exact=None,
+        )
+    except _FinalizationComparisonCaptureError as exc:
+        if exc.kind == "privacy":
+            exc.observation = capture_invalid_observation()
+        raise
+
+    def assert_directory_unchanged(*, inventory_exact: bool | None) -> None:
+        try:
+            _assert_finalization_comparison_acl(
+                descriptor,
+                expected_identity=directory_identity,
+                identity_getter=_stable_finalization_directory_identity,
+                object_label="Каталог сравниваемой финализации",
+                inventory_exact=inventory_exact,
+            )
+        except _FinalizationComparisonCaptureError as exc:
+            if exc.kind == "privacy":
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=inventory_exact,
+                ) from exc
+            raise
+
+    def recaptured_inventory_is_exact() -> bool:
+        recaptured_names: list[str] = []
+        too_many = False
+        try:
+            with os.scandir(descriptor) as entries:
+                for entry in entries:
+                    if len(recaptured_names) >= len(_AUDIT_FINALIZATION_PATHS):
+                        too_many = True
+                        break
+                    recaptured_names.append(entry.name)
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+            try:
+                assert_directory_unchanged(inventory_exact=True)
+            except _FinalizationComparisonCaptureError as state_error:
+                raise state_error from exc
+            raise _FinalizationComparisonCaptureError(
+                "unreadable",
+                inventory_exact=True,
+            ) from exc
+        assert_directory_unchanged(inventory_exact=True)
+        return not too_many and set(recaptured_names) == set(
+            _AUDIT_FINALIZATION_PATHS
+        )
+
+    def raise_stable_file_error(
+        kind: str,
+        *,
+        cause: BaseException | None = None,
+    ) -> None:
+        """Prefer directory drift over a stale leaf-level classification."""
+
+        try:
+            assert_directory_unchanged(inventory_exact=True)
+        except _FinalizationComparisonCaptureError as state_error:
+            if cause is None:
+                raise
+            raise state_error from cause
+        error = _FinalizationComparisonCaptureError(
+            kind,
+            inventory_exact=True,
+            observation=capture_invalid_observation(),
+        )
+        if cause is None:
+            raise error
+        raise error from cause
+
+    names: list[str] = []
+    too_many = False
+    try:
+        with os.scandir(descriptor) as entries:
+            for entry in entries:
+                if len(names) >= len(_AUDIT_FINALIZATION_PATHS):
+                    too_many = True
+                    break
+                names.append(entry.name)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        try:
+            assert_directory_unchanged(inventory_exact=None)
+        except _FinalizationComparisonCaptureError as state_error:
+            raise state_error from exc
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    assert_directory_unchanged(inventory_exact=None)
+    if too_many or set(names) != set(_AUDIT_FINALIZATION_PATHS):
+        raise _FinalizationComparisonCaptureError(
+            "inventory",
+            observation=capture_invalid_observation(),
+        )
+
+    files: dict[str, dict[str, Any]] = {}
+    seen_file_identities: set[tuple[int, int]] = set()
+    for name in _AUDIT_FINALIZATION_PATHS:
+        try:
+            path_stat = os.stat(
+                name,
+                dir_fd=descriptor,
+                follow_symlinks=False,
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            assert_directory_unchanged(inventory_exact=True)
+            if not recaptured_inventory_is_exact():
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                ) from exc
+            raise _FinalizationComparisonCaptureError(
+                "unreadable",
+                inventory_exact=True,
+            ) from exc
+        path_identity = _stable_file_identity(path_stat)
+        if (
+            not stat.S_ISREG(path_stat.st_mode)
+            or path_stat.st_nlink != 1
+            or stat.S_IMODE(path_stat.st_mode) != 0o600
+            or (os.name == "posix" and path_stat.st_uid != effective_uid)
+        ):
+            raise_stable_file_error("privacy")
+        if path_stat.st_size < 0 or path_stat.st_size > _AUDIT_FINALIZATION_FILE_LIMITS[
+            name
+        ]:
+            raise_stable_file_error("unreadable")
+        try:
+            child_descriptor = os.open(
+                name,
+                _no_follow_open_flags(),
+                dir_fd=descriptor,
+            )
+        except ValueError as exc:
+            raise_stable_file_error("unreadable", cause=exc)
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+            try:
+                fresh_path_identity = _stable_file_identity(
+                    os.stat(
+                        name,
+                        dir_fd=descriptor,
+                        follow_symlinks=False,
+                    )
+                )
+            except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as stat_exc:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                ) from stat_exc
+            kind = "changed" if fresh_path_identity != path_identity else "unreadable"
+            if kind == "unreadable":
+                raise_stable_file_error(kind, cause=exc)
+            raise _FinalizationComparisonCaptureError(
+                kind,
+                inventory_exact=True,
+            ) from exc
+        try:
+            try:
+                opened_identity = _stable_file_identity(os.fstat(child_descriptor))
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "unreadable",
+                    inventory_exact=True,
+                ) from exc
+            if opened_identity != path_identity:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                )
+            inode_identity = (opened_identity[0], opened_identity[1])
+            if inode_identity in seen_file_identities:
+                raise_stable_file_error("privacy")
+            seen_file_identities.add(inode_identity)
+            try:
+                _assert_finalization_comparison_acl(
+                    child_descriptor,
+                    expected_identity=opened_identity,
+                    identity_getter=_stable_file_identity,
+                    object_label="Файл сравниваемой финализации",
+                    inventory_exact=True,
+                )
+            except _FinalizationComparisonCaptureError as exc:
+                if exc.kind == "privacy":
+                    raise_stable_file_error("privacy", cause=exc)
+                raise
+            digest, identity = _digest_finalization_comparison_file(
+                child_descriptor,
+                expected_identity=opened_identity,
+                byte_limit=_AUDIT_FINALIZATION_FILE_LIMITS[name],
+            )
+            _assert_finalization_comparison_acl(
+                child_descriptor,
+                expected_identity=identity,
+                identity_getter=_stable_file_identity,
+                object_label="Файл сравниваемой финализации",
+                inventory_exact=True,
+            )
+            try:
+                final_path_identity = _stable_file_identity(
+                    os.stat(
+                        name,
+                        dir_fd=descriptor,
+                        follow_symlinks=False,
+                    )
+                )
+            except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                ) from exc
+            if final_path_identity != identity:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                )
+            files[name] = {"sha256": digest, "identity": identity}
+        except _FinalizationComparisonCaptureError as exc:
+            if exc.kind != "changed" and exc.observation is None:
+                exc.observation = capture_invalid_observation()
+            raise
+        finally:
+            _close_finalization_comparison_descriptor(child_descriptor)
+
+    _assert_finalization_comparison_acl(
+        descriptor,
+        expected_identity=directory_identity,
+        identity_getter=_stable_finalization_directory_identity,
+        object_label="Каталог сравниваемой финализации",
+        inventory_exact=True,
+    )
+    try:
+        final_directory_identity = _stable_finalization_directory_identity(
+            os.fstat(descriptor)
+        )
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError(
+            "unreadable",
+            inventory_exact=True,
+        ) from exc
+    if final_directory_identity != directory_identity:
+        raise _FinalizationComparisonCaptureError(
+            "changed",
+            inventory_exact=True,
+        )
+    return {"directory_identity": directory_identity, "files": files}
+
+
+def _capture_finalization_comparison_invalid_observation(
+    descriptor: int,
+    *,
+    expected_directory_identity: tuple[int, ...],
+) -> dict[str, Any]:
+    """Boundedly fingerprint a rejected directory without reading file values."""
+
+    try:
+        observed_identity = _stable_finalization_directory_identity(
+            os.fstat(descriptor)
+        )
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    if observed_identity != expected_directory_identity:
+        raise _FinalizationComparisonCaptureError("changed")
+
+    def acl_private() -> bool:
+        try:
+            _assert_finalization_comparison_acl(
+                descriptor,
+                expected_identity=expected_directory_identity,
+                identity_getter=_stable_finalization_directory_identity,
+                object_label="Каталог сравниваемой финализации",
+                inventory_exact=None,
+            )
+        except _FinalizationComparisonCaptureError as exc:
+            if exc.kind == "privacy":
+                return False
+            raise
+        return True
+
+    initial_acl_private = acl_private()
+    names: list[str] = []
+    too_many = False
+    try:
+        with os.scandir(descriptor) as entries:
+            for entry in entries:
+                if len(names) >= len(_AUDIT_FINALIZATION_PATHS):
+                    too_many = True
+                    break
+                names.append(entry.name)
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        try:
+            current_identity = _stable_finalization_directory_identity(
+                os.fstat(descriptor)
+            )
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError("unreadable") from stat_exc
+        kind = (
+            "changed"
+            if current_identity != expected_directory_identity
+            else "unreadable"
+        )
+        raise _FinalizationComparisonCaptureError(kind) from exc
+
+    file_identities: dict[str, tuple[int, ...] | None] = {}
+    for name in _AUDIT_FINALIZATION_PATHS:
+        try:
+            file_identities[name] = _stable_file_identity(
+                os.stat(
+                    name,
+                    dir_fd=descriptor,
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            if isinstance(exc, OSError) and exc.errno in {
+                errno.ENOENT,
+                errno.ENOTDIR,
+            }:
+                file_identities[name] = None
+                continue
+            try:
+                current_identity = _stable_finalization_directory_identity(
+                    os.fstat(descriptor)
+                )
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                raise _FinalizationComparisonCaptureError(
+                    "unreadable"
+                ) from stat_exc
+            kind = (
+                "changed"
+                if current_identity != expected_directory_identity
+                else "unreadable"
+            )
+            raise _FinalizationComparisonCaptureError(kind) from exc
+
+    final_acl_private = acl_private()
+    try:
+        final_identity = _stable_finalization_directory_identity(
+            os.fstat(descriptor)
+        )
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    if (
+        final_identity != expected_directory_identity
+        or final_acl_private != initial_acl_private
+    ):
+        raise _FinalizationComparisonCaptureError("changed")
+    return {
+        "directory_identity": expected_directory_identity,
+        "acl_private": initial_acl_private,
+        "names": tuple(sorted(names)),
+        "too_many": too_many,
+        "inventory_exact": not too_many
+        and set(names) == set(_AUDIT_FINALIZATION_PATHS),
+        "file_identities": file_identities,
+    }
+
+
+def _read_captured_finalization_file(
+    directory_descriptor: int,
+    name: str,
+    expected: Mapping[str, Any],
+) -> bytes:
+    descriptor = _open_captured_finalization_file(
+        directory_descriptor,
+        name,
+        expected,
+    )
+    try:
+        expected_identity = expected["identity"]
+        expected_size = expected_identity[7]
+        if expected_size < 0 or expected_size > _AUDIT_FINALIZATION_FILE_LIMITS[name]:
+            raise _FinalizationComparisonCaptureError(
+                "unreadable",
+                inventory_exact=True,
+            )
+        chunks: list[bytes] = []
+        remaining = expected_size
+        digest = hashlib.sha256()
+        while remaining:
+            try:
+                chunk = os.read(
+                    descriptor,
+                    min(_FINALIZATION_COMPARISON_CHUNK_BYTES, remaining),
+                )
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+                try:
+                    current_identity = _stable_file_identity(os.fstat(descriptor))
+                except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                    raise _FinalizationComparisonCaptureError(
+                        "unreadable",
+                        inventory_exact=True,
+                    ) from stat_exc
+                kind = (
+                    "changed"
+                    if current_identity != expected_identity
+                    else "unreadable"
+                )
+                raise _FinalizationComparisonCaptureError(
+                    kind,
+                    inventory_exact=True,
+                ) from exc
+            if not chunk:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                )
+            chunks.append(chunk)
+            digest.update(chunk)
+            remaining -= len(chunk)
+        try:
+            extra = os.read(descriptor, 1)
+            identity = _stable_file_identity(os.fstat(descriptor))
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+            try:
+                current_identity = _stable_file_identity(os.fstat(descriptor))
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                raise _FinalizationComparisonCaptureError(
+                    "unreadable",
+                    inventory_exact=True,
+                ) from stat_exc
+            kind = (
+                "changed"
+                if current_identity != expected_identity
+                else "unreadable"
+            )
+            raise _FinalizationComparisonCaptureError(
+                kind,
+                inventory_exact=True,
+            ) from exc
+        if extra or identity != expected_identity or digest.hexdigest() != expected["sha256"]:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            )
+        _assert_finalization_comparison_acl(
+            descriptor,
+            expected_identity=identity,
+            identity_getter=_stable_file_identity,
+            object_label="Файл сравниваемой финализации",
+            inventory_exact=True,
+        )
+        try:
+            final_path_identity = _stable_file_identity(
+                os.stat(
+                    name,
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            ) from exc
+        if final_path_identity != identity:
+            raise _FinalizationComparisonCaptureError(
+                "changed",
+                inventory_exact=True,
+            )
+        return b"".join(chunks)
+    finally:
+        _close_finalization_comparison_descriptor(descriptor)
+
+
+def _assert_finalization_comparison_leaf_seal(
+    directory_descriptor: int,
+    capture: Mapping[str, Any],
+) -> None:
+    """Rebind every fixed leaf after both sequential full recaptures."""
+
+    for name in _AUDIT_FINALIZATION_PATHS:
+        try:
+            observed_identity = _stable_file_identity(
+                os.stat(
+                    name,
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            raise _FinalizationComparisonCaptureError("changed") from exc
+        if observed_identity != capture["files"][name]["identity"]:
+            raise _FinalizationComparisonCaptureError("changed")
+    try:
+        directory_identity = _stable_finalization_directory_identity(
+            os.fstat(directory_descriptor)
+        )
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    if directory_identity != capture["directory_identity"]:
+        raise _FinalizationComparisonCaptureError("changed")
+
+
+def _finalization_directory_bytes_equal(
+    uncertain_descriptor: int,
+    uncertain_capture: Mapping[str, Any],
+    repeated_descriptor: int,
+    repeated_capture: Mapping[str, Any],
+) -> bool:
+    def read_exact_chunk(
+        descriptor: int,
+        size: int,
+        *,
+        side: str,
+        expected_identity: tuple[int, ...],
+    ) -> bytes:
+        chunks: list[bytes] = []
+        remaining = size
+        while remaining:
+            try:
+                chunk = os.read(descriptor, remaining)
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+                try:
+                    observed_identity = _stable_file_identity(os.fstat(descriptor))
+                except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                    raise _FinalizationComparisonCaptureError(
+                        "unreadable",
+                        inventory_exact=True,
+                        side=side,
+                    ) from stat_exc
+                kind = (
+                    "changed"
+                    if observed_identity != expected_identity
+                    else "unreadable"
+                )
+                raise _FinalizationComparisonCaptureError(
+                    kind,
+                    inventory_exact=True,
+                    side=side,
+                ) from exc
+            if not chunk:
+                raise _FinalizationComparisonCaptureError(
+                    "changed",
+                    inventory_exact=True,
+                    side=side,
+                )
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    equal = True
+    for name in _AUDIT_FINALIZATION_PATHS:
+        try:
+            uncertain_file = _open_captured_finalization_file(
+                uncertain_descriptor,
+                name,
+                uncertain_capture["files"][name],
+            )
+        except _FinalizationComparisonCaptureError as exc:
+            exc.side = "uncertain"
+            raise
+        try:
+            try:
+                repeated_file = _open_captured_finalization_file(
+                    repeated_descriptor,
+                    name,
+                    repeated_capture["files"][name],
+                )
+            except _FinalizationComparisonCaptureError as exc:
+                exc.side = "repeated"
+                raise
+            try:
+                uncertain_expected = uncertain_capture["files"][name]
+                repeated_expected = repeated_capture["files"][name]
+                uncertain_size = uncertain_expected["identity"][7]
+                repeated_size = repeated_expected["identity"][7]
+                if uncertain_size != repeated_size:
+                    equal = False
+                else:
+                    remaining = uncertain_size
+                    while remaining:
+                        chunk_size = min(
+                            _FINALIZATION_COMPARISON_CHUNK_BYTES,
+                            remaining,
+                        )
+                        uncertain_chunk = read_exact_chunk(
+                            uncertain_file,
+                            chunk_size,
+                            side="uncertain",
+                            expected_identity=uncertain_expected["identity"],
+                        )
+                        repeated_chunk = read_exact_chunk(
+                            repeated_file,
+                            chunk_size,
+                            side="repeated",
+                            expected_identity=repeated_expected["identity"],
+                        )
+                        if uncertain_chunk != repeated_chunk:
+                            equal = False
+                        remaining -= chunk_size
+                    for side, file_descriptor, expected in (
+                        ("uncertain", uncertain_file, uncertain_expected),
+                        ("repeated", repeated_file, repeated_expected),
+                    ):
+                        try:
+                            extra = os.read(file_descriptor, 1)
+                        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+                            try:
+                                observed_identity = _stable_file_identity(
+                                    os.fstat(file_descriptor)
+                                )
+                            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                                raise _FinalizationComparisonCaptureError(
+                                    "unreadable",
+                                    inventory_exact=True,
+                                    side=side,
+                                ) from stat_exc
+                            kind = (
+                                "changed"
+                                if observed_identity != expected["identity"]
+                                else "unreadable"
+                            )
+                            raise _FinalizationComparisonCaptureError(
+                                kind,
+                                inventory_exact=True,
+                                side=side,
+                            ) from exc
+                        if extra:
+                            raise _FinalizationComparisonCaptureError(
+                                "changed",
+                                inventory_exact=True,
+                                side=side,
+                            )
+                for side, directory_descriptor, file_descriptor, expected in (
+                    (
+                        "uncertain",
+                        uncertain_descriptor,
+                        uncertain_file,
+                        uncertain_capture["files"][name],
+                    ),
+                    (
+                        "repeated",
+                        repeated_descriptor,
+                        repeated_file,
+                        repeated_capture["files"][name],
+                    ),
+                ):
+                    try:
+                        observed_identity = _stable_file_identity(
+                            os.fstat(file_descriptor)
+                        )
+                    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+                        raise _FinalizationComparisonCaptureError(
+                            "unreadable",
+                            inventory_exact=True,
+                            side=side,
+                        ) from exc
+                    if observed_identity != expected["identity"]:
+                        raise _FinalizationComparisonCaptureError(
+                            "changed",
+                            inventory_exact=True,
+                            side=side,
+                        )
+                    try:
+                        _assert_finalization_comparison_acl(
+                            file_descriptor,
+                            expected_identity=observed_identity,
+                            identity_getter=_stable_file_identity,
+                            object_label="Файл сравниваемой финализации",
+                            inventory_exact=True,
+                        )
+                        final_path_identity = _stable_file_identity(
+                            os.stat(
+                                name,
+                                dir_fd=directory_descriptor,
+                                follow_symlinks=False,
+                            )
+                        )
+                    except _FinalizationComparisonCaptureError as exc:
+                        exc.side = side
+                        raise
+                    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+                        raise _FinalizationComparisonCaptureError(
+                            "changed",
+                            inventory_exact=True,
+                            side=side,
+                        ) from exc
+                    if final_path_identity != observed_identity:
+                        raise _FinalizationComparisonCaptureError(
+                            "changed",
+                            inventory_exact=True,
+                            side=side,
+                        )
+            finally:
+                try:
+                    _close_finalization_comparison_descriptor(repeated_file)
+                except _FinalizationComparisonCaptureError as exc:
+                    exc.side = "repeated"
+                    raise
+        finally:
+            try:
+                _close_finalization_comparison_descriptor(uncertain_file)
+            except _FinalizationComparisonCaptureError as exc:
+                exc.side = "uncertain"
+                raise
+    return equal
+
+
+def _evaluate_finalization_comparison_capture(
+    descriptor: int,
+    capture: Mapping[str, Any],
+    *,
+    expected_receipt_sha256: str | None,
+) -> dict[str, bool | None]:
+    def read_canonical_mapping(name: str) -> tuple[Mapping[str, Any] | None, bool]:
+        try:
+            content = _read_captured_finalization_file(
+                descriptor,
+                name,
+                capture["files"][name],
+            )
+        except (MemoryError, RecursionError) as exc:
+            raise _FinalizationComparisonCaptureError(
+                "resource",
+                inventory_exact=True,
+            ) from exc
+        try:
+            try:
+                _preflight_finalization_comparison_json(content)
+            except _FinalizationComparisonJSONResourceError as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            try:
+                text = content.decode("utf-8")
+                value = json.loads(
+                    text,
+                    parse_int=_parse_finalization_comparison_json_integer,
+                    parse_constant=_reject_json_constant,
+                    object_pairs_hook=_closed_json_object,
+                )
+            except _FinalizationComparisonJSONResourceError as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            except (UnicodeError, json.JSONDecodeError, ValueError):
+                return None, False
+            except (MemoryError, RecursionError) as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            try:
+                canonical = _canonical_json_bytes(value)
+            except (MemoryError, RecursionError) as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            except (TypeError, ValueError, UnicodeError):
+                return None, False
+            try:
+                _assert_json_resource_limits(value, label=name)
+            except (MemoryError, RecursionError) as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            except ValueError as exc:
+                raise _FinalizationComparisonCaptureError(
+                    "resource",
+                    inventory_exact=True,
+                ) from exc
+            if not isinstance(value, Mapping):
+                return None, False
+            if content != canonical:
+                return None, False
+            return value, True
+        finally:
+            del content
+
+    reliability, reliability_canonical = read_canonical_mapping(
+        "coding-reliability.json"
+    )
+    receipt, receipt_canonical = read_canonical_mapping(
+        "coding-audit-finalization-receipt.json"
+    )
+
+    if not reliability_canonical or not receipt_canonical:
+        return {
+            "artifact_contracts_valid": False,
+            "receipt_self_digest_valid": None,
+            "external_receipt_digest_valid": None,
+            "receipt_file_bindings_valid": None,
+            "internal_relation_valid": None,
+            "native_relation_valid": None,
+        }
+
+    reliability_file_sha256 = capture["files"]["coding-reliability.json"]["sha256"]
+    evaluation = _evaluate_native_coding_reliability(
+        reliability,
+        receipt,
+        expected_receipt_sha256,
+        coding_reliability_file_sha256=reliability_file_sha256,
+    )
+    artifact_contracts_valid = bool(
+        evaluation["reliability_contract_valid"]
+        and evaluation["receipt_contract_valid"]
+    )
+    if not artifact_contracts_valid:
+        return {
+            "artifact_contracts_valid": False,
+            "receipt_self_digest_valid": None,
+            "external_receipt_digest_valid": None,
+            "receipt_file_bindings_valid": None,
+            "internal_relation_valid": None,
+            "native_relation_valid": None,
+        }
+
+    receipt_file_bindings_valid = all(
+        receipt.get(receipt_field)
+        == capture["files"][filename]["sha256"]
+        for filename, receipt_field in _AUDIT_FINALIZATION_RECEIPT_FILE_BINDINGS
+    )
+    internal_relation_valid = all(
+        evaluation[field] is True
+        for field in (
+            "reliability_contract_valid",
+            "receipt_contract_valid",
+            "receipt_self_digest_valid",
+            "reliability_file_digest_valid",
+            "audit_plan_digest_valid",
+            "candidate_population_valid",
+        )
+    )
+    native_relation_valid = bool(
+        internal_relation_valid
+        and evaluation["expected_receipt_sha256_valid"]
+        and evaluation["external_receipt_digest_valid"]
+    )
+    receipt_self_digest_valid = evaluation["receipt_self_digest_valid"]
+    external_receipt_digest_valid = (
+        evaluation["external_receipt_digest_valid"]
+        if evaluation["expected_receipt_sha256_valid"]
+        and receipt_self_digest_valid is True
+        else None
+    )
+    return {
+        "artifact_contracts_valid": True,
+        "receipt_self_digest_valid": receipt_self_digest_valid,
+        "external_receipt_digest_valid": external_receipt_digest_valid,
+        "receipt_file_bindings_valid": receipt_file_bindings_valid,
+        "internal_relation_valid": (
+            internal_relation_valid
+            if receipt_self_digest_valid is True
+            and receipt_file_bindings_valid
+            else None
+        ),
+        "native_relation_valid": (
+            native_relation_valid
+            if receipt_self_digest_valid is True
+            and receipt_file_bindings_valid
+            and external_receipt_digest_valid is True
+            else None
+        ),
+    }
+
+
+def _finalization_comparison_path_info(raw_value: str) -> dict[str, Any]:
+    if type(raw_value) is not str or not raw_value or "\x00" in raw_value:
+        raise _FinalizationComparisonCaptureError("topology")
+    try:
+        os.fsencode(raw_value)
+        path = Path(raw_value).expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        directory_name = path.name
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    if (
+        not directory_name
+        or directory_name in {".", ".."}
+        or Path(directory_name).name != directory_name
+    ):
+        raise _FinalizationComparisonCaptureError("topology")
+    try:
+        resolved_parent = path.parent.resolve(strict=True)
+        parent_stat = os.stat(resolved_parent, follow_symlinks=False)
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        raise _FinalizationComparisonCaptureError("topology")
+    return {
+        "path": path,
+        "parent_path": path.parent,
+        "resolved_parent": resolved_parent,
+        "parent_identity": _stable_finalization_directory_identity(parent_stat),
+        "directory_name": directory_name,
+    }
+
+
+def _open_finalization_comparison_parent(
+    uncertain_info: Mapping[str, Any],
+    repeated_info: Mapping[str, Any],
+) -> tuple[int, tuple[int, ...]]:
+    if uncertain_info["parent_identity"] != repeated_info["parent_identity"]:
+        raise _FinalizationComparisonCaptureError("topology")
+    try:
+        flags = _no_follow_open_flags() | getattr(os, "O_DIRECTORY", 0)
+    except ValueError as exc:
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    expected_identity = uncertain_info["parent_identity"]
+    try:
+        descriptor = os.open(uncertain_info["resolved_parent"], flags)
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        try:
+            fresh_identity = _stable_finalization_directory_identity(
+                os.stat(
+                    uncertain_info["resolved_parent"],
+                    follow_symlinks=False,
+                )
+            )
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as stat_exc:
+            raise _FinalizationComparisonCaptureError(
+                _finalization_stat_failure_kind(stat_exc)
+            ) from stat_exc
+        if fresh_identity != expected_identity:
+            raise _FinalizationComparisonCaptureError("changed") from exc
+        raise _FinalizationComparisonCaptureError("unreadable") from exc
+    try:
+        try:
+            opened_identity = _stable_finalization_directory_identity(
+                os.fstat(descriptor)
+            )
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+            raise _FinalizationComparisonCaptureError("unreadable") from exc
+        if opened_identity != expected_identity:
+            raise _FinalizationComparisonCaptureError("changed")
+        try:
+            _assert_safe_publication_parent(descriptor)
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            try:
+                current_identity = _stable_finalization_directory_identity(
+                    os.fstat(descriptor)
+                )
+            except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as stat_exc:
+                raise _FinalizationComparisonCaptureError("unreadable") from stat_exc
+            if current_identity != expected_identity:
+                raise _FinalizationComparisonCaptureError("changed") from exc
+            if isinstance(exc, ValueError):
+                raise _FinalizationComparisonCaptureError("topology") from exc
+            raise _FinalizationComparisonCaptureError("unreadable") from exc
+        try:
+            current_identity = _stable_finalization_directory_identity(
+                os.fstat(descriptor)
+            )
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+            raise _FinalizationComparisonCaptureError("unreadable") from exc
+        if current_identity != expected_identity:
+            raise _FinalizationComparisonCaptureError("changed")
+        return descriptor, expected_identity
+    except BaseException:
+        _close_finalization_comparison_descriptor(descriptor)
+        raise
+
+
+def _assert_finalization_comparison_parent_bindings(
+    descriptor: int,
+    expected_identity: tuple[int, ...],
+    path_infos: Iterable[Mapping[str, Any]],
+) -> None:
+    try:
+        current_identity = _stable_finalization_directory_identity(
+            os.fstat(descriptor)
+        )
+    except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("changed") from exc
+    if current_identity != expected_identity:
+        raise _FinalizationComparisonCaptureError("changed")
+    for info in path_infos:
+        try:
+            resolved_parent = info["parent_path"].resolve(strict=True)
+            path_stat = os.stat(resolved_parent, follow_symlinks=False)
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+            raise _FinalizationComparisonCaptureError("changed") from exc
+        if _stable_finalization_directory_identity(path_stat) != expected_identity:
+            raise _FinalizationComparisonCaptureError("changed")
+
+
+def _assert_finalization_comparison_supplied_path(
+    info: Mapping[str, Any],
+    expected_identity: tuple[int, ...],
+) -> None:
+    try:
+        path_stat = os.stat(info["path"], follow_symlinks=False)
+    except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS as exc:
+        raise _FinalizationComparisonCaptureError("changed") from exc
+    if _stable_finalization_directory_identity(path_stat) != expected_identity:
+        raise _FinalizationComparisonCaptureError("changed")
 
 
 def _capture_private_finalization_resolutions_at(
@@ -4651,6 +6402,749 @@ def cmd_quality_native_reliability_doctor(args: argparse.Namespace) -> int:
     return {
         "valid": 0,
         "incomplete": 3,
+        "mismatch": 3,
+        "invalid": 2,
+        "unreadable": 2,
+    }.get(report.get("status"), 2)
+
+
+def cmd_quality_native_reliability_compare_finalizations(
+    args: argparse.Namespace,
+) -> int:
+    checks: dict[str, bool | None] = {
+        name: None for name in _FINALIZATION_COMPARISON_CHECKS
+    }
+    checks["uncertain_directory_readable"] = False
+    checks["repeated_directory_readable"] = False
+    expected_receipt_sha256 = args.expected_finalization_receipt_sha256
+    checks["expected_receipt_sha256_valid"] = _is_lower_sha256(
+        expected_receipt_sha256
+    )
+    if not _finalization_comparison_capabilities_available():
+        report = build_native_finalization_comparison_report(checks=checks)
+        _write_stdout_bytes(_canonical_json_bytes(report))
+        return 2
+
+    parent_descriptor: int | None = None
+    uncertain_descriptor: int | None = None
+    repeated_descriptor: int | None = None
+    uncertain_info: dict[str, Any] | None = None
+    repeated_info: dict[str, Any] | None = None
+    uncertain_capture: dict[str, Any] | None = None
+    repeated_capture: dict[str, Any] | None = None
+    uncertain_invalid_observation: dict[str, Any] | None = None
+    repeated_invalid_observation: dict[str, Any] | None = None
+    uncertain_open_identity: tuple[int, ...] | None = None
+    repeated_open_identity: tuple[int, ...] | None = None
+    uncertain_open_failure_identity: tuple[int, ...] | None = None
+    repeated_open_failure_identity: tuple[int, ...] | None = None
+    parent_identity: tuple[int, ...] | None = None
+    input_reason_codes: set[str] = set()
+
+    def entry_readable(raw_value: str) -> bool:
+        if type(raw_value) is not str or not raw_value or "\x00" in raw_value:
+            return False
+        try:
+            os.fsencode(raw_value)
+            raw_path = Path(raw_value).expanduser()
+            if not raw_path.is_absolute():
+                raw_path = Path.cwd() / raw_path
+            os.stat(raw_path, follow_symlinks=False)
+            return True
+        except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS:
+            return False
+
+    def apply_initial_capture_error(
+        side: str,
+        error: _FinalizationComparisonCaptureError,
+    ) -> None:
+        readable_key = f"{side}_directory_readable"
+        private_key = f"{side}_directory_private"
+        inventory_key = f"{side}_inventory_exact"
+        if error.kind == "changed":
+            clear_side_after_unreadable(side)
+            mark_input_changed()
+        elif error.kind == "privacy":
+            checks[readable_key] = True
+            checks[private_key] = False
+            checks[inventory_key] = None
+        elif error.kind == "inventory":
+            checks[readable_key] = True
+            checks[private_key] = True
+            checks[inventory_key] = False
+        else:
+            checks[readable_key] = False
+            checks[private_key] = None
+            checks[inventory_key] = None
+
+    def mark_input_changed() -> None:
+        input_reason_codes.add("comparison_input_changed")
+        checks["final_recapture_valid"] = False
+
+    def clear_side_after_unreadable(side: str) -> None:
+        checks[f"{side}_directory_readable"] = False
+        checks[f"{side}_directory_private"] = None
+        checks[f"{side}_inventory_exact"] = None
+        checks[f"{side}_artifact_contracts_valid"] = None
+        checks[f"{side}_receipt_self_digest_valid"] = None
+        checks[f"{side}_receipt_file_bindings_valid"] = None
+        if side == "uncertain":
+            checks["uncertain_internal_relation_valid"] = None
+        else:
+            checks["repeated_external_receipt_digest_valid"] = None
+            checks["repeated_native_relation_valid"] = None
+        checks["directories_distinct"] = None
+        checks["directory_file_bytes_equal"] = None
+        if checks["final_recapture_valid"] is not False:
+            checks["final_recapture_valid"] = None
+
+    def directory_identity(
+        side: str,
+        descriptor: int,
+    ) -> tuple[int, ...] | None:
+        try:
+            return _stable_finalization_directory_identity(os.fstat(descriptor))
+        except _FINALIZATION_COMPARISON_PRIMITIVE_ERRORS:
+            clear_side_after_unreadable(side)
+            return None
+
+    try:
+        path_errors: dict[str, _FinalizationComparisonCaptureError] = {}
+        for side, raw_value in (
+            ("uncertain", args.uncertain_finalization_dir),
+            ("repeated", args.repeated_finalization_dir),
+        ):
+            try:
+                info = _finalization_comparison_path_info(raw_value)
+            except _FinalizationComparisonCaptureError as exc:
+                path_errors[side] = exc
+            else:
+                if side == "uncertain":
+                    uncertain_info = info
+                else:
+                    repeated_info = info
+
+        if uncertain_info is None or repeated_info is None:
+            checks["common_parent_valid"] = (
+                False
+                if any(error.kind == "topology" for error in path_errors.values())
+                else None
+            )
+            for side, raw_value, info in (
+                (
+                    "uncertain",
+                    args.uncertain_finalization_dir,
+                    uncertain_info,
+                ),
+                (
+                    "repeated",
+                    args.repeated_finalization_dir,
+                    repeated_info,
+                ),
+            ):
+                error = path_errors.get(side)
+                checks[f"{side}_directory_readable"] = bool(
+                    entry_readable(raw_value)
+                    if info is not None or (error and error.kind == "topology")
+                    else False
+                )
+        elif (
+            uncertain_info["parent_identity"][:2]
+            != repeated_info["parent_identity"][:2]
+        ):
+            checks["common_parent_valid"] = False
+            checks["uncertain_directory_readable"] = entry_readable(
+                args.uncertain_finalization_dir
+            )
+            checks["repeated_directory_readable"] = entry_readable(
+                args.repeated_finalization_dir
+            )
+        elif uncertain_info["parent_identity"] != repeated_info["parent_identity"]:
+            checks["common_parent_valid"] = None
+            checks["uncertain_directory_readable"] = False
+            checks["repeated_directory_readable"] = False
+            mark_input_changed()
+        else:
+            try:
+                parent_descriptor, parent_identity = (
+                    _open_finalization_comparison_parent(
+                        uncertain_info,
+                        repeated_info,
+                    )
+                )
+            except (NotImplementedError, _FinalizationComparisonCaptureError) as raw_exc:
+                exc = (
+                    raw_exc
+                    if isinstance(raw_exc, _FinalizationComparisonCaptureError)
+                    else _FinalizationComparisonCaptureError("unreadable")
+                )
+                if exc.kind == "topology":
+                    checks["common_parent_valid"] = False
+                    checks["uncertain_directory_readable"] = entry_readable(
+                        args.uncertain_finalization_dir
+                    )
+                    checks["repeated_directory_readable"] = entry_readable(
+                        args.repeated_finalization_dir
+                    )
+                elif exc.kind == "changed":
+                    checks["common_parent_valid"] = None
+                    checks["uncertain_directory_readable"] = False
+                    checks["repeated_directory_readable"] = False
+                    mark_input_changed()
+                else:
+                    checks["common_parent_valid"] = None
+                    checks["uncertain_directory_readable"] = False
+                    checks["repeated_directory_readable"] = False
+            else:
+                checks["common_parent_valid"] = True
+                for side, info in (
+                    ("uncertain", uncertain_info),
+                    ("repeated", repeated_info),
+                ):
+                    try:
+                        descriptor, open_identity = (
+                            _open_finalization_comparison_directory_at(
+                                parent_descriptor,
+                                info["directory_name"],
+                            )
+                        )
+                    except (
+                        NotImplementedError,
+                        _FinalizationComparisonCaptureError,
+                    ) as raw_exc:
+                        exc = (
+                            raw_exc
+                            if isinstance(
+                                raw_exc,
+                                _FinalizationComparisonCaptureError,
+                            )
+                            else _FinalizationComparisonCaptureError("unreadable")
+                        )
+                        failure_observation = exc.observation
+                        failure_identity = (
+                            failure_observation.get("directory_identity")
+                            if failure_observation is not None
+                            else None
+                        )
+                        if isinstance(failure_identity, tuple):
+                            if side == "uncertain":
+                                uncertain_open_failure_identity = failure_identity
+                            else:
+                                repeated_open_failure_identity = failure_identity
+                        apply_initial_capture_error(side, exc)
+                    else:
+                        checks[f"{side}_directory_readable"] = True
+                        if side == "uncertain":
+                            uncertain_descriptor = descriptor
+                            uncertain_open_identity = open_identity
+                        else:
+                            repeated_descriptor = descriptor
+                            repeated_open_identity = open_identity
+
+                if (
+                    parent_identity is not None
+                    and uncertain_open_identity is not None
+                    and repeated_open_identity is not None
+                    and (
+                        uncertain_open_identity[0] != parent_identity[0]
+                        or repeated_open_identity[0] != parent_identity[0]
+                    )
+                ):
+                    checks["common_parent_valid"] = False
+
+                for side, descriptor, open_identity in (
+                    (
+                        "uncertain",
+                        uncertain_descriptor,
+                        uncertain_open_identity,
+                    ),
+                    (
+                        "repeated",
+                        repeated_descriptor,
+                        repeated_open_identity,
+                    ),
+                ):
+                    if (
+                        descriptor is None
+                        or checks["common_parent_valid"] is not True
+                    ):
+                        continue
+                    try:
+                        capture = _capture_private_finalization_descriptor(
+                            descriptor,
+                            expected_initial_identity=open_identity,
+                        )
+                    except (
+                        NotImplementedError,
+                        _FinalizationComparisonCaptureError,
+                    ) as raw_exc:
+                        exc = (
+                            raw_exc
+                            if isinstance(
+                                raw_exc,
+                                _FinalizationComparisonCaptureError,
+                            )
+                            else _FinalizationComparisonCaptureError("unreadable")
+                        )
+                        invalid_observation = exc.observation
+                        if invalid_observation is not None:
+                            if side == "uncertain":
+                                uncertain_invalid_observation = dict(
+                                    invalid_observation
+                                )
+                            else:
+                                repeated_invalid_observation = dict(
+                                    invalid_observation
+                                )
+                        apply_initial_capture_error(side, exc)
+                    else:
+                        checks[f"{side}_directory_readable"] = True
+                        checks[f"{side}_directory_private"] = True
+                        checks[f"{side}_inventory_exact"] = True
+                        if side == "uncertain":
+                            uncertain_capture = capture
+                        else:
+                            repeated_capture = capture
+
+                if (
+                    checks["common_parent_valid"] is True
+                    and
+                    checks["uncertain_directory_readable"] is True
+                    and checks["repeated_directory_readable"] is True
+                ):
+                    if (
+                        uncertain_descriptor is None
+                        or repeated_descriptor is None
+                    ):
+                        checks["directories_distinct"] = False
+                    else:
+                        uncertain_identity = directory_identity(
+                            "uncertain",
+                            uncertain_descriptor,
+                        )
+                        repeated_identity = directory_identity(
+                            "repeated",
+                            repeated_descriptor,
+                        )
+                        if (
+                            uncertain_identity is not None
+                            and repeated_identity is not None
+                        ):
+                            checks["directories_distinct"] = (
+                                uncertain_identity[:2] != repeated_identity[:2]
+                            )
+
+                if (
+                    uncertain_capture is not None
+                    and repeated_capture is not None
+                    and checks["directories_distinct"] is True
+                ):
+                    uncertain_inodes = {
+                        tuple(item["identity"][:2])
+                        for item in uncertain_capture["files"].values()
+                    }
+                    repeated_inodes = {
+                        tuple(item["identity"][:2])
+                        for item in repeated_capture["files"].values()
+                    }
+                    if (
+                        len(uncertain_inodes) != len(_AUDIT_FINALIZATION_PATHS)
+                        or len(repeated_inodes) != len(_AUDIT_FINALIZATION_PATHS)
+                        or not uncertain_inodes.isdisjoint(repeated_inodes)
+                    ):
+                        checks["uncertain_directory_private"] = False
+                        checks["repeated_directory_private"] = False
+                        checks["uncertain_inventory_exact"] = None
+                        checks["repeated_inventory_exact"] = None
+
+                for side, descriptor, capture, supplied_expectation in (
+                    (
+                        "uncertain",
+                        uncertain_descriptor,
+                        uncertain_capture,
+                        None,
+                    ),
+                    (
+                        "repeated",
+                        repeated_descriptor,
+                        repeated_capture,
+                        (
+                            expected_receipt_sha256
+                            if checks["expected_receipt_sha256_valid"]
+                            else None
+                        ),
+                    ),
+                ):
+                    if (
+                        descriptor is None
+                        or capture is None
+                        or checks[f"{side}_directory_private"] is not True
+                        or checks[f"{side}_inventory_exact"] is not True
+                    ):
+                        continue
+                    try:
+                        evaluation = _evaluate_finalization_comparison_capture(
+                            descriptor,
+                            capture,
+                            expected_receipt_sha256=supplied_expectation,
+                        )
+                    except (
+                        NotImplementedError,
+                        _FinalizationComparisonCaptureError,
+                    ) as raw_exc:
+                        exc = (
+                            raw_exc
+                            if isinstance(
+                                raw_exc,
+                                _FinalizationComparisonCaptureError,
+                            )
+                            else _FinalizationComparisonCaptureError("unreadable")
+                        )
+                        clear_side_after_unreadable(side)
+                        if exc.kind != "resource":
+                            mark_input_changed()
+                        continue
+                    checks[f"{side}_artifact_contracts_valid"] = evaluation[
+                        "artifact_contracts_valid"
+                    ]
+                    checks[f"{side}_receipt_self_digest_valid"] = evaluation[
+                        "receipt_self_digest_valid"
+                    ]
+                    checks[f"{side}_receipt_file_bindings_valid"] = evaluation[
+                        "receipt_file_bindings_valid"
+                    ]
+                    if side == "uncertain":
+                        checks["uncertain_internal_relation_valid"] = evaluation[
+                            "internal_relation_valid"
+                        ]
+                    else:
+                        checks[
+                            "repeated_external_receipt_digest_valid"
+                        ] = evaluation["external_receipt_digest_valid"]
+                        checks["repeated_native_relation_valid"] = evaluation[
+                            "native_relation_valid"
+                        ]
+
+                comparison_prerequisites_valid = bool(
+                    checks["common_parent_valid"] is True
+                    and checks["directories_distinct"] is True
+                    and checks["uncertain_inventory_exact"] is True
+                    and checks["repeated_inventory_exact"] is True
+                )
+                if comparison_prerequisites_valid:
+                    try:
+                        checks["directory_file_bytes_equal"] = (
+                            _finalization_directory_bytes_equal(
+                                uncertain_descriptor,
+                                uncertain_capture,
+                                repeated_descriptor,
+                                repeated_capture,
+                            )
+                        )
+                    except (
+                        NotImplementedError,
+                        _FinalizationComparisonCaptureError,
+                    ) as raw_exc:
+                        exc = (
+                            raw_exc
+                            if isinstance(
+                                raw_exc,
+                                _FinalizationComparisonCaptureError,
+                            )
+                            else _FinalizationComparisonCaptureError("unreadable")
+                        )
+                        if exc.kind == "unreadable" and exc.side is not None:
+                            clear_side_after_unreadable(exc.side)
+                        mark_input_changed()
+
+                recapture_failed = False
+                recaptured_sides: set[str] = set()
+                final_directory_identities: dict[str, tuple[int, ...]] = {}
+                for (
+                    side,
+                    descriptor,
+                    capture,
+                    invalid_observation,
+                    open_identity,
+                    open_failure_identity,
+                    info,
+                ) in (
+                    (
+                        "uncertain",
+                        uncertain_descriptor,
+                        uncertain_capture,
+                        uncertain_invalid_observation,
+                        uncertain_open_identity,
+                        uncertain_open_failure_identity,
+                        uncertain_info,
+                    ),
+                    (
+                        "repeated",
+                        repeated_descriptor,
+                        repeated_capture,
+                        repeated_invalid_observation,
+                        repeated_open_identity,
+                        repeated_open_failure_identity,
+                        repeated_info,
+                    ),
+                ):
+                    if descriptor is None:
+                        if open_failure_identity is None:
+                            continue
+                        expected_directory_identity = open_failure_identity
+                    elif capture is not None:
+                        try:
+                            recapture = _capture_private_finalization_descriptor(
+                                descriptor,
+                                expected_initial_identity=capture[
+                                    "directory_identity"
+                                ],
+                            )
+                            if recapture != capture:
+                                raise _FinalizationComparisonCaptureError("changed")
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                        else:
+                            recaptured_sides.add(side)
+                        expected_directory_identity = capture[
+                            "directory_identity"
+                        ]
+                    elif invalid_observation is not None:
+                        try:
+                            recaptured_invalid_observation = (
+                                _capture_finalization_comparison_invalid_observation(
+                                    descriptor,
+                                    expected_directory_identity=invalid_observation[
+                                        "directory_identity"
+                                    ],
+                                )
+                            )
+                            if recaptured_invalid_observation != invalid_observation:
+                                raise _FinalizationComparisonCaptureError("changed")
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                            clear_side_after_unreadable(side)
+                        else:
+                            recaptured_sides.add(side)
+                        expected_directory_identity = invalid_observation[
+                            "directory_identity"
+                        ]
+                    elif open_identity is not None:
+                        try:
+                            fallback_identity = (
+                                _stable_finalization_directory_identity(
+                                    os.fstat(descriptor)
+                                )
+                            )
+                            if fallback_identity != open_identity:
+                                raise _FinalizationComparisonCaptureError("changed")
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                            clear_side_after_unreadable(side)
+                        else:
+                            recaptured_sides.add(side)
+                        expected_directory_identity = open_identity
+                    else:
+                        continue
+                    final_directory_identities[side] = expected_directory_identity
+                    for binding_check in (
+                        lambda: _assert_finalization_comparison_name_binding(
+                            parent_descriptor,
+                            info["directory_name"],
+                            expected_directory_identity,
+                        ),
+                        lambda: _assert_finalization_comparison_supplied_path(
+                            info,
+                            expected_directory_identity,
+                        ),
+                    ):
+                        try:
+                            binding_check()
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                            if capture is None:
+                                clear_side_after_unreadable(side)
+
+                if (
+                    uncertain_descriptor is not None
+                    and uncertain_capture is not None
+                    and repeated_descriptor is not None
+                    and repeated_capture is not None
+                    and checks["directory_file_bytes_equal"] is not None
+                ):
+                    try:
+                        final_bytes_equal = _finalization_directory_bytes_equal(
+                            uncertain_descriptor,
+                            uncertain_capture,
+                            repeated_descriptor,
+                            repeated_capture,
+                        )
+                        if (
+                            final_bytes_equal
+                            is not checks["directory_file_bytes_equal"]
+                        ):
+                            raise _FinalizationComparisonCaptureError("changed")
+                    except (
+                        NotImplementedError,
+                        OSError,
+                        TypeError,
+                        AttributeError,
+                        ValueError,
+                        _FinalizationComparisonCaptureError,
+                    ):
+                        recapture_failed = True
+
+                for descriptor, capture in (
+                    (uncertain_descriptor, uncertain_capture),
+                    (repeated_descriptor, repeated_capture),
+                ):
+                    if descriptor is None or capture is None:
+                        continue
+                    try:
+                        _assert_finalization_comparison_leaf_seal(
+                            descriptor,
+                            capture,
+                        )
+                    except (
+                        NotImplementedError,
+                        OSError,
+                        TypeError,
+                        AttributeError,
+                        ValueError,
+                        _FinalizationComparisonCaptureError,
+                    ):
+                        recapture_failed = True
+
+                for side, info, capture in (
+                    ("uncertain", uncertain_info, uncertain_capture),
+                    ("repeated", repeated_info, repeated_capture),
+                ):
+                    expected_directory_identity = final_directory_identities.get(
+                        side
+                    )
+                    if expected_directory_identity is None:
+                        continue
+                    for binding_check in (
+                        lambda: _assert_finalization_comparison_name_binding(
+                            parent_descriptor,
+                            info["directory_name"],
+                            expected_directory_identity,
+                        ),
+                        lambda: _assert_finalization_comparison_supplied_path(
+                            info,
+                            expected_directory_identity,
+                        ),
+                    ):
+                        try:
+                            binding_check()
+                        except (
+                            NotImplementedError,
+                            OSError,
+                            TypeError,
+                            AttributeError,
+                            ValueError,
+                            _FinalizationComparisonCaptureError,
+                        ):
+                            recapture_failed = True
+                            if capture is None:
+                                clear_side_after_unreadable(side)
+
+                for info in (uncertain_info, repeated_info):
+                    try:
+                        _assert_finalization_comparison_parent_bindings(
+                            parent_descriptor,
+                            parent_identity,
+                            (info,),
+                        )
+                    except (
+                        NotImplementedError,
+                        OSError,
+                        TypeError,
+                        AttributeError,
+                        ValueError,
+                        _FinalizationComparisonCaptureError,
+                    ):
+                        recapture_failed = True
+                try:
+                    _assert_safe_publication_parent(parent_descriptor)
+                except _FINALIZATION_COMPARISON_PATH_PRIMITIVE_ERRORS:
+                    recapture_failed = True
+
+                if recapture_failed:
+                    mark_input_changed()
+                else:
+                    comparison_prerequisites_valid = bool(
+                        checks["common_parent_valid"] is True
+                        and checks["directories_distinct"] is True
+                        and checks["uncertain_inventory_exact"] is True
+                        and checks["repeated_inventory_exact"] is True
+                        and recaptured_sides == {"uncertain", "repeated"}
+                    )
+                    if (
+                        comparison_prerequisites_valid
+                        and checks["final_recapture_valid"] is not False
+                    ):
+                        checks["final_recapture_valid"] = True
+    finally:
+        close_failed_sides: set[str] = set()
+        for side, descriptor in (
+            ("uncertain", uncertain_descriptor),
+            ("repeated", repeated_descriptor),
+        ):
+            if descriptor is None:
+                continue
+            try:
+                _close_finalization_comparison_descriptor(descriptor)
+            except _FinalizationComparisonCaptureError:
+                close_failed_sides.add(side)
+        parent_close_failed = False
+        if parent_descriptor is not None:
+            try:
+                _close_finalization_comparison_descriptor(parent_descriptor)
+            except _FinalizationComparisonCaptureError:
+                parent_close_failed = True
+        if close_failed_sides or parent_close_failed:
+            mark_input_changed()
+
+    report = build_native_finalization_comparison_report(
+        checks=checks,
+        input_reason_codes=tuple(
+            code
+            for code in ("comparison_input_changed",)
+            if code in input_reason_codes
+        ),
+    )
+    _write_stdout_bytes(_canonical_json_bytes(report))
+    return {
+        "match": 0,
         "mismatch": 3,
         "invalid": 2,
         "unreadable": 2,
@@ -8531,6 +11025,71 @@ def build_parser() -> argparse.ArgumentParser:
     )
     quality_native_reliability_doctor.set_defaults(
         func=cmd_quality_native_reliability_doctor
+    )
+
+    quality_native_reliability_compare = (
+        quality_native_reliability_sub.add_parser(
+            "compare-finalizations",
+            help="Побайтово сопоставить две приватные финализации",
+            description=(
+                "Только для чтения сопоставить две разные полные "
+                "четырёхфайловые приватные соседние папки одного фактического "
+                "безопасного родителя и внешний SHA-256 успешного повтора."
+            ),
+            epilog=(
+                "Передайте SHA-256 только из полного стандартного вывода "
+                "повторного финализатора после нормального возврата с кодом 0; "
+                "не берите его из любой квитанции и не используйте SHA-256 "
+                "сомнительного запуска; отдельные файлы, частичная или "
+                "staging-папка не принимаются. Команда сравнивает сырые байты "
+                "всех четырёх файлов и выполняет полный повторный снимок обеих "
+                "папок. Коды завершения: 0 — match; 3 — mismatch; 2 — invalid "
+                "или unreadable. Стандартный вывод содержит один "
+                "детерминированный канонический JSON-отчёт без значений. "
+                "Команда не создаёт выходных файлов, не изменяет, не исправляет, "
+                "не удаляет и не помещает в карантин входы, не запускает повтор "
+                "или другой процесс и не обращается к сети или базе данных. "
+                "Один код 2 исходного финализатора недостаточен: требуется, "
+                "чтобы полная исходная диагностика прямо разрешила использовать "
+                "неизменённые входы в новую отсутствующую соседнюю "
+                "папку. Если диагностика "
+                "требует очистку staging, учёт inode или жёстких ссылок, проверку "
+                "местоположения, целостности, ACL или безопасности, остановите "
+                "автоматику и передайте состояние системному администратору для "
+                "учёта всех ссылок и карантина. Даже match сохраняет "
+                "original_recovery_eligibility_verified=false, "
+                "repeat_normal_return_verified=false, "
+                "external_digest_provenance_authenticated=false и "
+                "original_durability_verified=false; он не подтверждает личность "
+                "проверяющего, юридическую правильность, актуальность права, "
+                "разрешение на публикацию, одобрение, готовность тезиса или "
+                "подачу. Для продолжения используйте повторную папку и отдельно "
+                "сохранённый SHA-256; заново проверьте текущий план, доверенное "
+                "происхождение, точные связи и все независимые барьеры."
+            ),
+        )
+    )
+    quality_native_reliability_compare.add_argument(
+        "--uncertain-finalization-dir",
+        required=True,
+        help="Сохранённая без изменений сомнительная папка финализации.",
+    )
+    quality_native_reliability_compare.add_argument(
+        "--repeated-finalization-dir",
+        required=True,
+        help="Новая полная папка нормально завершившегося повтора.",
+    )
+    quality_native_reliability_compare.add_argument(
+        "--expected-finalization-receipt-sha256",
+        required=True,
+        metavar="SHA256_УСПЕШНОГО_ПОВТОРА",
+        help=(
+            "Строчный SHA-256 из полного стандартного вывода успешного повтора; "
+            "не из квитанции и не из сомнительного запуска."
+        ),
+    )
+    quality_native_reliability_compare.set_defaults(
+        func=cmd_quality_native_reliability_compare_finalizations
     )
 
     quality_audit_plan = quality_sub.add_parser(

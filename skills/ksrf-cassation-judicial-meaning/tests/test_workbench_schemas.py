@@ -740,7 +740,7 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
     def test_native_reliability_doctor_report_schema_is_closed_and_rooted(self):
         schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
-        self.assertEqual("1.4", schema["contract_version"])
+        self.assertEqual("1.5", schema["contract_version"])
         self.assertEqual(
             1,
             schema["oneOf"].count(
@@ -1260,6 +1260,278 @@ class WorkbenchSchemaContractTests(unittest.TestCase):
         ordered = max(reports, key=lambda value: len(value["remediation"]))
         self.assertEqual(5, len(ordered["remediation"]))
         reordered = copy.deepcopy(ordered)
+        reordered["remediation"].reverse()
+        self.assertTrue(list(validator.iter_errors(reordered)))
+
+    def test_native_finalization_comparison_schema_is_additive_closed_and_exact(self):
+        schema = json.loads(PRACTICE_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual("1.5", schema["contract_version"])
+        self.assertEqual(
+            1,
+            schema["oneOf"].count(
+                {
+                    "$ref": (
+                        "#/definitions/"
+                        "native_finalization_comparison_report"
+                    )
+                }
+            ),
+        )
+        definition = schema["definitions"][
+            "native_finalization_comparison_report"
+        ]
+        self.assertFalse(definition["additionalProperties"])
+        validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": (
+                    "#/definitions/native_finalization_comparison_report"
+                ),
+                "definitions": schema["definitions"],
+            }
+        )
+        root_validator = Draft202012Validator(schema)
+        fixture = test_practice_quality.PracticeQualityTests()
+        checks = fixture.native_finalization_comparison_checks()
+        reports = [
+            practice_quality.build_native_finalization_comparison_report(
+                checks=checks
+            )
+        ]
+        reports.extend(
+            practice_quality.build_native_finalization_comparison_report(
+                checks=fixture.comparison_checks_with_failure(check)
+            )
+            for check in checks
+        )
+        early_drift_checks = fixture.comparison_checks_with_failure(
+            "uncertain_directory_readable"
+        )
+        early_drift_checks["final_recapture_valid"] = False
+        early_drift = (
+            practice_quality.build_native_finalization_comparison_report(
+                checks=early_drift_checks
+            )
+        )
+        drift_after_mismatch = (
+            practice_quality.build_native_finalization_comparison_report(
+                checks=fixture.native_finalization_comparison_checks(
+                    uncertain_internal_relation_valid=False,
+                    directory_file_bytes_equal=None,
+                    final_recapture_valid=False,
+                )
+            )
+        )
+        admin_invalid_checks = fixture.comparison_checks_with_failure(
+            "uncertain_artifact_contracts_valid"
+        )
+        admin_invalid_checks["directory_file_bytes_equal"] = False
+        admin_invalid_mismatch = (
+            practice_quality.build_native_finalization_comparison_report(
+                checks=admin_invalid_checks
+            )
+        )
+        reports.extend(
+            (early_drift, drift_after_mismatch, admin_invalid_mismatch)
+        )
+        self.assertEqual(
+            {"match", "mismatch", "invalid", "unreadable"},
+            {report["status"] for report in reports},
+        )
+        self.assertEqual(
+            set(
+                definition["properties"]["reason_codes"]["items"]["enum"]
+            ),
+            {
+                reason
+                for report in reports
+                for reason in report["reason_codes"]
+            },
+        )
+        reason_order = definition["properties"]["reason_codes"]["items"]["enum"]
+        reason_validator = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$ref": (
+                    "#/definitions/native_finalization_comparison_report/"
+                    "properties/reason_codes"
+                ),
+                "definitions": schema["definitions"],
+            }
+        )
+        self.assertEqual([], list(reason_validator.iter_errors(reason_order)))
+        for earlier_index in range(len(reason_order) - 1):
+            swapped = list(reason_order)
+            swapped[earlier_index], swapped[earlier_index + 1] = (
+                swapped[earlier_index + 1],
+                swapped[earlier_index],
+            )
+            with self.subTest(swapped_positions=(earlier_index, earlier_index + 1)):
+                self.assertTrue(list(reason_validator.iter_errors(swapped)))
+        for earlier_index, earlier_reason in enumerate(reason_order):
+            for later_reason in reason_order[earlier_index + 1 :]:
+                with self.subTest(
+                    earlier_reason=earlier_reason,
+                    later_reason=later_reason,
+                ):
+                    self.assertEqual(
+                        [],
+                        list(
+                            reason_validator.iter_errors(
+                                [earlier_reason, later_reason]
+                            )
+                        ),
+                    )
+                    self.assertTrue(
+                        list(
+                            reason_validator.iter_errors(
+                                [later_reason, earlier_reason]
+                            )
+                        )
+                    )
+        for report in reports:
+            with self.subTest(
+                status=report["status"], reasons=report["reason_codes"]
+            ):
+                self.assertEqual([], list(validator.iter_errors(report)))
+                root_validator.validate(report)
+
+        match = reports[0]
+        mismatch = next(
+            report
+            for report in reports
+            if report["reason_codes"]
+            == ["finalization_directory_bytes_mismatch"]
+        )
+        invalid = next(
+            report
+            for report in reports
+            if report["reason_codes"]
+            == ["expected_finalization_receipt_sha256_invalid"]
+        )
+        unreadable = next(
+            report
+            for report in reports
+            if report["reason_codes"]
+            == ["uncertain_finalization_unreadable"]
+        )
+        hostile = "СЕКРЕТНЫЙ-ПУТЬ-И-ДАЙДЖЕСТ"
+        invalid_variants = (
+            {**match, "private_path": hostile},
+            {
+                **match,
+                "checks": {**match["checks"], "private_check": True},
+            },
+            {
+                **match,
+                "scope": {**match["scope"], "private_scope": False},
+            },
+            {**match, "status": "mismatch"},
+            {**match, "recovery_comparison_valid": False},
+            {**mismatch, "reason_codes": []},
+            {
+                **mismatch,
+                "checks": {
+                    **mismatch["checks"],
+                    "directory_file_bytes_equal": True,
+                },
+            },
+            {
+                **invalid,
+                "reason_codes": [
+                    "external_finalization_receipt_digest_mismatch"
+                ],
+            },
+            {**unreadable, "status": "invalid"},
+            {
+                **unreadable,
+                "checks": {
+                    **unreadable["checks"],
+                    "uncertain_directory_private": True,
+                },
+            },
+            {
+                **match,
+                "checks": {
+                    **match["checks"],
+                    "directory_file_bytes_equal": None,
+                },
+            },
+            {
+                **match,
+                "checks": {
+                    **match["checks"],
+                    "final_recapture_valid": None,
+                },
+            },
+            {
+                **early_drift,
+                "checks": {
+                    **early_drift["checks"],
+                    "final_recapture_valid": True,
+                },
+            },
+            {
+                **early_drift,
+                "checks": {
+                    **early_drift["checks"],
+                    "directory_file_bytes_equal": False,
+                },
+            },
+            {
+                **mismatch,
+                "remediation": [
+                    {
+                        "code": "repeat_after_mismatch",
+                        "message_ru": hostile,
+                    }
+                ],
+            },
+            {
+                **mismatch,
+                "remediation": [
+                    {
+                        **mismatch["remediation"][0],
+                        "private": hostile,
+                    },
+                    *mismatch["remediation"][1:],
+                ],
+            },
+            {
+                **drift_after_mismatch,
+                "remediation": [
+                    *drift_after_mismatch["remediation"],
+                    mismatch["remediation"][-1],
+                ],
+            },
+            {
+                **admin_invalid_mismatch,
+                "remediation": [
+                    *admin_invalid_mismatch["remediation"],
+                    mismatch["remediation"][-1],
+                ],
+            },
+        )
+        for forged in invalid_variants:
+            with self.subTest(forged=forged):
+                self.assertTrue(list(validator.iter_errors(forged)))
+
+        combined_checks = fixture.comparison_checks_with_failure(
+            "uncertain_directory_readable"
+        )
+        combined_checks["expected_receipt_sha256_valid"] = False
+        combined_checks["repeated_external_receipt_digest_valid"] = None
+        combined_checks["repeated_native_relation_valid"] = None
+        combined = practice_quality.build_native_finalization_comparison_report(
+            checks=combined_checks
+        )
+        validator.validate(combined)
+        reordered_reasons = copy.deepcopy(combined)
+        reordered_reasons["reason_codes"].reverse()
+        self.assertTrue(list(validator.iter_errors(reordered_reasons)))
+        self.assertGreater(len(combined["remediation"]), 1)
+        reordered = copy.deepcopy(combined)
         reordered["remediation"].reverse()
         self.assertTrue(list(validator.iter_errors(reordered)))
 

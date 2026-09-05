@@ -108,17 +108,25 @@ EXPECTED_PROGRAM_LABELS = {
 }
 
 EXPECTED_ROUTE_COUNTS = {
-    "judicial": 69,
+    "judicial": 70,
     "ksrf": 21,
     "practice": 18,
     "autocollect": 1,
 }
 
 EXPECTED_CONTRACT_SHA256 = {
-    "judicial": "787973da2f98dbdd21c88ce1ad7fc114978913e02b60b9da108c71382367c7c5",
+    "judicial": "27ff6c375e616d066e8a5f81701019cc42e886c231595e5fe3f054aa828c7cb6",
     "ksrf": "356781c1a1fe339cb356ced8662c93e0a520729fce7167b46c6728942f7c9ed8",
     "practice": "ab0639062ade70b5b2c1223a5c37b306762f1fe31802d4bab54fc8c95c6bf173",
     "autocollect": "0279fa088d68fae3dcdee8dddb35a2be5462e5c43922888875f0e664bb1c659d",
+}
+
+ALLOWED_EXPLICIT_PRESENTATION_METAVARS = {
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-finalizations"),
+        "--expected-finalization-receipt-sha256",
+    ): "SHA256_УСПЕШНОГО_ПОВТОРА",
 }
 
 INVENTORY_KINDS = (*PARSER_SCRIPTS, "autocollect")
@@ -257,6 +265,7 @@ REQUIRED_ROUTE_HELP = {
         "Локально и только для чтения проверить три независимых входа",
         "Один совместимый файл coding-reliability.json не подтверждает штатное происхождение",
         "doctor Диагностировать сохранённую тройку без изменения файлов",
+        "compare-finalizations",
     ),
     ("judicial", ("quality", "native-reliability", "doctor")): (
         "--coding-reliability ФАЙЛ_НАДЁЖНОСТИ_КОДИРОВАНИЯ",
@@ -283,6 +292,49 @@ REQUIRED_ROUTE_HELP = {
         "одобрение или готовность к подаче",
         "последующий потребитель заново проверяет текущий план",
         "доверенное происхождение и собственные барьеры",
+    ),
+    (
+        "judicial",
+        ("quality", "native-reliability", "compare-finalizations"),
+    ): (
+        "--uncertain-finalization-dir СОМНИТЕЛЬНАЯ_ПАПКА_ФИНАЛИЗАЦИИ",
+        "--repeated-finalization-dir ПОВТОРНАЯ_ПАПКА_ФИНАЛИЗАЦИИ",
+        "--expected-finalization-receipt-sha256 SHA256_УСПЕШНОГО_ПОВТОРА",
+        "две разные полные четырёхфайловые приватные соседние папки",
+        "одного фактического безопасного родителя",
+        "полного стандартного вывода повторного финализатора",
+        "нормального возврата с кодом 0",
+        "не берите его из любой квитанции",
+        "не используйте SHA-256 сомнительного запуска",
+        "отдельные файлы, частичная или staging-папка не принимаются",
+        "Коды завершения: 0 — match",
+        "3 — mismatch",
+        "2 — invalid или unreadable",
+        "один детерминированный канонический JSON-отчёт без значений",
+        "сырые байты всех четырёх файлов",
+        "полный повторный снимок обеих папок",
+        "не создаёт выходных файлов",
+        "не изменяет, не исправляет, не удаляет и не помещает в карантин",
+        "не запускает повтор или другой процесс",
+        "не обращается к сети или базе данных",
+        "Один код 2 исходного финализатора недостаточен",
+        "полная исходная диагностика прямо разрешила",
+        "неизменённые входы в новую отсутствующую соседнюю папку",
+        "очистку staging, учёт inode или жёстких ссылок",
+        "местоположения, целостности, ACL или безопасности",
+        "остановите автоматику",
+        "системному администратору",
+        "учёта всех ссылок и карантина",
+        "original_recovery_eligibility_verified=false",
+        "repeat_normal_return_verified=false",
+        "external_digest_provenance_authenticated=false",
+        "original_durability_verified=false",
+        "не подтверждает личность проверяющего",
+        "юридическую правильность, актуальность права",
+        "разрешение на публикацию, одобрение, готовность тезиса или подачу",
+        "используйте повторную папку и отдельно сохранённый SHA-256",
+        "заново проверьте текущий план, доверенное происхождение",
+        "точные связи и все независимые барьеры",
     ),
     ("judicial", ("quality", "coding-audit-prepare")): (
         "--workspace",
@@ -1042,6 +1094,33 @@ class RemainingRuntimeCLIRussianHelpTests(unittest.TestCase):
                         for action in record["value_actions"]:
                             option = action["option"]
                             old_metavar = action["old_metavar"]
+                            allowed_metavar = (
+                                ALLOWED_EXPLICIT_PRESENTATION_METAVARS.get(
+                                    (kind, tuple(route), option)
+                                )
+                            )
+                            if allowed_metavar is not None:
+                                self.assertEqual(old_metavar, allowed_metavar)
+                                self.assertIn(
+                                    f"{option} {allowed_metavar}",
+                                    normalized,
+                                )
+                                continue
+                            if re.fullmatch(
+                                r"[А-ЯЁ][А-ЯЁ0-9_-]*",
+                                old_metavar,
+                            ):
+                                if option is None:
+                                    self.assertRegex(
+                                        normalized,
+                                        rf"(?<![\w-]){re.escape(old_metavar)}(?![\w-])",
+                                    )
+                                else:
+                                    self.assertIn(
+                                        f"{option} {old_metavar}",
+                                        normalized,
+                                    )
+                                continue
                             if option is None:
                                 self.assertIsNone(
                                     re.search(

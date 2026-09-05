@@ -381,6 +381,113 @@ class PracticeQualityTests(unittest.TestCase):
         ).encode("utf-8")
         return hashlib.sha256(content).hexdigest()
 
+    def native_finalization_comparison_checks(self, **changes):
+        checks = {
+            "common_parent_valid": True,
+            "directories_distinct": True,
+            "uncertain_directory_readable": True,
+            "repeated_directory_readable": True,
+            "uncertain_directory_private": True,
+            "repeated_directory_private": True,
+            "uncertain_inventory_exact": True,
+            "repeated_inventory_exact": True,
+            "expected_receipt_sha256_valid": True,
+            "uncertain_artifact_contracts_valid": True,
+            "repeated_artifact_contracts_valid": True,
+            "uncertain_receipt_self_digest_valid": True,
+            "repeated_receipt_self_digest_valid": True,
+            "repeated_external_receipt_digest_valid": True,
+            "uncertain_receipt_file_bindings_valid": True,
+            "repeated_receipt_file_bindings_valid": True,
+            "uncertain_internal_relation_valid": True,
+            "repeated_native_relation_valid": True,
+            "directory_file_bytes_equal": True,
+            "final_recapture_valid": True,
+        }
+        checks.update(changes)
+        return checks
+
+    def comparison_checks_with_failure(self, failed_check):
+        checks = self.native_finalization_comparison_checks(
+            **{failed_check: False}
+        )
+        prerequisites = {
+            "directories_distinct": (
+                "common_parent_valid",
+                "uncertain_directory_readable",
+                "repeated_directory_readable",
+            ),
+            "uncertain_directory_private": (
+                "common_parent_valid",
+                "uncertain_directory_readable",
+            ),
+            "repeated_directory_private": (
+                "common_parent_valid",
+                "repeated_directory_readable",
+            ),
+            "uncertain_inventory_exact": (
+                "uncertain_directory_private",
+            ),
+            "repeated_inventory_exact": ("repeated_directory_private",),
+            "uncertain_artifact_contracts_valid": (
+                "uncertain_inventory_exact",
+            ),
+            "repeated_artifact_contracts_valid": (
+                "repeated_inventory_exact",
+            ),
+            "uncertain_receipt_self_digest_valid": (
+                "uncertain_artifact_contracts_valid",
+            ),
+            "repeated_receipt_self_digest_valid": (
+                "repeated_artifact_contracts_valid",
+            ),
+            "repeated_external_receipt_digest_valid": (
+                "expected_receipt_sha256_valid",
+                "repeated_receipt_self_digest_valid",
+            ),
+            "uncertain_receipt_file_bindings_valid": (
+                "uncertain_artifact_contracts_valid",
+            ),
+            "repeated_receipt_file_bindings_valid": (
+                "repeated_artifact_contracts_valid",
+            ),
+            "uncertain_internal_relation_valid": (
+                "uncertain_artifact_contracts_valid",
+                "uncertain_receipt_self_digest_valid",
+                "uncertain_receipt_file_bindings_valid",
+            ),
+            "repeated_native_relation_valid": (
+                "repeated_artifact_contracts_valid",
+                "repeated_receipt_self_digest_valid",
+                "repeated_external_receipt_digest_valid",
+                "repeated_receipt_file_bindings_valid",
+            ),
+            "directory_file_bytes_equal": (
+                "common_parent_valid",
+                "directories_distinct",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+                "final_recapture_valid",
+            ),
+            "final_recapture_valid": (
+                "common_parent_valid",
+                "directories_distinct",
+                "uncertain_inventory_exact",
+                "repeated_inventory_exact",
+            ),
+        }
+        changed = True
+        while changed:
+            changed = False
+            for check, required in prerequisites.items():
+                if check == failed_check:
+                    continue
+                if any(checks[item] is not True for item in required):
+                    if checks[check] is not None:
+                        checks[check] = None
+                        changed = True
+        return checks
+
     def test_native_reliability_verifier_is_public(self):
         api = self.api()
         self.assertTrue(
@@ -398,6 +505,436 @@ class PracticeQualityTests(unittest.TestCase):
             "the doctor report builder must be an explicit reusable runtime API",
         )
         self.assertIn("build_native_reliability_doctor_report", api.__all__)
+
+    def test_native_finalization_comparison_builder_is_public_and_keyword_only(self):
+        api = self.api()
+        builder = getattr(
+            api,
+            "build_native_finalization_comparison_report",
+            None,
+        )
+        self.assertTrue(callable(builder))
+        self.assertIn(
+            "build_native_finalization_comparison_report",
+            api.__all__,
+        )
+        parameters = inspect.signature(builder).parameters
+        self.assertEqual(["checks", "input_reason_codes"], list(parameters))
+        self.assertTrue(
+            all(
+                parameter.kind is inspect.Parameter.KEYWORD_ONLY
+                for parameter in parameters.values()
+            )
+        )
+        self.assertEqual((), parameters["input_reason_codes"].default)
+
+    def test_native_finalization_comparison_match_is_exact_and_value_free(self):
+        api = self.api()
+        checks = self.native_finalization_comparison_checks()
+        checks_snapshot = copy.deepcopy(checks)
+
+        report = api.build_native_finalization_comparison_report(
+            checks=checks
+        )
+
+        self.assertEqual(
+            {
+                "schema_version",
+                "artifact_type",
+                "status",
+                "recovery_comparison_valid",
+                "reason_codes",
+                "checks",
+                "remediation",
+                "scope",
+            },
+            set(report),
+        )
+        self.assertEqual("1.0", report["schema_version"])
+        self.assertEqual(
+            "native_finalization_comparison_report",
+            report["artifact_type"],
+        )
+        self.assertEqual("match", report["status"])
+        self.assertIs(report["recovery_comparison_valid"], True)
+        self.assertEqual([], report["reason_codes"])
+        self.assertEqual(checks, report["checks"])
+        self.assertEqual([], report["remediation"])
+        self.assertEqual(
+            {
+                "technical_recovery_comparison_only": True,
+                "original_recovery_eligibility_verified": False,
+                "repeat_normal_return_verified": False,
+                "external_digest_provenance_authenticated": False,
+                "original_durability_verified": False,
+                "consumer_revalidation_required": True,
+                "reviewer_identity_authenticated": False,
+                "publication_safe": False,
+                "legal_readiness": False,
+                "filing_authorized": False,
+            },
+            report["scope"],
+        )
+        self.assertEqual(checks_snapshot, checks)
+        self.assertEqual(
+            report,
+            api.build_native_finalization_comparison_report(
+                checks=copy.deepcopy(checks)
+            ),
+        )
+
+    def test_native_finalization_comparison_maps_every_false_check(self):
+        api = self.api()
+        reason_by_check = {
+            "common_parent_valid": "comparison_topology_invalid",
+            "directories_distinct": "comparison_topology_invalid",
+            "uncertain_directory_readable": (
+                "uncertain_finalization_unreadable"
+            ),
+            "repeated_directory_readable": (
+                "repeated_finalization_unreadable"
+            ),
+            "uncertain_directory_private": (
+                "uncertain_finalization_privacy_invalid"
+            ),
+            "repeated_directory_private": (
+                "repeated_finalization_privacy_invalid"
+            ),
+            "uncertain_inventory_exact": (
+                "uncertain_finalization_inventory_invalid"
+            ),
+            "repeated_inventory_exact": (
+                "repeated_finalization_inventory_invalid"
+            ),
+            "expected_receipt_sha256_valid": (
+                "expected_finalization_receipt_sha256_invalid"
+            ),
+            "uncertain_artifact_contracts_valid": (
+                "uncertain_finalization_artifact_contract_invalid"
+            ),
+            "repeated_artifact_contracts_valid": (
+                "repeated_finalization_artifact_contract_invalid"
+            ),
+            "uncertain_receipt_self_digest_valid": (
+                "uncertain_finalization_receipt_self_digest_mismatch"
+            ),
+            "repeated_receipt_self_digest_valid": (
+                "repeated_finalization_receipt_self_digest_mismatch"
+            ),
+            "repeated_external_receipt_digest_valid": (
+                "external_finalization_receipt_digest_mismatch"
+            ),
+            "uncertain_receipt_file_bindings_valid": (
+                "uncertain_finalization_file_binding_mismatch"
+            ),
+            "repeated_receipt_file_bindings_valid": (
+                "repeated_finalization_file_binding_mismatch"
+            ),
+            "uncertain_internal_relation_valid": (
+                "uncertain_finalization_internal_relation_mismatch"
+            ),
+            "repeated_native_relation_valid": (
+                "repeated_finalization_native_relation_mismatch"
+            ),
+            "directory_file_bytes_equal": (
+                "finalization_directory_bytes_mismatch"
+            ),
+            "final_recapture_valid": "comparison_input_changed",
+        }
+        invalid_reasons = {
+            "comparison_topology_invalid",
+            "uncertain_finalization_privacy_invalid",
+            "repeated_finalization_privacy_invalid",
+            "uncertain_finalization_inventory_invalid",
+            "repeated_finalization_inventory_invalid",
+            "expected_finalization_receipt_sha256_invalid",
+            "uncertain_finalization_artifact_contract_invalid",
+            "repeated_finalization_artifact_contract_invalid",
+        }
+        unreadable_reasons = {
+            "uncertain_finalization_unreadable",
+            "repeated_finalization_unreadable",
+            "comparison_input_changed",
+        }
+        for check, reason in reason_by_check.items():
+            with self.subTest(check=check):
+                report = api.build_native_finalization_comparison_report(
+                    checks=self.comparison_checks_with_failure(check)
+                )
+                self.assertEqual([reason], report["reason_codes"])
+                expected_status = (
+                    "unreadable"
+                    if reason in unreadable_reasons
+                    else "invalid"
+                    if reason in invalid_reasons
+                    else "mismatch"
+                )
+                self.assertEqual(expected_status, report["status"])
+                self.assertIs(report["recovery_comparison_valid"], False)
+                if reason.endswith("_unreadable"):
+                    remediation = ["check_local_read_access"]
+                elif reason == "comparison_input_changed":
+                    remediation = [
+                        "preserve_and_stop",
+                        "administrator_quarantine",
+                    ]
+                elif reason in invalid_reasons - {
+                    "expected_finalization_receipt_sha256_invalid"
+                }:
+                    remediation = [
+                        "preserve_and_stop",
+                        "use_safe_complete_siblings",
+                        "administrator_quarantine",
+                    ]
+                elif reason in {
+                    "expected_finalization_receipt_sha256_invalid",
+                    "external_finalization_receipt_digest_mismatch",
+                }:
+                    remediation = [
+                        "preserve_and_stop",
+                        "retain_successful_repeat_digest",
+                    ]
+                else:
+                    remediation = [
+                        "preserve_and_stop",
+                        "repeat_after_mismatch",
+                    ]
+                self.assertEqual(
+                    remediation,
+                    [item["code"] for item in report["remediation"]],
+                )
+
+    def test_native_finalization_comparison_orders_combined_results(self):
+        api = self.api()
+        checks = self.native_finalization_comparison_checks(
+            uncertain_directory_readable=False,
+            repeated_directory_private=False,
+            expected_receipt_sha256_valid=False,
+        )
+        for key in (
+            "directories_distinct",
+            "uncertain_directory_private",
+            "uncertain_inventory_exact",
+            "uncertain_artifact_contracts_valid",
+            "uncertain_receipt_self_digest_valid",
+            "uncertain_receipt_file_bindings_valid",
+            "uncertain_internal_relation_valid",
+            "repeated_inventory_exact",
+            "repeated_artifact_contracts_valid",
+            "repeated_receipt_self_digest_valid",
+            "repeated_external_receipt_digest_valid",
+            "repeated_receipt_file_bindings_valid",
+            "repeated_native_relation_valid",
+            "directory_file_bytes_equal",
+            "final_recapture_valid",
+        ):
+            checks[key] = None
+        report = api.build_native_finalization_comparison_report(checks=checks)
+        self.assertEqual("unreadable", report["status"])
+        self.assertEqual(
+            [
+                "uncertain_finalization_unreadable",
+                "repeated_finalization_privacy_invalid",
+                "expected_finalization_receipt_sha256_invalid",
+            ],
+            report["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "check_local_read_access",
+                "preserve_and_stop",
+                "use_safe_complete_siblings",
+                "retain_successful_repeat_digest",
+                "administrator_quarantine",
+            ],
+            [item["code"] for item in report["remediation"]],
+        )
+
+    def test_native_finalization_comparison_treats_observed_drift_as_asymmetric(self):
+        api = self.api()
+        early_drift = self.comparison_checks_with_failure(
+            "uncertain_directory_readable"
+        )
+        early_drift["final_recapture_valid"] = False
+        report = api.build_native_finalization_comparison_report(
+            checks=early_drift,
+            input_reason_codes=("comparison_input_changed",),
+        )
+        self.assertIsNone(report["checks"]["directory_file_bytes_equal"])
+        self.assertIs(report["checks"]["final_recapture_valid"], False)
+        self.assertEqual(
+            [
+                "uncertain_finalization_unreadable",
+                "comparison_input_changed",
+            ],
+            report["reason_codes"],
+        )
+
+        drift_after_relation_mismatch = (
+            self.native_finalization_comparison_checks(
+                uncertain_internal_relation_valid=False,
+                directory_file_bytes_equal=None,
+                final_recapture_valid=False,
+            )
+        )
+        dominated = api.build_native_finalization_comparison_report(
+            checks=drift_after_relation_mismatch
+        )
+        self.assertEqual(
+            [
+                "comparison_input_changed",
+                "uncertain_finalization_internal_relation_mismatch",
+            ],
+            dominated["reason_codes"],
+        )
+        self.assertEqual(
+            ["preserve_and_stop", "administrator_quarantine"],
+            [item["code"] for item in dominated["remediation"]],
+        )
+
+    def test_native_finalization_comparison_admin_invalidity_suppresses_repeat(self):
+        api = self.api()
+        checks = self.comparison_checks_with_failure(
+            "uncertain_artifact_contracts_valid"
+        )
+        checks["directory_file_bytes_equal"] = False
+        report = api.build_native_finalization_comparison_report(checks=checks)
+        self.assertEqual(
+            [
+                "uncertain_finalization_artifact_contract_invalid",
+                "finalization_directory_bytes_mismatch",
+            ],
+            report["reason_codes"],
+        )
+        self.assertEqual(
+            [
+                "preserve_and_stop",
+                "use_safe_complete_siblings",
+                "administrator_quarantine",
+            ],
+            [item["code"] for item in report["remediation"]],
+        )
+
+        expected_only_invalid = self.comparison_checks_with_failure(
+            "expected_receipt_sha256_valid"
+        )
+        expected_only_invalid["directory_file_bytes_equal"] = False
+        expected_and_mismatch = (
+            api.build_native_finalization_comparison_report(
+                checks=expected_only_invalid
+            )
+        )
+        self.assertEqual(
+            [
+                "preserve_and_stop",
+                "retain_successful_repeat_digest",
+                "repeat_after_mismatch",
+            ],
+            [
+                item["code"]
+                for item in expected_and_mismatch["remediation"]
+            ],
+        )
+
+    def test_native_finalization_comparison_rejects_mapping_and_tri_state_contradictions(self):
+        api = self.api()
+        valid = self.native_finalization_comparison_checks()
+        incomplete_capture = self.comparison_checks_with_failure(
+            "uncertain_directory_readable"
+        )
+        contradiction_cases = (
+            [],
+            {key: value for key, value in valid.items() if key != "final_recapture_valid"},
+            {**valid, "private_check": False},
+            {**valid, "common_parent_valid": None},
+            {
+                **valid,
+                "uncertain_directory_readable": False,
+                "uncertain_directory_private": True,
+            },
+            {
+                **valid,
+                "uncertain_inventory_exact": False,
+                "uncertain_artifact_contracts_valid": True,
+            },
+            {
+                **valid,
+                "expected_receipt_sha256_valid": False,
+                "repeated_external_receipt_digest_valid": False,
+            },
+            {
+                **valid,
+                "repeated_receipt_self_digest_valid": False,
+                "repeated_native_relation_valid": True,
+            },
+            {**valid, "directory_file_bytes_equal": None},
+            {**valid, "final_recapture_valid": None},
+            {**incomplete_capture, "final_recapture_valid": True},
+            {
+                **incomplete_capture,
+                "directory_file_bytes_equal": False,
+                "final_recapture_valid": False,
+            },
+        )
+        for checks in contradiction_cases:
+            with self.subTest(checks=checks):
+                with self.assertRaises(ValueError):
+                    api.build_native_finalization_comparison_report(
+                        checks=checks
+                    )
+
+    def test_native_finalization_comparison_rejects_hostile_values_and_reasons(self):
+        api = self.api()
+        hostile = "СЕКРЕТНЫЙ-ПУТЬ-И-ДАЙДЖЕСТ"
+        invalid_checks = self.native_finalization_comparison_checks(
+            common_parent_valid=hostile
+        )
+        with self.assertRaises(ValueError) as invalid_value:
+            api.build_native_finalization_comparison_report(
+                checks=invalid_checks
+            )
+        self.assertNotIn(hostile, str(invalid_value.exception))
+
+        unreadable_checks = self.comparison_checks_with_failure(
+            "uncertain_directory_readable"
+        )
+        accepted = api.build_native_finalization_comparison_report(
+            checks=unreadable_checks,
+            input_reason_codes=("uncertain_finalization_unreadable",),
+        )
+        self.assertEqual(
+            ["uncertain_finalization_unreadable"],
+            accepted["reason_codes"],
+        )
+        for check, code in (
+            (
+                "repeated_directory_readable",
+                "repeated_finalization_unreadable",
+            ),
+            ("final_recapture_valid", "comparison_input_changed"),
+        ):
+            with self.subTest(accepted_input_reason=code):
+                accepted = api.build_native_finalization_comparison_report(
+                    checks=self.comparison_checks_with_failure(check),
+                    input_reason_codes=(code,),
+                )
+                self.assertEqual([code], accepted["reason_codes"])
+        invalid_reason_inputs = (
+            hostile,
+            (hostile,),
+            ("uncertain_finalization_unreadable",) * 2,
+            (1,),
+            ("repeated_finalization_unreadable",),
+            ("comparison_input_changed",),
+        )
+        for reason_input in invalid_reason_inputs:
+            with self.subTest(reason_input=reason_input):
+                with self.assertRaises(ValueError) as invalid_reason:
+                    api.build_native_finalization_comparison_report(
+                        checks=unreadable_checks,
+                        input_reason_codes=reason_input,
+                    )
+                self.assertNotIn(hostile, str(invalid_reason.exception))
 
     def test_native_reliability_doctor_accepts_exact_triple_value_free(self):
         api = self.api()
