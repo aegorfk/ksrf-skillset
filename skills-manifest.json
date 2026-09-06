@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-06T15:24:27Z",
+  "generated_at": "2026-09-06T15:30:17Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "64b583018e175bf6b3374f684aa47cf111f1a97b",
+  "remote_base_commit": "2b7d88f59860fd33f05f83fe4bc8d12b5f0f0d8f",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 279,
-  "total_bytes": 10600751,
-  "tree_sha256": "0a475c15e2f2c58acc4713c975623c1aedf22d70d3a71f9c16932486ba4aa3f9",
+  "total_bytes": 10601705,
+  "tree_sha256": "611468656495f64d9f1d8c2924241d30c73e672342893105bfcb14520cb30d7c",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -52,8 +52,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 101,
-      "bytes": 2452802,
-      "tree_sha256": "3fe8b7b5f18f3dbc993c9036326d04402709659ed70d754bca35f4d66bcf917b"
+      "bytes": 2453374,
+      "tree_sha256": "c3db86d659dc3fb880fc0c713c4a90b3e28989e2c0b9f26621ea0c8766c57c4e"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -64,8 +64,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 158152,
-      "tree_sha256": "37f7753ec55a111ef73832dfa0edbb47ce5129b3b7cb2b3507556cf0730a48c8"
+      "bytes": 158651,
+      "tree_sha256": "fbf98f043d8717010863e0549eb103daf7429c1d7c7c523b24cbab9dd171cbe9"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -100,8 +100,8 @@
     {
       "name": "ksrf-explore-arguments",
       "files": 15,
-      "bytes": 272693,
-      "tree_sha256": "196801abe485e470e47f9a4aa20b263b6d06520bc2ba1d9fd7746e978db18924"
+      "bytes": 272576,
+      "tree_sha256": "55828e9fb062786604b04af7ed60240445c6fb24ea4bb4420901970dc956033f"
     },
     {
       "name": "ksrf-formal-filing-check",

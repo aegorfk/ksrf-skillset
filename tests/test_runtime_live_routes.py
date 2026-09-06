@@ -86,7 +86,7 @@ SOURCE_ONLY_FILES = {
         "d25a9df36f6c1d7d995deae35f22a6b9875ac6597251342492ae69a111d75e94"
     ),
     REPO / "skills/ksrf-argument-patterns/references/complaint-methodology-sources.md": (
-        "6341e9870574e3473eb1831fc7eba0847f6956de06f2fd4fb200994f49b4ae26"
+        "faba6efc86b89c4285a2aa1ae91349ff88ea569f626dbff69d00375aa329a99f"
     ),
 }
 
