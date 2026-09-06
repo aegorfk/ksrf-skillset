@@ -23,6 +23,16 @@ class ReasoningLabMethodTests(unittest.TestCase):
             self.assertFalse((target / "artifacts").exists())
             self.assertFalse((target / "experiments").exists())
 
+    def test_causal_and_stage_guidance_is_in_the_portable_reference(self):
+        # Packaging assertions only: these do not measure legal reasoning quality.
+        reference = REPO / "skills/ksrf-argument-patterns/references/reasoning-lab-workflow.md"
+        body = reference.read_text()
+        for section in ("Последний барьер и определяющая его квалификация",
+                        "Сравнение режимов целиком", "Стадия наблюдения и проверка пары"):
+            self.assertIn("## " + section, body)
+        self.assertIn("Вымышленный пример", body)
+        self.assertIn("evaluator-derived", body)
+
 
 if __name__ == "__main__":
     unittest.main()
