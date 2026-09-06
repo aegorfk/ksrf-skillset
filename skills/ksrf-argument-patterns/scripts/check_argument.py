@@ -15,6 +15,7 @@ SPEAKERS = {"court", "party", "cited_authority", "analyst", "legislator", "synth
 ISSUE_TEXT = ("norm", "judicial_meaning", "situation", "harm", "constitutional_bridge",
               "narrow_question", "counterargument", "decisive_fact", "if_reversed", "remedy_limit")
 CHECKER_RELEASE = "2026-09-06"
+FINDING_OPERATORS = {"proven", "not_proven", "proven_not", "act_exists", "unknown"}
 
 
 def full_date(value):
@@ -80,6 +81,71 @@ def check_branches(request, claims):
     return {"provided": True, "checked": len(branches), "semantic_truth_verified": False}
 
 
+def check_reasoning(request, claims, gaps):
+    result = {"provided": "reasoning_checks" in request, "operator_checks_checked": 0,
+              "residual_checks_checked": 0, "semantic_truth_verified": False}
+    if not result["provided"]:
+        return result
+    checks = request["reasoning_checks"]
+    if not isinstance(checks, dict):
+        raise ValueError("reasoning_checks: требуется объект")
+    operators = records(checks.get("operator_checks"), "operator_checks")
+    residuals = records(checks.get("residual_checks"), "residual_checks")
+    if set(operators) & set(residuals):
+        raise ValueError("reasoning_checks: повтор id между списками проверок")
+    for cid, row in operators.items():
+        values = []
+        for field in ("premise_id", "conclusion_id"):
+            ref = row.get(field)
+            if not isinstance(ref, str) or ref not in claims:
+                raise ValueError(f"{cid}: неверная ссылка {field}")
+            values.append(claims[ref].get("finding_operator", "unknown"))
+        if not isinstance(row.get("same_proposition"), bool):
+            raise ValueError(f"{cid}: same_proposition должен быть boolean")
+        relation = row.get("relation")
+        if not isinstance(relation, str) or relation not in {"equivalent", "requires_additional_premise"}:
+            raise ValueError(f"{cid}: неизвестная relation")
+        if not isinstance(row.get("explanation"), str) or not row["explanation"].strip():
+            raise ValueError(f"{cid}: отсутствует explanation")
+        if relation == "equivalent":
+            if not row["same_proposition"]:
+                raise ValueError(f"{cid}: эквивалентность требует same_proposition=true")
+            if "unknown" not in values and values[0] != values[1]:
+                raise ValueError(f"{cid}: разные известные операторы не эквивалентны")
+        else:
+            gaps.append(f"{cid}: дополнительная посылка необходима, но не проверена")
+        if "unknown" in values:
+            gaps.append(f"{cid}: оператор отсутствует или неизвестен; связь не подтверждена")
+    branches = records(request.get("branches", []), "branches")
+    for cid, row in residuals.items():
+        bid = row.get("branch_id")
+        if not isinstance(bid, str) or bid not in branches:
+            raise ValueError(f"{cid}: неизвестная branch_id")
+        remaining = string_list(row.get("remaining_ground_ids"), f"{cid}.remaining_ground_ids")
+        if len(remaining) != len(set(remaining)):
+            raise ValueError(f"{cid}: повтор оставшегося основания")
+        if set(remaining) - set(branches[bid]["ground_ids"]):
+            raise ValueError(f"{cid}: оставшееся основание вне указанной ветви")
+        for field in ("entitlement", "extent"):
+            assessment = row.get(field)
+            if not isinstance(assessment, dict):
+                raise ValueError(f"{cid}: {field} требует отдельного объекта оценки")
+            value = assessment.get("assessment")
+            if not isinstance(value, str) or value not in {"supported", "not_supported", "unknown"}:
+                raise ValueError(f"{cid}.{field}: неизвестная assessment")
+            if not isinstance(assessment.get("reason"), str) or not assessment["reason"].strip():
+                raise ValueError(f"{cid}.{field}: отсутствует reason")
+            refs = string_list(assessment.get("support_ids"), f"{cid}.{field}.support_ids")
+            if set(refs) - set(remaining):
+                raise ValueError(f"{cid}.{field}: опора вне оставшихся оснований")
+            if value == "supported" and not refs:
+                raise ValueError(f"{cid}.{field}: supported требует непустой опоры")
+            if value == "unknown":
+                gaps.append(f"{cid}.{field}: оценка неизвестна, нужны доказательства")
+    result.update(operator_checks_checked=len(operators), residual_checks_checked=len(residuals))
+    return result
+
+
 def check(request):
     result = {"schema": "ksrf-argument-check.v1", "filing_ready": False,
               "semantic_truth_verified": False, "historical_eval_allowed": False,
@@ -132,6 +198,10 @@ def check(request):
                 excluded[did].append(bounds)
         claim_checks = {}
         for cid, claim in claims.items():
+            if "finding_operator" in claim:
+                operator = claim["finding_operator"]
+                if not isinstance(operator, str) or operator not in FINDING_OPERATORS:
+                    raise ValueError(f"{cid}: неизвестный finding_operator")
             if not isinstance(claim.get("text"), str) or not claim["text"].strip():
                 raise ValueError(f"{cid}: отсутствует текст утверждения")
             if claim.get("kind") not in {"observation", "hypothesis", "legal_anchor"}:
@@ -178,10 +248,12 @@ def check(request):
             gaps.extend(f"{iid}: {unknown}" for unknown in unknowns)
             string_list(issue.get("independent_grounds"), f"{iid}.independent_grounds")
         branch_checks = check_branches(request, claims)
+        reasoning_checks = check_reasoning(request, claims, gaps)
         context = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
         result.update(source_sha256=source_hashes, claim_checks=claim_checks,
                       input_context_sha256=hashlib.sha256(context.encode()).hexdigest(),
                       branch_checks=branch_checks, document_completeness=completeness,
+                      reasoning_checks=reasoning_checks,
                       method_release=library["released_on"], issues_checked=len(issues),
                       status="needs_evidence" if gaps else "structurally_traceable_candidate")
     except (ValueError, TypeError, KeyError) as exc:

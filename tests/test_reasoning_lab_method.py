@@ -28,7 +28,8 @@ class ReasoningLabMethodTests(unittest.TestCase):
         reference = REPO / "skills/ksrf-argument-patterns/references/reasoning-lab-workflow.md"
         body = reference.read_text()
         for section in ("Последний барьер и определяющая его квалификация",
-                        "Сравнение режимов целиком", "Стадия наблюдения и проверка пары"):
+                        "Сравнение режимов целиком", "Стадия наблюдения и проверка пары",
+                        "Как именно суд установил посылку", "Оставшееся основание и объём меры"):
             self.assertIn("## " + section, body)
         self.assertIn("Вымышленный пример", body)
         self.assertIn("evaluator-derived", body)
