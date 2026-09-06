@@ -14,6 +14,7 @@ ROLES = {"case_record", "party_submission", "norm_text", "prior_authority", "hyp
 SPEAKERS = {"court", "party", "cited_authority", "analyst", "legislator", "synthetic"}
 ISSUE_TEXT = ("norm", "judicial_meaning", "situation", "harm", "constitutional_bridge",
               "narrow_question", "counterargument", "decisive_fact", "if_reversed", "remedy_limit")
+CHECKER_RELEASE = "2026-09-06"
 
 
 def full_date(value):
@@ -41,10 +42,49 @@ def string_list(value, label):
     return value
 
 
+def span(row, text, label):
+    if not isinstance(row, dict):
+        raise ValueError(f"{label}: недействительный фрагмент")
+    start, end = row.get("start"), row.get("end")
+    if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text):
+        raise ValueError(f"{label}: недействительные границы цитаты")
+    if row.get("quote") != text[start:end]:
+        raise ValueError(f"{label}: цитата не совпадает с переданным текстом")
+    return start, end
+
+
+def check_branches(request, claims):
+    if "branches" not in request:
+        return {"provided": False, "checked": 0, "semantic_truth_verified": False}
+    branches = records(request["branches"], "branches")
+    for bid, branch in branches.items():
+        for field, slot in (("demand_id", "demand"), ("outcome_id", "outcome")):
+            cid = branch.get(field)
+            if not isinstance(cid, str) or cid not in claims or claims[cid].get("slot") != slot:
+                raise ValueError(f"{bid}: неверная ссылка {field}")
+        grounds = string_list(branch.get("ground_ids"), f"{bid}.ground_ids")
+        if len(grounds) != len(set(grounds)):
+            raise ValueError(f"{bid}: повтор основания")
+        if branch.get("independence") not in {"single_ground", "multiple_independent", "interdependent", "unknown"}:
+            raise ValueError(f"{bid}: не определена независимость оснований")
+        if branch["independence"] == "multiple_independent" and len(grounds) < 2:
+            raise ValueError(f"{bid}: самостоятельные основания не перечислены")
+        for gid in grounds:
+            if gid not in claims or claims[gid].get("slot") != "ground":
+                raise ValueError(f"{bid}: неизвестное основание")
+            demands = string_list(claims[gid].get("for_demand_ids"), f"{gid}.for_demand_ids")
+            if any(d not in claims or claims[d].get("slot") != "demand" for d in demands):
+                raise ValueError(f"{gid}: неверное требование основания")
+            if branch["demand_id"] not in demands:
+                raise ValueError(f"{bid}: основание относится к другому требованию")
+    return {"provided": True, "checked": len(branches), "semantic_truth_verified": False}
+
+
 def check(request):
     result = {"schema": "ksrf-argument-check.v1", "filing_ready": False,
               "semantic_truth_verified": False, "historical_eval_allowed": False,
-              "requires_source_corpus": False, "errors": [], "gaps": []}
+              "requires_source_corpus": False, "checker_release": CHECKER_RELEASE,
+              "exclusion_detection_automatic": False, "errors": [], "gaps": []}
     if not isinstance(request, dict):
         return dict(result, status="invalid", errors=["Требуется JSON-объект"])
     if request.get("mode") != "prospective":
@@ -53,7 +93,7 @@ def check(request):
     try:
         cutoff = full_date(request.get("as_of"))
         library = json.loads((Path(__file__).resolve().parents[1] / "references/universal-methods.json").read_text())
-        if cutoff < full_date(library["released_on"]):
+        if cutoff < max(full_date(library["released_on"]), full_date(CHECKER_RELEASE)):
             return dict(result, status="blocked", errors=["Методика выпущена позже as-of"])
         method_ids = {row["id"] for row in library["methods"]}
         docs = records(request.get("documents"), "documents")
@@ -61,7 +101,7 @@ def check(request):
         issues = records(request.get("issues"), "issues")
         if not issues:
             gaps.append("Нет проверяемых гипотез")
-        source_hashes = {}
+        source_hashes, excluded, completeness = {}, {}, {}
         for did, doc in docs.items():
             if "known_outcome" in doc and not isinstance(doc["known_outcome"], bool):
                 raise ValueError(f"{did}: known_outcome должен быть boolean")
@@ -75,6 +115,21 @@ def check(request):
             elif full_date(available) > cutoff:
                 return dict(result, status="blocked", errors=[f"{did}: документ позже as-of"])
             source_hashes[did] = hashlib.sha256(doc["text"].encode()).hexdigest()
+            quality = doc.get("completeness", "not_declared")
+            if quality not in {"complete", "partial", "unknown", "not_declared"}:
+                raise ValueError(f"{did}: неизвестная полнота документа")
+            completeness[did] = quality
+            if quality in {"partial", "unknown"}:
+                gaps.append(f"{did}: исходный судебный текст неполон или его полнота неизвестна")
+            exclusions = doc.get("excluded_spans", [])
+            if not isinstance(exclusions, list):
+                raise ValueError(f"{did}: excluded_spans должен быть списком")
+            excluded[did] = []
+            for exclusion in exclusions:
+                bounds = span(exclusion, doc["text"], did)
+                if not isinstance(exclusion.get("reason"), str) or not exclusion["reason"].strip():
+                    raise ValueError(f"{did}: не объяснено исключение фрагмента")
+                excluded[did].append(bounds)
         claim_checks = {}
         for cid, claim in claims.items():
             if not isinstance(claim.get("text"), str) or not claim["text"].strip():
@@ -93,12 +148,10 @@ def check(request):
                 did = anchor.get("document_id")
                 if not isinstance(did, str) or did not in docs:
                     raise ValueError(f"{cid}: неизвестный документ")
-                start, end = anchor.get("start"), anchor.get("end")
                 text = docs[did]["text"]
-                if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text):
-                    raise ValueError(f"{cid}: недействительные границы цитаты")
-                if anchor.get("quote") != text[start:end]:
-                    raise ValueError(f"{cid}: цитата не совпадает с переданным текстом")
+                start, end = span(anchor, text, cid)
+                if any(max(start, a) < min(end, b) for a, b in excluded[did]):
+                    return dict(result, status="blocked", errors=[f"{cid}: цитата использует исключённый фрагмент"])
                 if anchor.get("speaker") not in SPEAKERS:
                     raise ValueError(f"{cid}: не указана роль говорящего")
                 if claim["kind"] == "legal_anchor" and docs[did]["role"] not in {"norm_text", "prior_authority"}:
@@ -124,7 +177,11 @@ def check(request):
             unknowns = string_list(issue.get("unknowns"), f"{iid}.unknowns")
             gaps.extend(f"{iid}: {unknown}" for unknown in unknowns)
             string_list(issue.get("independent_grounds"), f"{iid}.independent_grounds")
+        branch_checks = check_branches(request, claims)
+        context = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
         result.update(source_sha256=source_hashes, claim_checks=claim_checks,
+                      input_context_sha256=hashlib.sha256(context.encode()).hexdigest(),
+                      branch_checks=branch_checks, document_completeness=completeness,
                       method_release=library["released_on"], issues_checked=len(issues),
                       status="needs_evidence" if gaps else "structurally_traceable_candidate")
     except (ValueError, TypeError, KeyError) as exc:

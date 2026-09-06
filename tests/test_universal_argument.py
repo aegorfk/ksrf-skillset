@@ -18,7 +18,7 @@ SPEC.loader.exec_module(MODULE)
 def fixture():
     text = "Учебный акт. Отказ вызван только закрытием формы приёма. Иных оснований суд не установил."
     return {
-        "mode": "prospective", "as_of": "2026-09-05",
+        "mode": "prospective", "as_of": "2026-09-06",
         "documents": [{"id": "d1", "role": "hypothetical_facts", "available_on": "2026-09-05", "text": text}],
         "claims": [{"id": "c1", "kind": "observation", "text": "В учебном акте указано единственное основание отказа.",
                     "evidence": [{"document_id": "d1", "start": 0, "end": len(text), "quote": text, "speaker": "synthetic"}]}],
@@ -33,6 +33,57 @@ def fixture():
 
 
 class UniversalArgumentTests(unittest.TestCase):
+    def test_exact_exclusion_blocks_only_intersection_without_mutation(self):
+        packet = fixture()
+        doc = packet["documents"][0]
+        original = doc["text"]
+        doc["text"] += " Позднее редактор сообщил иной исход."
+        doc["excluded_spans"] = [{"start": len(original), "end": len(doc["text"]),
+                                  "quote": doc["text"][len(original):], "reason": "Поздняя редакционная заметка."}]
+        before = copy.deepcopy(packet)
+        self.assertEqual(MODULE.check(packet)["status"], "structurally_traceable_candidate")
+        self.assertEqual(packet, before)
+        packet["claims"][0]["evidence"][0].update(end=len(doc["text"]), quote=doc["text"])
+        self.assertEqual(MODULE.check(packet)["status"], "blocked")
+
+    def test_exclusion_bad_quote_bounds_and_reason_fail_closed(self):
+        for mutation in (lambda r: r.update(start=True), lambda r: r.update(quote="Подмена"),
+                         lambda r: r.update(end=9999), lambda r: r.update(reason="")):
+            packet = fixture(); doc = packet["documents"][0]
+            exclusion = {"start": 0, "end": 7, "quote": doc["text"][:7], "reason": "Вставка"}
+            mutation(exclusion); doc["excluded_spans"] = [exclusion]
+            self.assertEqual(MODULE.check(packet)["status"], "invalid")
+
+    def test_partial_text_and_unspecified_branch_do_not_appear_complete(self):
+        packet = fixture()
+        result = MODULE.check(packet)
+        self.assertFalse(result["branch_checks"]["provided"])
+        self.assertEqual(result["document_completeness"]["d1"], "not_declared")
+        for quality in ("partial", "unknown"):
+            packet["documents"][0]["completeness"] = quality
+            self.assertEqual(MODULE.check(packet)["status"], "needs_evidence")
+
+    def test_demand_branch_checks_and_context_invalidation(self):
+        packet = fixture()
+        for cid, slot in (("d", "demand"), ("o", "outcome"), ("g", "ground"), ("other", "demand")):
+            claim = copy.deepcopy(packet["claims"][0]); claim.update(id=cid, slot=slot)
+            if slot == "ground":
+                claim["for_demand_ids"] = ["d"]
+            packet["claims"].append(claim)
+        packet["branches"] = [{"id": "b", "demand_id": "d", "outcome_id": "o", "ground_ids": ["g"],
+                               "independence": "single_ground"}]
+        first = MODULE.check(packet)
+        self.assertEqual(first["status"], "structurally_traceable_candidate")
+        self.assertEqual(first["branch_checks"]["checked"], 1)
+        packet["claims"][0]["text"] += " Уточнение при прежнем ID."
+        self.assertNotEqual(first["input_context_sha256"], MODULE.check(packet)["input_context_sha256"])
+        packet["branches"][0]["demand_id"] = "other"
+        self.assertEqual(MODULE.check(packet)["status"], "invalid")
+
+    def test_checker_cannot_be_backdated_to_catalog_release(self):
+        packet = fixture(); packet["as_of"] = "2026-09-05"
+        self.assertEqual(MODULE.check(packet)["status"], "blocked")
+
     def test_traceability_is_not_truth_or_filing(self):
         result = MODULE.check(fixture())
         self.assertEqual(result["status"], "structurally_traceable_candidate")

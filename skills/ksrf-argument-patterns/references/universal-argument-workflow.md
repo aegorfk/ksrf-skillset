@@ -154,6 +154,13 @@ JSON и встроенный каталог; корпус, сеть и стор�
 `known_outcome: true` или запрещённая роль последующего решения блокируют пакет.
 Для синтетики явно используй `hypothetical_facts`.
 
+Необязательные поля документа: `completeness` (`complete`, `partial`, `unknown`)
+и `excluded_spans` — список точных `start`, `end`, `quote`, `reason`. Используй
+его для найденной поздней редакционной заметки или чужого фрагмента. Цитата,
+пересекающая исключённый диапазон, блокируется; исходный текст не удаляется.
+Программа не обнаруживает такие вставки сама. Пропуск этих полей не доказывает
+полноту или чистоту входа. `partial`/`unknown` сохраняют доказательственный пробел.
+
 Утверждение: `id`, `text`, `kind` (`observation`, `hypothesis`, `legal_anchor`),
 `evidence`. Ссылка: `document_id`, точные `start`, `end`, `quote`, `speaker`
 (`court`, `party`, `cited_authority`, `analyst`, `legislator`, `synthetic`).
@@ -165,6 +172,18 @@ JSON и встроенный каталог; корпус, сеть и стор�
 `narrow_question`, `support_ids`, `adverse_ids`, `counterargument`,
 `decisive_fact`, `if_reversed`, `independent_grounds`, `remedy_limit`, `unknowns`.
 Это контракт проверки, не обязательный формат обычного разговора.
+
+Для нескольких требований можно передать `branches`: `id`, `demand_id`,
+`outcome_id`, `ground_ids`, `independence` (`single_ground`,
+`multiple_independent`, `interdependent`, `unknown`). Соответствующие claims
+имеют `slot` = `demand`, `outcome` или `ground`; каждый ground явно содержит
+`for_demand_ids`. Основание другого требования блокирует ветвь. Проверка
+подтверждает согласованность указанных связей, не юридическую достаточность.
+
+`input_context_sha256` связывает весь переданный контекст, включая основания
+и возражения. Правка при прежнем ID меняет хеш. Отсутствие branches отражается
+как `provided=false`, а не как установленное отсутствие иных оснований.
+Дата текущего checker release — 2026-09-06; более ранний as-of блокируется.
 
 Результат `structurally_traceable_candidate` означает заполненные связи,
 а не истинность тезиса; `needs_evidence` сохраняет неизвестность,
