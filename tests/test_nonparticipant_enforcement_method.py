@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -25,6 +26,7 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         owner = (REPO / "skills/ksrf-explore-arguments/SKILL.md").read_text()
         self.assertLess(owner.index(EXAMPLES["30"].name), owner.index(EXAMPLES["16"].name))
         sources = (REPO / "docs/KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md").read_text()
+        sources = re.sub(r"(?m)^\| \d+ \| ", "| ", sources)
         row_end = sources.index("\n", sources.index("| Семья Однодворцевых;"))
         self.assertTrue(sources[row_end + 1:].startswith("| Александр Николаевич Дубовец;"))
 

@@ -76,6 +76,7 @@ class ReparativeGuaranteeAccessTests(unittest.TestCase):
                 self.assertIn(url, text)
             self.assertIn("Григорий Викторович Вайпан", text)
         sources = (REPO / "docs/KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md").read_text()
+        sources = re.sub(r"(?m)^\| \d+ \| ", "| ", sources)
         row = next(line for line in sources.splitlines() if line.startswith("| Евгения Борисовна Шашева;"))
         self.assertEqual(row.count("|"), 6)
         self.assertIn(row + "\n| Семья Однодворцевых;", sources)
