@@ -5,6 +5,8 @@ description: Скилл превращает утверждённый портф
 
 # Сборка правовой позиции для жалобы в КС РФ
 
+Для спора о досмотре или отсутствии следа вмешательства используй [проверку фиксации и судебной проверяемости](references/inspection-recording-and-reviewability.md): отдельно оцени полномочие, процедуру и индивидуальный результат. Для социальных мер сопоставь [цель поддержки и позиции ведомств](../ksrf-doctrine-research/references/social-support-opinions-and-beneficiary.md).
+
 ## Вход filing-readiness v1
 
 Принимай только выбранные человеком issue options, verified `NormVersionPassport`, reviewed per-stage application records и adverse delta. Для filing-significant drafting selection/application/adverse gates должны иметь заранее созданные host-attested approvals полного содержимого по `../ksrf-complaint-cycle/references/router-and-state-machine.md`; raw human fields остаются диагностикой. Строй разделы с `SentenceEvidenceMap` по `../ksrf-complaint-cycle/references/filing-package-and-release.md`; unsupported proposition не расширяй риторикой и не передавай в release draft. Каждая строка с ролью `legal_holding` связывается с claim, полным current `SourceEvidence v1`, отдельной host-scope записью `ksrf_legal_holding`, точным pinpoint и `maximum_supported_inference`; произвольный ID или статус `verified` не являются доказательством.
