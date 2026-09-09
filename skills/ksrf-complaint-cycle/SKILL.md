@@ -5,6 +5,8 @@ description: "Скилл организует полный цикл обраще
 
 # Цикл жалобы в КС РФ
 
+Для публичного взыскания открой [квалификацию меры и самостоятельные гарантии](../ksrf-rights-argument-builder/references/public-levy-and-independent-guarantees.md), а при экспертных разногласиях — [сравнение заключений по вопросам](../ksrf-doctrine-research/references/contested-levy-opinions.md). Не смешивай разные сроки и не ставь все требования в зависимость от одного отраслевого названия.
+
 Для досмотра и отсутствия фиксации вмешательства открой [гарантии судебной проверяемости](../ksrf-rights-argument-builder/references/inspection-recording-and-reviewability.md). Для семейной поддержки и ведомственных ответов — [цели меры и самостоятельный интерес ребёнка](../ksrf-doctrine-research/references/social-support-opinions-and-beneficiary.md). Принадлежность каждого документа устанавливай по содержанию; полезное толкование не означает пересмотр дела.
 
 ## Роль
