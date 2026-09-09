@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-07T20:23:30Z",
+  "generated_at": "2026-09-09T17:11:53Z",
   "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "458cebb556b36be3093bb21963af72e1915d7427",
+  "remote_base_commit": "a34f51371793cd8382df93edfcf7397a86c21c47",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 15,
   "total_files": 283,
-  "total_bytes": 10662208,
-  "tree_sha256": "1b6e62faa7893c0295efdd7bb1a6e00a03bd87922d0fda2155d4bb523e676513",
+  "total_bytes": 10662235,
+  "tree_sha256": "cd2663608790844a358b2a443a82dc9f348fa3d5353c1a3f948acc9f1f9eeb25",
   "skills": [
     {
       "name": "ksrf-argument-patterns",
@@ -118,8 +118,8 @@
     {
       "name": "ksrf-rights-argument-builder",
       "files": 19,
-      "bytes": 329562,
-      "tree_sha256": "f728badc1505bdfd568da7df2eb3e78d328ca9e7d044430777821de32db2624b"
+      "bytes": 329589,
+      "tree_sha256": "563a52efe8f0217d9fc0698eca8b7ac1438d98cec32ad712719e08270b21da26"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",

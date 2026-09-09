@@ -91,11 +91,20 @@ class SocialTaxSourceMethodsTests(unittest.TestCase):
             self.assertIn("https://www.lfpspb.com/news/", content)
             self.assertIn("Николай Сергеевич Подоляцкий", content)
             self.assertIn("Фардана Абдулловна Хафизова", content)
-            self.assertIn("Максим Сосов", content)
+            self.assertIn("Максим Александрович Сосов", content)
             self.assertIn("](https://law-paragon.ru/paragonteam/)", content)
             self.assertIn("](https://profile.ru/society/neispovedimye-puti-importa-3856/)", content)
             self.assertNotIn("https://pag.company/", content)
             self.assertIn("](https://www.zdravo-expo.ru/ru/ci/20055/)", content)
+
+    def test_pag_author_full_name_is_consistent(self) -> None:
+        sources = [self.method_text("ksrf-rights-argument-builder")]
+        for filename in ("KSRF_ANALYZED_AUTHORS.md", "KSRF_PROJECT_WORK_AND_PUBLIC_SOURCES.md"):
+            sources.append((REPO / "docs" / filename).read_text())
+        for content in sources:
+            self.assertIn("Максим Александрович Сосов", content)
+            self.assertNotIn("Соснов", content)
+            self.assertNotRegex(content, r"Максим(?:а)? Сосов(?:а)?")
 
     def test_install_keeps_methods_without_source_evals(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
