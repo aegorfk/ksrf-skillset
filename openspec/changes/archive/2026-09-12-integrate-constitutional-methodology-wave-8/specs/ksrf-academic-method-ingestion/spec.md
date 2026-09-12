@@ -1,11 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Constitutional fact proof routes preserve source dependence
-The complaint route SHALL distinguish a fact's descriptive or inferential mode,
-each concrete channel instance, its canonical dependency-DAG evidence, origin
-and dependency group, adversarial test availability and maximum supported
-inference before treating multiple documents as corroboration. Dependency
-status SHALL remain separate from support quality.
+The complaint route SHALL distinguish a fact's descriptive or inferential mode, each concrete channel instance, its canonical dependency-DAG evidence, origin and dependency group, adversarial test availability and maximum supported inference before treating multiple documents as corroboration. Dependency status SHALL remain separate from support quality.
 
 #### Scenario: One report appears through three actors
 - **WHEN** a party files a report, an expert cites it and a court reproduces the same report
@@ -15,13 +11,7 @@ status SHALL remain separate from support quality.
 - **AND** repetition through different actors is not counted as independent proof of an individual fact.
 
 ### Requirement: Question substitution is tested before constitutional framing
-The autonomous reasoning route SHALL freeze the material legal question only
-before exposure to a salient analogy or known outcome, identify an easier
-substituted question and repeat the inference under a changed exposure order
-only through fresh isolated reviewers bound to the same input when order may
-have affected framing. A reviewer already exposed to the item SHALL use a
-marked post-exposure reconstruction and SHALL NOT claim an independent or
-outcome-blind baseline.
+The autonomous reasoning route SHALL freeze the material legal question only before exposure to a salient analogy or known outcome, identify an easier substituted question and repeat the inference under a changed exposure order only through fresh isolated reviewers bound to the same input when order may have affected framing. A reviewer already exposed to the item SHALL use a marked post-exposure reconstruction and SHALL NOT claim an independent or outcome-blind baseline.
 
 #### Scenario: Famous favorable case was visible before any baseline
 - **WHEN** the known outcome was already exposed and encourages the analyst to ask whether the result is unfair or similar instead of which normative criterion caused the harm
@@ -36,13 +26,7 @@ outcome-blind baseline.
 - **AND** a replay by an already exposed reviewer is marked non-independent or unavailable rather than a blind order test.
 
 ### Requirement: Advisory material is classified by function, type, mode and effect
-The route SHALL classify constitutional advice, consultation, expert input or
-institutional opinion by advisor, advisee, mandate, independence, timing,
-function, content type, formal mode, publicity, response, uptake and causal role,
-without deriving legal authority from the document's title or practical influence.
-It SHALL distinguish full-text/source evidence, actual delivery, publication and
-decision lock-in, reuse the canonical uptake ledger, and report record sufficiency
-separately from permitted legal use.
+The route SHALL classify constitutional advice, consultation, expert input or institutional opinion by advisor, advisee, mandate, independence, timing, function, content type, formal mode, publicity, response, uptake and causal role, without deriving legal authority from the document's title or practical influence. It SHALL distinguish full-text/source evidence, actual delivery, publication and decision lock-in, reuse the canonical uptake ledger, and report record sufficiency separately from permitted legal use.
 
 #### Scenario: Advice is published late but delivery is unknown
 - **WHEN** an opinion is published after the operative choice was fixed but no evidence establishes when it was delivered to the advisee
@@ -61,13 +45,7 @@ separately from permitted legal use.
 - **AND** habitual compliance does not by itself create a Russian legal duty or filing-ready proposition.
 
 ### Requirement: Quantified risk is separated from legal classification
-The route SHALL, when an act relies on a probability, score, percentile, ratio
-or qualitative risk category, separately record the predicted event, time horizon,
-reference population, instrument and version, estimate and uncertainty,
-presentation format, threshold owner, error trade-off, legal criterion, actual
-reliance and independent grounds. It SHALL keep measurement, representation,
-legal-threshold, norm-application and outcome-causation statuses independent and
-reuse canonical indicator, application and automated-decision records when they exist.
+The route SHALL, when an act relies on a probability, score, percentile, ratio or qualitative risk category, separately record the predicted event, time horizon, reference population, instrument and version, estimate and uncertainty, presentation format, threshold owner, error trade-off, legal criterion, actual reliance and independent grounds. It SHALL keep measurement, representation, legal-threshold, norm-application and outcome-causation statuses independent and reuse canonical indicator, application and automated-decision records when they exist.
 
 #### Scenario: High-risk label without scale or population
 - **WHEN** an adverse act uses a high-risk label but omits the event, horizon, reference group, estimate range and cutoff source
@@ -81,10 +59,7 @@ reuse canonical indicator, application and automated-decision records when they 
 - **AND** no complaint-ready claim is produced from numerical completeness alone.
 
 ### Requirement: Independent grounds do not erase proven implicit norm use
-The application route SHALL preserve `norm_use_status=reasoning_linked_implicit`
-when a complete verified court-authored record proves use of the norm's precise
-logic, even if `outcome_causation=independent_sufficient_ground` blocks the
-causal-harm gate. In that combination the route SHALL NOT return `not_applied`.
+The application route SHALL preserve `norm_use_status=reasoning_linked_implicit` when a complete verified court-authored record proves use of the norm's precise logic, even if `outcome_causation=independent_sufficient_ground` blocks the causal-harm gate. In that combination the route SHALL NOT return `not_applied`.
 
 #### Scenario: Implicit use and an independent sufficient ground coexist
 - **WHEN** a complete approved record proves court-authored use of the norm's precise logic but another sufficient ground independently sustains the same result
@@ -93,11 +68,7 @@ causal-harm gate. In that combination the route SHALL NOT return `not_applied`.
 - **AND** the route does not relabel the norm as not applied or produce a complaint-ready causal claim.
 
 ### Requirement: Wave-eight source presentation remains self-contained and role-accurate
-Public documentation SHALL record all four received file-level records, exact
-hashes, bibliographic identities, page locators, duplicate relationships,
-chapter authors and overlap dispositions while separately reporting the number
-of independent intellectual source families. Runtime references SHALL remain
-usable without the files, authors, titles, identifiers or network access.
+Public documentation SHALL record all four received file-level records, exact hashes, bibliographic identities, page locators, duplicate relationships, chapter authors and overlap dispositions while separately reporting the number of independent intellectual source families. Runtime references SHALL remain usable without the files, authors, titles, identifiers or network access.
 
 #### Scenario: Edited volume supplies only selected chapters
 - **WHEN** a method comes from a chapter in an edited handbook or yearbook

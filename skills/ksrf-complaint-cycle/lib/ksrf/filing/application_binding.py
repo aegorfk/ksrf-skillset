@@ -513,6 +513,7 @@ def _direct_span_is_positive(
     if (
         not _span_matches_record(record, span)
         or not span.has_full_act_locator
+        or not span.quote.strip()
         or span.inference_status == "contradicted"
     ):
         return False
@@ -534,6 +535,7 @@ def _implicit_span_is_positive(
         proof.inference_status == "contradicted"
         or not _span_matches_record(record, span)
         or not span.has_full_act_locator
+        or not span.quote.strip()
         or span.inference_status == "contradicted"
     ):
         return False
@@ -667,6 +669,7 @@ def _chain_integrity_errors(
             )
         if not (
             span.has_full_act_locator
+            and bool(span.quote.strip())
             and span.reasoning_role == "incorporation"
             and span.speaker in {"court", "disposition"}
         ):
@@ -694,6 +697,7 @@ def _chain_positive_proof_ids(
         if (
             _span_matches_record(record, span)
             and span.has_full_act_locator
+            and bool(span.quote.strip())
             and span.inference_status != "contradicted"
             and span.reasoning_role == "incorporation"
             and span.speaker in {"court", "disposition"}

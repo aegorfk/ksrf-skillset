@@ -89,14 +89,17 @@
       "input_manifest": {
         "scenario": "implicit_norm_use_with_independent_ground",
         "court_authored_logic": true,
-        "approved_full_record": true,
+        "named_review_marker": true,
+        "trusted_full_record_approval": false,
         "independent_ground": true
       },
-      "input_manifest_sha256": "aa29b9868f374f0cc52fdade254b85ba6780982e011144a98eeead080b7dfe96",
+      "input_manifest_sha256": "39710dcccf187bbd36d1cb87c4da6ac9d329015bbc29700c1f94c278cf2c85eb",
       "expected": {
         "norm_use_status": "reasoning_linked_implicit",
         "outcome_causation": "independent_sufficient_ground",
         "application_status": "application_unclear",
+        "review_status": "diagnostic_named_marker_only",
+        "trusted_approval_status": "required",
         "not_applied": false,
         "causal_harm_gate": "blocked"
       }

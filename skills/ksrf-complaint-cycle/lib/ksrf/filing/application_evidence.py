@@ -9,6 +9,8 @@ be consolidated after the neighbouring package contracts stabilise.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
+import re
 from typing import Any, Callable, Mapping, Sequence
 
 from .norm_versions import (
@@ -97,12 +99,26 @@ IMPLICIT_PREMISES = (
     "counterfactual_outcome_dependence",
     "no_independent_sufficient_ground",
 )
+_RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
 
 
 def _require_member(value: str, allowed: frozenset[str], label: str) -> None:
     if value not in allowed:
         choices = ", ".join(sorted(allowed))
         raise ValueError(f"{label} must be one of: {choices}; got {value!r}")
+
+
+def _is_rfc3339(value: str | None) -> bool:
+    if not value or not _RFC3339_RE.fullmatch(value):
+        return False
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
 
 @dataclass(frozen=True)
@@ -221,7 +237,7 @@ class HumanReview:
         return (
             self.state == "approved"
             and bool(self.reviewer and self.reviewer.strip())
-            and bool(self.reviewed_at and self.reviewed_at.strip())
+            and _is_rfc3339(self.reviewed_at)
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -287,6 +303,35 @@ class ApplicationEvidenceRecord:
         evidence_ids = [span.evidence_id for span in self.evidence]
         if len(evidence_ids) != len(set(evidence_ids)):
             raise ValueError("evidence_id values must be unique inside an application record")
+        premise_names = [proof.premise for proof in self.implicit_premises]
+        if len(premise_names) != len(set(premise_names)):
+            raise ValueError(
+                "implicit premise values must be unique inside an application record"
+            )
+        if (
+            self.affirmative_non_application is not None
+            and self.affirmative_non_application.reason
+            == "complete_independent_ground"
+            and self.outcome_causation != "independent_sufficient_ground"
+        ):
+            raise ValueError(
+                "complete independent ground assertion requires matching outcome causation"
+            )
+        has_court_independent_ground = any(
+            span.reasoning_role == "independent_ground"
+            and span.speaker in {"court", "disposition"}
+            and span.has_full_act_locator
+            and bool(span.quote.strip())
+            and span.inference_status != "contradicted"
+            for span in self.evidence
+        )
+        if (
+            has_court_independent_ground
+            and self.outcome_causation != "independent_sufficient_ground"
+        ):
+            raise ValueError(
+                "court independent ground evidence requires matching outcome causation"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -740,7 +785,11 @@ def _usable_full_act_spans(
     spans: list[EvidenceSpan] = []
     for evidence_id in evidence_ids:
         span = evidence.get(evidence_id)
-        if span is None or not span.has_full_act_locator:
+        if (
+            span is None
+            or not span.has_full_act_locator
+            or not span.quote.strip()
+        ):
             return ()
         if span.inference_status == "contradicted":
             return ()
@@ -758,6 +807,7 @@ def _role_is_proven(
         span.reasoning_role == role
         and span.speaker in speakers
         and span.has_full_act_locator
+        and bool(span.quote.strip())
         and span.inference_status != "contradicted"
         for span in record.evidence
     )
@@ -790,24 +840,54 @@ def _affirmative_non_application_is_proven(
         },
         "operative_mismatch": {"operative_mismatch"},
     }
-    return any(
+    return all(
         span.reasoning_role in roles_by_reason[assertion.reason]
+        and span.speaker in {"court", "disposition"}
         for span in spans
+    )
+
+
+def _proven_independent_ground_evidence_ids(
+    record: ApplicationEvidenceRecord,
+) -> tuple[str, ...]:
+    return tuple(
+        span.evidence_id
+        for span in record.evidence
+        if span.reasoning_role == "independent_ground"
+        and span.speaker in {"court", "disposition"}
+        and span.has_full_act_locator
+        and bool(span.quote.strip())
+        and span.inference_status != "contradicted"
     )
 
 
 def _implicit_missing_premises(record: ApplicationEvidenceRecord) -> tuple[str, ...]:
     proofs = {proof.premise: proof for proof in record.implicit_premises}
+    evidence = _evidence_by_id(record)
     missing: list[str] = []
     for premise in IMPLICIT_PREMISES:
         proof = proofs.get(premise)
         if proof is None or not proof.conclusion.strip() or not proof.evidence_ids:
             missing.append(premise)
             continue
-        spans = _usable_full_act_spans(record, proof.evidence_ids)
-        if not spans:
+        if proof.inference_status == "contradicted":
+            missing.append(f"{premise}:inference_contradicted")
+            continue
+        spans = tuple(evidence.get(evidence_id) for evidence_id in proof.evidence_ids)
+        if any(span is None for span in spans):
+            missing.append(f"{premise}:evidence_missing")
+            continue
+        usable_spans = tuple(span for span in spans if span is not None)
+        if any(span.inference_status == "contradicted" for span in usable_spans):
+            missing.append(f"{premise}:evidence_contradicted")
+            continue
+        if any(not span.has_full_act_locator for span in usable_spans):
             missing.append(f"{premise}:full_act_locator_required")
             continue
+        if any(not span.quote.strip() for span in usable_spans):
+            missing.append(f"{premise}:quote_required")
+            continue
+        spans = usable_spans
         if premise == "issue_before_court" and not any(
             span.reasoning_role == "issue_before_court" for span in spans
         ):
@@ -838,18 +918,26 @@ def _implicit_missing_premises(record: ApplicationEvidenceRecord) -> tuple[str, 
     return tuple(dict.fromkeys(missing))
 
 
-def _proven_implicit_norm_use_evidence_ids(
+def _reviewed_implicit_norm_use_evidence_ids(
     record: ApplicationEvidenceRecord,
 ) -> tuple[str, ...]:
-    """Return proof of court-authored implicit norm use without deciding causation."""
+    """Return a reviewed implicit-use candidate without deciding causation."""
 
-    if record.norm_use_status != "reasoning_linked_implicit":
+    if (
+        record.norm_use_status != "reasoning_linked_implicit"
+        or not record.human_review.is_named_approval
+    ):
         return ()
     proofs = {proof.premise: proof for proof in record.implicit_premises}
     evidence_ids: list[str] = []
     for premise in ("issue_before_court", "operative_norm_logic"):
         proof = proofs.get(premise)
-        if proof is None or not proof.conclusion.strip() or not proof.evidence_ids:
+        if (
+            proof is None
+            or not proof.conclusion.strip()
+            or not proof.evidence_ids
+            or proof.inference_status == "contradicted"
+        ):
             return ()
         spans = _usable_full_act_spans(record, proof.evidence_ids)
         if not spans:
@@ -872,9 +960,18 @@ def _preserve_implicit_use_when_independent_ground_controls(
     record: ApplicationEvidenceRecord,
     independent_ground_evidence_ids: tuple[str, ...],
 ) -> ApplicationClassification | None:
-    norm_use_evidence_ids = _proven_implicit_norm_use_evidence_ids(record)
+    norm_use_evidence_ids = _reviewed_implicit_norm_use_evidence_ids(record)
     if not norm_use_evidence_ids:
-        return None
+        if record.norm_use_status != "reasoning_linked_implicit":
+            return None
+        return ApplicationClassification(
+            status="application_unclear",
+            reason_codes=(
+                "implicit_norm_use_not_verified",
+                "independent_ground_blocks_outcome_causation",
+            ),
+            evidence_ids=tuple(dict.fromkeys(independent_ground_evidence_ids)),
+        )
     return ApplicationClassification(
         status="application_unclear",
         reason_codes=(
@@ -944,16 +1041,11 @@ def classify_application(record: ApplicationEvidenceRecord) -> ApplicationClassi
             ),
         )
 
-    if record.outcome_causation == "independent_sufficient_ground" and _role_is_proven(
-        record,
-        "independent_ground",
-        speakers=frozenset({"court", "disposition"}),
+    independent_ground_evidence_ids = _proven_independent_ground_evidence_ids(record)
+    if (
+        record.outcome_causation == "independent_sufficient_ground"
+        and independent_ground_evidence_ids
     ):
-        independent_ground_evidence_ids = tuple(
-            span.evidence_id
-            for span in record.evidence
-            if span.reasoning_role == "independent_ground"
-        )
         preserved = _preserve_implicit_use_when_independent_ground_controls(
             record,
             independent_ground_evidence_ids,
@@ -969,12 +1061,19 @@ def classify_application(record: ApplicationEvidenceRecord) -> ApplicationClassi
     if record.norm_use_status == "reasoning_linked_implicit":
         missing = _implicit_missing_premises(record)
         if not missing:
-            reasons = ["conjunctive_implicit_proof_complete"]
             if not record.human_review.is_named_approval:
-                reasons.append("human_review_pending")
+                return ApplicationClassification(
+                    status="application_unclear",
+                    reason_codes=("implicit_record_approval_required",),
+                    evidence_ids=tuple(
+                        evidence_id
+                        for proof in record.implicit_premises
+                        for evidence_id in proof.evidence_ids
+                    ),
+                )
             return ApplicationClassification(
                 status="implicitly_applied_proven",
-                reason_codes=tuple(reasons),
+                reason_codes=("conjunctive_implicit_proof_complete",),
                 evidence_ids=tuple(
                     evidence_id
                     for proof in record.implicit_premises
@@ -1089,6 +1188,8 @@ def assess_application_chain(
             if span.reasoning_role == "incorporation"
             and span.speaker == "court"
             and span.has_full_act_locator
+            and bool(span.quote.strip())
+            and span.inference_status != "contradicted"
         )
         incorporated = tuple(
             record_id
@@ -1124,6 +1225,8 @@ def assess_application_chain(
         if span.reasoning_role == "independent_ground"
         and span.has_full_act_locator
         and span.speaker in {"court", "disposition"}
+        and bool(span.quote.strip())
+        and span.inference_status != "contradicted"
     )
     if earlier_positive and (
         final.relation_to_prior == "superseding_ground"

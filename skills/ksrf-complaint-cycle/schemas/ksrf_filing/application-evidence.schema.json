@@ -25,6 +25,62 @@
     "human_review",
     "decision_rationale"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "affirmative_non_application": {
+            "type": "object",
+            "required": ["reason"],
+            "properties": {
+              "reason": {"const": "complete_independent_ground"}
+            }
+          }
+        },
+        "required": ["affirmative_non_application"]
+      },
+      "then": {
+        "properties": {
+          "outcome_causation": {"const": "independent_sufficient_ground"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "source_kind",
+                "locator",
+                "quote",
+                "speaker",
+                "reasoning_role",
+                "inference_status"
+              ],
+              "properties": {
+                "source_kind": {"const": "full_act"},
+                "locator": {"type": "object"},
+                "quote": {"type": "string", "pattern": "\\S"},
+                "speaker": {"enum": ["court", "disposition"]},
+                "reasoning_role": {"const": "independent_ground"},
+                "inference_status": {
+                  "enum": ["observed", "inferred", "human_confirmed"]
+                }
+              }
+            }
+          }
+        },
+        "required": ["evidence"]
+      },
+      "then": {
+        "properties": {
+          "outcome_causation": {"const": "independent_sufficient_ground"}
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": {"const": "1.0.0"},
     "record_id": {"type": "string", "minLength": 1},
@@ -88,7 +144,49 @@
     },
     "implicit_premises": {
       "type": "array",
-      "items": {"$ref": "#/$defs/implicit_premise"}
+      "items": {"$ref": "#/$defs/implicit_premise"},
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["premise"],
+            "properties": {"premise": {"const": "issue_before_court"}}
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["premise"],
+            "properties": {"premise": {"const": "operative_norm_logic"}}
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["premise"],
+            "properties": {
+              "premise": {"const": "counterfactual_outcome_dependence"}
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["premise"],
+            "properties": {
+              "premise": {"const": "no_independent_sufficient_ground"}
+            }
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ]
     },
     "affirmative_non_application": {
       "oneOf": [
@@ -236,6 +334,8 @@
         },
         "reviewed_at": {
           "type": ["string", "null"],
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
           "description": "Diagnostic legacy value only; trusted approval time comes from the approval ledger."
         },
         "note": {"type": "string"}

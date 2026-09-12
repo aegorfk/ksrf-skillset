@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 import sys
 import unittest
 from pathlib import Path
 from typing import Any, Mapping
+
+from jsonschema import Draft202012Validator, FormatChecker
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +30,7 @@ from ksrf.filing.application_evidence import (  # noqa: E402
     assess_application_chain,
     build_preservation_rule_evidence,
     classify_application,
+    evaluate_application_admissibility,
     preservation_rule_review_approval_request,
 )
 from ksrf.filing.norm_versions import (  # noqa: E402
@@ -255,7 +259,40 @@ def _implicit_record_payload() -> dict[str, Any]:
             "inference_status": "human_confirmed",
         },
     ]
+    payload["human_review"] = {
+        "state": "approved",
+        "reviewer": "Reviewer A",
+        "reviewed_at": "2026-09-12T18:00:00Z",
+        "note": "Полный record и premise-level выводы проверены.",
+    }
     payload["decision_rationale"] = "Неявное применение доказано по всем предпосылкам."
+    return payload
+
+
+def _implicit_independent_ground_payload() -> dict[str, Any]:
+    payload = _implicit_record_payload()
+    payload["outcome_causation"] = "independent_sufficient_ground"
+    payload["evidence"] = payload["evidence"][:2]
+    payload["evidence"].append(
+        {
+            "evidence_id": "E-INDEPENDENT",
+            "claim_id": "CLAIM-A",
+            "norm_id": "NORM-1",
+            "act_id": "ACT-APP-A",
+            "stage": "first_instance",
+            "source_kind": "full_act",
+            "locator": {"kind": "paragraph", "value": "абз. 34"},
+            "quote": "Самостоятельное основание достаточно для того же результата.",
+            "speaker": "court",
+            "reasoning_role": "independent_ground",
+            "inference_status": "observed",
+        }
+    )
+    payload["implicit_premises"] = payload["implicit_premises"][:2]
+    payload["affirmative_non_application"] = {
+        "reason": "complete_independent_ground",
+        "evidence_ids": ["E-INDEPENDENT"],
+    }
     return payload
 
 
@@ -455,6 +492,57 @@ class MutatingApplicationAuthority(StaticApplicationAuthority):
 
 
 class ApplicationBindingRuntimeTests(unittest.TestCase):
+    def test_wave_e_contract_binds_named_marker_without_trusted_approval(self) -> None:
+        fixture_path = (
+            SKILL_ROOT.parents[1]
+            / "tests"
+            / "fixtures"
+            / "academic_wave_8_forward_contracts.json"
+        )
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        contract = next(
+            item
+            for item in fixture["cases"]
+            if item["id"] == "implicit_norm_use_with_independent_ground"
+        )
+        self.assertIs(contract["input_manifest"]["named_review_marker"], True)
+        self.assertIs(
+            contract["input_manifest"]["trusted_full_record_approval"], False
+        )
+
+        record = application_record_from_dict(
+            _implicit_independent_ground_payload()
+        )
+        classification = classify_application(record)
+
+        self.assertTrue(record.human_review.is_named_approval)
+        self.assertEqual(
+            "diagnostic_named_marker_only",
+            contract["expected"]["review_status"],
+        )
+        self.assertEqual("required", contract["expected"]["trusted_approval_status"])
+        self.assertEqual(
+            contract["expected"]["norm_use_status"], record.norm_use_status
+        )
+        self.assertEqual(
+            contract["expected"]["outcome_causation"], record.outcome_causation
+        )
+        self.assertEqual(
+            contract["expected"]["application_status"], classification.status
+        )
+        self.assertNotIn("complete_independent_ground", classification.reason_codes)
+        self.assertFalse(contract["expected"]["not_applied"])
+        decision = evaluate_application_admissibility(
+            record,
+            assess_application_chain([record]),
+            norm_version_status="unknown",
+            version_evidence_ids=(),
+            preservation_rule_status="unknown",
+        )
+        self.assertFalse(decision.passed)
+        self.assertIn("human_application_review_required", decision.blockers)
+        self.assertIn("causal_harm_not_proven", decision.blockers)
+
     def test_exact_positive_resolution_emits_current_receipt(self) -> None:
         request = _request()
 
@@ -580,6 +668,8 @@ class ApplicationBindingRuntimeTests(unittest.TestCase):
 
     def test_human_confirmed_reviewer_counterproof_is_allowed(self) -> None:
         payload = _implicit_record_payload()
+        classification = classify_application(application_record_from_dict(payload))
+        self.assertEqual("implicitly_applied_proven", classification.status)
         request = _request(
             [
                 "E-COUNTERFACTUAL",
@@ -603,29 +693,7 @@ class ApplicationBindingRuntimeTests(unittest.TestCase):
     def test_independent_ground_does_not_erase_proven_implicit_norm_use(
         self,
     ) -> None:
-        payload = _implicit_record_payload()
-        payload["outcome_causation"] = "independent_sufficient_ground"
-        payload["evidence"] = payload["evidence"][:2]
-        payload["evidence"].append(
-            {
-                "evidence_id": "E-INDEPENDENT",
-                "claim_id": "CLAIM-A",
-                "norm_id": "NORM-1",
-                "act_id": "ACT-APP-A",
-                "stage": "first_instance",
-                "source_kind": "full_act",
-                "locator": {"kind": "paragraph", "value": "абз. 34"},
-                "quote": "Самостоятельное основание достаточно для того же результата.",
-                "speaker": "court",
-                "reasoning_role": "independent_ground",
-                "inference_status": "observed",
-            }
-        )
-        payload["implicit_premises"] = payload["implicit_premises"][:2]
-        payload["affirmative_non_application"] = {
-            "reason": "complete_independent_ground",
-            "evidence_ids": ["E-INDEPENDENT"],
-        }
+        payload = _implicit_independent_ground_payload()
 
         classification = classify_application(application_record_from_dict(payload))
 
@@ -650,6 +718,428 @@ class ApplicationBindingRuntimeTests(unittest.TestCase):
             classification,
             classification_without_duplicate_assertion,
         )
+
+    def test_unapproved_implicit_candidate_stays_unclear_with_independent_ground(
+        self,
+    ) -> None:
+        for state, reviewer, reviewed_at in (
+            ("pending", None, None),
+            ("rejected", "Reviewer A", "2026-09-12T18:00:00Z"),
+            ("needs_changes", "Reviewer A", "2026-09-12T18:00:00Z"),
+            ("approved", None, "2026-09-12T18:00:00Z"),
+            ("approved", "Reviewer A", "not-a-timestamp"),
+            ("approved", "Reviewer A", "2026-13-40T25:61:61Z"),
+        ):
+            with self.subTest(state=state, reviewer=reviewer):
+                payload = _implicit_independent_ground_payload()
+                payload["human_review"] = {
+                    "state": state,
+                    "reviewer": reviewer,
+                    "reviewed_at": reviewed_at,
+                    "note": "",
+                }
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    (
+                        "implicit_norm_use_not_verified",
+                        "independent_ground_blocks_outcome_causation",
+                    ),
+                    classification.reason_codes,
+                )
+                self.assertEqual(("E-INDEPENDENT",), classification.evidence_ids)
+
+                payload["affirmative_non_application"] = None
+                self.assertEqual(
+                    classification,
+                    classify_application(application_record_from_dict(payload)),
+                )
+
+    def test_contradicted_implicit_premise_is_not_preserved(
+        self,
+    ) -> None:
+        for premise_index, premise in enumerate(
+            ("issue_before_court", "operative_norm_logic")
+        ):
+            with self.subTest(premise=premise):
+                payload = _implicit_independent_ground_payload()
+                payload["implicit_premises"][premise_index][
+                    "inference_status"
+                ] = "contradicted"
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    (
+                        "implicit_norm_use_not_verified",
+                        "independent_ground_blocks_outcome_causation",
+                    ),
+                    classification.reason_codes,
+                )
+                self.assertNotIn(
+                    "implicit_norm_use_preserved", classification.reason_codes
+                )
+
+                request = _request(
+                    ["E-INDEPENDENT", "E-ISSUE", "E-LOGIC"],
+                    maximum_supported_inference="application_unclear",
+                )
+                errors, receipt = resolve_application_finding_evidence_binding(
+                    request,
+                    StaticApplicationAuthority(
+                        _resolution_for_payloads(
+                            request,
+                            selected_payload=payload,
+                        )
+                    ),
+                )
+                self.assertIn(
+                    "application_binding_implicit_premise_inference_invalid:"
+                    f"{premise}",
+                    errors,
+                )
+                self.assertIsNone(receipt)
+
+                payload["affirmative_non_application"] = None
+                generic = classify_application(application_record_from_dict(payload))
+                self.assertEqual(classification, generic)
+
+    def test_unusable_implicit_span_is_not_preserved(self) -> None:
+        for label, evidence_index, field, value in (
+            ("contradicted", 0, "inference_status", "contradicted"),
+            ("blank_quote", 1, "quote", ""),
+            ("missing_locator", 0, "locator", None),
+        ):
+            with self.subTest(label=label):
+                payload = _implicit_independent_ground_payload()
+                payload["evidence"][evidence_index][field] = value
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    (
+                        "implicit_norm_use_not_verified",
+                        "independent_ground_blocks_outcome_causation",
+                    ),
+                    classification.reason_codes,
+                )
+                payload["affirmative_non_application"] = None
+                self.assertEqual(
+                    classification,
+                    classify_application(application_record_from_dict(payload)),
+                )
+
+    def test_unapproved_complete_implicit_record_is_not_called_proven(self) -> None:
+        for state, reviewer, reviewed_at in (
+            ("pending", None, None),
+            ("rejected", "Reviewer A", "2026-09-12T18:00:00Z"),
+            ("needs_changes", "Reviewer A", "2026-09-12T18:00:00Z"),
+            ("approved", "Reviewer A", None),
+            ("approved", "Reviewer A", "not-a-timestamp"),
+            ("approved", "Reviewer A", "2026-13-40T25:61:61Z"),
+        ):
+            with self.subTest(state=state, reviewed_at=reviewed_at):
+                payload = _implicit_record_payload()
+                payload["human_review"] = {
+                    "state": state,
+                    "reviewer": reviewer,
+                    "reviewed_at": reviewed_at,
+                    "note": "",
+                }
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    ("implicit_record_approval_required",),
+                    classification.reason_codes,
+                )
+
+    def test_unusable_implicit_span_blocks_ordinary_proof(self) -> None:
+        for label, evidence_index, field, value, expected_gap in (
+            (
+                "contradicted_issue",
+                0,
+                "inference_status",
+                "contradicted",
+                "issue_before_court:evidence_contradicted",
+            ),
+            (
+                "missing_issue_locator",
+                0,
+                "locator",
+                None,
+                "issue_before_court:full_act_locator_required",
+            ),
+            (
+                "blank_logic_quote",
+                1,
+                "quote",
+                "   ",
+                "operative_norm_logic:quote_required",
+            ),
+        ):
+            with self.subTest(label=label):
+                payload = _implicit_record_payload()
+                payload["evidence"][evidence_index][field] = value
+
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    ("implicit_application_not_proven",),
+                    classification.reason_codes,
+                )
+                self.assertIn(expected_gap, classification.missing_premises)
+
+    def test_contradicted_implicit_premise_blocks_ordinary_proof(self) -> None:
+        for premise_index, premise in enumerate(
+            (
+                "issue_before_court",
+                "operative_norm_logic",
+                "counterfactual_outcome_dependence",
+                "no_independent_sufficient_ground",
+            )
+        ):
+            with self.subTest(premise=premise):
+                payload = _implicit_record_payload()
+                payload["implicit_premises"][premise_index][
+                    "inference_status"
+                ] = "contradicted"
+                classification = classify_application(
+                    application_record_from_dict(payload)
+                )
+                self.assertEqual("application_unclear", classification.status)
+                self.assertEqual(
+                    ("implicit_application_not_proven",),
+                    classification.reason_codes,
+                )
+                self.assertIn(
+                    f"{premise}:inference_contradicted",
+                    classification.missing_premises,
+                )
+
+    def test_duplicate_implicit_premise_is_rejected_in_every_order(self) -> None:
+        for contradicted_first in (True, False):
+            with self.subTest(contradicted_first=contradicted_first):
+                payload = _implicit_record_payload()
+                contradicted = deepcopy(payload["implicit_premises"][0])
+                contradicted["inference_status"] = "contradicted"
+                if contradicted_first:
+                    payload["implicit_premises"].insert(0, contradicted)
+                else:
+                    payload["implicit_premises"].append(contradicted)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "implicit premise values must be unique",
+                ):
+                    application_record_from_dict(payload)
+
+    def test_application_evidence_schema_rejects_duplicate_premises(self) -> None:
+        schema = json.loads(
+            (
+                SKILL_ROOT
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        payload = _implicit_record_payload()
+        payload["implicit_premises"].append(
+            deepcopy(payload["implicit_premises"][0])
+        )
+
+        errors = list(Draft202012Validator(schema).iter_errors(payload))
+
+        self.assertTrue(
+            any(error.validator == "maxContains" for error in errors),
+            errors,
+        )
+
+    def test_application_evidence_schema_accepts_canonical_implicit_record(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (
+                SKILL_ROOT
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        Draft202012Validator.check_schema(schema)
+
+        errors = list(
+            Draft202012Validator(schema).iter_errors(_implicit_record_payload())
+        )
+
+        self.assertEqual([], errors)
+
+    def test_application_evidence_schema_rejects_malformed_review_timestamp(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (
+                SKILL_ROOT
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        payload = _implicit_record_payload()
+        for value, expected_validator in (("not-a-timestamp", "pattern"),):
+            with self.subTest(value=value):
+                payload["human_review"]["reviewed_at"] = value
+                errors = list(
+                    Draft202012Validator(
+                        schema,
+                        format_checker=FormatChecker(),
+                    ).iter_errors(payload)
+                )
+                self.assertTrue(
+                    any(
+                        error.validator == expected_validator
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_independent_ground_still_proves_non_application_without_use_candidate(
+        self,
+    ) -> None:
+        payload = _implicit_independent_ground_payload()
+        payload["norm_use_status"] = "unclear"
+        payload["implicit_premises"] = []
+
+        classification = classify_application(application_record_from_dict(payload))
+
+        self.assertEqual("not_applied", classification.status)
+        self.assertEqual(
+            ("complete_independent_ground",), classification.reason_codes
+        )
+        payload["affirmative_non_application"] = None
+        self.assertEqual(
+            classification,
+            classify_application(application_record_from_dict(payload)),
+        )
+
+    def test_party_assertion_cannot_prove_complete_independent_ground(self) -> None:
+        payload = _implicit_independent_ground_payload()
+        payload["norm_use_status"] = "unclear"
+        payload["implicit_premises"] = []
+        payload["evidence"][-1]["speaker"] = "party"
+
+        classification = classify_application(application_record_from_dict(payload))
+
+        self.assertEqual("application_unclear", classification.status)
+        self.assertEqual(
+            ("silence_is_not_non_application",), classification.reason_codes
+        )
+
+    def test_independent_ground_assertion_requires_matching_causation_axis(
+        self,
+    ) -> None:
+        payload = _implicit_independent_ground_payload()
+        payload["outcome_causation"] = "determinative"
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "complete independent ground assertion requires matching outcome causation",
+        ):
+            application_record_from_dict(payload)
+
+    def test_court_independent_ground_span_requires_matching_causation_axis(
+        self,
+    ) -> None:
+        payload = _implicit_record_payload()
+        ground = deepcopy(_implicit_independent_ground_payload()["evidence"][-1])
+        payload["evidence"].append(ground)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "court independent ground evidence requires matching outcome causation",
+        ):
+            application_record_from_dict(payload)
+
+    def test_application_evidence_schema_rejects_causal_axis_conflicts(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (
+                SKILL_ROOT
+                / "schemas"
+                / "ksrf_filing"
+                / "application-evidence.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        payloads = []
+
+        assertion_payload = _implicit_independent_ground_payload()
+        assertion_payload["outcome_causation"] = "determinative"
+        payloads.append(assertion_payload)
+
+        evidence_payload = _implicit_record_payload()
+        evidence_payload["evidence"].append(
+            deepcopy(_implicit_independent_ground_payload()["evidence"][-1])
+        )
+        payloads.append(evidence_payload)
+
+        for payload in payloads:
+            with self.subTest(record_id=payload["record_id"]):
+                errors = list(Draft202012Validator(schema).iter_errors(payload))
+                self.assertTrue(
+                    any(error.validator == "const" for error in errors),
+                    errors,
+                )
+
+    def test_invalid_extra_independent_ground_span_is_not_reported_as_evidence(
+        self,
+    ) -> None:
+        for label, field, value in (
+            ("contradicted", "inference_status", "contradicted"),
+            ("party", "speaker", "party"),
+            ("missing_locator", "locator", None),
+            ("blank_quote", "quote", ""),
+        ):
+            for assertion_references_bad_span in (False, True):
+                with self.subTest(
+                    label=label,
+                    assertion_references_bad_span=assertion_references_bad_span,
+                ):
+                    payload = _implicit_independent_ground_payload()
+                    bad = deepcopy(payload["evidence"][-1])
+                    bad["evidence_id"] = "E-BAD"
+                    bad[field] = value
+                    payload["evidence"].append(bad)
+                    if assertion_references_bad_span:
+                        payload["affirmative_non_application"][
+                            "evidence_ids"
+                        ].append("E-BAD")
+                    else:
+                        payload["affirmative_non_application"] = None
+
+                    classification = classify_application(
+                        application_record_from_dict(payload)
+                    )
+
+                    self.assertEqual("application_unclear", classification.status)
+                    self.assertEqual(
+                        (
+                            "implicit_norm_use_preserved",
+                            "independent_ground_blocks_outcome_causation",
+                        ),
+                        classification.reason_codes,
+                    )
+                    self.assertEqual(
+                        ("E-ISSUE", "E-LOGIC", "E-INDEPENDENT"),
+                        classification.evidence_ids,
+                    )
 
     def test_contradicted_direct_span_is_not_positive_proof(self) -> None:
         payload = _positive_record_payload()
@@ -693,11 +1183,63 @@ class ApplicationBindingRuntimeTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "application_binding_chain_evidence_inference_invalid:"
-            "E-INCORPORATION",
+            "application_binding_evidence_inference_invalid:E-INCORPORATION",
             errors,
         )
+        self.assertIn("application_binding_chain_not_release_supported", errors)
         self.assertIsNone(receipt)
+
+    def test_blank_incorporation_quote_cannot_prove_survival(self) -> None:
+        final_payload = _incorporation_record_payload()
+        final_payload["evidence"][0]["quote"] = "   "
+        request = _request(
+            ["E-EXPRESS", "E-INCORPORATION", "E-OUTCOME", "E-RULE"]
+        )
+
+        errors, receipt = resolve_application_finding_evidence_binding(
+            request,
+            StaticApplicationAuthority(
+                _resolution_for_payloads(
+                    request,
+                    selected_payload=_positive_record_payload(),
+                    chain_payloads=[_positive_record_payload(), final_payload],
+                )
+            ),
+        )
+
+        self.assertIn("application_binding_chain_not_release_supported", errors)
+        self.assertIn("application_binding_positive_evidence_set_mismatch", errors)
+        self.assertIsNone(receipt)
+
+    def test_unusable_later_independent_ground_cannot_prove_supersession(
+        self,
+    ) -> None:
+        for label, field, value in (
+            ("blank_quote", "quote", "   "),
+            ("contradicted", "inference_status", "contradicted"),
+        ):
+            with self.subTest(label=label):
+                final_payload = _incorporation_record_payload()
+                final_payload["relation_to_prior"] = "superseding_ground"
+                final_payload["incorporated_record_ids"] = []
+                final_payload["outcome_causation"] = "independent_sufficient_ground"
+                final_payload["evidence"][0]["reasoning_role"] = (
+                    "independent_ground"
+                )
+                final_payload["evidence"][0][field] = value
+
+                chain = assess_application_chain(
+                    [
+                        application_record_from_dict(_positive_record_payload()),
+                        application_record_from_dict(final_payload),
+                    ]
+                )
+
+                self.assertEqual("unclear", chain.status)
+                self.assertEqual(
+                    ("superseding_ground_not_proven",),
+                    chain.reason_codes,
+                )
 
     def test_foreign_norm_incorporation_span_is_rejected(self) -> None:
         final_payload = _incorporation_record_payload()

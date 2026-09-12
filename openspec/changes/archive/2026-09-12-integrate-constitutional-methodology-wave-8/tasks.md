@@ -23,8 +23,8 @@
 - [x] 4.1 Render and visually inspect representative pages from every received PDF, including title/author and promoted-method locators.
 - [x] 4.2 Run targeted tests, the full test suite, strict OpenSpec validation, and a scan proving that runtime skills contain no new source identities or network dependency; repair the stale exact-digest metadata for the previously published case-triage official-retrieval route without changing that runtime file.
 - [x] 4.3 Run an independent forward review against the new behavioral cases; for the controlled-order case use fresh isolated reviewer contexts bound to the same input hash, and document that same-context replay is non-independent and that the result proves only bounded synthetic behavior.
-- [ ] 4.4 Complete tasks and verification records, sync the capability spec, and archive the OpenSpec change.
-- [ ] 4.5 Commit the exact allowlisted change, publish it to `aegorfk/ksrf-skillset:main`, verify the remote SHA, and synchronize the canonical global skills from the published tree.
+- [x] 4.4 Complete tasks and verification records, sync the capability spec, and archive the OpenSpec change.
+- [x] 4.5 Commit the exact allowlisted change, publish it to `aegorfk/ksrf-skillset:main`, verify the remote SHA, and synchronize the canonical global skills from the published tree.
 
 ## 5. Private Source Archive
 

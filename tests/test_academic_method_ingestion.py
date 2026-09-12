@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -16,6 +17,87 @@ def section(body: str, start: str, end: str) -> str:
 
 
 class RuntimeMethodDeltaTests(unittest.TestCase):
+    def test_wave_eight_openspec_json_keeps_all_continuation_clauses(self):
+        completed = subprocess.run(
+            [
+                "openspec",
+                "show",
+                "ksrf-academic-method-ingestion",
+                "--type",
+                "spec",
+                "--json",
+                "--no-interactive",
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(completed.stdout)
+        requirement_text = "\n".join(
+            item["text"] for item in payload["requirements"]
+        )
+        for continuation in (
+            "Dependency status SHALL remain separate from support quality.",
+            "SHALL NOT claim an independent or outcome-blind baseline.",
+            "record sufficiency separately from permitted legal use.",
+            "reuse canonical indicator, application and automated-decision records when they exist.",
+            "SHALL NOT return `not_applied`.",
+            "Runtime references SHALL remain usable without the files, authors, titles, identifiers or network access.",
+        ):
+            with self.subTest(continuation=continuation):
+                self.assertIn(continuation, requirement_text)
+
+    def test_corrective_openspec_json_keeps_all_continuation_clauses(self):
+        active_change = (
+            ROOT
+            / "openspec"
+            / "changes"
+            / "harden-implicit-application-proof-state"
+        )
+        if active_change.is_dir():
+            command = [
+                "openspec",
+                "show",
+                "harden-implicit-application-proof-state",
+                "--json",
+                "--deltas-only",
+                "--no-interactive",
+            ]
+        else:
+            command = [
+                "openspec",
+                "show",
+                "ksrf-academic-method-ingestion",
+                "--type",
+                "spec",
+                "--json",
+                "--no-interactive",
+            ]
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(completed.stdout)
+        if "deltas" in payload:
+            requirement_text = "\n".join(
+                item["requirement"]["text"] for item in payload["deltas"]
+            )
+        else:
+            requirement_text = "\n".join(
+                item["text"] for item in payload["requirements"]
+            )
+        for continuation in (
+            "that raw marker SHALL NOT be represented as approval of fingerprinted content",
+            "SHALL NOT be described as proven or converted to positive non-application",
+            "exposes every continuation clause to machine consumers",
+        ):
+            with self.subTest(continuation=continuation):
+                self.assertIn(continuation, requirement_text)
+
     def test_process_workbook_is_self_contained_and_directly_routed(self):
         workbook = text("skills/ksrf-rights-argument-builder/references/process-based-rights-review-workbook.md")
         for marker in (
