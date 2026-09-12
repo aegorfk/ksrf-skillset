@@ -95,14 +95,16 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
 
     def test_synthetic_execution_cases_need_no_historical_source(self) -> None:
         source = EXECUTION / "evals/evals.json"
+        # Reviewed update: cases 1–13 are unchanged; synthetic, source-free
+        # cases 14–15 add the distinction between clarification and reopening.
         self.assertEqual(
             hashlib.sha256(source.read_bytes()).hexdigest(),
-            "32f18154bf9a26d7194e3f3ba64562fbc1450f316c5adec46546326967a0d816",
+            "9d79c73b0c23f67fae854971767ae756b42a02fb5e063554f6bfc3919dc4d343",
         )
         payload = json.loads(source.read_text())
         entries = {entry["id"]: entry for entry in payload["evals"]}
-        self.assertEqual(set(entries), set(range(1, 14)))
-        for number in range(4, 9):
+        self.assertEqual(set(entries), set(range(1, 16)))
+        for number in (*range(4, 9), 14, 15):
             with self.subTest(number=number):
                 self.assertEqual(entries[number]["files"], [])
                 self.assertGreaterEqual(len(entries[number]["expectations"]), 2)
@@ -110,6 +112,8 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         self.assertIn("Жалоба только подана", entries[6]["prompt"])
         self.assertIn("не представлены", entries[7]["prompt"])
         self.assertIn("двух частных лиц", entries[8]["prompt"])
+        for number in (14, 15):
+            self.assertIn("Синтетический сценарий", entries[number]["prompt"])
 
 
 if __name__ == "__main__":

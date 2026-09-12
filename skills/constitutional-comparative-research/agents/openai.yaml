@@ -1,0 +1,6 @@
+interface:
+  display_name: "Конституционная компаративистика"
+  short_description: "Зарубежная практика для аргументации жалобы в КС РФ"
+  default_prompt: "Используй $constitutional-comparative-research, чтобы найти в зарубежной практике полезные приёмы и проверить их применение к аргументации жалобы в КС РФ."
+policy:
+  allow_implicit_invocation: true

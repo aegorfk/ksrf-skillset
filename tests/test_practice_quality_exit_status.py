@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -1593,6 +1594,11 @@ class PracticeQualityExitStatusTests(unittest.TestCase):
 
     def test_official_treatment_producer_feeds_prefiling_gate(self) -> None:
         observed: dict[str, dict[str, object]] = {}
+        # Treatment review uses the real UTC clock. Keep this success fixture
+        # fresh relative to that clock instead of aging out after seven days.
+        fetched_at = (datetime.now(timezone.utc) - timedelta(seconds=5)).replace(
+            microsecond=0
+        ).isoformat().replace("+00:00", "Z")
         raw = self.root / "official-treatment.html"
         raw.write_text(
             "Суд применяет правовую позицию Конституционного Суда.",
@@ -1626,7 +1632,7 @@ class PracticeQualityExitStatusTests(unittest.TestCase):
                     "cache", "ingest", "--root", str(cache_root),
                     "--seed-id", seed_id, "--raw", str(raw),
                     "--content-type", "text/html; charset=utf-8",
-                    "--fetched-at", "2026-09-03T11:59:00Z",
+                    "--fetched-at", fetched_at,
                     "--parser-manifest", str(parser_manifest),
                     "--text", str(text_path),
                     "--document-id", "document-treatment-e2e",

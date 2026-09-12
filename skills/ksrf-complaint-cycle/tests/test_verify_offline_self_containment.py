@@ -273,7 +273,7 @@ class OfflineSelfContainmentPolicyTests(unittest.TestCase):
             before = _tree_snapshot(installed_root)
             resolved_installed_root = installed_root.resolve()
             healthy_success = (
-                "Offline self-containment verified: 15 KSRF skills, "
+                "Offline self-containment verified: 16 KSRF skills, "
                 f"core={resolved_installed_root / 'ksrf-complaint-cycle' / 'references' / 'offline-practice-core.md'}\n"
             )
             cases = (

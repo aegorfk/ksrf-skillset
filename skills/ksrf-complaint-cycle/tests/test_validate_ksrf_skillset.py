@@ -345,8 +345,9 @@ class KSRFSkillsetValidatorTests(unittest.TestCase):
         transport.start()
         self.addCleanup(transport.stop)
 
-    def test_canonical_package_allowlist_has_exactly_fifteen_skills(self) -> None:
-        self.assertEqual(len(VALIDATOR.CANONICAL_KSRF_PACKAGES), 15)
+    def test_canonical_package_allowlist_has_exactly_sixteen_skills(self) -> None:
+        self.assertEqual(len(VALIDATOR.CANONICAL_KSRF_PACKAGES), 16)
+        self.assertIn("constitutional-comparative-research", VALIDATOR.CANONICAL_KSRF_PACKAGES)
         self.assertNotIn(
             "ksrf-complaint-cycle-workspace",
             VALIDATOR.CANONICAL_KSRF_PACKAGES,

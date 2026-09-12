@@ -358,7 +358,7 @@ def _validate_offline_self_containment_unchecked(
     if package_names is None:
         skill_dirs = sorted(
             path
-            for path in skills_root.glob("ksrf-*")
+            for path in [*skills_root.glob("ksrf-*"), skills_root / "constitutional-comparative-research"]
             if path.is_dir() and (path / "SKILL.md").is_file()
         )
     else:
@@ -486,7 +486,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     skill_count = sum(
         1
-        for path in SKILLS_ROOT.glob("ksrf-*")
+        for path in [*SKILLS_ROOT.glob("ksrf-*"), SKILLS_ROOT / "constitutional-comparative-research"]
         if path.is_dir() and (path / "SKILL.md").is_file()
     )
     print(f"Offline self-containment verified: {skill_count} KSRF skills, core={CORE}")

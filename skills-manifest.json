@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-09T18:24:13Z",
-  "source": "~/.codex/skills canonical 15-package allowlist",
-  "remote_base_commit": "71cdd7d41943a7568d5f8ef3c19bd4da11e345cf",
+  "generated_at": "2026-09-12T10:01:22Z",
+  "source": "~/.codex/skills canonical package allowlist",
+  "remote_base_commit": "b7cc389831a997ee44e5235a5051fad3aa08a2a2",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -26,16 +26,22 @@
     "secret credential and private-key paths"
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
-  "total_skills": 15,
-  "total_files": 285,
-  "total_bytes": 10685731,
-  "tree_sha256": "3e260ac654fb5b642ccf7b16b55d0d3024e669c2e7563645e9e85a772f188193",
+  "total_skills": 16,
+  "total_files": 293,
+  "total_bytes": 10805941,
+  "tree_sha256": "c47b51e292be47225b60aa2eada0dcc140c2ef0ae3d92f7bb18080e54921c99c",
   "skills": [
     {
+      "name": "constitutional-comparative-research",
+      "files": 7,
+      "bytes": 100420,
+      "tree_sha256": "5b20c781238952d21e5a094a5e93f4ddcf86d985c7d5b0cd97cf998a984f77aa"
+    },
+    {
       "name": "ksrf-argument-patterns",
-      "files": 40,
-      "bytes": 4111228,
-      "tree_sha256": "5d3218570efea810894e7ea078e626e9c3d96901fe4420a47acbe47cb4d34314"
+      "files": 41,
+      "bytes": 4128482,
+      "tree_sha256": "34ea328bb14f0c83f3767dfedd6b635a244bfa2afe393bbf4a5f580c45453b73"
     },
     {
       "name": "ksrf-case-triage",
@@ -52,8 +58,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 101,
-      "bytes": 2455433,
-      "tree_sha256": "e11ad9689a9ba8cb27c6b3e2e029891e47ad07afd3797cfde462d666deacbe50"
+      "bytes": 2455602,
+      "tree_sha256": "623318a24369b5615fc6c2310dc8b3eeed7eb637db9b13d6ca385250f7a8cbc6"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -112,40 +118,40 @@
     {
       "name": "ksrf-practice-authority-builder",
       "files": 10,
-      "bytes": 152638,
-      "tree_sha256": "bbacde2890bd0bf3c0d38bb09487e08bd7931d2779bde4365bc36835f86e13e6"
+      "bytes": 153913,
+      "tree_sha256": "e8300d2fa22758eb4cf0e44ad1509824c6e46d822dc62478d39392d6e843a3ff"
     },
     {
       "name": "ksrf-rights-argument-builder",
       "files": 20,
-      "bytes": 341242,
-      "tree_sha256": "fb2c13daf2c60ea153e254bf8a7ce4617e299493e5dddddadd4e2ada754a5427"
+      "bytes": 342334,
+      "tree_sha256": "59bc02974fd443ad0905b49c9c867a9cc6ce133429922a894cb96eba7a946463"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 9,
-  "total_release_bytes": 372687,
-  "release_tree_sha256": "6054d004c9171aa42e8fda5e167fe6a0a1128e0e85954083ba7cf829b78b596c",
+  "total_release_bytes": 372821,
+  "release_tree_sha256": "fed7073d016a8e684d6d3180c2d727273c9f371562bc75bdccc461bddfaf3257",
   "release_files": [
     {
       "path": "install.sh",
-      "bytes": 5796,
-      "sha256": "07efecabc6583d5a091271068f6dbd70376514cc11620f2189801ecff4af86ab"
+      "bytes": 5832,
+      "sha256": "c8ccb2327b9a75eca434b1bc30cf6c61c846af7f3afb02e4faa1c062f2fa78e4"
     },
     {
       "path": "tools/generate_skills_manifest.py",
-      "bytes": 4505,
-      "sha256": "387e988ebb3cd00e00d712d85289879dc96b2a948303d984f6a6ed84108417f5"
+      "bytes": 4502,
+      "sha256": "642b552177b64fa403efbcafe69b924376e17c54d96450842e1db62aed30ffef"
     },
     {
       "path": "tools/install_skillset.py",
-      "bytes": 183530,
-      "sha256": "2d48496eb99645f4d75113bfefa0fdfa4a6e3ad35bfa4c763954ad89f4f9cbfd"
+      "bytes": 183588,
+      "sha256": "9ab2f6e388e8ab08739bd5ef708ddd7f1ea9272f7fe4c523bcf9c376e4287c91"
     },
     {
       "path": "tools/skillset_file_contract.py",
-      "bytes": 14176,
-      "sha256": "e70fae803e2377811ba4a71179f36e8fe3fa9e37a9cbb162b3e8b8d144a59411"
+      "bytes": 14219,
+      "sha256": "9a498706a8a594614e846f23c2d2015e50aba296a7ced6c34d5f714c37d71142"
     },
     {
       "path": "tools/sync_global_skills.sh",

@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-09-12",
+  "scope": "Eight purposive historical method examples; not exhaustive review, legal authority or a held-out evaluation.",
+  "cards": [
+    {
+      "card_id": "comparative-method-20260912-01",
+      "doc_id": "de-bverfg:2015-05-05-2bvl17-09",
+      "court": "de-bverfg",
+      "number": "2 BvL 17/09 u.a.",
+      "date": "2015-05-05",
+      "date_note_ru": "Дата акта по записи официального источника.",
+      "language": "de",
+      "source_url": "https://www.bundesverfassungsgericht.de/SharedDocs/Entscheidungen/DE/2015/05/ls20150505_2bvl001709.html",
+      "source_record_id": "ECLI:DE:BVerfG:2015:ls20150505.2bvl001709",
+      "source_provider": "Court official website",
+      "raw_sha256": "f02c5bc8f2f69742f2cf20bae7c22636fc7e106991c210bfbee42371e45bb173",
+      "raw_member": "HTML CSS selector: .entscheidung > .text.showAdler; .absatz blocks in document order; get_text(separator=\" \", strip=True), whitespace collapsed within blocks, blank lines between blocks",
+      "text_sha256": "48a646612a4719b3f3203b905a6bcf6854094c6de8d1f4c3ec776aa729166a73",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Второй сенат Федерального конституционного суда",
+        "role_basis": "Rn. 94–130 находятся в собственной правовой оценке; Rn. 196 прямо указывает единогласие. Цитаты взяты из мотивировки, а не из повторяющих её Leitsätze."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Rn. 97, первая ступень проверки",
+          "role": "court_reasoning",
+          "quote_original": "Ist die Mehrheit dieser Parameter erfüllt",
+          "start_char": 103281,
+          "end_char": 103322,
+          "quote_sha256": "9678aba0de16aae054428a4de1c6fed752ebe7ef09736b9c753970fff3a6f2d1"
+        },
+        {
+          "official_locator": "Rn. 130, процессуальные требования к обоснованию",
+          "role": "court_reasoning",
+          "quote_original": "Eine bloße Begründbarkeit genügt nicht den verfassungsrechtlichen Anforderungen der Prozeduralisierung.",
+          "start_char": 133175,
+          "end_char": 133278,
+          "quote_sha256": "c3ed9caf762a5659833c5eeaa09486862f5166e27533e2113b7d78422e615faa"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "live_open_failed",
+        "live_official_url": "https://www.bundesverfassungsgericht.de/SharedDocs/Entscheidungen/DE/2015/05/ls20150505_2bvl001709.html",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": "Официальная страница не открылась веб-инструментом; использован ранее сохранённый полный официальный оригинал с проверенным SHA-256. Это не утверждение об отсутствии акта.",
+        "original_quoted_words": 16
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-02",
+      "doc_id": "it-cc:2019/242",
+      "court": "it-cc",
+      "number": "242/2019",
+      "date": "2019-09-25",
+      "date_note_ru": "Дата решения; дата депонирования не подменяет её.",
+      "language": "it",
+      "source_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2019/242",
+      "source_record_id": "2019/242",
+      "source_provider": "Court official open data",
+      "raw_sha256": "8090807a4d4e2f450f7bc5dc6be65a83d1eb53ae01414138387b73a7678db0be",
+      "raw_member": "Cc_Opendata_Pronunce_2019_json.zip!Cc_Opendata_Pronunce_2019.json#/elenco_pronunce/241",
+      "text_sha256": "0fed768578de9e7fef1754b2a92ae16de20e979447fa5b97396f79297a461e64",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный суд Италии",
+        "role_basis": "§§ 2.5–9 Considerato in diritto и Per questi motivi; не Massime сайта, не позиция участника. Отдельное мнение в использованном тексте отсутствует; единогласие не утверждается."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Considerato in diritto, § 4",
+          "role": "court_reasoning",
+          "quote_original": "ricavando dalle coordinate del sistema vigente i criteri di riempimento costituzionalmente necessari",
+          "start_char": 58426,
+          "end_char": 58526,
+          "quote_sha256": "7f6d0b9735ac2c7790bc7931a09e349edec1277985c3c3c18156ac17391702c3"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2019/242",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 12
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-03",
+      "doc_id": "it-cc:2015/10",
+      "court": "it-cc",
+      "number": "10/2015",
+      "date": "2015-02-09",
+      "date_note_ru": "Дата решения; дата депонирования не подменяет её.",
+      "language": "it",
+      "source_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2015/10",
+      "source_record_id": "2015/10",
+      "source_provider": "Court official open data",
+      "raw_sha256": "8090807a4d4e2f450f7bc5dc6be65a83d1eb53ae01414138387b73a7678db0be",
+      "raw_member": "Cc_Opendata_Pronunce_2015_json.zip!Cc_Opendata_Pronunce_2015.json#/elenco_pronunce/9",
+      "text_sha256": "12ae7c592dcce30a15aa67592fb4d64007d794ebec021f4facf0078ea6b48dac",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный суд Италии",
+        "role_basis": "§§ 6.5–8 собственной мотивировки и резолютивная часть; редакционные Massime исключены."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Considerato in diritto, § 7",
+          "role": "court_reasoning",
+          "quote_original": "gli interventi di questa Corte che regolano gli effetti temporali della decisione devono essere vagliati alla luce del principio di stretta proporzionalità.",
+          "start_char": 64895,
+          "end_char": 65051,
+          "quote_sha256": "4d2d55c60f611121187700c7520f40d469558d59ab74bc5d467416ca9cc83d30"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2015/10",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 22
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-04",
+      "doc_id": "it-cc:2015/178",
+      "court": "it-cc",
+      "number": "178/2015",
+      "date": "2015-06-24",
+      "date_note_ru": "Дата решения; дата депонирования не подменяет её.",
+      "language": "it",
+      "source_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2015/178",
+      "source_record_id": "2015/178",
+      "source_provider": "Court official open data",
+      "raw_sha256": "8090807a4d4e2f450f7bc5dc6be65a83d1eb53ae01414138387b73a7678db0be",
+      "raw_member": "Cc_Opendata_Pronunce_2015_json.zip!Cc_Opendata_Pronunce_2015.json#/elenco_pronunce/177",
+      "text_sha256": "7ef7048a4b3e737109e095c9d41c3c9a0f5acb1473552ccecca20f4bfbf3f321",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный суд Италии",
+        "role_basis": "§§ 14–18 собственной мотивировки и Per questi motivi. Последующий приложенный процессуальный акт не использован как основная мотивировка."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Considerato in diritto, § 17",
+          "role": "court_reasoning",
+          "quote_original": "Solo ora si è palesata appieno la natura strutturale della sospensione della contrattazione",
+          "start_char": 77199,
+          "end_char": 77290,
+          "quote_sha256": "6c1bb1689a4b415d2b08a7cf3152e737abf2b6d762ca6fe659a84d9cb79ac4bf"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.cortecostituzionale.it/scheda-pronuncia/2015/178",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 13
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-05",
+      "doc_id": "fr-cc:CONSTEXT000028397941",
+      "court": "fr-cc",
+      "number": "2013-682 DC",
+      "date": "2013-12-19",
+      "date_note_ru": "Дата акта по записи официального источника.",
+      "language": "fr",
+      "source_url": "https://www.conseil-constitutionnel.fr/decision/2013/2013682DC.htm",
+      "source_record_id": "CONSTEXT000028397941",
+      "source_provider": "DILA CONSTIT official open data",
+      "raw_sha256": "4032de5983f7d02f925e88cbfa818c22c1ba47b49c6eeae954e8180c6b88fd40",
+      "raw_member": "20251007-212923/constit/global/CONS/TEXT/00/00/28/39/79/CONSTEXT000028397941.xml",
+      "text_sha256": "a6fc52391112c179d89e3f553e1e2a4c7a154034298ad9ba8b790b4560b038f1",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный совет Франции",
+        "role_basis": "Considérants 11–20 — оценка Совета; доводы обращающихся парламентариев в 9–10 не атрибутируются суду."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Considérant 17",
+          "role": "court_reasoning",
+          "quote_original": "les contribuables ayant respecté cette durée de conservation pouvaient légitimement attendre l'application d'un régime particulier d'imposition",
+          "start_char": 19482,
+          "end_char": 19625,
+          "quote_sha256": "75b74e7661b91e4d2dcc2c019b93930036617cefd32837cce49b635dfb8d70bc"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "live_open_failed",
+        "live_official_url": "https://www.conseil-constitutionnel.fr/decision/2013/2013682DC.htm",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": "Официальная страница не открылась веб-инструментом; использован ранее сохранённый полный официальный оригинал с проверенным SHA-256. Это не утверждение об отсутствии акта.",
+        "original_quoted_words": 16
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-06",
+      "doc_id": "fr-cc:CONSTEXT000022480064",
+      "court": "fr-cc",
+      "number": "2010-1 QPC",
+      "date": "2010-05-28",
+      "date_note_ru": "Дата акта по записи официального источника.",
+      "language": "fr",
+      "source_url": "https://www.conseil-constitutionnel.fr/decision/2010/20101QPC.htm",
+      "source_record_id": "CONSTEXT000022480064",
+      "source_provider": "DILA CONSTIT official open data",
+      "raw_sha256": "67270556060b481ec139f21436244af913cccd3eb6e074c65d6600f48596f627",
+      "raw_member": "constit/global/CONS/TEXT/00/00/22/48/00/CONSTEXT000022480064.xml",
+      "text_sha256": "7d1fb6fab21fcfe51283cdfc816754b0d464bd596543d0a0c73233ad61f322b3",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный совет Франции",
+        "role_basis": "Considérants 8–12 и статьи 1–2 резолютивной части; мотивы обращающихся лиц отделены от позиции Совета."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Considérant 9",
+          "role": "court_reasoning",
+          "quote_original": "le législateur pouvait fonder une différence de traitement sur le lieu de résidence",
+          "start_char": 15302,
+          "end_char": 15385,
+          "quote_sha256": "10d80a6da76d448e3508259bfffcd20d663184abc736cd1286f54b5f48be27dc"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.legifrance.gouv.fr/cons/id/CONSTEXT000022480064",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 13
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-07",
+      "doc_id": "at-vfgh:JFT_20260625_26G00008_00",
+      "court": "at-vfgh",
+      "number": "G8/2026 (G8/2026-15)",
+      "date": "2026-06-25",
+      "date_note_ru": "Дата акта по записи официального источника.",
+      "language": "de",
+      "source_url": "https://ogd.ris.bka.gv.at/Dokument.wxe?Abfrage=Vfgh&Dokumentnummer=JFT_20260625_26G00008_00",
+      "source_record_id": "JFT_20260625_26G00008_00",
+      "source_provider": "RIS OGD API v2.6",
+      "raw_sha256": "ab5b84e87f489236b3ff05b44a37d138f78e88ab9cebe45d291610b5dd037e6e",
+      "raw_member": "risdok/nutzdaten/*[@ct=spruch|begruendung|kopf|text|rechtlichebeurteilung]",
+      "text_sha256": "1758f36141053c5a1bd14eb59a9fe584dd97edc3981db9a8fb2c91030afc979b",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Конституционный суд Австрии",
+        "role_basis": "Rn. 265–285 — собственная оценка суда. Аргументы о более мягких средствах в Rn. 220–224 принадлежат заявителям; не используются как holding. Одобренное в Rn. 276 соображение президента парламента отмечено как принятие довода, а не смена автора."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Rn. 269",
+          "role": "court_reasoning",
+          "quote_original": "Der gänzliche Ausschluss von Personen, die nicht in diesem engen Sinn beruflich als Journalisten (für ein Massenmedium) tätig sind",
+          "start_char": 174785,
+          "end_char": 174915,
+          "quote_sha256": "4b9599eeb654db53fd1a5fd43859541de9a14686c48d02be253b6bc2efdd8fa5"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "live_open_failed",
+        "live_official_url": "https://ogd.ris.bka.gv.at/Dokument.wxe?Abfrage=Vfgh&Dokumentnummer=JFT_20260625_26G00008_00",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": "Официальная страница не открылась веб-инструментом; использован ранее сохранённый полный официальный оригинал с проверенным SHA-256. Это не утверждение об отсутствии акта.",
+        "original_quoted_words": 19
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "card_id": "comparative-method-20260912-08",
+      "doc_id": "es-tc:BOE-A-2026-13749",
+      "court": "es-tc",
+      "number": "Sentencia 37/2026",
+      "date": "2026-05-25",
+      "date_note_ru": "Дата акта по записи официального источника.",
+      "language": "es",
+      "source_url": "https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-13749",
+      "source_record_id": "BOE-A-2026-13749",
+      "source_provider": "BOE, Sección del Tribunal Constitucional",
+      "raw_sha256": "a1a6f7a11ddea0f2c69072066d9279703f3eac873f489e33d84255e595f2f986",
+      "raw_member": "documento/texto",
+      "text_sha256": "ea75041b2bb964ddf6b54bac2dc93000fdb3644aef92428e5b169ef35986cdbe",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_majority_with_separate_opinion",
+        "speaker_ru": "Большинство Первой палаты Конституционного суда Испании; отдельно судья Enrique Arnaldo Alcubilla",
+        "role_basis": "FJ 4 и Fallo отказывают в amparo; после подписи начинается озаглавленное Voto particular. Возражение судьи не представляется позицией большинства, даже несмотря на его роль докладчика основной части."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Fundamento jurídico 4",
+          "role": "court_majority",
+          "quote_original": "se le dispense un tratamiento más beneficioso",
+          "start_char": 71813,
+          "end_char": 71858,
+          "quote_sha256": "9619a8f794d02a3622eb596448883b8beac284c209deed7775073408f834e7cb"
+        },
+        {
+          "official_locator": "Voto particular de Enrique Arnaldo Alcubilla, обсуждение последствий нейтральных норм",
+          "role": "separate_opinion",
+          "quote_original": "no existe una formal desigualdad de trato en las normas aplicadas",
+          "start_char": 77380,
+          "end_char": 77445,
+          "quote_sha256": "31b17ac08d96cdbcde82bbf8c3103d9fe29e480b6b1af3b41ea5d72eff8a8034"
+        }
+      ],
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes also found after markup and whitespace normalization inside designated raw record; this does not assert independent reproduction of every canonical character.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-13749",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 18
+      },
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    }
+  ]
+}

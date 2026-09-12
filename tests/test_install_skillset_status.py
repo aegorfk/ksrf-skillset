@@ -2118,7 +2118,7 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(stderr.getvalue(), "")
             self.assertIn("ПРОВЕРКА БЕЗ СЕТИ ПРОЙДЕНА", rendered)
-            self.assertIn("Проверено навыков: 15 из 15", rendered)
+            self.assertIn(f"Проверено навыков: {len(SKILL_NAMES)} из {len(SKILL_NAMES)}", rendered)
             self.assertIn("Интернет не использовался", rendered)
             self.assertIn("./install.sh --verify-current", rendered)
             self.assertNotIn("--check-updates", rendered)
@@ -2425,8 +2425,8 @@ class ReadOnlyInstallerStatusTests(unittest.TestCase):
                 "source_release_eligible": False,
                 "status": "pass",
                 "summary": {"errors": 0, "warnings": 0},
-                "validated_package_count": 15,
-                "expected_package_count": 15,
+                "validated_package_count": len(installer.SKILL_NAMES),
+                "expected_package_count": len(installer.SKILL_NAMES),
                 "validated_packages": list(installer.SKILL_NAMES),
                 "runtime_content": runtime_content,
                 "freshness": {

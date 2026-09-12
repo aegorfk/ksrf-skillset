@@ -12,6 +12,7 @@ from typing import Iterable, Sequence
 
 
 SKILL_NAMES = (
+    "constitutional-comparative-research",
     "ksrf-argument-patterns",
     "ksrf-case-triage",
     "ksrf-cassation-judicial-meaning",

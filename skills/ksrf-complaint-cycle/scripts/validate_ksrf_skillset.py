@@ -45,6 +45,7 @@ except ImportError:  # pragma: no cover - exercised as a fail-closed runtime pat
 
 SCHEMA_VERSION = "1.1.0"
 CANONICAL_KSRF_PACKAGES = (
+    "constitutional-comparative-research",
     "ksrf-argument-patterns",
     "ksrf-case-triage",
     "ksrf-cassation-judicial-meaning",
@@ -853,7 +854,7 @@ def _validate_agent_metadata(
     else:
         prompt = str(interface["default_prompt"])
         exact_reference = f"${package}"
-        declared_references = set(re.findall(r"\$ksrf-[a-z0-9-]+", prompt))
+        declared_references = set(re.findall(r"\$[a-z][a-z0-9]*(?:-[a-z0-9]+)+", prompt))
         if exact_reference not in declared_references or declared_references != {exact_reference}:
             findings.append(
                 _finding(

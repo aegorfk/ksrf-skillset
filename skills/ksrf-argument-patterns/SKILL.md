@@ -27,6 +27,8 @@ description: Скилл строит и проверяет конституци�
 
 ## Роль в filing-readiness
 
+Если зарубежная практика нужна для поиска российской правовой проблемы или поддержки довода, используй [перевод приёма в российскую гипотезу](references/foreign-act-to-constitutional-problem.md) и [самостоятельный сравнительный поиск](../constitutional-comparative-research/SKILL.md). Различай вдохновение, вспомогательную ссылку и контрпример. Иностранный поиск не является обязательным условием автономной работы по российскому делу.
+
 Pattern/refusal cards остаются critic и candidate layer. Они не доказывают official source, редакцию или применение нормы и не закрывают issue option автоматически. Для отказных аналогов используй evidence roles и coverage language из `../ksrf-complaint-cycle/references/failed-complaint-corpus.md`.
 
 ## Роль

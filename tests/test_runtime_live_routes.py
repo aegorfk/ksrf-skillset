@@ -112,9 +112,9 @@ REVIEWED_RUNTIME_FILES = {
         "b438cf7eb91cc6415848e2efa231c7d87715ed64b29f65a1fb7ecfb4b05ddef4",
     ),
     REPO / "skills/ksrf-rights-argument-builder/SKILL.md": (
-        123,
-        30_129,
-        "506584c3daa417895568cc7ae97b6c1be8418cccd2827618eb010ac592177964",
+        125,
+        31_221,
+        "bdec64c0fbdbe55fdde104dbdf219c7d14bda36690a02a8915205f9462d7efbb",
     ),
     REPO / "skills/ksrf-rights-argument-builder/references/complaint-patterns.md": (
         74,
