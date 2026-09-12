@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-09-12",
-  "scope": "Eight purposive historical method examples; not exhaustive review, legal authority or a held-out evaluation.",
+  "scope": "Eleven purposive reviewed method examples from seven courts; not exhaustive review, legal authority or a held-out evaluation.",
   "cards": [
     {
       "card_id": "comparative-method-20260912-01",
@@ -386,6 +386,165 @@
       },
       "authority_status": "comparative_method_only",
       "russian_bridge_status": "research_question_only_not_verified_domestic_authority"
+    },
+    {
+      "court": "in-sc",
+      "number": "2025 INSC 115",
+      "date": "2025-01-28",
+      "language": "en",
+      "source_url": "https://indian-supreme-court-judgments.s3.ap-south-1.amazonaws.com/data/pdf/year=2025/english/2025_1_1009_1040_EN.pdf",
+      "source_record_id": "2025_1_1009_1040",
+      "source_provider": "dattam_labs_open_data",
+      "raw_sha256": "af776f0370c961ce8d342ede149e87c2a9a533abdd34a8a53725e1dcc23ab60b",
+      "card_id": "comparative-method-20260912-09",
+      "doc_id": "in-sc:2025_1_1009_1040",
+      "date_note_ru": "Дата решения, не дата публикации.",
+      "raw_member": "PDF judgment body after explicit SCR boundary; publisher preamble excluded; report pagination retained",
+      "text_sha256": "6b5d5c7aee1c294592c51a2b5964adc77c464e77e12e9fedca88e4ad5a538eeb",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Судебная коллегия Верховного суда Индии; мотивировка Surya Kant J.",
+        "role_basis": "D.1.2, §§ 35–52 — собственная оценка суда. § 47 — две ступени; §§ 48–50 — различение прецедентов; § 51 — применение. Итог §§ 69–70 также опирается на компетенцию и окончательность. Headnotes не используются."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "§ 47; official PDF pp. 26–27, quote p. 27",
+          "role": "court_reasoning",
+          "quote_original": "(i) insufficiency of evidence; and (ii) a positive \nfinding regarding the balance of interests.",
+          "start_char": 41581,
+          "end_char": 41676,
+          "quote_sha256": "936d5277f91219f5d45ccd6f191408beb3e54a5b813fc6e41eef0898fa2b16d9"
+        }
+      ],
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority",
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes found after whitespace and markup/PDF extraction normalization in designated source; full canonical reconstruction not asserted.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://api.sci.gov.in/supremecourt/2018/20907/20907_2018_3_1501_58757_Judgement_28-Jan-2025.pdf",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": "Основная копия остаётся сторонней; сверены цитата и релевантный контекст, не каждый символ всего отчётного PDF.",
+        "original_quoted_words": 14
+      },
+      "official_cross_check": {
+        "url": "https://api.sci.gov.in/supremecourt/2018/20907/20907_2018_3_1501_58757_Judgement_28-Jan-2025.pdf",
+        "raw_sha256": "c1770df73a8a3be515c700e0ef6d2f292d9dc210754345750fe9f86e4bb7f5ed",
+        "bytes": 515753,
+        "pdf_pages": 36,
+        "quote_pages": [
+          27
+        ],
+        "quote_matches": true,
+        "reviewed_context": "§§ 47–52, official PDF pp. 26–29; same relevant reasoning; disposition read separately in retained judgment.",
+        "scope": "Exact quoted words after whitespace normalization and manual context review only; no byte identity or exhaustive equivalence claim.",
+        "checked_on": "2026-09-12"
+      }
+    },
+    {
+      "court": "es-tc",
+      "number": "Sentencia 55/2026",
+      "date": "2026-07-08",
+      "language": "es",
+      "source_url": "https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-16930",
+      "source_record_id": "BOE-A-2026-16930",
+      "source_provider": "BOE, Sección del Tribunal Constitucional",
+      "raw_sha256": "bbe88035db94693552eb4205ae4382999d8e93cd116f5aa9849d57c525f9ba0a",
+      "card_id": "comparative-method-20260912-10",
+      "doc_id": "es-tc:BOE-A-2026-16930",
+      "date_note_ru": "Дата решения, не дата публикации.",
+      "raw_member": "documento/texto",
+      "text_sha256": "f30533a00b26f313dc1113109ecb4b03ec9eacb51424116f39425f07b85978f2",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Пленум Конституционного суда Испании",
+        "role_basis": "Собственная мотивировка FJ 2 после I. Antecedentes; применение STC 50/2026. По FJ 2 и Fallo дискриминация по существу не разрешена."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "Fundamento jurídico 2, оценка применимости; Fallo — inadmisión",
+          "role": "court_reasoning",
+          "quote_original": "neutro o carente de incidencia efectiva en la situación jurídica de aquellos",
+          "start_char": 27635,
+          "end_char": 27711,
+          "quote_sha256": "c2a750d1848bd396288b71cad488a00a77e41c4c27d5977863d2ff2815992465"
+        }
+      ],
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority",
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes found after whitespace and markup/PDF extraction normalization in designated source; full canonical reconstruction not asserted.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "verified",
+        "live_official_url": "https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-16930",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": null,
+        "original_quoted_words": 12
+      }
+    },
+    {
+      "court": "co-cc",
+      "number": "C-443/25",
+      "date": "2025-10-29",
+      "language": "es",
+      "source_url": "https://www.corteconstitucional.gov.co/relatoria/2025/c-443-25.htm",
+      "source_record_id": "C-443/25",
+      "source_provider": "official",
+      "raw_sha256": "67c4a526c02aad2d13a829db44c3694b4a41fe2754e4c6863ebeb47fe704a48f",
+      "card_id": "comparative-method-20260912-11",
+      "doc_id": "co-cc:C-443/25",
+      "date_note_ru": "Дата решения, не дата публикации.",
+      "raw_member": "html/body; normalized visible text from standalone REPÚBLICA DE COLOMBIA or CORTE CONSTITUCIONAL header through end of body; annexes and separate opinions retained",
+      "text_sha256": "e67d81ef32603d6e674f5c0ad17a6b228b2938e9f79c6e71b33e830bfc7c7cb4",
+      "offset_convention": "Python Unicode code points, zero-based, end exclusive, in Library documents.text at this text_sha256; not byte or PDF offsets.",
+      "source_voice": {
+        "role": "court_reasoning",
+        "speaker_ru": "Пленум Конституционного суда Колумбии",
+        "role_basis": "II. Consideraciones: § 92 — оценка нормативной гарантии; §§ 101–108 — дефект; §§ 109–113 — средство защиты; III. Decisión — условная конституционность. Цитата § 113 взята из мотивировки, не из повторяющей её Síntesis."
+      },
+      "currentness_scope": "Historical method example at decision date; subsequent case law, amendments and present applicability not exhaustively checked.",
+      "anchors": [
+        {
+          "official_locator": "II. Consideraciones, § 92",
+          "role": "court_reasoning",
+          "quote_original": "el lineamiento técnico no tiene rango legal",
+          "start_char": 71174,
+          "end_char": 71217,
+          "quote_sha256": "62a1870f5a2206350fd048a6316ef277323d5d81e608a0e8ed782631e304e48e"
+        },
+        {
+          "official_locator": "II. Consideraciones, § 113, перед III. Decisión",
+          "role": "court_reasoning",
+          "quote_original": "la medida sustitutiva tiene carácter temporal",
+          "start_char": 91433,
+          "end_char": 91478,
+          "quote_sha256": "76af2e4b16f5eefd8c528216e2ee8480ea5dc5560fe7d7545d9f5daad0557e3b"
+        }
+      ],
+      "authority_status": "comparative_method_only",
+      "russian_bridge_status": "research_question_only_not_verified_domestic_authority",
+      "verification": {
+        "raw_sha256_matches_file": true,
+        "canonical_quote_offsets_verified": true,
+        "quote_in_raw_record_verified": true,
+        "raw_reconstruction_scope": "Quotes found after whitespace and markup/PDF extraction normalization in designated source; full canonical reconstruction not asserted.",
+        "role_and_context_reviewed": true,
+        "live_official_check": "direct_open_failed_official_index_available",
+        "live_official_url": "https://www.corteconstitucional.gov.co/relatoria/2025/C-443-25.htm",
+        "live_checked_on": "2026-09-12",
+        "live_limit_ru": "Прямое открытие HTML веб-инструментом не удалось; официальный текст найден в поисковом индексе. Основание анализа — сохранённый полный официальный HTML с проверенным SHA-256.",
+        "original_quoted_words": 13
+      }
     }
   ]
 }
