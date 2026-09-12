@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-12T14:57:16Z",
+  "generated_at": "2026-09-12T15:02:18Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "4c86569f26b8249d646522b6bb443a1d9856ddd8",
+  "remote_base_commit": "d00fbd7572ffebdd3ea0eecdb8d93e67a4a0e198",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,15 +27,15 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
-  "total_files": 299,
-  "total_bytes": 10958925,
-  "tree_sha256": "4739643340da158d1b98d70831a66a602c47f503f962263c81b767b0ad8f36ef",
+  "total_files": 300,
+  "total_bytes": 10978404,
+  "tree_sha256": "eb8302afd9b845b5a072e6c1b332c712e070082f0dd7cb7d1ef2176baae80178",
   "skills": [
     {
       "name": "constitutional-comparative-research",
-      "files": 7,
-      "bytes": 128672,
-      "tree_sha256": "df03a1d2a15175a6fc11dd13b483d7e2c4b929f153801a5d44ba9c709c65842b"
+      "files": 8,
+      "bytes": 148151,
+      "tree_sha256": "2a3568817843b99e671554d68525481dc8c8afd2623d882edba7b93dfa5d1f67"
     },
     {
       "name": "ksrf-argument-patterns",
