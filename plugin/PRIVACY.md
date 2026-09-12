@@ -33,3 +33,15 @@
 Деинсталляция плагина и удаление дела — разные действия. Рабочие папки находятся отдельно; удаление пакета не является подтверждением удаления документов из локального хранилища, чата, резервных копий или подключённых сервисов. Перед удалением дела проверьте, какие копии и результаты нужно сохранить, и примените инструменты каждого фактически использованного хранилища.
 
 Никакие ключи, учётные записи, юридические одобрения и доступы владельца исходного проекта не передаются пользователю вместе с ZIP. Для расширенных источников нужен собственный доступ; базовый разбор доступных материалов может продолжаться без него.
+
+## English
+
+ksrf-applicant is distributed as skills, reference resources, and executable tools. Its public package contains no other applicants' private case files, private corpora, correspondence, OCR of those documents, or author credentials and settings.
+
+The base package declares no publisher-operated server that receives your documents. Messages and files uploaded to ChatGPT are processed by ChatGPT under your account's applicable terms and settings. In Codex or another agent host, local programs may read and create files, while the model or connected services may receive content according to that host's configuration. Local storage does not establish entirely local processing.
+
+Case workspaces are kept outside the installed package. Originals, proposed revisions, OCR, and review artifacts remain distinct. Uninstalling the plugin does not automatically remove copies from folders, chats, backups, or connected services. Retention and deletion are determined by each storage system actually used; this package sets no universal retention period.
+
+An additional service requires the user's own access and authorization for the particular transfer. Case materials must not be silently reused for another applicant, public examples, or methodology updates. The package does not automatically send case files to its maintainer.
+
+GitHub Issues support is public. Do not post case documents, personal information, correspondence, credentials, or unreviewed diagnostic reports. Report the version, operating system, sanitized error, and a synthetic example. No private case-file intake channel is offered here.

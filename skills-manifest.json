@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-12T14:15:13Z",
+  "generated_at": "2026-09-12T14:38:17Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "3350905a21a9f1ec9f62d334feb47803149abae3",
+  "remote_base_commit": "b6bad1e5e6a22bfbc281df01e2b7b416e60ff09b",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -130,8 +130,8 @@
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
   "total_release_files": 13,
-  "total_release_bytes": 406500,
-  "release_tree_sha256": "d35518817a2199d4047a2213ceed2cdefcb5899468ecf8fb5126f01f640ee7d7",
+  "total_release_bytes": 413669,
+  "release_tree_sha256": "4c0a0d80d56b4820eca5e3bc5ee7af6f9ad26be4ea0c4c5c4754a22ea3867c85",
   "release_files": [
     {
       "path": "install.sh",
@@ -140,8 +140,8 @@
     },
     {
       "path": "tools/build_applicant_plugin.py",
-      "bytes": 18833,
-      "sha256": "fffbe938333c88807c5460c890fafddcb14c123f974ff1571cc9ee3a8db012f1"
+      "bytes": 26002,
+      "sha256": "d0f0c3ef40ed8f9cbe9002450f29a3cef7e8b46379082409f42e150a6edce4c3"
     },
     {
       "path": "plugin/verify.py",

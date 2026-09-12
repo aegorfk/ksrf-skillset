@@ -6,6 +6,7 @@ import argparse
 import ast
 from hashlib import sha256
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -13,6 +14,8 @@ import shutil
 import subprocess
 import tempfile
 from typing import Sequence
+import unicodedata
+import xml.etree.ElementTree as ET
 import zipfile
 
 from skillset_file_contract import (
@@ -24,9 +27,25 @@ from verify_publication_state import PublicationStateError, verify_publication_s
 NAME = "ksrf-applicant"
 SOURCE_URL = "https://github.com/aegorfk/ksrf-skillset"
 SUPPORT_FILES = (
-    "README.md", "PRIVACY.md", "SURFACES.md", "use-cases.json", "verify.py",
+    "README.md", "PRIVACY.md", "SURFACES.md", "SUPPORT.md", "TERMS.md", "use-cases.json", "verify.py",
+    "assets/applicant.svg",
     "environment/Dockerfile", "environment/Dockerfile.dockerignore", "environment/README.md", "environment/smoke.py", "environment/soffice.py",
 )
+BRANDING_ASSET = "./assets/applicant.svg"
+SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+SVG_ATTRIBUTES = {
+    "svg": {"width", "height", "viewBox", "fill", "stroke", "stroke-width"},
+    "g": {"fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "transform"},
+    "path": {"d", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "fill-rule", "transform"},
+    "rect": {"x", "y", "width", "height", "rx", "ry", "fill", "stroke", "stroke-width", "transform"},
+    "circle": {"cx", "cy", "r", "fill", "stroke", "stroke-width", "transform"},
+    "ellipse": {"cx", "cy", "rx", "ry", "fill", "stroke", "stroke-width", "transform"},
+    "line": {"x1", "y1", "x2", "y2", "stroke", "stroke-width", "stroke-linecap", "transform"},
+    "polyline": {"points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "transform"},
+    "polygon": {"points", "fill", "stroke", "stroke-width", "stroke-linejoin", "transform"},
+    "title": set(), "desc": set(),
+}
+SVG_NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 SENSITIVE_KEY_ENDINGS = (
     "apikey", "accesstoken", "authtoken", "bearertoken", "clientsecret",
     "secretkey", "password", "passwd",
@@ -151,11 +170,122 @@ def read_safe(path: Path) -> bytes:
     return data
 
 
+def validate_listing(metadata: object) -> None:
+    """Check public-directory text and the single supported branding path.
+
+    Limits: https://developers.openai.com/plugins/deploy/submission-errors.
+    Publisher identity verification remains a portal operation, not a local claim.
+    """
+    if not isinstance(metadata, dict):
+        raise ValueError("Plugin metadata must be an object")
+    interface = metadata.get("interface")
+    if not isinstance(interface, dict):
+        raise ValueError("Plugin interface must be an object")
+
+    def text_field(value: object, name: str, limit: int, multiline: bool = False) -> str:
+        if not isinstance(value, str) or not value.strip() or len(value) > limit:
+            raise ValueError(f"Invalid {name}: required text, at most {limit} characters")
+        if any((ord(char) < 32 or ord(char) == 127) and not (multiline and char in "\n\r\t") for char in value):
+            raise ValueError(f"Invalid control character in {name}")
+        if not multiline and any(char in "\r\n\v\f\x85\u2028\u2029" for char in value):
+            raise ValueError(f"{name} must be single-line")
+        return value
+
+    for field, limit in (("displayName", 30), ("shortDescription", 30), ("developerName", 80)):
+        text_field(interface.get(field), field, limit)
+    text_field(interface.get("longDescription"), "longDescription", 4000, multiline=True)
+    prompts = interface.get("defaultPrompt", [])
+    if isinstance(prompts, str):
+        prompts = [prompts]
+    if not isinstance(prompts, list) or len(prompts) > 3:
+        raise ValueError("defaultPrompt must contain at most three prompts")
+    normalized = []
+    for prompt in prompts:
+        value = text_field(prompt, "defaultPrompt", 128)
+        if "@" in value:
+            raise ValueError("Starter prompts must not contain MCP server mentions")
+        normalized.append(" ".join(unicodedata.normalize("NFKC", value).split()))
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("Starter prompts must be distinct after normalization")
+    for field in ("logo", "composerIcon"):
+        if interface.get(field) != BRANDING_ASSET:
+            raise ValueError(f"{field} must reference the bundled {BRANDING_ASSET}")
+
+
+def validate_branding_svg(data: bytes) -> None:
+    """Permit only inert geometry in the bundled applicant icon, never active SVG."""
+    if len(data) > 5 * 1024 * 1024:
+        raise ValueError("Branding SVG exceeds 5 MiB")
+    text = data.decode("utf-8")
+    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)|<\?(?!xml(?:\s|\?))", text, re.IGNORECASE):
+        raise ValueError("SVG declarations, entities, and processing instructions are not permitted")
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise ValueError("Branding SVG is not valid XML") from exc
+    if root.tag != f"{{{SVG_NAMESPACE}}}svg":
+        raise ValueError("Branding SVG must have a namespaced svg root")
+
+    def number(value: str) -> float:
+        if not re.fullmatch(SVG_NUMBER, value):
+            raise ValueError("SVG dimensions must be unitless finite numbers")
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError("SVG dimensions must be finite")
+        return result
+
+    geometry: list[tuple[float, float]] = []
+    if "width" in root.attrib or "height" in root.attrib:
+        geometry.append((number(root.get("width", "")), number(root.get("height", ""))))
+    if "viewBox" in root.attrib:
+        parts = re.split(r"[\s,]+", root.attrib["viewBox"].strip())
+        if len(parts) != 4:
+            raise ValueError("SVG viewBox must contain four numbers")
+        numbers = [number(part) for part in parts]
+        geometry.append((numbers[2], numbers[3]))
+    if not geometry or any(width < 48 or width != height for width, height in geometry):
+        raise ValueError("Branding SVG must be square and at least 48 units wide")
+
+    for element in root.iter():
+        if not isinstance(element.tag, str) or not element.tag.startswith(f"{{{SVG_NAMESPACE}}}"):
+            raise ValueError("Unexpected SVG namespace")
+        tag = element.tag.split("}", 1)[1]
+        if tag not in SVG_ATTRIBUTES or set(element.attrib) - SVG_ATTRIBUTES[tag]:
+            raise ValueError("Unexpected or active SVG element/attribute")
+        if element is not root and tag == "svg":
+            raise ValueError("Nested SVG viewports are not supported")
+        if tag not in {"title", "desc"} and (element.text or "").strip():
+            raise ValueError("Unexpected SVG text")
+        if (element.tail or "").strip():
+            raise ValueError("Unexpected SVG tail text")
+        for attribute, value in element.attrib.items():
+            if attribute in {"fill", "stroke"}:
+                valid = bool(re.fullmatch(r"(?:#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|none|currentColor)", value))
+            elif attribute == "stroke-linecap":
+                valid = value in {"butt", "round", "square"}
+            elif attribute == "stroke-linejoin":
+                valid = value in {"miter", "round", "bevel"}
+            elif attribute == "fill-rule":
+                valid = value in {"nonzero", "evenodd"}
+            elif attribute == "transform":
+                valid = bool(re.fullmatch(r"\s*(?:(?:matrix|translate|scale|rotate|skewX|skewY)\([0-9eE+., \t-]+\)\s*)+", value))
+            elif attribute == "d":
+                valid = bool(re.fullmatch(r"[MmZzLlHhVvCcSsQqTtAa0-9eE+., \t\r\n-]+", value))
+            elif attribute in {"points", "viewBox"}:
+                valid = bool(re.fullmatch(r"[0-9eE+., \t\r\n-]+", value))
+            else:
+                number(value)
+                valid = True
+            if not valid:
+                raise ValueError("Unsupported SVG geometry or resource reference")
+
+
 def collect(repo: Path, variant: str) -> tuple[dict[str, bytes], dict]:
     if variant not in {"web", "desktop"}:
         raise ValueError("Unknown package variant")
     validate_public_repository(repo)
     metadata = json.loads(read_safe(repo / "plugin/manifest.json"))
+    validate_listing(metadata)
     if metadata.get("name") != NAME or not re.fullmatch(r"\d+\.\d+\.\d+", metadata.get("version", "")):
         raise ValueError("Invalid plugin identity or version")
     if metadata.get("mcpServers") or metadata.get("apps"):
@@ -169,8 +299,11 @@ def collect(repo: Path, variant: str) -> tuple[dict[str, bytes], dict]:
             rel = path.relative_to(repo).as_posix()
             entries[rel] = read_safe(path)
     for name in SUPPORT_FILES:
-        destination = f"plugin/{name}" if name in {"README.md", "PRIVACY.md", "SURFACES.md", "use-cases.json"} else name
-        entries[destination] = read_safe(repo / "plugin" / name)
+        destination = f"plugin/{name}" if name in {"README.md", "PRIVACY.md", "SURFACES.md", "SUPPORT.md", "TERMS.md", "use-cases.json"} else name
+        content = read_safe(repo / "plugin" / name)
+        if name == "assets/applicant.svg":
+            validate_branding_svg(content)
+        entries[destination] = content
     entries["README.md"] = ("# Обращение в КС РФ — помощь заявителю\n\n"
         "Начните с описания ситуации или документов. Попросите помощника: «Хочу обратиться в КС РФ. Помоги разобраться, с чего начать».\n\n"
         "[Как установить и начать](plugin/README.md) · [Браузер и настольное приложение](plugin/SURFACES.md) · "

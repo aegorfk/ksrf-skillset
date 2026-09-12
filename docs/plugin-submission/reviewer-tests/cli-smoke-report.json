@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "status": "passed",
+  "scope": "packaged_txt_intake_software_smoke",
+  "checked_at_utc": "2026-09-12T14:34:20.520813+00:00",
+  "case_id": "P01",
+  "plugin_version": "1.0.1",
+  "source_commit": "3350905a21a9f1ec9f62d334feb47803149abae3",
+  "distribution_manifest_sha256": "cb458823985decce1e1440b3d71e678375b8fef7a745f59d0be7d8f43235f34e",
+  "python_version": "3.13.1",
+  "command_template": [
+    "python3",
+    "-I",
+    "-B",
+    "skills/ksrf-complaint-cycle/scripts/plugin_runtime.py",
+    "--state-dir",
+    "<temporary-state>",
+    "collect",
+    "--",
+    "fixtures/P01/applicant-note.txt",
+    "fixtures/P01/first-stage.txt",
+    "fixtures/P01/first-stage-copy.txt",
+    "fixtures/P01/second-stage.txt",
+    "--no-ocr"
+  ],
+  "exit_codes": {
+    "integrity_before": 0,
+    "collect": 0,
+    "integrity_after": 0
+  },
+  "collector_schema": "ksrf.casefile.v3",
+  "document_count": 4,
+  "documents": [
+    {
+      "name": "applicant-note.txt",
+      "sha256": "5e3ac37e705e00d4c84e6384244f9f060edc50cbb6a08a185abf1515e935594d",
+      "size_bytes": 1078,
+      "text_chars": 636
+    },
+    {
+      "name": "first-stage-copy.txt",
+      "sha256": "67a02bd439f4aef508ce95cb49144d3556e5038df93b4adc75c4c2601b0d47b6",
+      "size_bytes": 1155,
+      "text_chars": 681
+    },
+    {
+      "name": "first-stage.txt",
+      "sha256": "67a02bd439f4aef508ce95cb49144d3556e5038df93b4adc75c4c2601b0d47b6",
+      "size_bytes": 1155,
+      "text_chars": 681
+    },
+    {
+      "name": "second-stage.txt",
+      "sha256": "effb53cb6fa385bf1ac9909b87bac1b1d63063f7ea3d341a75e0e9794c8a8b09",
+      "size_bytes": 784,
+      "text_chars": 480
+    }
+  ],
+  "original_fixtures_unchanged": true,
+  "raw_collector_stdout_sha256": "20abf6debe4448d39e5b0b621e1a0e11d4768432aaa7a1bd0d62d948a6b5dff2",
+  "raw_output_saved": false,
+  "raw_output_note": "Absolute local paths omitted; report preserves the observed fields above and stdout digest.",
+  "classification_accuracy_measured": false,
+  "model_evaluation_performed": false,
+  "actual_model_runs": 0,
+  "legal_quality_measured": false,
+  "signing_performed": false,
+  "payment_performed": false,
+  "filing_performed": false,
+  "source_working_tree_modified": true,
+  "published_source_verified": false
+}

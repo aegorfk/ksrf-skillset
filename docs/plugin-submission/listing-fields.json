@@ -1,0 +1,77 @@
+{
+  "status": "prepared_not_submitted",
+  "packageName": "ksrf-applicant",
+  "sourcePackageVersion": "1.0.1",
+  "submissionVersion": "1.0.1",
+  "submissionType": "Skills only",
+  "category": "Productivity",
+  "localizations": {
+    "ru": {
+      "displayName": "КС РФ: помощь заявителю",
+      "shortDescription": "Документы и проект обращения",
+      "longDescription": "Для самостоятельных заявителей и юристов. Помогает разобрать документы, объяснить возможный конституционный вопрос, проверить основания и возражения, подготовить рабочий проект и список дальнейших действий. Включает полный набор навыков КС РФ и переносимую среду выполнения. Распознавание сканов (OCR) и создание DOCX/PDF доступны, если используемая среда предоставляет необходимые инструменты. Проект требует юридической проверки человеком. Подпись, платёж, подача и юридическое одобрение остаются за человеком.",
+      "defaultPrompt": [
+        "Хочу обратиться в Конституционный Суд. Помоги разобраться, с чего начать.",
+        "Разбери мои документы и объясни возможные пути защиты.",
+        "Проверь проект моей жалобы и предложи исправления."
+      ]
+    },
+    "en": {
+      "displayName": "KSRF Applicant Helper",
+      "shortDescription": "Prepare a court complaint",
+      "longDescription": "A Russian-language workflow for people preparing a complaint to the Constitutional Court of the Russian Federation without a legal background. Start with your account of events, case documents, a case number, a draft complaint, or a letter from the Court Secretariat.\n\nThe assistant organizes documents and a timeline, explains possible constitutional issues, checks sources, and identifies missing evidence and objections. For revisions, it preserves the original and proposes a separate draft with an explanation of changes.\n\nThe package includes 16 skills covering initial assessment, legal research, drafting, review, document preparation, and possible next steps after a Court decision. OCR and working DOCX/PDF files are available only when the host provides the required execution and document tools. Available text can still be analyzed when those tools are missing.\n\nDrafts require human review. Legal approval, signing, payment, and filing are not automated. The package does not promise that a complaint will be accepted or that a right will be restored.\n\nChatGPT, Codex, or another chosen host and connected services determine how messages and files are processed. Local file storage does not mean that the model runs entirely locally.",
+      "defaultPrompt": [
+        "I am not a lawyer. Review my documents and explain how to start preparing a complaint to the Russian Constitutional Court.",
+        "Review my draft Constitutional Court complaint and propose a separate revision explaining the changes.",
+        "Explain this letter from the Court Secretariat: what must I correct and which documents do I need?"
+      ]
+    }
+  },
+  "publisher": {
+    "developerName": null,
+    "verifiedIdentity": null,
+    "publicRepositoryHandle": "aegorfk",
+    "note": "Public GitHub handle is not proof of verified publisher identity."
+  },
+  "availability": {
+    "countriesOrRegions": null,
+    "note": "Do not infer enabled countries from Russian court jurisdiction or Russian-language content."
+  },
+  "optionalURLs": {
+    "websiteURL": "https://github.com/aegorfk/ksrf-applicant-plugin",
+    "supportURL": "https://github.com/aegorfk/ksrf-applicant-plugin/issues",
+    "privacyPolicyURL": "https://github.com/aegorfk/ksrf-applicant-plugin/blob/main/plugins/ksrf-applicant/plugin/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/aegorfk/ksrf-applicant-plugin/blob/main/plugins/ksrf-applicant/plugin/TERMS.md",
+    "softwareLicenseURL": "https://github.com/aegorfk/ksrf-applicant-plugin/blob/main/LICENSE",
+    "supportInformationURL": "https://github.com/aegorfk/ksrf-applicant-plugin/blob/main/plugins/ksrf-applicant/plugin/SUPPORT.md"
+  },
+  "supportVerification": {
+    "checkedAt": "2026-09-12",
+    "hasIssues": true,
+    "hasDiscussions": false,
+    "privateCaseIntakeOffered": false
+  },
+  "fieldLengths": {
+    "ru": {
+      "displayName": 23,
+      "shortDescription": 28,
+      "longDescription": 512,
+      "starterPrompts": [
+        73,
+        54,
+        50
+      ]
+    },
+    "en": {
+      "displayName": 21,
+      "shortDescription": 25,
+      "longDescription": 1247,
+      "starterPrompts": [
+        122,
+        102,
+        98
+      ]
+    }
+  },
+  "optionalURLsStatus": "Verify live URLs after publishing version 1.0.1; publisher identity remains separate."
+}

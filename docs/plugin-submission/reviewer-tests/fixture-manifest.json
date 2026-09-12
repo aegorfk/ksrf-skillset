@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "files": [
+    {
+      "path": "fixtures/N01/source.txt",
+      "sha256": "4f3278bc23f666b00d07a26506d8ab56cd09b0b1555cf56b1764c6d034892120",
+      "bytes": 770,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/N02/working-draft.txt",
+      "sha256": "95438e0e50a5bd86efaea549aaa5e5eeda909a538f301eb7d48bad24bc1e3f3a",
+      "bytes": 925,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/N03/current-case.txt",
+      "sha256": "782f721f1c66e3d0122aa437491dcb051061b57e1311d02dd563f4eaf883e575",
+      "bytes": 1152,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/N03/reviewer-only/other-case.txt",
+      "sha256": "2e63cd599aa9e2bd0b0b11a69c62b171a4cc0bee4e8be017677a6c857704c872",
+      "bytes": 393,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P01/applicant-note.txt",
+      "sha256": "5e3ac37e705e00d4c84e6384244f9f060edc50cbb6a08a185abf1515e935594d",
+      "bytes": 1078,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P01/first-stage-copy.txt",
+      "sha256": "67a02bd439f4aef508ce95cb49144d3556e5038df93b4adc75c4c2601b0d47b6",
+      "bytes": 1155,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P01/first-stage.txt",
+      "sha256": "67a02bd439f4aef508ce95cb49144d3556e5038df93b4adc75c4c2601b0d47b6",
+      "bytes": 1155,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P01/second-stage.txt",
+      "sha256": "effb53cb6fa385bf1ac9909b87bac1b1d63063f7ea3d341a75e0e9794c8a8b09",
+      "bytes": 784,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P02/refusal.txt",
+      "sha256": "7c1f5de84d8bee2b023d7fd14b2ed3725c060485473020a783bc2d89992f476a",
+      "bytes": 898,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P02/rule-and-facts.txt",
+      "sha256": "2dbe7ba41bf91b4bc635b5f618361bd57e91578e9b4c9a4dbc13a48216af6442",
+      "bytes": 1823,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P03/draft.txt",
+      "sha256": "39cfd0b78689b7f16043565ec54e603a80f6d96d7f6643f67c854ddabb32b85d",
+      "bytes": 835,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P03/source.txt",
+      "sha256": "846c4ee4a1e1c30d2b6466bfee8f4c6064a3e635f2a747b9bb0e9b9e0e0433e8",
+      "bytes": 949,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P04/applicant-note.txt",
+      "sha256": "5354581ecfa8ad3fbff5c35f55f9ad6d4029fddebbf47939944e120ba6da9a35",
+      "bytes": 617,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P04/notice.txt",
+      "sha256": "c3cfe1202a508e3249cd25573adca8dd16dbd46b61d041ec683758d9f1fac4be",
+      "bytes": 1030,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P05/model-act.txt",
+      "sha256": "1638122fd7ed5adc407e674b6ec39d4eac86a856cb15065487491f098d94d356",
+      "bytes": 1286,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    },
+    {
+      "path": "fixtures/P05/my-posture.txt",
+      "sha256": "0dd1f4682ef7bd71d031d3cf03eebd3a3eb2e48458f1a4d2f20b25d1550e260d",
+      "bytes": 758,
+      "synthetic": true,
+      "author": "generated for this review bundle; no external case source"
+    }
+  ]
+}

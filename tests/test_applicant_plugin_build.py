@@ -16,6 +16,13 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 import build_applicant_plugin as builder
 
+SAFE_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">'
+    '<rect x="32" y="32" width="448" height="448" rx="40" fill="#244A62"/>'
+    '<path d="M 160 256 L 224 320 L 352 192" fill="none" stroke="#ffffff" stroke-width="24"/>'
+    '</svg>\n'
+)
+
 spec = importlib.util.spec_from_file_location("plugin_verify", REPO / "plugin/verify.py")
 verifier = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
@@ -44,9 +51,14 @@ class PluginBuildTest(unittest.TestCase):
             target = self.repo / "plugin" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             content = "# Synthetic support\n" if target.suffix == ".py" else "Synthetic support\n"
-            target.write_text("{}\n" if target.suffix == ".json" else content)
+            target.write_text(SAFE_SVG if target.suffix == ".svg" else "{}\n" if target.suffix == ".json" else content)
         (self.repo / "plugin/manifest.json").write_text(json.dumps({
-            "name": builder.NAME, "version": "1.0.0", "skills": "./skills/"}))
+            "name": builder.NAME, "version": "1.0.1", "skills": "./skills/",
+            "interface": {"displayName": "Synthetic applicant", "shortDescription": "Review a working draft",
+                          "longDescription": "Synthetic directory metadata for package tests.",
+                          "developerName": "Synthetic test publisher", "category": "Productivity",
+                          "defaultPrompt": ["Review my synthetic draft."],
+                          "logo": builder.BRANDING_ASSET, "composerIcon": builder.BRANDING_ASSET}}))
 
     def test_complete_deterministic_and_runtime_only(self):
         first = builder.build(self.repo, self.base / "one")
@@ -64,6 +76,10 @@ class PluginBuildTest(unittest.TestCase):
                 self.assertTrue(all(name.startswith("ksrf-applicant/") for name in names))
                 self.assertFalse(any("/tests/" in name or name.endswith("/.env") for name in names))
                 self.assertFalse(any(name.endswith(".mcp.json") for name in names))
+                self.assertIn("ksrf-applicant/assets/applicant.svg", names)
+                self.assertIn("ksrf-applicant/plugin/SUPPORT.md", names)
+                self.assertIn("ksrf-applicant/plugin/TERMS.md", names)
+            self.assertEqual((root / "assets/applicant.svg").read_text(), SAFE_SVG)
 
     def test_tampering_and_unlisted_files_rejected(self):
         result = builder.build(self.repo, self.base / "out", ("web",))
@@ -192,6 +208,103 @@ class PluginBuildTest(unittest.TestCase):
             self.assertIsNone(surface["hosted_endpoint"])
             self.assertFalse(surface["accounts_included"])
             self.assertEqual(surface["runtime"], "requires_host_execution")
+
+    def test_listing_limits_and_single_line_fields_before_output(self):
+        path = self.repo / "plugin/manifest.json"
+        original = json.loads(path.read_text())
+        changes = [("displayName", "a" * 31), ("shortDescription", "a" * 31),
+                   ("longDescription", "a" * 4001), ("developerName", "a" * 81),
+                   ("displayName", "first\nsecond"), ("shortDescription", "first\u2028second"),
+                   ("developerName", "first\tsecond"), ("longDescription", ""),
+                   ("displayName", None)]
+        for field, value in changes:
+            with self.subTest(field=field, value_type=type(value).__name__):
+                metadata = json.loads(json.dumps(original))
+                metadata["interface"][field] = value
+                path.write_text(json.dumps(metadata))
+                with self.assertRaises(ValueError):
+                    builder.build(self.repo, self.base / "bad-listing")
+                self.assertFalse((self.base / "bad-listing").exists())
+        boundary = json.loads(json.dumps(original))
+        boundary["interface"].update({"displayName": "x" * 30, "shortDescription": "x" * 30,
+                                      "longDescription": "x" * 4000, "developerName": "x" * 80})
+        builder.validate_listing(boundary)
+
+    def test_prompt_limits_normalization_and_mentions(self):
+        metadata = json.loads((self.repo / "plugin/manifest.json").read_text())
+        invalid = [["x" * 129], ["a", "b", "c", "d"], [" "] , ["same text", "same\u00a0text"],
+                   ["Café", "Cafe\u0301"], ["\u00a8prompt", "\u0308prompt"],
+                   ["use @remote"], ["first\nsecond"], [None], {"prompt": "value"}]
+        for prompts in invalid:
+            with self.subTest(prompts_type=type(prompts).__name__):
+                metadata["interface"]["defaultPrompt"] = prompts
+                with self.assertRaises(ValueError):
+                    builder.validate_listing(metadata)
+        metadata["interface"]["defaultPrompt"] = ["x" * 128, "Different prompt", "Third prompt"]
+        builder.validate_listing(metadata)
+        metadata["interface"]["defaultPrompt"] = "One supported prompt"
+        builder.validate_listing(metadata)
+
+    def test_branding_paths_cannot_escape_or_select_other_files(self):
+        path = self.repo / "plugin/manifest.json"
+        original = json.loads(path.read_text())
+        for field in ("logo", "composerIcon"):
+            for bad in ("../outside.svg", "/absolute.svg", "https://example.invalid/icon.svg",
+                        "./assets/../applicant.svg", "./assets/other.svg", None):
+                with self.subTest(field=field, bad=bad):
+                    metadata = json.loads(json.dumps(original))
+                    metadata["interface"][field] = bad
+                    path.write_text(json.dumps(metadata))
+                    with self.assertRaisesRegex(ValueError, "must reference"):
+                        builder.build(self.repo, self.base / "bad-branding")
+                    self.assertFalse((self.base / "bad-branding").exists())
+
+    def test_svg_dimensions_xml_and_encoding(self):
+        invalid = [
+            SAFE_SVG.replace('height="512"', 'height="256"'),
+            SAFE_SVG.replace('width="512"', 'width="47"').replace('height="512"', 'height="47"'),
+            SAFE_SVG.replace('width="512"', 'width="512px"'),
+            SAFE_SVG.replace('width="512"', 'width="1e999"'),
+            SAFE_SVG.replace('viewBox="0 0 512 512"', 'viewBox="0 0 512 256"'),
+            SAFE_SVG.replace('viewBox="0 0 512 512"', 'viewBox="0 0 512"'),
+            SAFE_SVG.replace('width="512" height="512" viewBox="0 0 512 512"', ''),
+            SAFE_SVG.replace('</svg>', ''),
+        ]
+        for value in invalid:
+            with self.subTest(value=value[:80]), self.assertRaises(ValueError):
+                builder.validate_branding_svg(value.encode())
+        with self.assertRaises(UnicodeDecodeError):
+            builder.validate_branding_svg(b"\xff")
+        builder.validate_branding_svg(SAFE_SVG.encode())
+        builder.validate_branding_svg(SAFE_SVG.replace('width="512" height="512" ', '').encode())
+
+    def test_active_svg_and_resource_references_rejected_before_output(self):
+        path = self.repo / "plugin/assets/applicant.svg"
+        invalid = [
+            SAFE_SVG.replace('</svg>', '<script>alert(1)</script></svg>'),
+            SAFE_SVG.replace('width="512"', 'onload="alert(1)" width="512"', 1),
+            SAFE_SVG.replace('</svg>', '<foreignObject width="100" height="100"/></svg>'),
+            SAFE_SVG.replace('</svg>', '<image href="https://example.invalid/image.png"/></svg>'),
+            SAFE_SVG.replace('</svg>', '<use href="#shape"/></svg>'),
+            SAFE_SVG.replace('fill="#244A62"', 'fill="url(https://example.invalid/image.svg)"'),
+            SAFE_SVG.replace('fill="#244A62"', 'style="fill: #244A62"'),
+            SAFE_SVG.replace('stroke-width="24"', 'unknown="value"'),
+            '<!DOCTYPE svg [<!ENTITY x "unsafe">]>' + SAFE_SVG,
+            '<?xml-stylesheet href="https://example.invalid/style.css"?>' + SAFE_SVG,
+        ]
+        for index, content in enumerate(invalid):
+            with self.subTest(index=index):
+                path.write_text(content)
+                with self.assertRaises(ValueError):
+                    builder.build(self.repo, self.base / "unsafe-svg")
+                self.assertFalse((self.base / "unsafe-svg").exists())
+
+    def test_branding_still_uses_private_content_guard(self):
+        path = self.repo / "plugin/assets/applicant.svg"
+        path.write_text(SAFE_SVG.replace('</svg>', '<desc>' + 'sk' + '-' + 'a' * 35 + '</desc></svg>'))
+        with self.assertRaisesRegex(ValueError, "credential"):
+            builder.build(self.repo, self.base / "private-svg")
+        self.assertFalse((self.base / "private-svg").exists())
 
 
 if __name__ == "__main__":

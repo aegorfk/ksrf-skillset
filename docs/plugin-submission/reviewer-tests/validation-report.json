@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "status": "passed",
+  "scope": "synthetic_fixture_integrity_only",
+  "checked_at_utc": "2026-09-12T14:33:03.735390+00:00",
+  "positive_cases": 5,
+  "negative_cases": 3,
+  "fixture_files": 16,
+  "checks": [
+    "case_count_and_required_fields",
+    "safe_relative_paths",
+    "manifest_hashes_and_bytes",
+    "synthetic_markers",
+    "all_fixtures_referenced",
+    "duplicate_fixture_identity",
+    "quote_mismatch_fixture",
+    "untrusted_instruction_fixture",
+    "expected_actual_separation"
+  ],
+  "model_evaluation_performed": false,
+  "actual_model_runs": 0,
+  "legal_quality_measured": false,
+  "filing_performed": false
+}
