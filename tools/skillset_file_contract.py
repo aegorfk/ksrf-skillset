@@ -174,6 +174,10 @@ SAFE_SECRET_WORDS = ("example", "placeholder", "redacted", "replace", "dummy", "
 # tests and OpenSpec files to the published Git commit.
 RELEASE_FILE_PATHS = (
     "install.sh",
+    "tools/build_applicant_plugin.py",
+    "plugin/verify.py",
+    "plugin/environment/smoke.py",
+    "plugin/environment/soffice.py",
     "tools/generate_skills_manifest.py",
     "tools/install_skillset.py",
     "tools/skillset_file_contract.py",
