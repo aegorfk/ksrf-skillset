@@ -289,6 +289,40 @@
         "Не переносит термин на другую категорию и не создаёт презумпцию без официального основания.",
         "Сохраняет adverse reading и term_effect_unclear, если определение или предикаты не восстановлены."
       ]
+    },
+    {
+      "id": 26,
+      "prompt": "Синтетический сценарий. Первым дан благоприятный известный акт и сообщение, что результат нового дела несправедлив; затем — неполный нижестоящий акт без фрагмента применения спорной нормы. Сформулируй проблему и проверь устойчивость при обратном порядке предъявления.",
+      "expected_output": "Сохранить материальный правовой вопрос, обнаружить лёгкий proxy и не заполнить аналогией пробел применения.",
+      "files": [],
+      "expectations": [
+        "Не создаёт ложный FrozenBaseline после раскрытия: фиксирует PostExposureReconstruction, prior_exposure_status=exposed и baseline_status=post_exposure_reconstruction.",
+        "Формулирует hard_question без предположения о доказанном применении, фиксирует easy_proxy, rival_hypothesis и decision_changing_evidence и отмечает раннее раскрытие исхода как context_contaminated, а не outcome-blind.",
+        "Проверяет прямое и имплицитное применение отдельно и сохраняет application gap.",
+        "Без нового изолированного reviewer/context возвращает reverse_order_unavailable или non_independent; при изменении вопроса без новых evidence refs — context_shift_unexplained и human_review."
+      ]
+    },
+    {
+      "id": 27,
+      "prompt": "Синтетический near-miss. После замороженного первого прохода получен полный официальный судебный акт. Для нужной стадии зафиксированы hash, speaker role, locator, quote window, точная нормативная логика, причинная роль и заранее созданный host-attested approval полного application record; известный последующий итог ещё не раскрыт. Повторный анализ изменился только в application status.",
+      "expected_output": "Допустить объяснимую дельту по новому доказательству и не объявлять любое изменение контаминацией.",
+      "files": [],
+      "expectations": [
+        "Связывает finding_after с полным каноническим evidence/application pack и ставит context_shift_explained.",
+        "Сохраняет прежний baseline и точную дельту вместо его переписывания.",
+        "Не диагностирует bias и не считает объяснимое изменение контаминацией, если оно вызвано новым релевантным материалом."
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "Синтетический controlled-order тест. Два новых изолированных reviewer получают byte-identical нижестоящий акт без последующего исхода. Оба до дополнительного контекста фиксируют hard question и gaps; затем одному показывают яркую аналогию первой, другому — последней. Сравни результаты.",
+      "expected_output": "Провести допустимый reverse-order check с двумя pre-exposure baseline и общей границей входа.",
+      "files": [],
+      "expectations": [
+        "Для каждого reviewer фиксирует разные analysis_run_id, pre_exposure_frozen, prior_exposure_status=not_exposed, reviewer_context_id, одинаковый input manifest hash, отдельный output hash и planned/actual exposure stage.",
+        "Сравнивает issue statement, application gaps и rival hypothesis без использования известного исхода.",
+        "Возвращает stable либо sensitive; при несовпадающей границе контекста — non_independent, а не слепой тест."
+      ]
     }
   ]
 }

@@ -55,6 +55,11 @@ description: "Скилл помогает заявителю без юридич
 - full-act locators и human review, подтверждённый заранее созданным host-attested approval полного record/chain fingerprint.
 
 Итоговые статусы: `explicitly_applied`, `implicitly_applied_proven`, `application_unclear`, `not_applied`; `directly_applied` — только legacy alias. Простое упоминание, довод стороны, тематическое сходство, исход дела или оставление акта без изменения не доказывают применения.
+Если нормативная логика доказанно использована имплицитно, но результат
+удерживает самостоятельное достаточное основание, не стирай это использование
+статусом `not_applied`: сохрани `norm_use_status=reasoning_linked_implicit`,
+`outcome_causation=independent_sufficient_ground`, а admissibility-итог оставь
+`application_unclear`.
 
 Для каждой строки с ролью `application_finding` сохрани exact текст, `claim_id`, `norm_passport_id`, `application_record_ids`, `evidence_ids` и `maximum_supported_inference`. Не считай строку подтверждённой по caller-supplied `verified|human_approved`, произвольному ID или общему индексу ролей. Перед ready release host authority обязан независимо от выбранных ID вернуть полный current chain: выбранные записи должны быть положительными, причинно значимыми и иметь current norm/preservation/application approvals; доказательства должны точно покрывать non-contradicted direct proof либо роль и speaker каждой конкретной implicit premise, а также необходимое включение более раннего акта; каждый incorporated record обязан однозначно существовать на более ранней стадии; wording и предел вывода — совпасть с заранее одобренной scope-записью, которая связывает отдельные revision/check time цепочки. Любая пропущенная поздняя стадия, unresolved incorporation, contradicted/foreign/background span, stale fingerprint/approval, перефразирование либо неполный индекс всех `application_finding` блокирует строку с её `sentence_id`, но оставляет её доступной для исправления.
 
@@ -127,7 +132,7 @@ description: "Скилл помогает заявителю без юридич
 
 Для повторной жалобы или спора о доступности другого судебного порядка открой [проверку нового вопроса и способов защиты](../ksrf-complaint-qa/references/renewed-complaint-and-remedy-gap.md). Не связывай более поздний текст с прежним отказом как с его результатом.
 
-Если материалы касаются вынужденного выбора между правовыми статусами, открой [проверку запретов совмещения](../ksrf-rights-argument-builder/references/status-incompatibility-and-qualified-silence.md). Если передано заключение amicus, сначала установи его собственный предмет по [карточке заключения и толкования](../ksrf-doctrine-research/references/amicus-interpretation-and-remedy.md); соседняя жалоба не определяет его дело.
+Если материалы касаются вынужденного выбора между правовыми статусами, открой [проверку запретов совмещения](../ksrf-rights-argument-builder/references/status-incompatibility-and-qualified-silence.md). Если передано заключение amicus, сначала установи его собственный предмет по [карточке заключения и толкования](../ksrf-doctrine-research/references/amicus-interpretation-and-remedy.md); соседняя жалоба не определяет его дело. Когда довод зависит от времени, функции или фактического влияния такого заключения, дополнительно используй [проверку окна и эффекта совета](../ksrf-doctrine-research/references/constitutional-advice-function-and-effect.md); заключение не доказывает прямое или имплицитное применение нормы.
 
 Открывай только по совпавшему trigger:
 

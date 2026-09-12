@@ -46,14 +46,14 @@ QA_SKILL = REPO / "skills" / "ksrf-complaint-qa" / "SKILL.md"
 EVAL = SKILL_ROOT / "evals" / "evals.json"
 EVAL_SHA256 = "80942d11f1a2cc78048951783988942c7f8d491ca6515ffe3468d55bd0ab63da"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
-TRIGGER_EVAL_SHA256 = "07e060025b7e8a94439c89f2afc4354e5ca4d70f419094aad5d8b69eb5ee81d4"
+TRIGGER_EVAL_SHA256 = "5a9907f9bd157b825c11aa406e682651b55a612ec0ff6d2e4f9dca56834089a3"
 QA_EVAL = REPO / "skills" / "ksrf-complaint-qa" / "evals" / "evals.json"
-QA_EVAL_SHA256 = "a68e22db1e8828136f72054bdfbe5d0eaf15ccced79e268dc6571e261381dbcc"
+QA_EVAL_SHA256 = "c846d61f858ebe8a44564bf15b3ef4cda18a46f36abb119a5824c887e0176e31"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        227,
-        33892,
-        "bc5d83a23252829317042b12c9c59bec83f3909b3511f29c0be502fd31725f76",
+        234,
+        34487,
+        "2a54b76279bd54b39a6adb17724f0006dca1951d07a5551e88b705ac63b26634",
     ),
     EXAMPLES["39"]: (
         83,

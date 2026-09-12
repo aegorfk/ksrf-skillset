@@ -5,6 +5,7 @@
 ## Содержание
 
 - [Классификация и карточка факта](#классификация)
+- [ConstitutionalFactProofRoute](#constitutionalfactproofroute)
 - [StageFactMap и provenance](#stagefactmap-и-цепочка-вывода)
 - [FactWorkOversightMap](#factworkoversightmap)
 - [SystemicDataAcquisitionGap](#systemicdataacquisitiongap)
@@ -41,6 +42,55 @@
 - `individual_bridge` между общими данными и делом заявителя;
 - `maximum_supported_inference`;
 - `status`: `supported`, `contested`, `stale`, `missing` или `out_of_competence`.
+
+## ConstitutionalFactProofRoute
+
+Используй эту операцию, если для существенного выводного тезиса реально важно
+различить несколько каналов, установить происхождение поддержки или исключить
+двойной учёт одного материала. Для обычного одиночного доказательства без
+спора о независимости достаточно общей цепочки вывода. Канал представления и
+независимый источник знания — разные вещи. На каждый отдельный экземпляр
+канала заполни `route_id` и `channel_instance_id`; один `proof_channel` может
+содержать несколько разных документов или экспертов:
+
+| Поле | Что фиксировать |
+| --- | --- |
+| `route_id / fact_id / channel_instance_id` | стабильные идентификаторы маршрута, атомарного тезиса и конкретного экземпляра канала |
+| `case_specific_mode` | `descriptive`, `inferential` или `mixed`; смешанный тезис раздели |
+| `proof_channel` | `case_record`, `party_submission`, `expert_or_amicus`, `official_or_legislative_record`, `court_external_research` либо `unknown` |
+| `channel_evidence_ref` | документ, locator, дата и роль автора высказывания |
+| `dependency_dag_evidence_id` | ссылка на канонический evidence-узел в Dependency DAG; не создавай параллельный provenance record |
+| `origin_id` | первичный материал или процесс из канонического Dependency DAG, откуда канал получил сведения |
+| `dependency_group` | каноническая группа для копий, пересказов и производных одного источника |
+| `acquisition_and_inference_method` | как получены данные и каким переходом из них выведен тезис |
+| `adversarial_test_available` | мог ли заявитель видеть материал, оспорить метод и получить ответ |
+| `individual_bridge` | почему общая или групповая посылка относится именно к заявителю |
+| `maximum_supported_inference` | наиболее сильный вывод, который канал действительно поддерживает |
+| `dependency_status` | `independent_support`, `dependent_repetition` или `unknown_dependency`; независимость не является оценкой качества |
+| `support_status` | `supported`, `contested`, `insufficient_record` или `out_of_competence`; один независимый канал может оставаться contested |
+
+Сначала атомизируй описываемое событие и вывод о нём. Затем проследи
+`channel_evidence_ref → dependency_dag_evidence_id → origin_id → fact_id`.
+Поля `underlying_origin_id`, `underlying_dependency_group` и `route_status`
+допустимы только как legacy-вход: нормализуй их в две независимые оси выше и не
+используй для нового результата. Если сторона приложила
+отчёт, эксперт его пересказал, а суд воспроизвёл тот же вывод, это три канала,
+но одна `dependency_group`. Перед подсчётом независимой поддержки
+передай такие связи в `evidence-inference-and-dependency-audit.md#3-dependency-dag-и-запрет-двойного-счёта`.
+
+Повторение не устраняет дефект первичного метода и не доказывает индивидуальный
+факт. Отдельный первичный документ заявителя может образовать другую группу,
+но его предел вывода проверяется самостоятельно. Российские бремя, стандарт,
+допустимость, право суда использовать внешний материал и возможность
+состязательного ответа устанавливаются только по официальным источникам.
+
+Верни `ConstitutionalFactProofRoute[]` вместе с числом `channel_instance_id` и
+отдельно — числом независимых `dependency_group`. При неизвестном происхождении
+поставь `dependency_status=unknown_dependency` и
+`support_status=insufficient_record`; не считай unknown-связь независимостью и
+не повышай вывод до drafting-ready. Первичный документ, подтверждающий только
+платёж, подачу или дату, получает отдельный `fact_id` и собственный предел
+вывода: он не становится независимой поддержкой другого статистического тезиса.
 
 ## StageFactMap и цепочка вывода
 
@@ -137,6 +187,7 @@
 - список missing/stale evidence;
 - competence и transferability flags.
 - `StageFactMap`, `inference_gap`, provenance и revision triggers, если применимы.
+- `ConstitutionalFactProofRoute[]`, если факт выводной либо повторяется через несколько каналов.
 - `FactWorkOversightMap` и `SystemicDataAcquisitionGap`, если спор относится к сбору, использованию либо отсутствию данных.
 - `HistoricalClaimRoleRecord[]` и `FactualPrecedentRevalidation[]`, если вывод зависит от исторического тезиса или фактического нарратива прежнего акта.
 

@@ -495,6 +495,40 @@
         "Сохраняет возражение о пределах толкования как отдельный довод для проверки.",
         "Различает узкую защитную гарантию и более широкое предложение изменить закон."
       ]
+    },
+    {
+      "id": 46,
+      "prompt": "Синтетический near-miss. Экспертное заключение опубликовано после фактической фиксации законопроекта, но дата его передачи адресату не подтверждена; обсуждение и мотивированный ответ не опубликованы. Поздний акт использует сходный термин. Оцени роль заключения для жалобы.",
+      "expected_output": "Разделить форму совета, временное окно, публичность, uptake, authority и причинность.",
+      "files": [],
+      "expectations": [
+        "Создаёт ConstitutionalAdviceFunctionAndEffectCard с advice_document_id, source/full-text status, advisor, advisee, mandate, timing и decision_lock_in_status.",
+        "Раздельно фиксирует process_publicity, reasons_publicity и атомарный response/uptake.",
+        "Не приравнивает публикацию к передаче: возвращает timing_unclear, influence_opportunity_status=unknown и unknown или temporal_only causation, но не late_window_candidate; терминологическое сходство не считает adoption.",
+        "Ставит record_status=limited или insufficient_record, а без российского anchor, применения и вреда оставляет legal_use_status=research_only."
+      ]
+    },
+    {
+      "id": 47,
+      "prompt": "Синтетический changed-premise. Формально необязательное заключение обычно соблюдается, в этом деле передано до решения, опубликовано вместе с мотивированным ответом и частично принято. Российская норма не делает его обязательным, а итог имеет ещё одно достаточное основание.",
+      "expected_output": "Исследовать de facto влияние без превращения привычного следования в юридическую обязательность или причинность результата.",
+      "files": [],
+      "expectations": [
+        "Отделяет legal_bindingness от actual_uptake и классифицирует отдельные элементы как accepted и transformed, не создавая отсутствующий общий статус partial.",
+        "Не создаёт российскую обязанность из обычной практики следования.",
+        "Фиксирует independent_ground и оставляет legal_use_status=research_only, не создавая candidate."
+      ]
+    },
+    {
+      "id": 48,
+      "prompt": "Синтетический changed-premise к late-window проверке. Полный текст заключения и его hash подтверждены; журнал адресата доказывает передачу после документированной фактической фиксации релевантного выбора, когда полномочия изменить его уже не было. Дата публикации и терминологически похожий поздний акт также известны, но российского application/harm bridge нет.",
+      "expected_output": "Отличить доказанную позднюю передачу от поздней публикации и не превратить это в готовый довод жалобы.",
+      "files": [],
+      "expectations": [
+        "Связывает delivery_evidence_ref и decision_lock_in_evidence_ref и допускает late_window_candidate с influence_opportunity_status=closed.",
+        "Не выводит мотив delay или insurance без function_evidence_ref и не считает последующее терминологическое сходство причинностью.",
+        "Сохраняет record_status=verified, но legal_use_status=research_only без российского anchor, доказанного применения и индивидуального вреда."
+      ]
     }
   ]
 }

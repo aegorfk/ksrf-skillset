@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "scope": "synthetic_method_contract_only",
+  "cases": [
+    {
+      "id": "dependent_fact_channels",
+      "input_manifest": {
+        "scenario": "dependent_fact_channels",
+        "evidence_ids": ["report-party", "report-expert-copy", "report-court-copy", "receipt"],
+        "known_outcome": false
+      },
+      "input_manifest_sha256": "040a4f96828fc2f7c5684f0deeb62065a595b018df57eb24343992e63e770a02",
+      "expected": {
+        "channel_instance_count": 3,
+        "independent_dependency_group_count": 1,
+        "route_dependency_statuses": [
+          "independent_support",
+          "dependent_repetition",
+          "dependent_repetition"
+        ],
+        "receipt_fact_is_separate": true,
+        "unknown_origin_result": {
+          "dependency_status": "unknown_dependency",
+          "support_status": "insufficient_record"
+        }
+      }
+    },
+    {
+      "id": "already_exposed_outcome",
+      "input_manifest": {
+        "scenario": "already_exposed_outcome",
+        "record": "partial-lower-act",
+        "known_outcome": true,
+        "salient_analogy_exposed": true
+      },
+      "input_manifest_sha256": "d18d40db6b1c3ffdc5f9a25ff3f26be66cfcc917c0116d00ba44deb842b60c35",
+      "expected": {
+        "object_type": "PostExposureReconstruction",
+        "baseline_status": "post_exposure_reconstruction",
+        "prior_exposure_status": "exposed",
+        "context_status": "context_contaminated",
+        "reverse_order_result": "reverse_order_unavailable",
+        "direct_application_status": "application_unclear",
+        "implicit_application_status": "application_unclear",
+        "outcome_blind_claim_allowed": false
+      }
+    },
+    {
+      "id": "late_publication_unknown_delivery",
+      "input_manifest": {
+        "scenario": "late_publication_unknown_delivery",
+        "full_text": true,
+        "publication_after_lock_in": true,
+        "delivery_evidence": false
+      },
+      "input_manifest_sha256": "931951b8d1248a2f934b55f8a00d27919c81797bf7bbc6f471c382a054226bc0",
+      "expected": {
+        "delivery_evidence_ref": "not_available",
+        "timing_result": "timing_unclear",
+        "influence_opportunity_status": "unknown",
+        "causal_status": "temporal_only",
+        "record_status": "insufficient_record",
+        "legal_use_status": "research_only",
+        "late_window_candidate": false,
+        "terminological_similarity_is_adoption": false
+      }
+    },
+    {
+      "id": "quantified_risk_independent_ground",
+      "input_manifest": {
+        "scenario": "quantified_risk_independent_ground",
+        "measurement_complete": true,
+        "russian_threshold": true,
+        "independent_ground": true
+      },
+      "input_manifest_sha256": "91b7986d66f6a9f43b7318d6ec9b7a1cf8e441dd447f58d2b441cd4cf2b630e2",
+      "expected": {
+        "measurement_status": "supported",
+        "representation_status": "supported",
+        "legal_threshold_status": "supported",
+        "application_status": "application_unclear",
+        "causation_status": "independent_ground_controls",
+        "not_outcome_material": true,
+        "complaint_ready": false
+      }
+    },
+    {
+      "id": "implicit_norm_use_with_independent_ground",
+      "input_manifest": {
+        "scenario": "implicit_norm_use_with_independent_ground",
+        "court_authored_logic": true,
+        "approved_full_record": true,
+        "independent_ground": true
+      },
+      "input_manifest_sha256": "aa29b9868f374f0cc52fdade254b85ba6780982e011144a98eeead080b7dfe96",
+      "expected": {
+        "norm_use_status": "reasoning_linked_implicit",
+        "outcome_causation": "independent_sufficient_ground",
+        "application_status": "application_unclear",
+        "not_applied": false,
+        "causal_harm_gate": "blocked"
+      }
+    }
+  ]
+}

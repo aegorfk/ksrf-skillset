@@ -838,6 +838,55 @@ def _implicit_missing_premises(record: ApplicationEvidenceRecord) -> tuple[str, 
     return tuple(dict.fromkeys(missing))
 
 
+def _proven_implicit_norm_use_evidence_ids(
+    record: ApplicationEvidenceRecord,
+) -> tuple[str, ...]:
+    """Return proof of court-authored implicit norm use without deciding causation."""
+
+    if record.norm_use_status != "reasoning_linked_implicit":
+        return ()
+    proofs = {proof.premise: proof for proof in record.implicit_premises}
+    evidence_ids: list[str] = []
+    for premise in ("issue_before_court", "operative_norm_logic"):
+        proof = proofs.get(premise)
+        if proof is None or not proof.conclusion.strip() or not proof.evidence_ids:
+            return ()
+        spans = _usable_full_act_spans(record, proof.evidence_ids)
+        if not spans:
+            return ()
+        if premise == "issue_before_court" and not any(
+            span.reasoning_role == "issue_before_court" for span in spans
+        ):
+            return ()
+        if premise == "operative_norm_logic" and not any(
+            span.speaker == "court"
+            and span.reasoning_role in {"operative_rule", "application_reasoning"}
+            for span in spans
+        ):
+            return ()
+        evidence_ids.extend(proof.evidence_ids)
+    return tuple(dict.fromkeys(evidence_ids))
+
+
+def _preserve_implicit_use_when_independent_ground_controls(
+    record: ApplicationEvidenceRecord,
+    independent_ground_evidence_ids: tuple[str, ...],
+) -> ApplicationClassification | None:
+    norm_use_evidence_ids = _proven_implicit_norm_use_evidence_ids(record)
+    if not norm_use_evidence_ids:
+        return None
+    return ApplicationClassification(
+        status="application_unclear",
+        reason_codes=(
+            "implicit_norm_use_preserved",
+            "independent_ground_blocks_outcome_causation",
+        ),
+        evidence_ids=tuple(
+            dict.fromkeys((*norm_use_evidence_ids, *independent_ground_evidence_ids))
+        ),
+    )
+
+
 def classify_application(record: ApplicationEvidenceRecord) -> ApplicationClassification:
     """Derive the compatibility status without merging the three source axes."""
 
@@ -869,6 +918,13 @@ def classify_application(record: ApplicationEvidenceRecord) -> ApplicationClassi
 
     if _affirmative_non_application_is_proven(record):
         assert record.affirmative_non_application is not None
+        if record.affirmative_non_application.reason == "complete_independent_ground":
+            preserved = _preserve_implicit_use_when_independent_ground_controls(
+                record,
+                record.affirmative_non_application.evidence_ids,
+            )
+            if preserved is not None:
+                return preserved
         return ApplicationClassification(
             status="not_applied",
             reason_codes=(record.affirmative_non_application.reason,),
@@ -893,14 +949,21 @@ def classify_application(record: ApplicationEvidenceRecord) -> ApplicationClassi
         "independent_ground",
         speakers=frozenset({"court", "disposition"}),
     ):
+        independent_ground_evidence_ids = tuple(
+            span.evidence_id
+            for span in record.evidence
+            if span.reasoning_role == "independent_ground"
+        )
+        preserved = _preserve_implicit_use_when_independent_ground_controls(
+            record,
+            independent_ground_evidence_ids,
+        )
+        if preserved is not None:
+            return preserved
         return ApplicationClassification(
             status="not_applied",
             reason_codes=("complete_independent_ground",),
-            evidence_ids=tuple(
-                span.evidence_id
-                for span in record.evidence
-                if span.reasoning_role == "independent_ground"
-            ),
+            evidence_ids=independent_ground_evidence_ids,
         )
 
     if record.norm_use_status == "reasoning_linked_implicit":

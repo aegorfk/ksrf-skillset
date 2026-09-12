@@ -26,6 +26,7 @@ from ksrf.filing.application_evidence import (  # noqa: E402
     application_review_approval_request,
     assess_application_chain,
     build_preservation_rule_evidence,
+    classify_application,
     preservation_rule_review_approval_request,
 )
 from ksrf.filing.norm_versions import (  # noqa: E402
@@ -598,6 +599,57 @@ class ApplicationBindingRuntimeTests(unittest.TestCase):
 
         self.assertEqual((), errors)
         self.assertIsNotNone(receipt)
+
+    def test_independent_ground_does_not_erase_proven_implicit_norm_use(
+        self,
+    ) -> None:
+        payload = _implicit_record_payload()
+        payload["outcome_causation"] = "independent_sufficient_ground"
+        payload["evidence"] = payload["evidence"][:2]
+        payload["evidence"].append(
+            {
+                "evidence_id": "E-INDEPENDENT",
+                "claim_id": "CLAIM-A",
+                "norm_id": "NORM-1",
+                "act_id": "ACT-APP-A",
+                "stage": "first_instance",
+                "source_kind": "full_act",
+                "locator": {"kind": "paragraph", "value": "абз. 34"},
+                "quote": "Самостоятельное основание достаточно для того же результата.",
+                "speaker": "court",
+                "reasoning_role": "independent_ground",
+                "inference_status": "observed",
+            }
+        )
+        payload["implicit_premises"] = payload["implicit_premises"][:2]
+        payload["affirmative_non_application"] = {
+            "reason": "complete_independent_ground",
+            "evidence_ids": ["E-INDEPENDENT"],
+        }
+
+        classification = classify_application(application_record_from_dict(payload))
+
+        self.assertEqual("application_unclear", classification.status)
+        self.assertEqual(
+            (
+                "implicit_norm_use_preserved",
+                "independent_ground_blocks_outcome_causation",
+            ),
+            classification.reason_codes,
+        )
+        self.assertEqual(
+            ("E-ISSUE", "E-LOGIC", "E-INDEPENDENT"),
+            classification.evidence_ids,
+        )
+
+        payload["affirmative_non_application"] = None
+        classification_without_duplicate_assertion = classify_application(
+            application_record_from_dict(payload)
+        )
+        self.assertEqual(
+            classification,
+            classification_without_duplicate_assertion,
+        )
 
     def test_contradicted_direct_span_is_not_positive_proof(self) -> None:
         payload = _positive_record_payload()
