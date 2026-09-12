@@ -1,6 +1,15 @@
 # Достаточность процедуры и исправление дефекта
 
-Используй этот bounded workflow только для QA гипотезы о процессуальном дефекте и его значении для жалобы в КС РФ. Модель D. J. Galligan — сравнительный critic/discovery layer: она не создаёт российскую гарантию, не доказывает применение нормы, допустимость жалобы или полномочие КС РФ исправить судебную ошибку.
+Используй этот bounded workflow только для QA гипотезы о процессуальном дефекте и его значении для жалобы в КС РФ. Сравнительная модель процедуры — только critic/discovery layer: она не создаёт российскую гарантию, не доказывает применение нормы, допустимость жалобы или полномочие КС РФ исправить судебную ошибку.
+
+## Содержание
+
+- [Российский anchor и route gate](#российский-anchor-и-route-gate)
+- [Bounded workflow](#bounded-workflow)
+- [Cure ledger](#5-cure-ledger)
+- [ConstitutionalArgumentResponseLedger](#5a-constitutionalargumentresponseledger)
+- [Минимальный результат](#минимальный-результат)
+- [Adverse cases, abstain и human gate](#adverse-cases)
 
 ## Российский anchor и route gate
 
@@ -18,6 +27,8 @@
 Если российский anchor, применение нормы или маршрут не подтверждены полными официальными актами, верни `status=insufficient_evidence` и `required_action=abstain`. Формула «несправедливая процедура» сама по себе не переносит спор в предмет нормоконтроля.
 
 ## Bounded workflow
+
+Если довод связывает качество законодательной, административной или судебной процедуры с материальным правом, дополнительно заполни [process-based review workbook](../../ksrf-rights-argument-builder/references/process-based-rights-review-workbook.md). Его micro–meso–macro trace и substantive fallback дополняют, но не заменяют российский anchor/route gate ниже.
 
 ### 1. Функция и ценности процедуры
 
@@ -56,9 +67,17 @@
 | `remaining_prejudice` | Какой вред сохранился после пересмотра |
 | `cure_status` | `cured`, `partly_cured`, `not_cured`, `unclear` |
 
+### 5A. ConstitutionalArgumentResponseLedger
+
+Для каждого сохранённого конституционного довода свяжи: `pleading_locator -> response_locator/boilerplate/silence -> materiality -> norm_meaning_used -> later_instance_cure -> remaining_procedural_harm -> remaining_normative_harm`. Молчание суда не доказывает ни принятие довода, ни имплицитное применение спорной нормы. Cure подтверждается только полномочием следующей инстанции, реальной возможностью рассмотреть вопрос и её мотивированным ответом; общий штамп либо оставление акта без изменения недостаточны.
+
 ### 6. Actual-effect check
 
 Разделяй `defect_exists`, `individual_effect`, `outcome_effect` и `normative_effect`. Не утверждай, что дефект изменил исход, если есть лишь возможность такого влияния. Но и отсутствие доказанного иного результата не означает cure, когда российский источник защищает самостоятельную процессуальную ценность.
+
+### 7. Process-based anti-cure check
+
+Даже если формальные стадии соблюдены, проверь `transparency`, реальное участие, качество сбора фактов, рассмотрение альтернатив, индивидуализацию и ответ на существенные доводы. Затем установи место finding внутри российского теста и выполни самостоятельную substantive-проверку результата. Формальная консультация или подробная мотивировка не лечат дефект, если материал не мог повлиять на решение; качественная процедура не доказывает конституционность результата.
 
 ## Минимальный результат
 
@@ -87,10 +106,6 @@
 
 До включения тезиса в жалобу российский процессуалист и конституционалист вручную подтверждают: обязательность гарантии, связь с применённой нормой, существенность и эффект дефекта, наличие или отсутствие cure, допустимость маршрута и просительной формулы.
 
-## Пределы охвата и источники
+## Пределы охвата и граница runtime
 
-Galligan прямо оставляет за рамками исследования доступ к правовой процедуре и своевременность: introductory front matter, PDF 11. Поэтому этот workflow не заменяет отдельный анализ `access-to-court`, сроков, исчерпания или доступного remedy.
-
-D. J. Galligan, *Due Process and Fair Procedures: A Study of Administrative Procedures*, Clarendon Press/Oxford University Press, 1996, ISBN `0-19-825676-0`: цели, ценности и контекст — PDF 35–81 / печат. 5–51; fair treatment и процессуальные ценности — PDF 82–125 / 52–95; ошибки, недостаточная процедура и стоимость — PDF 142–157 / 112–127; участие и effectiveness — PDF 158–194 / 128–164; hearing, notice, disclosure и representation — PDF 378–421 / 348–391; recourse, cure, reasons и impartiality — PDF 422–480 / 392–450. Файл является image-only scan; любой дословный фрагмент нужно визуально перепроверять.
-
-David Harris, Michael O'Boyle, Ed Bates, Carla Buckley et al., *Law of the European Convention on Human Rights*, 2nd ed., Oxford University Press, 2009: Article 13 — PDF 638–664 / печат. 587–613; admissibility и exhaustion — PDF 810–861 / 759–810; Court procedure, Articles 41/46 и execution — PDF 862–936 / 811–885. Это устаревший (`stale`) вторичный источник 2009 года, пригодный только для discovery/critic; текущие конвенционные правила, сроки и remedies необходимо подтверждать по официальным текстам ЕКПЧ, Rules of Court и HUDOC.
+Этот workflow не заменяет отдельный анализ `access-to-court`, сроков, исчерпания или доступного remedy. Он самодостаточен; история разработки и academic provenance хранятся вне пользовательской установки. Текущие конвенционные и российские правила, сроки и remedies подтверждай по официальным актуальным источникам.

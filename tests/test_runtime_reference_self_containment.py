@@ -332,21 +332,25 @@ class RuntimeReferenceSelfContainmentTests(unittest.TestCase):
             / "references"
             / "science-support-pack.md"
         ).read_text(encoding="utf-8")
+        academic_provenance = (
+            REPO / "docs" / "KSRF_ACADEMIC_RUNTIME_PROVENANCE.md"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("997 постановлениям КС РФ", argument)
         self.assertIn("не исходный корпус", argument)
         self.assertIn("Перед буквальным цитированием проверяй полный текст", argument)
-        self.assertIn("П. Д. Блохин", constitutional)
-        self.assertIn("Жалоба адвоката А. Ю. Крылова", constitutional)
-        for digest in (
+        for source_marker in (
+            "П. Д. Блохин",
+            "Жалоба А. Д. Краснощекова",
             "a94c15e08467f192b2678f99e7464cd429e8876b95d6e9768a69dea2420c15e7",
             "0c9f8125b0a14df5fba0de6f1381e420a857e0630616ff79e8bbdef6c14ee45c",
         ):
-            self.assertIn(digest, constitutional)
-        self.assertIn("Исходные файлы не входят в пользовательскую установку", constitutional)
-        self.assertIn("не предоставляет доступ", constitutional)
+            self.assertNotIn(source_marker, constitutional)
+            self.assertIn(source_marker, academic_provenance)
+        self.assertIn("Справочник самодостаточен", constitutional)
+        self.assertIn("source provenance хранятся вне пользовательской установки", constitutional)
         self.assertIn(
-            "Диссертация является научной методикой, а жалоба — состязательным образцом",
+            "Научная методика и состязательные образцы не заменяют",
             constitutional,
         )
         self.assertIn("официальным актуальным источникам", constitutional)

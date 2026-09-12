@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-12T14:08:55Z",
+  "generated_at": "2026-09-12T14:15:13Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "d1e38d47c8e3ba00f080022bb310584fb55743d8",
+  "remote_base_commit": "3350905a21a9f1ec9f62d334feb47803149abae3",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,9 +27,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
-  "total_files": 296,
-  "total_bytes": 10895109,
-  "tree_sha256": "0a098d45c194227f918143c24a50b9d3adbba942df5dfc13862c248f3e3572c3",
+  "total_files": 298,
+  "total_bytes": 10938423,
+  "tree_sha256": "e3ead2b9cc526244c31ad508106b8381acc3ee3b886e9c44e713052a5f2f4ed7",
   "skills": [
     {
       "name": "constitutional-comparative-research",
@@ -40,8 +40,8 @@
     {
       "name": "ksrf-argument-patterns",
       "files": 41,
-      "bytes": 4133829,
-      "tree_sha256": "2dbe3b9eda991f1085661c074950491f9a3cb8702e226f3c8f9f29b4c0b20b11"
+      "bytes": 4129965,
+      "tree_sha256": "9f1c702ba358007557a66faf75132682e854d80a037732ceefe5259197344ee0"
     },
     {
       "name": "ksrf-case-triage",
@@ -58,20 +58,20 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 104,
-      "bytes": 2510609,
-      "tree_sha256": "d9272eb7d5a5a14786e05476efebc831ef580ae40b14ea682b6ee51107f81f32"
+      "bytes": 2515390,
+      "tree_sha256": "131b64cede1e09511c623a0a61569e7ca92c16813207aa6faf80ee7bb1758c42"
     },
     {
       "name": "ksrf-complaint-facts-demands",
-      "files": 12,
-      "bytes": 251488,
-      "tree_sha256": "d710007380928507299600f1c8cd26dda30df566060809bc526646bd648ec901"
+      "files": 13,
+      "bytes": 277444,
+      "tree_sha256": "c9ab115e63440b6583bc81cfcc31b900831c9be97262cdf4c8ccd4922e4ce60a"
     },
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 160952,
-      "tree_sha256": "aea1a134b4089a7612c95153242fe1b712e24be24ac5ffa90b38b086c95aa8cc"
+      "bytes": 163801,
+      "tree_sha256": "ab5570f13888260ee5a288a2ae2257ac64936efed55d4243348d6c9578421c75"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -82,14 +82,14 @@
     {
       "name": "ksrf-decision-execution",
       "files": 6,
-      "bytes": 91138,
-      "tree_sha256": "0d1df2e280963c489b3f1fe1ee11465139938c56f8af39e7d99170d4d4656e85"
+      "bytes": 91681,
+      "tree_sha256": "8165b395b46d238d6ad6354a7afb6ab577b8a77477dc1b1f6c246366ece75716"
     },
     {
       "name": "ksrf-doctrine-research",
       "files": 17,
-      "bytes": 264035,
-      "tree_sha256": "416cc14d07e6111492a4cae4cd068d5d122af5fc97309debef615431c1622908"
+      "bytes": 265673,
+      "tree_sha256": "55a3885d3d28234fa798b22b7070c08fcf86885cac7076bbb91dad60877341e2"
     },
     {
       "name": "ksrf-echr-argumentation",
@@ -100,8 +100,8 @@
     {
       "name": "ksrf-exhaustion-planner",
       "files": 3,
-      "bytes": 29442,
-      "tree_sha256": "efce853dfbb5538f89bc02fa44556691a6034a97957a5cf87697656a2255cebb"
+      "bytes": 32854,
+      "tree_sha256": "b85302c22eb056ca59662a03eed24a735889e19a111ff85a090dece76168e64b"
     },
     {
       "name": "ksrf-explore-arguments",
@@ -118,14 +118,14 @@
     {
       "name": "ksrf-practice-authority-builder",
       "files": 10,
-      "bytes": 153913,
-      "tree_sha256": "e8300d2fa22758eb4cf0e44ad1509824c6e46d822dc62478d39392d6e843a3ff"
+      "bytes": 154210,
+      "tree_sha256": "17624c561696da1525121adb881d104ce5707164582578cea6dff36460b99fa6"
     },
     {
       "name": "ksrf-rights-argument-builder",
-      "files": 20,
-      "bytes": 342896,
-      "tree_sha256": "2497209962f0565c87db54ee2b344062340e50ac7ecf695d7ea870020a42074c"
+      "files": 21,
+      "bytes": 350598,
+      "tree_sha256": "7cd7d37413d99a83b2d5eb26ccfce9df9805c107f56299f92b14ea54d6a407a0"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",

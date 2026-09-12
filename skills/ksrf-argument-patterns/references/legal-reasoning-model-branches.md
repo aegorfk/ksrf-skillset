@@ -9,10 +9,12 @@
 - [3A. LegalValueConflictLedger и ExtremeInjusticeClaimGuard](#3a-legalvalueconflictledger-и-extremeinjusticeclaimguard)
 - [4. Аналогия, holding и различение](#4-аналогия-holding-и-различение)
 - [5. Лестница абстракции и минимализм](#5-лестница-абстракции-и-минимализм)
+- [5B.1. Операционализация судебного термина](#5b1-операционализация-судебного-термина)
+- [5C. Interpretive symmetry audit](#5c-interpretive-symmetry-audit)
 - [6. Hard-case router](#6-hard-case-router)
 - [7. Application, justification и policy](#7-application-justification-и-policy)
 - [Выход](#выход)
-- [Источники и locators](#источники-и-locators)
+- [Граница runtime](#граница-runtime)
 
 
 Используй этот справочник для генерации и критики вариантов толкования, аналогий и исключений. Это сравнительная научная методика, а не российское право и не обязательная теория толкования КС РФ.
@@ -20,7 +22,7 @@
 ## Жёсткие gates
 
 1. `official_russian_anchor_required`: итоговый тезис о смысле нормы, статусе акта, бремени, исключении или компетенции подтверждается актуальным официальным российским источником.
-2. `parallel_models_not_vote`: Scalia, Dworkin, Sunstein, Schauer, La Torre и Barak образуют конкурирующие ветви. Известность автора и число совпавших ветвей не определяют результат.
+2. `parallel_models_not_vote`: textual, principle-based, minimalist, rule-sensitive, reconstructive и purposive ветви анализируются раздельно. Известность школы и число совпавших ветвей не определяют результат.
 3. `model_conflict -> abstain`: если выбор ветви меняет смысл нормы, объём права, допустимость исключения или вывод, сохрани расхождение и передай выбор юристу.
 4. `no_automatic_override`: расхождение буквального результата и предполагаемой цели не даёт полномочия отступить от правила.
 5. `authority_before_similarity`: тематическая или векторная близость не превращает dictum, иностранное решение или вторичный источник в применимую позицию.
@@ -44,6 +46,8 @@
 | `russian_anchor` | Российский официальный источник для каждого drafting-ready вывода |
 
 Цель не создаёт значение за пределами семантического диапазона. Если диапазон или уровень абстракции спорны, построй отдельные textual, abstract-principle и purposive ветви.
+
+Не называй всё «неопределённостью». Различай пограничность термина, многомерность факторов, зависимость смысла от контекста, синтаксическую неоднозначность и полисемию. Для каждого типа нужны собственные competing readings и способ опровержения; незнание исследователя остаётся `knowledge_gap`, а не дефектом нормы.
 
 ## 2. Правило, основание и исключение
 
@@ -144,6 +148,16 @@ Reasonableness не является синонимом proportionality: свя�
 
 `abstain_reasonableness_role`: не установлен speaker, неясно first-/second-order употребление, отсутствует официальный российский тест или модели дают разные последствия. Юрист вручную подтверждает роль и допустимый эффект; сравнительная литература не создаёт стандарт проверки.
 
+### 5B.1. Операционализация судебного термина
+
+Если высший суд вводит оценочный термин, а нижестоящий акт повторяет его как готовый ярлык, заполни `JudicialTermOperationalizationRecord`: `term_origin`, `speaker`, `court_definition`, `legal_classification`, `factual_predicates`, `exceptions`, `burden_and_evidence`, `operative_role`, `scope`, `later_uptake`, `adverse_reading`, `uncertainty` и locators. Отдели четыре шага: слова формулы; её обязательные юридические признаки; факты, которые должны подтвердить признаки; правовое последствие установленного либо неустановленного признака.
+
+Совпадение слова не доказывает совпадение смысла. Проверь, не стала ли описательная формула новым порогом, презумпцией или заменой доказуемого факта; не расширили ли её на другую категорию, стадию или редакцию нормы; не смешаны ли правовая квалификация и фактический вывод. Сильнейший adverse reading должен показать, допускает ли официальный текст более узкую операционализацию. Если нельзя восстановить scope — верни `term_scope_unknown`; если definition, predicates либо operative role нельзя восстановить по официальным актам — `term_effect_unclear`. Ни один статус нельзя закрывать доктриной или частотой употребления.
+
+### 5C. Interpretive symmetry audit
+
+Для каждого решающего хода пометь функцию `textual`, `systemic`, `value`, `policy` или `institutional`, затем повтори ту же структуру на обезличенном зеркальном исходе при неизменных правилах релевантности. Если одна и та же формула без нового основания оправдывает противоположные результаты, поставь `asymmetric_justification` и потребуй более узкий positive-law anchor, фактическое различие или явное правило приоритета. Symmetry audit — QA скрытого выбора; он не делает оба исхода тождественными и не создаёт самостоятельный российский тест.
+
 ## 6. Hard-case router
 
 Если текст, система и практика не дают единственного вывода, выпусти параллельные конструкции:
@@ -176,23 +190,13 @@ Reasonableness не является синонимом proportionality: свя�
 - `AbstractionLadder`;
 - `FrameSensitivityAudit`;
 - `ReasonablenessRoleRecord[]`;
+- `JudicialTermOperationalizationRecord[]` для решающих оценочных терминов;
 - `LegalValueConflictLedger`;
 - `ExtremeInjusticeClaimGuard` только со статусами critic/blocked/human-review;
 - `HardCaseBranchSet`;
 - `application/justification/policy` trace;
 - `model_conflict`, `missing_evidence` и вопросы для ручного решения.
 
-## Источники и locators
+## Граница runtime
 
-- Antonin Scalia, *A Matter of Interpretation: Federal Courts and the Law*, Princeton University Press, 1997: текст и намерение, PDF 31, 41–42 / печ. с. 17, 27–28; абстрактная гарантия в комментарии Ronald Dworkin и ответе Scalia, PDF 131–140, 158–160 / с. 117–126, 144–146. SHA-256: `4ff2ec7de10554a694f3ea57df534c3ff8989a23f595e1619170d6bfab69273a`.
-- Cass R. Sunstein, *Legal Reasoning and Political Conflict*, Oxford University Press, 1996: уровень абстракции и минимализм, PDF 50–52, 67–71 / с. 37–39, 54–58; аналогия, PDF 75–80, 85 / с. 62–67, 72. SHA-256: `a77026092903f32010be99d28e04825353b87b9436fc6d6943f3668a4a27cba1`.
-- Frederick Schauer, *Playing by the Rules*, Clarendon Press, 1991: under/over-inclusion, PDF 47–50, 93–104 / с. 31–34, 77–88; rule error и institutional allocation, PDF 165–166, 174–175 / с. 149–150, 158–159. SHA-256: `93cc3f09acd5bc68e25383895d93d8fce81d509abc646eee01334927930e65de`.
-- Ronald Dworkin, *Taking Rights Seriously*, 1977/1978, использованное переиздание 1996: rules/principles, PDF 42–44 / с. 24–26; hard cases, PDF 99–100, 105, 131 / с. 81–82, 87, 113. SHA-256: `eb0e1e0cdf1ce46e65b97813816879ff27bd62b3121a782e95755be346ea968f`.
-- Frederick Schauer, *Thinking Like a Lawyer*, Harvard University Press, 2009: holding/dicta/analogy, PDF 71–74, 84, 102–113 / с. 54–57, 67, 85–96; fact, burden и deference, PDF 229, 236–246 / с. 212, 219–229. SHA-256: `a322bc1144709ed336848a4372e4514e6fcec59b7790f5765f52ee075c0cf860`.
-- Massimo La Torre, *Constitutionalism and Legal Reasoning*, Springer, 2007: reconstruction и предел риторики, PDF 60, 64–66 / с. 45, 49–51; application/justification/policy, PDF 179, 183 / с. 164, 168. SHA-256: `886ad28be13638fbfca38b19237c8b977fd3b725484086df12f13afd74d81085`.
-- Aharon Barak, *Purposive Interpretation in Law*, Princeton University Press, 2005: purpose и semantic anchor, PDF 131–133, 169, 203–205, 391–405 / с. 110–112, 148, 182–184, 370–384. SHA-256: `e73bae5e15d2071452fb2892809833561a0d56c7b731cabe2a2745dfce8e1d9a`.
-- Pierre Schlag, Amy J. Griffin, *How to Do Things with Legal Doctrine*, University of Chicago Press, 2020: frames, печ. с. 31–54 / PDF 40–63; baselines, с. 55–72 / PDF 64–81; legal distinctions, с. 73–99 / PDF 82–108; rules/standards, с. 100–118 / PDF 109–127; regime conflicts, с. 119–137 / PDF 128–146; contexts of interpretation, с. 138–157 / PDF 147–166. У файла отсутствует пригодный текстовый слой; locators сверены визуально и по OCR и используются только для critic-прохода.
-- Giorgio Bongiovanni, Giovanni Sartor, Chiara Valentini (eds.), *Reasonableness and Law*, Springer, 2009: вводная карта значений, печ. с. xi–xvii / PDF 11–17; Robert Alexy, с. 5–15 / PDF 20–30; Giovanni Sartor, с. 17–68 / PDF 31–82; Alec Stone Sweet и Jud Mathews, с. 173–214 / PDF 182–223; Andrea Morrone, с. 215–242 / PDF 224–250; Ariel Porat, с. 243–254 / PDF 251–260. Из-за пропущенных пустых страниц нет единого стабильного offset; это неоднородные сравнительные модели, а не единый тест.
-- Gustav Radbruch, *Философия права*, пер. Ю. М. Юмашева, Международные отношения, 2004, ISBN `5-7133-1197-X`; исходная Studienausgabe под ред. Ralf Dreier и Stanley L. Paulson, C. F. Müller, 1999: антиномии justice/purposiveness/legal certainty и validity — печ. с. 86–101; логика — 127–140; Rechtsstaat — 198–204; *Five Minutes* и statutory injustice/supra-statutory law — 225–239. Источник — legacy `.doc`, SHA-256 `cde4619d8f8214c4053fbd4fdf8953871d4154c13459e0671ace9c81d1487fc8`; для inspection использован производный PDF с картой `derived PDF = print + 1`, соответственно 87–102, 128–141, 199–205 и 226–240. Производный PDF не является новым authority. Статус — `foreign_legal_philosophy_critic_only`: формула Радбруха не устанавливает российский тест недействительности, неприменения, компетенции, допустимости или remedy.
-
-Все источники — `secondary_comparative_methodology`. Их locator проверяет авторский тезис, но не подтверждает российское право, полномочие КС РФ или исход дела.
+Справочник самодостаточен; история разработки и академическая provenance хранятся вне пользовательской установки. Названия ветвей не создают authority: для российского вывода требуются официальный anchor и материалы дела.

@@ -25,6 +25,8 @@
 | `compliance` | формальное правило, наблюдаемая реализация, пробелы и дата данных |
 | `currency` | какой актуальный официальный источник ещё нужно проверить |
 
+После институционального сравнения заполни `RightAccessRemedyTrace`: `abstract right -> factual/legal trigger -> applicable review standard -> ultimate entitlement -> access route -> available remedy -> applicant effect`. Материальное право, доступ к контролю и способ восстановления взаимосвязаны, но ни одно звено не выводится автоматически из другого. Для широкого, узкого и as-applied варианта отдельно проверь риск правового вакуума, severability/делимость, действие во времени и необходимость нового законодательного проектирования; иностранные категории лишь задают вопросы.
+
 ### Adverse/refute pass
 
 - ищи формальное полномочие, которое фактически не используется или не исполняется;
@@ -35,8 +37,6 @@
 
 `abstain_institution_transfer`: нет актуального официального иностранного или российского anchor; неизвестны access/effect/reopening; исторический срез мог устареть; сравнение требует импортировать чужое полномочие или remedy. В этом случае выдай только список пробелов. Юрист вручную подтверждает российскую компетенцию, процедуру и требуемый способ защиты.
 
-## Источник и точные locators
+## Граница runtime
 
-- Armin von Bogdandy, Peter M. Huber, Christoph Grabenwarter (eds.), *The Max Planck Handbooks in European Public Law, Volume III: Constitutional Adjudication: Institutions*, managing editor Theodor Shulman, Oxford University Press, 2020: comparative setting and model pluralism, печ. с. 1–17 / PDF 68–84; Austria — design, proceedings, effects and compliance, с. 34–65 / PDF 101–132; Czech Republic — jurisdiction, constitutional complaint, precedent and style, с. 143–166 / PDF 210–233; Germany — constitutional complaint, decisions and guidance, с. 299–353 / PDF 366–420; Poland — proceedings, judgment types and effects, с. 632–672 / PDF 699–739; Portugal — procedure, effects and institutional relations, с. 686–714 / PDF 753–781.
-
-Источник — сравнительная вторичная методология со срезом на 2020 год. Locator подтверждает только содержание соответствующей главы; актуальность каждой системы и любой российский вывод проверяются отдельно по официальным источникам.
+Карточка самодостаточна; история разработки и сравнительная academic provenance хранятся вне пользовательской установки. Актуальность каждой иностранной системы и любой российский вывод проверяются отдельно по официальным источникам.
