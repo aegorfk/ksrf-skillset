@@ -33,7 +33,7 @@ description: "Скилл помогает заявителю без юридич
 
 ### 1. Собери record
 
-Если дан УИД, сначала прочитай [UID-first workflow](references/uid-first-case-workflow.md) и используй УИД как первый вход, но не обещай полноту provider layer, которой нет. Инвентаризируй переданные файлы, raw hashes, роли и стадии; выполни OCR/visual check для сканов. Официальный endpoint, вернувший CAPTCHA/403/timeout, оставляет access gap, а не `not_found`.
+Если дан судебный акт, номер дела, ссылка или УИД, прочитай [UID-first workflow](references/uid-first-case-workflow.md): извлеки реквизиты сам и начни официальный поиск недостающих актов, даже без отдельно сообщённого УИД. Для судов Москвы открой [маршрут через поиск, карточки и документы](references/moscow-official-case-retrieval.md). Не обещай полноту provider layer, которой нет. Инвентаризируй переданные файлы, raw hashes, роли и стадии; выполни OCR/visual check для сканов. Неудача одного HTTP-клиента или веб-поиска требует доступного ограниченного резервного прохода, включая браузер; CAPTCHA/403/timeout оставляют access gap, а не `not_found`.
 
 Маршрутизируй первичную проверку в `ksrf-case-triage`, а процессуальную цепочку — в `ksrf-exhaustion-planner`. Для живого дела отдельно оцени `ksrf-court-request-motion`.
 

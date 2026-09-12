@@ -6,21 +6,33 @@
       "identity_status": "malformed",
       "case_analysis_allowed": false,
       "allowed_question": "corrected_uid_or_one_identifying_requisite",
-      "decision": null
+      "decision": null,
+      "search_preconditions": {
+        "available_official_routes_checked": true,
+        "other_known_identifiers_exhausted_or_unavailable": true
+      }
     },
     {
       "id": "ambiguous_uid",
       "identity_status": "ambiguous",
       "case_analysis_allowed": false,
       "allowed_question": "corrected_uid_or_one_identifying_requisite",
-      "decision": null
+      "decision": null,
+      "search_preconditions": {
+        "available_official_routes_checked": true,
+        "other_known_identifiers_exhausted_or_unavailable": true
+      }
     },
     {
       "id": "not_found_uid",
       "identity_status": "not_found",
       "case_analysis_allowed": false,
       "allowed_question": "corrected_uid_or_one_identifying_requisite",
-      "decision": null
+      "decision": null,
+      "search_preconditions": {
+        "available_official_routes_checked": true,
+        "other_known_identifiers_exhausted_or_unavailable": true
+      }
     },
     {
       "id": "adapter_zero_slots",
@@ -103,6 +115,148 @@
       "human_selection": "pending",
       "options_required": true,
       "decision": "GO_TO_KSRF"
+    },
+    {
+      "id": "court_act_without_typed_uid",
+      "input": {
+        "supplied": "higher_court_pdf",
+        "known_identifiers": [
+          "lower_court",
+          "case_number",
+          "parties"
+        ],
+        "separately_supplied_uid": false
+      },
+      "next_action": "extract_identifiers_and_search_official_records",
+      "request_lower_acts_before_search_allowed": false
+    },
+    {
+      "id": "padded_number_wrong_proceeding",
+      "input": {
+        "query": "2-734/2024",
+        "candidate": "12-0734/2024",
+        "candidate_proceeding_type_matches": false
+      },
+      "candidate_identity_verified": false,
+      "next_action": "scope_search_to_known_proceeding_and_verify_identity"
+    },
+    {
+      "id": "uid_year_conflict_with_verified_card",
+      "input": {
+        "supplied_uid_year": "2023",
+        "card_uid_year": "2024",
+        "court_number_parties_dates_and_cross_instance_links_match": true
+      },
+      "identity_status": "verified_one_case",
+      "preserve_both_source_values": true,
+      "source_conflict_resolved": false,
+      "blind_year_substitution_allowed": false,
+      "next_action": "follow_verified_card_documents"
+    },
+    {
+      "id": "unresolved_identity_after_independent_search",
+      "input": {
+        "uid_search_result": "not_found",
+        "number_search_result": "multiple_cases",
+        "party_search_result": "still_ambiguous",
+        "available_official_routes_checked": true
+      },
+      "identity_status": "ambiguous",
+      "case_analysis_allowed": false,
+      "allowed_question": "corrected_uid_or_one_identifying_requisite"
+    },
+    {
+      "id": "reasoned_decision_later_inventory_date",
+      "input": {
+        "hearing_date_row_has_file": false,
+        "later_reasoned_decision_row_has_file": true,
+        "file_identity_verified": true
+      },
+      "next_action": "retrieve_full_bytes_and_extract_text",
+      "keep_separate_dates": [
+        "decision",
+        "reasoned_preparation",
+        "publication"
+      ]
+    },
+    {
+      "id": "appeal_file_on_first_instance_card",
+      "input": {
+        "appeal_card_has_file": false,
+        "first_instance_card_links_appeal_file": true,
+        "file_identity_verified": true
+      },
+      "next_action": "retrieve_linked_official_appeal_file",
+      "appeal_card_empty_means_act_absent": false
+    },
+    {
+      "id": "client_tls_failure_independent_transport_success",
+      "input": {
+        "first_client_result": "tls_trust_error",
+        "independent_client_tls_verification": true,
+        "independent_client_result": "full_official_bytes"
+      },
+      "next_action": "verify_content_identity_and_extract_text",
+      "record_failed_and_successful_attempts": true,
+      "disable_tls_verification_allowed": false,
+      "infer_vpn_failure_allowed": false
+    },
+    {
+      "id": "http_200_protection_page",
+      "input": {
+        "http_status": 200,
+        "url_suffix": ".doc",
+        "actual_content": "protection_html"
+      },
+      "status": "access_blocked",
+      "full_act_slot_closed": false,
+      "next_action": "bounded_available_official_or_browser_fallback"
+    },
+    {
+      "id": "temporary_503_or_captcha",
+      "input": {
+        "available_routes_result": [
+          "http_503",
+          "captcha"
+        ],
+        "bounded_attempts_exhausted": true
+      },
+      "status": "access_blocked",
+      "not_found_allowed": false,
+      "not_published_allowed": false,
+      "captcha_bypass_allowed": false
+    },
+    {
+      "id": "verified_card_no_published_full_text",
+      "input": {
+        "card_identity_verified": true,
+        "inventory_checked": true,
+        "related_cards_checked": true,
+        "available_retrieval_alternatives_checked": true,
+        "full_text_retrieved": false
+      },
+      "status": "official_card_only",
+      "full_act_slot_closed": false,
+      "next_action": "record_specific_missing_act_and_request_copy"
+    },
+    {
+      "id": "prior_verified_link_empty_index_search",
+      "input": {
+        "prior_official_link_available": true,
+        "current_general_search_hits": 0
+      },
+      "next_action": "revalidate_prior_link_and_follow_card",
+      "discard_prior_link_allowed": false
+    },
+    {
+      "id": "verified_card_stops_query_grid",
+      "input": {
+        "one_case_verified": true,
+        "document_links_available": true,
+        "remaining_identity_ambiguity": false
+      },
+      "next_action": "follow_documents_and_related_instances",
+      "continue_exhaustive_query_grid": false
     }
   ]
 }

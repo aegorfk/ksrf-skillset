@@ -1,6 +1,6 @@
 {
   "name": "ksrf-applicant",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Помощник заявителя в Конституционный Суд РФ: разбор материалов, поиск правовой проблемы, подготовка и проверка проекта обращения.",
   "author": {"name": "aegorfk", "url": "https://github.com/aegorfk"},
   "repository": "https://github.com/aegorfk/ksrf-skillset",
