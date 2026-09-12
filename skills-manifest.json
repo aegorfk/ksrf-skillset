@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-12T11:07:44Z",
+  "generated_at": "2026-09-12T11:40:29Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "af6fc2c13c3b067d74d68a5acaf8f33444be20da",
+  "remote_base_commit": "3c5714de206e28b16b4f9e09a4df3e9545f47315",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,20 +28,20 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
   "total_files": 293,
-  "total_bytes": 10831667,
-  "tree_sha256": "098559ffc023e2f26e74be176d04f364bfffebe6f161536c488d83fd9bd03a83",
+  "total_bytes": 10840102,
+  "tree_sha256": "67fd804b4b2c81ff4ac3b23aa63c2162bf01dcaab0ad5d9d274f0315184ba44c",
   "skills": [
     {
       "name": "constitutional-comparative-research",
       "files": 7,
-      "bytes": 123679,
-      "tree_sha256": "6902dd4049f9567dab474ed6380ec1ed8bf00514ce608012458080a8846d99c9"
+      "bytes": 128672,
+      "tree_sha256": "df03a1d2a15175a6fc11dd13b483d7e2c4b929f153801a5d44ba9c709c65842b"
     },
     {
       "name": "ksrf-argument-patterns",
       "files": 41,
-      "bytes": 4130949,
-      "tree_sha256": "3938cca6dd48e28459bbdc8302f5ba7858ae83a20f86f767401d6c29f26844c0"
+      "bytes": 4133829,
+      "tree_sha256": "2dbe3b9eda991f1085661c074950491f9a3cb8702e226f3c8f9f29b4c0b20b11"
     },
     {
       "name": "ksrf-case-triage",
@@ -124,8 +124,8 @@
     {
       "name": "ksrf-rights-argument-builder",
       "files": 20,
-      "bytes": 342334,
-      "tree_sha256": "59bc02974fd443ad0905b49c9c867a9cc6ce133429922a894cb96eba7a946463"
+      "bytes": 342896,
+      "tree_sha256": "2497209962f0565c87db54ee2b344062340e50ac7ecf695d7ea870020a42074c"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
