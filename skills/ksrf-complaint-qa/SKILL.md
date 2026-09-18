@@ -7,6 +7,8 @@ description: Скилл независимо проверяет проект ж�
 
 В споре о публичном взыскании проверь [самостоятельность каждой гарантии](../ksrf-rights-argument-builder/references/public-levy-and-independent-guarantees.md): не выведены ли отсутствие вины из молчания нормы, солидарность из принадлежности к группе или единый срок из разных стадий. По [конкурирующим заключениям](../ksrf-doctrine-research/references/contested-levy-opinions.md) проверь роли, сильнейшее возражение и точный судебный ответ.
 
+При споре о статусе или формулировке в документе проведи [проверку функции статуса, каскада и срочного remedy](../ksrf-rights-argument-builder/references/electoral-status-and-time-sensitive-remedy.md): не объявлены ли похожие термины тождественными, рекомендация — законом, общий результат — доказанным дефектом, а компенсация — автоматической. Для границы между ошибкой суда и нормоконтрольным вопросом используй [роль официального доклада](../ksrf-doctrine-research/references/official-reports-and-normative-defects.md), но не подменяй им официальный act-specific anchor.
+
 Проверь [границы досмотра и фиксации](../ksrf-rights-argument-builder/references/inspection-recording-and-reviewability.md): не подменён ли спор о гарантии запретом полномочия, сохранены ли условия видео и отдельный итог для заявителя. В социальных спорах используй [проверку целей поддержки и ведомственных позиций](../ksrf-doctrine-research/references/social-support-opinions-and-beneficiary.md): не склеены ли разные дела, мотивировка и итог письма, право ребёнка и оценка поведения взрослых.
 
 ## Независимый refusal-first режим
