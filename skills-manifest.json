@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-18T08:49:43Z",
+  "generated_at": "2026-09-19T08:48:25Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "90cc79d71b8917a00213d9c86aca55437a6df89b",
+  "remote_base_commit": "7e8f7ca2616dcb784dad532df830df0d83da6382",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,9 +27,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
-  "total_files": 304,
-  "total_bytes": 11070995,
-  "tree_sha256": "9212e82d568b1fa8c2fa0d97aba385a698854af91a0263f5409e64b20e69afb8",
+  "total_files": 305,
+  "total_bytes": 11086584,
+  "tree_sha256": "ea2a86a5ef93c3573930aead419d32fd0371d9cccda5558ca40be518ad9d7261",
   "skills": [
     {
       "name": "constitutional-comparative-research",
@@ -70,8 +70,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 166752,
-      "tree_sha256": "0ab9556615e83043a353a736e58a97cb8e8bab1d20efa214a799e9115ff739ca"
+      "bytes": 167377,
+      "tree_sha256": "724280c4e0d2dce8261774d09e0e1837cdf3e920262423f62d0d85a5f32f54c6"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -82,8 +82,8 @@
     {
       "name": "ksrf-decision-execution",
       "files": 6,
-      "bytes": 92514,
-      "tree_sha256": "945e24a0e403c4177dd603ea2496646bf09a110cf250edde60021ef3cde0a05b"
+      "bytes": 93188,
+      "tree_sha256": "e6929b0e2d9ee0510202aad6a94aa82b757ece665f1ed3ca5b14a7555be61281"
     },
     {
       "name": "ksrf-doctrine-research",
@@ -123,9 +123,9 @@
     },
     {
       "name": "ksrf-rights-argument-builder",
-      "files": 22,
-      "bytes": 362834,
-      "tree_sha256": "cb9da9fe69da80eee420a825081cc6579962018074a1c3f6678b1be30501d0e6"
+      "files": 23,
+      "bytes": 377124,
+      "tree_sha256": "9b1934e29b7d3eb4a76b14626f447f9790efc527c6def0a583054f44c69f1b56"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",
