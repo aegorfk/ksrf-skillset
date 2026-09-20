@@ -48,12 +48,13 @@ EVAL_SHA256 = "80942d11f1a2cc78048951783988942c7f8d491ca6515ffe3468d55bd0ab63da"
 TRIGGER_EVAL = SKILL_ROOT / "evals" / "trigger-evals.json"
 TRIGGER_EVAL_SHA256 = "5a9907f9bd157b825c11aa406e682651b55a612ec0ff6d2e4f9dca56834089a3"
 QA_EVAL = REPO / "skills" / "ksrf-complaint-qa" / "evals" / "evals.json"
-QA_EVAL_SHA256 = "c846d61f858ebe8a44564bf15b3ef4cda18a46f36abb119a5824c887e0176e31"
+# Reviewed canonical additions 43–45 are self-contained synthetic cases.
+QA_EVAL_SHA256 = "26497c2358398330f4f142773834f9a2e9239b64bfe22c0a40d324f2222659b7"
 REVIEWED_RUNTIME_FILES = {
     OWNER: (
-        234,
-        34487,
-        "2a54b76279bd54b39a6adb17724f0006dca1951d07a5551e88b705ac63b26634",
+        236,
+        35325,
+        "0c68047a5541272b769f7ca067c62d3255d73ce04424de50ca4c87a534e8b16d",
     ),
     EXAMPLES["39"]: (
         83,

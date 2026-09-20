@@ -89,7 +89,9 @@ class ReparativeGuaranteeAccessTests(unittest.TestCase):
     def test_synthetic_evals_are_complete_without_source_files(self) -> None:
         suites = {
             "ksrf-explore-arguments": (13, 16),
-            "ksrf-complaint-qa": (26, 42),
+            # Reviewed canonical updates 7e8f7ca, fc54fe6, 940c438 retain
+            # cases 1–42 and add source-free synthetic QA cases 43–45.
+            "ksrf-complaint-qa": (26, 45),
         }
         for skill, (first, last) in suites.items():
             payload = json.loads((REPO / "skills" / skill / "evals/evals.json").read_text())
