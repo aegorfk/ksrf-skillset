@@ -17,7 +17,7 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Mm, Pt
+from docx.shared import Mm, Pt, RGBColor
 from PIL import Image
 from pypdf import PdfReader
 
@@ -71,7 +71,7 @@ def normalize_text(value: str) -> str:
 
 
 def complaint_plain_text(complaint: StructuredComplaint) -> str:
-    return "\n".join(block.text for block in complaint_blocks(complaint))
+    return "\n".join(_display_text(block.text) for block in complaint_blocks(complaint))
 
 
 def render_review_markdown(complaint: StructuredComplaint, path: Path) -> RenderedArtifact:
@@ -131,7 +131,7 @@ def _set_cell_margins(cell: Any, top: int = 80, start: int = 80, bottom: int = 8
 
 
 def _add_page_number(paragraph: Any) -> None:
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.style = "KSRF Footer"
     run = paragraph.add_run()
     begin = OxmlElement("w:fldChar")
     begin.set(qn("w:fldCharType"), "begin")
@@ -143,49 +143,96 @@ def _add_page_number(paragraph: Any) -> None:
     run._r.extend((begin, instr, end))
 
 
+def _paragraph_style(document: Document, name: str, *, size: float,
+                     alignment: Any = WD_ALIGN_PARAGRAPH.LEFT, bold: bool = False,
+                     line: float = 1, before: float = 0, after: float = 0,
+                     first_mm: float = 0, left_mm: float = 0,
+                     keep_next: bool = False) -> Any:
+    style = (document.styles[name] if name in document.styles else
+             document.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH))
+    if name != "Normal":
+        style.base_style = document.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(size)
+    style.font.bold = bold
+    style.font.italic = False
+    style.font.color.rgb = RGBColor(0, 0, 0)
+    rpr = style._element.get_or_add_rPr()
+    for tag in ("spacing", "kern", "position"):
+        element = rpr.find(qn("w:" + tag))
+        if element is not None:
+            rpr.remove(element)
+    fonts = rpr.get_or_add_rFonts()
+    for attribute in list(fonts.attrib):
+        if attribute.lower().endswith("theme"):
+            del fonts.attrib[attribute]
+    for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+        fonts.set(qn("w:" + attribute), "Times New Roman")
+    for tag, values in (("szCs", {"val": str(int(size * 2))}),
+                        ("bCs", {"val": "1" if bold else "0"}),
+                        ("iCs", {"val": "0"}),
+                        ("lang", {"val": "ru-RU", "eastAsia": "ru-RU", "bidi": "ru-RU"})):
+        element = rpr.find(qn("w:" + tag))
+        if element is None:
+            element = OxmlElement("w:" + tag)
+            rpr.append(element)
+        for attribute, value in values.items():
+            element.set(qn("w:" + attribute), value)
+    fmt = style.paragraph_format
+    ppr = style._element.get_or_add_pPr()
+    for tag in ("pBdr", "shd", "numPr", "contextualSpacing"):
+        element = ppr.find(qn("w:" + tag))
+        if element is not None:
+            ppr.remove(element)
+    fmt.tab_stops.clear_all()
+    fmt.alignment = alignment
+    fmt.line_spacing = line
+    fmt.space_before = Pt(before)
+    fmt.space_after = Pt(after)
+    fmt.first_line_indent = Mm(first_mm)
+    fmt.left_indent = Mm(left_mm)
+    fmt.right_indent = Mm(0)
+    fmt.keep_with_next = keep_next
+    fmt.keep_together = False
+    fmt.page_break_before = False
+    fmt.widow_control = True
+    return style
+
+
 def _configure_document(document: Document, complaint: StructuredComplaint) -> None:
     for section in document.sections:
         section.page_width = Mm(210)
         section.page_height = Mm(297)
         section.top_margin = Mm(20)
         section.bottom_margin = Mm(20)
-        section.left_margin = Mm(30)
-        section.right_margin = Mm(15)
-        _add_page_number(section.footer.paragraphs[0])
+        section.left_margin = Mm(25)
+        section.right_margin = Mm(20)
+        section.header_distance = Mm(9)
+        section.footer_distance = Mm(9)
 
-    normal = document.styles["Normal"]
-    normal.font.name = "Times New Roman"
-    normal._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
-    normal.font.size = Pt(14)
-    normal.paragraph_format.line_spacing = 1.5
-    normal.paragraph_format.space_after = Pt(0)
-    normal.paragraph_format.first_line_indent = Mm(12.5)
-    normal.paragraph_format.widow_control = True
-
-    if "KSRF Heading" not in document.styles:
-        heading = document.styles.add_style("KSRF Heading", WD_STYLE_TYPE.PARAGRAPH)
-    else:
-        heading = document.styles["KSRF Heading"]
-    heading.font.name = "Times New Roman"
-    heading._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
-    heading.font.size = Pt(14)
-    heading.font.bold = True
-    heading.paragraph_format.space_before = Pt(12)
-    heading.paragraph_format.space_after = Pt(6)
-    heading.paragraph_format.keep_with_next = True
-
-    header = document.styles.add_style("KSRF Complaint Header", WD_STYLE_TYPE.PARAGRAPH)
-    header.font.name = "Times New Roman"
-    header._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
-    header.font.size = Pt(11.5)
-    header.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _paragraph_style(document, "Normal", size=12, line=1.15, after=6, first_mm=10,
+                     alignment=WD_ALIGN_PARAGRAPH.JUSTIFY)
+    _paragraph_style(document, "Title", size=14, bold=True, before=12, after=6,
+                     alignment=WD_ALIGN_PARAGRAPH.CENTER, keep_next=True)
+    _paragraph_style(document, "Subtitle", size=12, after=12,
+                     alignment=WD_ALIGN_PARAGRAPH.CENTER, keep_next=True)
+    _paragraph_style(document, "KSRF Heading", size=13, bold=True, line=1.1,
+                     before=12, after=6, keep_next=True)
+    _paragraph_style(document, "KSRF Subheading", size=12, bold=True, line=1.1,
+                     before=10, after=6, keep_next=True)
     page = document.sections[0]
+    header = _paragraph_style(document, "KSRF Complaint Header", size=11.5,
+                              after=4, keep_next=True)
     header.paragraph_format.left_indent = int((page.page_width - page.left_margin - page.right_margin) / 2)
-    header.paragraph_format.first_line_indent = Mm(0)
-    header.paragraph_format.line_spacing = 1
-    header.paragraph_format.space_before = Pt(0)
-    header.paragraph_format.space_after = Pt(4)
-    header.paragraph_format.keep_with_next = True
+    _paragraph_style(document, "KSRF Source", size=11, after=4)
+    _paragraph_style(document, "KSRF Annex", size=12, line=1.15, after=6)
+    numbered = _paragraph_style(document, "KSRF Numbered Item", size=12, line=1.15,
+                                after=6, first_mm=-6.5, left_mm=6.5)
+    numbered.paragraph_format.tab_stops.add_tab_stop(Mm(6.5))
+    _paragraph_style(document, "KSRF Footer", size=11,
+                     alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    for section in document.sections:
+        _add_page_number(section.footer.paragraphs[0])
 
     properties = document.core_properties
     properties.title = " ".join(COMPLAINT_TITLE)
@@ -197,6 +244,14 @@ def _configure_document(document: Document, complaint: StructuredComplaint) -> N
     properties.modified = stable_time
 
 
+def _display_text(text: str) -> str:
+    """Normalize typographic separators only; keep source prose and URL tokens intact."""
+    parts = re.split(r"(https?://\S+)", text)
+    text = "".join(part if index % 2 else re.sub(r"№[ \t\u00a0]*(?=\S)", "№\u00a0", part)
+                   for index, part in enumerate(parts))
+    return re.sub(r"^(\d+[.)])[ \t]+", r"\1\t", text)
+
+
 def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> RenderedArtifact:
     """Render a real DOCX artifact from a validated complaint model."""
 
@@ -205,21 +260,16 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
     document = Document()
     _configure_document(document, complaint)
 
+    styles = {"header": "KSRF Complaint Header", "title": "Title", "subtitle": "Subtitle",
+              "heading": "KSRF Heading", "subheading": "KSRF Subheading",
+              "source": "KSRF Source", "annex": "KSRF Annex"}
     for block in complaint_blocks(complaint):
-        paragraph = document.add_paragraph()
-        if block.kind == "header":
-            paragraph.style = document.styles["KSRF Complaint Header"]
-        elif block.kind in {"heading", "subheading"}:
-            paragraph.style = document.styles["KSRF Heading"]
-        else:
-            paragraph.style = document.styles["Normal"]
-        _add_highlighted_text(paragraph, block.text)
-        if block.kind == "title":
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            paragraph.paragraph_format.first_line_indent = Mm(0)
-            paragraph.paragraph_format.keep_with_next = True
-            for run in paragraph.runs:
-                run.bold = True
+        text = _display_text(block.text)
+        style = styles.get(block.kind, "Normal")
+        if block.kind in {"body", "annex"} and re.match(r"^\d+[.)]\t", text):
+            style = "KSRF Numbered Item"
+        paragraph = document.add_paragraph(style=style)
+        _add_highlighted_text(paragraph, text)
 
     document.save(destination)
     return RenderedArtifact(
@@ -229,7 +279,7 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
         size=destination.stat().st_size,
         sha256=file_sha256(destination),
         renderer="python-docx",
-        renderer_version="1.3",
+        renderer_version="1.4",
         status="complete",
     )
 
@@ -827,8 +877,8 @@ def validate_rendered_pair(
         _pdf_layout_findings(
             pdf_path,
             pages,
-            headings=[block.text for block in complaint_blocks(complaint)
-                      if block.kind in {"heading", "subheading", "title"}],
+            headings=[_display_text(block.text) for block in complaint_blocks(complaint)
+                      if block.kind in {"heading", "subheading", "title", "subtitle"}],
         )
     )
 

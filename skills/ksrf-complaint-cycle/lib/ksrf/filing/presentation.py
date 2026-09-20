@@ -66,12 +66,15 @@ def complaint_blocks(complaint: StructuredComplaint) -> tuple[PresentationBlock,
                 blocks.extend(PresentationBlock(kind, sentence.text) for sentence in section.sentences)
 
     content(("addressee", "applicant", "representative", "respondent"), "header")
-    blocks.extend(PresentationBlock("title", text) for text in COMPLAINT_TITLE)
+    blocks.append(PresentationBlock("title", COMPLAINT_TITLE[0]))
+    blocks.append(PresentationBlock("subtitle", COMPLAINT_TITLE[1]))
     content(("object_of_review", "admissibility"))
     blocks.append(PresentationBlock("heading", FACTS_HEADING))
     content(("facts", "judicial_chain"))
     blocks.append(PresentationBlock("heading", REASONING_HEADING))
-    content(("constitutional_issue", "rights_analysis", "authorities", "adverse_material"))
+    content(("constitutional_issue", "rights_analysis"))
+    content(("authorities",), "source")
+    content(("adverse_material",))
     # Preserve additional substantive sections instead of silently dropping them.
     for section in complaint.sections:
         if section.code not in used | {"requested_remedy", "enclosures", "signature"}:
@@ -80,7 +83,7 @@ def complaint_blocks(complaint: StructuredComplaint) -> tuple[PresentationBlock,
     blocks.append(PresentationBlock("heading", REQUEST_HEADING))
     content(("requested_remedy",))
     blocks.append(PresentationBlock("heading", "Приложения"))
-    content(("enclosures",))
+    content(("enclosures",), "annex")
     content(("signature",))
     return tuple(blocks)
 

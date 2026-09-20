@@ -1,0 +1,5 @@
+# Design
+
+Use named paragraph styles for Normal, title/subtitle, two heading levels, the right-side complaint header, literal numbered items, annexes, sources and footer. Normalize Times New Roman, black, ru-RU and complex-script size/font properties. A4 uses 25/20/20/20 mm left/right/top/bottom margins and 9 mm header/footer distances. Normal uses 12 pt, 1.15 lines, 6 pt after and 10 mm first indent. The renderer applies styles instead of per-paragraph overrides. Yellow missing-data highlights and the presentation/review separation remain unchanged. No evidence or readiness state is promoted.
+
+Source sentences remain byte-for-byte unchanged. Display-only normalization replaces whitespace after № with NBSP and the separator after a literal list number with a tab. Paragraph number text, punctuation, link target and legal content are preserved. No forced page breaks are introduced. The rule to label actual annex copies as «Копия…» is a drafting instruction, not an automatic guess about document provenance.
