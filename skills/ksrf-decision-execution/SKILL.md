@@ -5,6 +5,8 @@ description: Скилл определяет юридические послед
 
 # Исполнение актов КС РФ
 
+Если устранение пробела и личный пересмотр разведены во времени, используй [поаспектную карту результата и условий исполнения](../ksrf-rights-argument-builder/references/institutional-deadlock-and-safeguards.md). Проверь законодательное изменение, его действие и отдельный процесс пересмотра; историческая отсрочка не доказывает сегодняшнее состояние исполнения.
+
 ## Freshness и зависимые артефакты
 
 Применяй source/version freshness из `../ksrf-complaint-cycle/references/official-source-and-version-gate.md`: изменение официального акта, редакции, переходного режима или downstream process invalidates зависимый план. Не считай ранее проверенную карточку текущей без pre-action refresh.
