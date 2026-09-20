@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-20T10:40:32Z",
+  "generated_at": "2026-09-20T11:06:49Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "0b1c17c4c923359d55c972298ef83cfd4a470159",
+  "remote_base_commit": "4303a0aff2a0b59951ed2d67f54491070ad7b2b7",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
   "total_files": 310,
-  "total_bytes": 11155379,
-  "tree_sha256": "762c7050dea13fa3492c4ec94584a30b2561a0d942c31a79f5264ddcefa3ecb1",
+  "total_bytes": 11162161,
+  "tree_sha256": "f395a0b51b22808a845983a0f8db50f524479729e6a268df003a7bb171b95445",
   "skills": [
     {
       "name": "constitutional-comparative-research",
@@ -58,8 +58,8 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 108,
-      "bytes": 2589383,
-      "tree_sha256": "e6bc7b901e0fc0f895bb1f934c7264917fd2996e5c59a87e3be5d4cd71a9cbab"
+      "bytes": 2594865,
+      "tree_sha256": "84295e3c2b3e4fda236b9eb7e7e60f080bb2dbe619d74e3d650a42fb3e181c88"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -70,8 +70,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 169068,
-      "tree_sha256": "0bf87b249538a7a4044c8d132818f7e69d53c5724375d1b108fca6f158c1a2fb"
+      "bytes": 170368,
+      "tree_sha256": "c20cf845f7c6ce1075d4e822ef715efc994178b3aafafb3b144e63828781324c"
     },
     {
       "name": "ksrf-court-request-motion",
