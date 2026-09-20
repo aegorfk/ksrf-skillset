@@ -5,7 +5,7 @@ from pathlib import Path
 LIB = Path(__file__).resolve().parents[1] / "skills/ksrf-complaint-cycle/lib"
 sys.path.insert(0, str(LIB))
 from ksrf.filing.composer import ComplaintModelError
-from ksrf.filing.working_draft import NOTICE, prepare_working_draft, render_error_details
+from ksrf.filing.working_draft import prepare_working_draft, render_error_details, _review_markdown
 from ksrf.filing.working_draft import pdf_line_wrap_match, verify_working_draft, _file_record
 import json
 import tempfile
@@ -59,11 +59,26 @@ class WorkingDraftTests(unittest.TestCase):
         }], "approvals": {"legal_review": "approved"}}
         original, marked, gaps = prepare_working_draft(payload)
         self.assertEqual(len(payload["sections"]), 1)
-        self.assertTrue(marked.title.startswith(NOTICE))
+        self.assertEqual(marked.title, original.title)
         self.assertEqual(marked.approvals, {})
-        self.assertIn("ПРОВЕРИТЬ", marked.sections[0].sentences[0].text)
+        self.assertEqual(marked.sections[0].sentences[0].text, "Синтетическое утверждение")
         self.assertEqual(original.sections[0].sentences[0].text, "Синтетическое утверждение")
         self.assertTrue(any(g["code"] == "section_missing" for g in gaps))
+        self.assertEqual(marked.sections[0].sentences[0].support_status, "verified")
+        self.assertEqual(marked.sections[0].sentences[0].evidence_ids, ())
+        report = _review_markdown(original, gaps)
+        self.assertIn("Готовность к подаче: не подтверждена", report)
+        self.assertIn(original.sections[0].sentences[0].sentence_id, report)
+
+    def test_false_readiness_is_checked_even_when_document_is_unmarked(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); (root / 'drafts').mkdir()
+            manifest = root / 'drafts' / 'manifest.json'
+            manifest.write_text(json.dumps({'artifact_type':'WorkingDraftManifest',
+                'filing_authority':False,'approval_authority':False,'release_eligible':False,
+                'filing_ready':True,'human_review':'pending','artifacts':[]}))
+            self.assertEqual(verify_working_draft(root, {'manifest':_file_record(manifest)}),
+                             ['working_draft_manifest_invalid'])
 
     def test_authority_error_does_not_recommend_converter_installation(self):
         error = ComplaintModelError("missing index", reason_codes=("sentence_role_index_authority_required",))

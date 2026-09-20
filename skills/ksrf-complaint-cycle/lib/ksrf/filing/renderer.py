@@ -14,7 +14,7 @@ from typing import Any, Iterable
 
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
@@ -22,11 +22,13 @@ from PIL import Image
 from pypdf import PdfReader
 
 from .composer import StructuredComplaint
+from .presentation import COMPLAINT_TITLE, complaint_blocks, source_plain_text
 
 
 PLACEHOLDER_PATTERNS = (
     re.compile(r"\{\{[^{}]+\}\}"),
-    re.compile(r"\[(?:УКАЗАТЬ|ВСТАВИТЬ|ЗАПОЛНИТЬ)[^\]]*\]", re.IGNORECASE),
+    re.compile(r"\[(?:УКАЗАТЬ|ВСТАВИТЬ|ЗАПОЛНИТЬ|НЕ ПРЕДОСТАВЛЕНО)[^\]]*\]", re.IGNORECASE),
+    re.compile(r"\[(?:АДРЕС|ДАТА|ФИО|Ф\.И\.О\.|НОМЕР|СВЕДЕНИЯ|ПОДПИСЬ)(?:\s[^\]]*)?\]", re.IGNORECASE),
 )
 
 
@@ -69,11 +71,47 @@ def normalize_text(value: str) -> str:
 
 
 def complaint_plain_text(complaint: StructuredComplaint) -> str:
-    chunks = [complaint.title]
+    return "\n".join(block.text for block in complaint_blocks(complaint))
+
+
+def render_review_markdown(complaint: StructuredComplaint, path: Path) -> RenderedArtifact:
+    """Retain explicit review content separately, without granting release authority."""
+    from .presentation import REVIEW_SECTION_CODES, service_note_findings
+    lines = ["# Проверка жалобы", "",
+             "Готовность и одобрение определяются служебным манифестом и проверками опор.",
+             "Оформление DOCX/PDF само по себе не подтверждает готовность к подаче.", ""]
     for section in complaint.sections:
-        chunks.append(section.heading)
-        chunks.extend(sentence.text for sentence in section.sentences)
-    return "\n".join(chunks)
+        if section.code in REVIEW_SECTION_CODES:
+            lines.extend(["## " + section.heading, ""])
+            lines.extend(sentence.text for sentence in section.sentences)
+    for finding in service_note_findings(complaint):
+        lines.extend(["", "## Требуется явное разделение служебной вставки", "",
+                      finding["section_code"] + "/" + finding["sentence_id"], finding["text"]])
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return RenderedArtifact("review_markdown", str(path.resolve()), "text/markdown",
+                            path.stat().st_size, file_sha256(path), "ksrf-review", "1.0", "complete")
+
+
+def _add_highlighted_text(paragraph: Any, text: str) -> None:
+    """Highlight only explicit missing-data spans; preserve every text character."""
+    spans = sorted((match.start(), match.end()) for pattern in PLACEHOLDER_PATTERNS
+                   for match in pattern.finditer(text))
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    cursor = 0
+    for start, end in merged:
+        if start > cursor:
+            paragraph.add_run(text[cursor:start])
+        paragraph.add_run(text[start:end]).font.highlight_color = WD_COLOR_INDEX.YELLOW
+        cursor = end
+    if cursor < len(text):
+        paragraph.add_run(text[cursor:])
 
 
 def _set_cell_margins(cell: Any, top: int = 80, start: int = 80, bottom: int = 80, end: int = 80) -> None:
@@ -107,6 +145,8 @@ def _add_page_number(paragraph: Any) -> None:
 
 def _configure_document(document: Document, complaint: StructuredComplaint) -> None:
     for section in document.sections:
+        section.page_width = Mm(210)
+        section.page_height = Mm(297)
         section.top_margin = Mm(20)
         section.bottom_margin = Mm(20)
         section.left_margin = Mm(30)
@@ -134,11 +174,24 @@ def _configure_document(document: Document, complaint: StructuredComplaint) -> N
     heading.paragraph_format.space_after = Pt(6)
     heading.paragraph_format.keep_with_next = True
 
+    header = document.styles.add_style("KSRF Complaint Header", WD_STYLE_TYPE.PARAGRAPH)
+    header.font.name = "Times New Roman"
+    header._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
+    header.font.size = Pt(11.5)
+    header.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    page = document.sections[0]
+    header.paragraph_format.left_indent = int((page.page_width - page.left_margin - page.right_margin) / 2)
+    header.paragraph_format.first_line_indent = Mm(0)
+    header.paragraph_format.line_spacing = 1
+    header.paragraph_format.space_before = Pt(0)
+    header.paragraph_format.space_after = Pt(4)
+    header.paragraph_format.keep_with_next = True
+
     properties = document.core_properties
-    properties.title = complaint.title
-    properties.subject = f"Matter {complaint.matter_id}; draft {complaint.draft_id}"
-    properties.author = "KSRF filing-readiness system"
-    properties.keywords = "КС РФ, конституционная жалоба, evidence map"
+    properties.title = " ".join(COMPLAINT_TITLE)
+    properties.subject = "Конституционная жалоба"
+    properties.author = ""
+    properties.keywords = "КС РФ, конституционная жалоба"
     stable_time = datetime(2000, 1, 1, tzinfo=timezone.utc)
     properties.created = stable_time
     properties.modified = stable_time
@@ -152,19 +205,21 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
     document = Document()
     _configure_document(document, complaint)
 
-    title = document.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title.paragraph_format.first_line_indent = Mm(0)
-    run = title.add_run(complaint.title)
-    run.bold = True
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(14)
-
-    for section in complaint.sections:
-        document.add_paragraph(section.heading, style="KSRF Heading")
-        for sentence in section.sentences:
-            paragraph = document.add_paragraph(sentence.text)
+    for block in complaint_blocks(complaint):
+        paragraph = document.add_paragraph()
+        if block.kind == "header":
+            paragraph.style = document.styles["KSRF Complaint Header"]
+        elif block.kind in {"heading", "subheading"}:
+            paragraph.style = document.styles["KSRF Heading"]
+        else:
             paragraph.style = document.styles["Normal"]
+        _add_highlighted_text(paragraph, block.text)
+        if block.kind == "title":
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.first_line_indent = Mm(0)
+            paragraph.paragraph_format.keep_with_next = True
+            for run in paragraph.runs:
+                run.bold = True
 
     document.save(destination)
     return RenderedArtifact(
@@ -174,7 +229,7 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
         size=destination.stat().st_size,
         sha256=file_sha256(destination),
         renderer="python-docx",
-        renderer_version="1.2",
+        renderer_version="1.3",
         status="complete",
     )
 
@@ -760,7 +815,7 @@ def validate_rendered_pair(
 
     missing_in_docx = expected not in docx_text
     missing_in_pdf = expected not in pdf_text
-    placeholders = find_unresolved_placeholders("\n".join((docx_text, pdf_text)))
+    placeholders = find_unresolved_placeholders("\n".join((docx_text, pdf_text, source_plain_text(complaint))))
     pages = render_pdf_previews(
         pdf_path, preview_dir, pdftoppm_path=pdftoppm_path
     )
@@ -772,7 +827,8 @@ def validate_rendered_pair(
         _pdf_layout_findings(
             pdf_path,
             pages,
-            headings=[section.heading for section in complaint.sections],
+            headings=[block.text for block in complaint_blocks(complaint)
+                      if block.kind in {"heading", "subheading", "title"}],
         )
     )
 

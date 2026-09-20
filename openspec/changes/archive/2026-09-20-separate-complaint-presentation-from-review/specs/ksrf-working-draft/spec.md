@@ -1,8 +1,5 @@
-# ksrf-working-draft Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change implement-practical-admission-route. Update Purpose after archive.
-## Requirements
 ### Requirement: Provisional local draft
 The runtime SHALL create a court-facing DOCX/PDF and separate Markdown review report without host release authority when the caller requests a working draft. The document SHALL NOT contain generated draft notices, readiness statuses, risk assessments or sentence review IDs. Missing data SHALL remain explicit and highlighted.
 
@@ -20,15 +17,3 @@ The working draft SHALL use its own manifest with `filing_ready=false` and false
 #### Scenario: Provisional manifest presented to release verification
 - **WHEN** a caller supplies a working-draft manifest as a final release
 - **THEN** verification rejects the artifact and no approval or filing event is created.
-
-### Requirement: Accurate diagnostics and freshness
-The runtime SHALL distinguish input, evidence/authority, conversion and QA failures and SHALL recheck draft artifact hashes before reporting current availability.
-
-#### Scenario: Missing trusted index in strict render
-- **WHEN** strict render cannot resolve a required host index
-- **THEN** the diagnostic names the missing authority and does not recommend reinstalling a converter.
-
-#### Scenario: Draft artifact modified
-- **WHEN** a persisted working draft file changes or disappears
-- **THEN** status reports that the saved draft is no longer verified against its manifest.
-

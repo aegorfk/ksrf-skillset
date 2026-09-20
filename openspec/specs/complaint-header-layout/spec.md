@@ -2,27 +2,22 @@
 
 ## Purpose
 
-Define a readable complaint header whose left boundary follows the physical page midpoint, with explicit visual QA and a clear distinction between document conventions and legal admissibility.
-
+Define a readable complaint header whose left boundary follows the usable text-area midpoint, with explicit visual QA and a clear distinction between document conventions and legal admissibility.
 ## Requirements
-### Requirement: Physical midpoint and left-aligned block
-The complaint document methodology SHALL place the addressee, applicant and representative block near the physical page midpoint, with left-aligned lines inside the right half and zero first-line indentation, unless the user explicitly requests another layout.
-
-#### Scenario: A4 with equal margins
-- WHEN an A4 page is 21 cm wide and both side margins are 2.5 cm
-- THEN the block starts approximately 10.5 cm from the sheet's left edge, using an 8 cm left paragraph indent and an 8 cm available block width.
-
-#### Scenario: Unequal margins
-- WHEN an A4 page has a 3 cm left margin and a 2 cm right margin
-- THEN the block still starts at approximately 10.5 cm from the sheet's left edge, with a 7.5 cm left indent and an 8.5 cm available width; the text-area midpoint is not substituted.
-
 ### Requirement: Readable layout and scoped QA
-The methodology SHALL position the block through paragraph layout rather than padding spaces, preserve the ordinary font size, and require visual confirmation after DOCX/PDF conversion. It SHALL identify this as a document convention rather than an independent legal admissibility requirement.
+The methodology SHALL use the named KSRF Complaint Header paragraph style, Times New Roman 11.5 pt and single line spacing, and SHALL require visual confirmation after DOCX/PDF conversion. This is a document convention rather than an independent legal admissibility requirement.
 
 #### Scenario: Long details wrap
-- WHEN an address or representative detail exceeds one line
-- THEN the line wraps to the same left boundary without reducing the font size, and visual QA checks wrapping, clipping and the block geometry in the final artifact.
+- **WHEN** a header detail exceeds one line
+- **THEN** the line wraps to the same left boundary without further reducing the header font size, and visual QA checks wrapping, clipping and geometry.
 
 #### Scenario: Visual check unavailable
-- WHEN final page images have not been inspected
-- THEN the review records that visual verification remains incomplete instead of inferring it from paragraph settings or a successful export.
+- **WHEN** final page images have not been inspected
+- **THEN** the separate review records that visual verification remains incomplete instead of inferring it from paragraph settings or a successful export.
+
+### Requirement: Text-area midpoint and left-aligned block
+The complaint methodology SHALL place the header in the right half of the usable text width with left-aligned lines and zero first-line indentation. A representative SHALL appear only upon the user’s express instruction. An expressly requested alternative layout takes precedence.
+
+#### Scenario: A4 with unequal margins
+- **WHEN** an A4 page is 21 cm wide with a 3 cm left margin and 1.5 cm right margin
+- **THEN** the header left indent is 8.25 cm relative to the left margin, half the 16.5 cm usable width.

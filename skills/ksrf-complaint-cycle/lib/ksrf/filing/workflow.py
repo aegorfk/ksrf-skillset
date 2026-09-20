@@ -1882,7 +1882,7 @@ class WorkflowRouter:
         complaint_payload = _mapping(payload.get("complaint"), label="complaint")
         try:
             from .composer import build_structured_complaint, require_release_support
-            from .renderer import convert_docx_to_pdf, render_docx, validate_rendered_pair
+            from .renderer import convert_docx_to_pdf, render_docx, render_review_markdown, validate_rendered_pair
         except ImportError as exc:
             return self._optional_runtime_block("render", action, exc)
         output_dir = self.workspace / "release" / "renders" / str(input_object["sha256"])
@@ -1907,6 +1907,7 @@ class WorkflowRouter:
                 require_sentence_role_index=True,
             )
             failure_stage = "render"
+            review = render_review_markdown(complaint, artifacts_dir / "review-notes.md")
             docx = render_docx(complaint, artifacts_dir / "constitutional-complaint.docx")
             pdf = convert_docx_to_pdf(
                 docx.path,
@@ -1997,6 +1998,7 @@ class WorkflowRouter:
                 "output_dir": str(output_dir),
                 "docx": docx.to_dict(),
                 "pdf": pdf.to_dict(),
+                "review_markdown": review.to_dict(),
                 "qa": qa,
                 "application_binding_receipts": [
                     dict(receipt)

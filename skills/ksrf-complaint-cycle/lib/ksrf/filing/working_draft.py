@@ -1,4 +1,4 @@
-"""Provisional documents for human review, separate from authenticated release."""
+"""Court-facing documents with separate review, without authenticated release."""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -11,8 +11,8 @@ from typing import Any, Mapping
 
 from .composer import ComplaintModelError, REQUIRED_SECTION_CODES, build_structured_complaint
 from .renderer import find_unresolved_placeholders
+from .presentation import REVIEW_SECTION_CODES, PresentationError, service_note_findings, source_plain_text
 
-NOTICE = "РАБОЧИЙ ПРОЕКТ. Для юридической проверки. Не для подписания и подачи."
 SECTION_HEADINGS = dict(zip(REQUIRED_SECTION_CODES, (
     "Адресат", "Заявитель", "Предмет обращения", "Допустимость", "Факты",
     "Судебные стадии", "Конституционный вопрос", "Правовая аргументация",
@@ -28,10 +28,14 @@ def prepare_working_draft(payload: Mapping[str, Any]):
         raise ComplaintModelError("sections должен быть списком разделов")
     present = {s.get("code") for s in sections}
     missing = [code for code in REQUIRED_SECTION_CODES if code not in present]
+    if "signature" not in present:
+        sections.append({"code": "signature", "heading": "Дата и подпись",
+                         "sentences": [{"text": "Дата: [УКАЗАТЬ ДАТУ]. Подпись: ____________________",
+                                        "role": "narrative", "support_status": "pending"}]})
     for code in missing:
         sections.append({
             "code": code, "heading": SECTION_HEADINGS[code],
-            "sentences": [{"text": "[НЕ ПРЕДОСТАВЛЕНО: " + SECTION_HEADINGS[code] + "]",
+            "sentences": [{"text": "[ЗАПОЛНИТЬ: " + SECTION_HEADINGS[code] + "]",
                            "role": "narrative", "support_status": "pending"}],
         })
     original = build_structured_complaint(source)
@@ -55,18 +59,18 @@ def prepare_working_draft(payload: Mapping[str, Any]):
                     "evidence_ids": list(sentence.evidence_ids),
                     "message": sentence.note or "Проверить содержание и опоры; независимое одобрение не подтверждено.",
                 })
-            sentences.append(replace(sentence, text=sentence.text + (
-                f" (ПРОВЕРИТЬ: {sentence.sentence_id})" if uncertain else ""
-            )))
+            sentences.append(sentence)
         marked_sections.append(replace(section, sentences=tuple(sentences)))
-    marked = replace(original, title=NOTICE + "\n" + original.title,
-                     sections=tuple(marked_sections), approvals={}, formal_check={})
+    marked = replace(original, sections=tuple(marked_sections), approvals={}, formal_check={})
     return original, marked, gaps
 
 
 def render_error_details(exc: Exception, *, stage: str | None = None) -> dict[str, Any]:
     codes = list(getattr(exc, "reason_codes", ()))
-    if isinstance(exc, ComplaintModelError):
+    if isinstance(exc, PresentationError):
+        reason = "service_notes_require_explicit_separation"
+        action = "Явно перенесите служебные заметки в review_notes; сохраните судебные мотивы и юридическое обоснование в жалобе."
+    elif isinstance(exc, ComplaintModelError):
         authority = stage == "authority" or any(any(word in code for word in ("authority", "binding", "receipt")) for code in codes)
         reason = "evidence_authority_required" if authority else "draft_input_invalid"
         action = ("Подключите указанную доверенную проверку; для рабочего проекта используйте render draft."
@@ -91,8 +95,27 @@ def pdf_line_wrap_match(expected: str, extracted: str) -> bool:
     return normalize_text(expected) == normalize_text(joined)
 
 
+def _review_markdown(complaint, gaps: list[dict[str, Any]]) -> str:
+    lines = ["# Проверка жалобы", "",
+             "Готовность к подаче: не подтверждена. Юридическая проверка: ожидается.",
+             "Внешнее оформление жалобы не меняет состояния доказательств и готовности.",
+             "", "## Недостающие данные и проверка опор", ""]
+    for gap in gaps:
+        locator = gap.get("sentence_id", gap.get("section_code", ""))
+        lines.append(f"- {locator}: {gap['message']}")
+    for section in complaint.sections:
+        if section.code in REVIEW_SECTION_CODES:
+            lines.extend(["", "## " + section.heading, ""])
+            lines.extend(sentence.text for sentence in section.sentences)
+    for finding in service_note_findings(complaint):
+        lines.extend(["", "## Служебная вставка требует редакторского разделения", "",
+                      finding["section_code"] + "/" + finding["sentence_id"],
+                      finding["text"], finding["message"]])
+    return "\n".join(lines) + "\n"
+
+
 def build_working_draft(workspace: Path, payload: Mapping[str, Any], input_sha: str) -> dict[str, Any]:
-    """Render an explicitly unapproved review copy, without creating release receipts."""
+    """Render complaint and separate review without creating release receipts."""
     from .renderer import render_docx, convert_docx_to_pdf, validate_rendered_pair, complaint_plain_text, extract_pdf_body_text
     from tempfile import mkdtemp
 
@@ -101,11 +124,13 @@ def build_working_draft(workspace: Path, payload: Mapping[str, Any], input_sha: 
     root.mkdir(parents=True, exist_ok=True)
     output = Path(mkdtemp(prefix=input_sha[:12] + "-", dir=root))
     source = output / "original-text.txt"
-    source.write_text(complaint_plain_text(original), encoding="utf-8")
+    source.write_text(source_plain_text(original), encoding="utf-8")
     review = output / "review-gaps.json"
     review.write_text(json.dumps({"human_review": "pending", "gaps": gaps}, ensure_ascii=False, indent=2), encoding="utf-8")
-    docx = render_docx(marked, output / "working-draft.docx")
-    pdf = convert_docx_to_pdf(docx.path, output / "working-draft.pdf", soffice_path=payload.get("soffice_path"))
+    review_md = output / "review-notes.md"
+    review_md.write_text(_review_markdown(original, gaps), encoding="utf-8")
+    docx = render_docx(marked, output / "constitutional-complaint.docx")
+    pdf = convert_docx_to_pdf(docx.path, output / "constitutional-complaint.pdf", soffice_path=payload.get("soffice_path"))
     previews = output / "previews"
     qa = validate_rendered_pair(marked, docx.path, pdf.path, preview_dir=previews, pdftoppm_path=payload.get("pdftoppm_path"))
     pdf_matches = qa.get("pdf_semantic_match") is True
@@ -119,12 +144,12 @@ def build_working_draft(workspace: Path, payload: Mapping[str, Any], input_sha: 
                             and not any(f.get("material") for f in qa.get("visual_findings", [])))
     preview_paths = sorted(previews.glob("page-*.png"))
     artifacts = [_file_record(Path(docx.path)), _file_record(Path(pdf.path)), _file_record(source),
-                 _file_record(review), *[_file_record(p) for p in preview_paths]]
+                 _file_record(review), _file_record(review_md), *[_file_record(p) for p in preview_paths]]
     manifest = {
-        "schema_version": "1.0", "artifact_type": "WorkingDraftManifest",
+        "schema_version": "1.1", "artifact_type": "WorkingDraftManifest",
         "state": "working_draft_created" if technical_passed else "blocked",
         "input_sha256": input_sha, "human_review": "pending", "filing_authority": False,
-        "approval_authority": False, "release_eligible": False,
+        "approval_authority": False, "release_eligible": False, "filing_ready": False,
         "working_draft_technical_passed": technical_passed, "qa": qa,
         "artifacts": artifacts, "gaps": gaps,
         "sentence_map": [{"sentence_id": s.sentence_id, "section_code": section.code,
@@ -134,7 +159,8 @@ def build_working_draft(workspace: Path, payload: Mapping[str, Any], input_sha: 
     path = output / "working-draft-manifest.json"
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return {**manifest, "output_dir": str(output), "manifest": _file_record(path),
-            "docx": docx.to_dict(), "pdf": pdf.to_dict(), "preview_paths": [str(p) for p in preview_paths]}
+            "docx": docx.to_dict(), "pdf": pdf.to_dict(), "review_markdown": _file_record(review_md),
+            "preview_paths": [str(p) for p in preview_paths]}
 
 
 def verify_working_draft(workspace: Path, result: Mapping[str, Any]) -> list[str]:
@@ -149,6 +175,8 @@ def verify_working_draft(workspace: Path, result: Mapping[str, Any]) -> list[str
         manifest = json.loads(path.read_bytes())
         if (manifest.get("artifact_type") != "WorkingDraftManifest"
                 or any(manifest.get(k) is not False for k in ("filing_authority", "approval_authority", "release_eligible"))
+                or manifest.get("filing_ready", False) is not False
+                or (manifest.get("schema_version") == "1.1" and manifest.get("filing_ready") is not False)
                 or manifest.get("human_review") != "pending"):
             return ["working_draft_manifest_invalid"]
         for artifact in manifest["artifacts"]:

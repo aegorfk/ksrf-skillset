@@ -136,7 +136,9 @@ class WritingLoopTests(unittest.TestCase):
         self.assertEqual(original.matter_id, self.matter_id)
         self.assertEqual(marked.approvals, {})
         self.assertTrue(gaps)
-        self.assertIn("ПРОВЕРИТЬ", marked.sections[0].sentences[0].text)
+        self.assertEqual(marked.sections[0].sentences[0].text,
+                         original.sections[0].sentences[0].text)
+        self.assertNotIn("ПРОВЕРИТЬ:", marked.sections[0].sentences[0].text)
 
     def test_quote_wrong_bounds_unknown_source_and_noninteger_bounds_fail(self):
         plan = self.writer.run("plan", self.plan_input())

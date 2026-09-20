@@ -50,6 +50,7 @@ from .renderer import (
     convert_docx_to_pdf,
     file_sha256,
     render_docx,
+    render_review_markdown,
     validate_rendered_pair,
 )
 from .storage import canonical_json_bytes, stable_id
@@ -82,6 +83,9 @@ _REQUIRED_ARTIFACTS = {
         ".pdf",
         b"%PDF",
     ),
+}
+_OPTIONAL_ARTIFACTS = {
+    "review_markdown": ("artifacts/review-notes.md", ".md", b"# "),
 }
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SENTENCE_ID_RE = re.compile(r"^sent-[0-9a-f]{16}$")
@@ -607,6 +611,10 @@ def build_release_pack(
     qa_artifacts: list[dict[str, Any]] = []
     qa: dict[str, Any] = {"passed": False, "reason": "not_run"}
     try:
+        review_path = artifacts_dir / "review-notes.md"
+        review = render_review_markdown(complaint, review_path)
+        artifacts.append({**review.to_dict(), "file_name": review_path.name,
+                          "relative_path": review_path.relative_to(destination).as_posix()})
         docx = render_docx(complaint, docx_path)
         artifacts.append(
             {
@@ -1140,13 +1148,16 @@ def _manifest_contract_errors(
         if isinstance(artifacts, Sequence) and not isinstance(artifacts, (str, bytes))
         else []
     )
-    for kind, (relative_path, suffix, magic) in _REQUIRED_ARTIFACTS.items():
+    supported_artifacts = {**_REQUIRED_ARTIFACTS, **_OPTIONAL_ARTIFACTS}
+    for kind, (relative_path, suffix, magic) in supported_artifacts.items():
         matches = [
             item
             for item in artifact_list
             if isinstance(item, Mapping) and item.get("kind") == kind
         ]
         if not matches:
+            if kind in _OPTIONAL_ARTIFACTS:
+                continue
             errors.append(f"required_artifact_missing:{kind}")
             errors.append(f"missing_file:{relative_path}")
             continue
@@ -1171,7 +1182,7 @@ def _manifest_contract_errors(
     for item in artifact_list:
         if not isinstance(item, Mapping):
             unexpected_artifact_kinds.append("<invalid>")
-        elif item.get("kind") not in _REQUIRED_ARTIFACTS:
+        elif item.get("kind") not in supported_artifacts:
             unexpected_artifact_kinds.append(str(item.get("kind") or "<missing>"))
     unexpected_artifact_kinds.sort()
     errors.extend(f"unexpected_artifact:{kind}" for kind in unexpected_artifact_kinds)
