@@ -165,6 +165,52 @@ class ComplaintPresentationTests(unittest.TestCase):
                          ['1. Прошу проверить условное положение.'])
         self.assertEqual(complaint.to_dict(), before)
 
+    def test_authored_markers_and_variable_requests_survive_docx_without_added_remedy(self):
+        for marker in ('ПРОШУ:', 'прошу', 'ПрОсИм:', 'ПРОСИМ'):
+            for count in (1, 3):
+                with self.subTest(marker=marker, count=count):
+                    requests = [f'{number}. Проверить условное положение {number}.'
+                                for number in range(1, count + 1)]
+                    _, complaint, _ = prepare_working_draft({
+                        'matter_id': 'synthetic', 'draft_id': 'variable', 'sections': [
+                            {'code': 'requested_remedy', 'heading': 'Требования',
+                             'sentences': [{'text': text, 'role': 'requested_remedy',
+                                            'evidence_ids': ['synthetic-evidence']}
+                                           for text in [marker, *requests]]}]})
+                    before = complaint.to_dict()
+                    with tempfile.TemporaryDirectory() as folder:
+                        path = Path(folder) / 'complaint.docx'
+                        render_docx(complaint, path)
+                        document = Document(path)
+                        paragraphs = document.paragraphs
+                        lines = [p.text for p in paragraphs]
+                        start = lines.index(REQUEST_HEADING)
+                        end = lines.index('Приложения', start)
+                        expected = [marker, *[text.replace('. ', '.\t', 1) for text in requests]]
+                        self.assertEqual(lines[start + 1:end], expected)
+                        prayers = [p for p in paragraphs if p.style.name == 'KSRF Prayer']
+                        self.assertEqual([p.text for p in prayers], [marker])
+                        self.assertEqual(prayers[0].style.paragraph_format.alignment,
+                                         WD_ALIGN_PARAGRAPH.CENTER)
+                        self.assertEqual([p.style.name for p in paragraphs[start + 2:end]],
+                                         ['KSRF Numbered Item'] * count)
+                        self.assertNotIn('пересмотр', '\n'.join(lines).casefold())
+                    self.assertEqual(complaint.to_dict(), before)
+
+    def test_marker_words_inside_sentences_are_not_promoted_to_prayer(self):
+        texts = ['Прошу проверить условное положение.',
+                 '1. Просим проверить другое условное положение.',
+                 'Условная цитата содержит слово «ПРОСИМ:».',
+                 'ПРОСИМ::']
+        _, complaint, _ = prepare_working_draft({'matter_id': 'synthetic', 'draft_id': 'bounded',
+            'sections': [{'code': 'requested_remedy', 'heading': 'Требования', 'sentences': texts}]})
+        before = complaint.to_dict()
+        blocks = complaint_blocks(complaint)
+        self.assertEqual([b.text for b in blocks if b.kind == 'prayer'], [PRAYER_MARKER])
+        for text in texts:
+            self.assertEqual([(b.kind, b.text) for b in blocks if b.text == text], [('body', text)])
+        self.assertEqual(complaint.to_dict(), before)
+
     def test_mixed_adverse_material_blocks_export_without_deleting_legal_prose(self):
         original, complaint, gaps = self.make_complaint()
         sections = list(complaint.sections)

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-09-26T06:43:35Z",
+  "generated_at": "2026-09-26T07:29:15Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "a100539eafc71a522e3e951e39e487331722db58",
+  "remote_base_commit": "39c36bffe14f5a116a378cbf3911e1351cad3ba6",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -28,8 +28,8 @@
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
   "total_files": 311,
-  "total_bytes": 11199856,
-  "tree_sha256": "ae57693c2f8d436256f01a2a5ac113fd6510a0360ddda09a8329c302aada5fd9",
+  "total_bytes": 11205871,
+  "tree_sha256": "feb5e1a141435eca3fef44772a91418eae697cc746f5a159c29215f4974ba83a",
   "skills": [
     {
       "name": "constitutional-comparative-research",
@@ -58,20 +58,20 @@
     {
       "name": "ksrf-complaint-cycle",
       "files": 108,
-      "bytes": 2610623,
-      "tree_sha256": "ecb1d74de6e4ec7aff96a88ab806e5fe5b703a81da8b12fcab83aaf5bb982898"
+      "bytes": 2614510,
+      "tree_sha256": "812f7f055b0740b439438c7ee662d861a106465445928d9d4f28871edd8d99b1"
     },
     {
       "name": "ksrf-complaint-facts-demands",
       "files": 14,
-      "bytes": 307471,
-      "tree_sha256": "df107bf41865323a79009505b70ec8d538f3fc211b3aa346ffbac3aeab15df1b"
+      "bytes": 308568,
+      "tree_sha256": "13e2f5807c5fcaf54e6691c27a640a047e4382897b2c354733549ec0cbede917"
     },
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 172596,
-      "tree_sha256": "f08cc2fb69b86babb59e1fa66ee14f483a2795ca7234e7212306d1fbda0fb109"
+      "bytes": 173182,
+      "tree_sha256": "85d0c2ff0252e61489e3346e31a05621a8b989af113633d73d2c4d895523bf0c"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -124,8 +124,8 @@
     {
       "name": "ksrf-rights-argument-builder",
       "files": 25,
-      "bytes": 406358,
-      "tree_sha256": "26e7d84dc1088c155c86cafafb9279bc051ef85260fc5d4e4a99f9ad3adfbc3c"
+      "bytes": 406803,
+      "tree_sha256": "b3141ed1c2907702456ac7efd569a6da48014d57b3aa41c7fbc36c8935362f03"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",

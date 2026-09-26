@@ -44,7 +44,7 @@ class PresentationBlock:
 
 def _is_prayer_marker(text: str) -> bool:
     """Recognize only a standalone conventional marker, retaining its spelling."""
-    return re.fullmatch(r"ПРОШУ:?", text.strip(), re.IGNORECASE) is not None
+    return re.fullmatch(r"(?:ПРОШУ|ПРОСИМ):?", text.strip(), re.IGNORECASE) is not None
 
 
 def complaint_blocks(complaint: StructuredComplaint) -> tuple[PresentationBlock, ...]:
