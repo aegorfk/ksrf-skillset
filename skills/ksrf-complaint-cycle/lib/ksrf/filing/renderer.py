@@ -224,7 +224,10 @@ def _configure_document(document: Document, complaint: StructuredComplaint) -> N
     header = _paragraph_style(document, "KSRF Complaint Header", size=11.5,
                               after=4, keep_next=True)
     header.paragraph_format.left_indent = int((page.page_width - page.left_margin - page.right_margin) / 2)
-    _paragraph_style(document, "KSRF Source", size=11, after=4)
+    _paragraph_style(document, "KSRF Source", size=12, line=1.15, after=6, first_mm=10,
+                     alignment=WD_ALIGN_PARAGRAPH.JUSTIFY)
+    _paragraph_style(document, "KSRF Prayer", size=12, bold=True, after=6,
+                     alignment=WD_ALIGN_PARAGRAPH.CENTER, keep_next=True)
     _paragraph_style(document, "KSRF Annex", size=12, line=1.15, after=6)
     numbered = _paragraph_style(document, "KSRF Numbered Item", size=12, line=1.15,
                                 after=6, first_mm=-6.5, left_mm=6.5)
@@ -262,7 +265,7 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
 
     styles = {"header": "KSRF Complaint Header", "title": "Title", "subtitle": "Subtitle",
               "heading": "KSRF Heading", "subheading": "KSRF Subheading",
-              "source": "KSRF Source", "annex": "KSRF Annex"}
+              "source": "KSRF Source", "annex": "KSRF Annex", "prayer": "KSRF Prayer"}
     for block in complaint_blocks(complaint):
         text = _display_text(block.text)
         style = styles.get(block.kind, "Normal")
@@ -279,7 +282,7 @@ def render_docx(complaint: StructuredComplaint, output_path: str | Path) -> Rend
         size=destination.stat().st_size,
         sha256=file_sha256(destination),
         renderer="python-docx",
-        renderer_version="1.4",
+        renderer_version="1.5",
         status="complete",
     )
 

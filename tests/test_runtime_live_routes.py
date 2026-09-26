@@ -102,9 +102,9 @@ REVIEWED_RUNTIME_FILES = {
         "75781bce49525d2413146d830a11c777db45f780689e8e6b12191367432a4927",
     ),
     REPO / "skills/ksrf-complaint-facts-demands/SKILL.md": (
-        83,
-        21_969,
-        "e2a2f4cc3825eb3455f5b2eccff5c94aa0cd80366604768cd5a073e7b70e6f98",
+        84,
+        24_596,
+        "d60f823a7db6381c6f0d901ddeb5e850090cabdd2db3a529eeccdbd96a2b3a6f",
     ),
     REPO / "skills/ksrf-complaint-facts-demands/references/complaint-patterns.md": (
         65,
@@ -112,9 +112,9 @@ REVIEWED_RUNTIME_FILES = {
         "b438cf7eb91cc6415848e2efa231c7d87715ed64b29f65a1fb7ecfb4b05ddef4",
     ),
     REPO / "skills/ksrf-rights-argument-builder/SKILL.md": (
-        138,
-        35_788,
-        "2f49b78a44fd32d1e446c927c6bdf0453170df4e4502523e27ce89c3e119114a",
+        139,
+        36_693,
+        "16083029fc065b3be7c3e149780e136df9149b621612173facb8b811805bf87a",
     ),
     REPO / "skills/ksrf-rights-argument-builder/references/complaint-patterns.md": (
         74,

@@ -1,0 +1,9 @@
+# Design
+
+Keep the structured complaint and sentence evidence contracts unchanged. Treat `request_basis` as an optional author-supplied section, not a new mandatory field or an inferred legal proposition. Its existing text, sentence identifiers, roles and support states remain unchanged. Group this section after heading III and before the prayer marker. Preserve every requested-remedy sentence and its order, including the user's selected number of requests. An existing standalone prayer marker is styled in place with its capitalization retained; otherwise presentation supplies only the conventional marker `ПРОШУ:`. The renderer does not manufacture numbering, legal grounds or a reconsideration claim.
+
+For newly drafted complaints, editorial instructions call for the legal introduction, a separate prayer marker, a first numbered request tying the precise normative defect or uncertainty to constitutional review, and a second request for reconsideration where grounds follow from the Constitutional Court's judgment. The requested outcome and applicable powers are chosen and checked by the author. Existing user choices override default editorial structure.
+
+Keep `source` blocks and `KSRF Source` to preserve presentation compatibility. Configure the style to the same typography as Normal: 12 pt, justified, 1.15 spacing, 6 pt after, 10 mm first-line indent. Add a named prayer style with centered bold 12 pt, no first-line indent and keep-with-next.
+
+No punctuation classifier rewrites legal text. Section II's affirmative prose is an author/QA rule, with internal research questions explicitly retained outside the court document. Synthetic tests check DOCX order, centered marker, preserved numbered requests and source/body formatting equivalence, plus unchanged model and provenance.

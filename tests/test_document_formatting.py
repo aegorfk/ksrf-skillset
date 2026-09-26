@@ -49,7 +49,8 @@ class DocumentFormattingTests(unittest.TestCase):
                 'Normal': (12, 1.15, 0, 6, 10), 'Title':(14,1,12,6,0),
                 'Subtitle':(12,1,0,12,0), 'KSRF Heading':(13,1.1,12,6,0),
                 'KSRF Subheading':(12,1.1,10,6,0), 'KSRF Complaint Header':(11.5,1,0,4,0),
-                'KSRF Source':(11,1,0,4,0), 'KSRF Footer':(11,1,0,0,0),
+                'KSRF Source':(12,1.15,0,6,10), 'KSRF Prayer':(12,1,0,6,0),
+                'KSRF Footer':(11,1,0,0,0),
             }
             for name,(size,line,before,after,first) in expected.items():
                 style=document.styles[name]; fmt=style.paragraph_format
@@ -64,6 +65,21 @@ class DocumentFormattingTests(unittest.TestCase):
             self.assertAlmostEqual(header.left_indent.mm,82.5,places=1)
             self.assertEqual(header.alignment, WD_ALIGN_PARAGRAPH.LEFT)
             self.assertEqual(document.styles['Normal'].paragraph_format.alignment, WD_ALIGN_PARAGRAPH.JUSTIFY)
+
+    def test_authority_prose_matches_body_typography_without_losing_source_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            complaint, document = self.render(folder)
+            source = next(p for p in document.paragraphs if p.text.startswith('Условный источник'))
+            body = next(p for p in document.paragraphs if p.text.startswith('Суд отказал'))
+            self.assertEqual(source.style.name, 'KSRF Source')
+            self.assertEqual(body.style.name, 'Normal')
+            # Full run and paragraph style properties detect a smaller/left-aligned
+            # source inset, including inherited spacing or indentation differences.
+            self.assertEqual(source.style._element.rPr.xml, body.style._element.rPr.xml)
+            self.assertEqual(source.style._element.pPr.xml, body.style._element.pPr.xml)
+            self.assertEqual(source.text, _display_text(next(
+                s.text for section in complaint.sections if section.code == 'authorities'
+                for s in section.sentences)))
 
     def test_fonts_language_complex_size_and_style_assignments(self):
         with tempfile.TemporaryDirectory() as folder:

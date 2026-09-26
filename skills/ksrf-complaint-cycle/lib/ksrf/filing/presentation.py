@@ -11,6 +11,7 @@ REVIEW_SECTION_CODES = frozenset({"review_notes"})
 FACTS_HEADING = "I. Фактические обстоятельства дела"
 REASONING_HEADING = "II. Позиция заявителя и её конституционно-правовое обоснование"
 REQUEST_HEADING = "III. Требование, обращённое к Конституционному Суду Российской Федерации"
+PRAYER_MARKER = "ПРОШУ:"
 
 # Bounded detection of explicit workflow markers, never a classifier of legal prose.
 SERVICE_MARKERS = re.compile(
@@ -39,6 +40,11 @@ def service_note_findings(complaint: StructuredComplaint) -> list[dict[str, str]
 class PresentationBlock:
     kind: str
     text: str
+
+
+def _is_prayer_marker(text: str) -> bool:
+    """Recognize only a standalone conventional marker, retaining its spelling."""
+    return re.fullmatch(r"ПРОШУ:?", text.strip(), re.IGNORECASE) is not None
 
 
 def complaint_blocks(complaint: StructuredComplaint) -> tuple[PresentationBlock, ...]:
@@ -77,11 +83,20 @@ def complaint_blocks(complaint: StructuredComplaint) -> tuple[PresentationBlock,
     content(("adverse_material",))
     # Preserve additional substantive sections instead of silently dropping them.
     for section in complaint.sections:
-        if section.code not in used | {"requested_remedy", "enclosures", "signature"}:
+        if section.code not in used | {"request_basis", "requested_remedy", "enclosures", "signature"}:
             blocks.append(PresentationBlock("subheading", section.heading))
             content((section.code,))
     blocks.append(PresentationBlock("heading", REQUEST_HEADING))
-    content(("requested_remedy",))
+    # Legal grounds are explicit author input, never inferred from the requests.
+    content(("request_basis",))
+    remedies = sections.get("requested_remedy")
+    remedy_sentences = remedies.sentences if remedies is not None else ()
+    has_marker = any(_is_prayer_marker(sentence.text) for sentence in remedy_sentences)
+    if not has_marker:
+        blocks.append(PresentationBlock("prayer", PRAYER_MARKER))
+    for sentence in remedy_sentences:
+        kind = "prayer" if _is_prayer_marker(sentence.text) else "body"
+        blocks.append(PresentationBlock(kind, sentence.text))
     blocks.append(PresentationBlock("heading", "Приложения"))
     content(("enclosures",), "annex")
     content(("signature",))
