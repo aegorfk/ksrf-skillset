@@ -69,10 +69,10 @@ HEURISTIC_SCOPE = (
     "подаче, выборе основного довода или исходе дела."
 )
 PRESERVED_PROJECTION_SHA256 = (
-    "6e48efe07a0cab58ac32b135ec5b9315ec7f282125ea229a35183c6f762f658d"
+    "6446f482443d2a5184c34e0b715e590704914798e676a82317871639900b11b6"
 )
 FULL_REFERENCE_SHA256 = (
-    "4968c07ce87f1cf833aad39a6ac3852146ae7c6f241e92fd5e79f7b707bf8296"
+    "5e040ca73b7794281b7258e44e46618c93935cc10b25acb544a5d33d617c89f3"
 )
 
 
@@ -224,12 +224,12 @@ class ComplaintQaScalarReadinessTests(unittest.TestCase):
     def test_everything_outside_the_approved_replacement_scope_is_exact(self) -> None:
         encoded = self.text.encode("utf-8")
         self.assertEqual(self.text.count("\n"), 344)
-        self.assertEqual(len(encoded), 43_067)
+        self.assertEqual(len(encoded), 43_864)
         self.assertEqual(hashlib.sha256(encoded).hexdigest(), FULL_REFERENCE_SHA256)
 
         projection = preserved_projection(self.text)
         self.assertEqual(projection.count("\n"), 311)
-        self.assertEqual(len(projection.encode("utf-8")), 35_078)
+        self.assertEqual(len(projection.encode("utf-8")), 35_875)
         self.assertEqual(
             hashlib.sha256(projection.encode("utf-8")).hexdigest(),
             PRESERVED_PROJECTION_SHA256,

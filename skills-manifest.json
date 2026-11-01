@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-11-01T19:04:55Z",
+  "generated_at": "2026-11-01T19:20:27Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "769decf408cbb4f7b358d98fb0a86a1e595016f8",
+  "remote_base_commit": "d943a8a0bfc223a4a7e9777e589c392335fbf6b4",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,21 +27,21 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
-  "total_files": 312,
-  "total_bytes": 11233987,
-  "tree_sha256": "25a957d8f8a9c457d1efa977fd4c0219667d2ff3b0b611db4f3528df018963c3",
+  "total_files": 313,
+  "total_bytes": 11265631,
+  "tree_sha256": "237b81123916f9cbcaccba3cfbde007c78cfc46357ed0e0faca38f5ca7022a08",
   "skills": [
     {
       "name": "constitutional-comparative-research",
       "files": 9,
-      "bytes": 160421,
-      "tree_sha256": "110f778a09b3548caa1fc4cbc186e34370d4f8b9b5a29a59b1f6d33a5bf1ffdb"
+      "bytes": 161062,
+      "tree_sha256": "2736f2230876b6159485a12b190d44998bdb108bed655ab84182b81dcdff8a66"
     },
     {
       "name": "ksrf-argument-patterns",
-      "files": 41,
-      "bytes": 4140756,
-      "tree_sha256": "43c637d7bb7340f6b28df3e00eb47ed22846163f08561fba5ad20a46d3252f14"
+      "files": 42,
+      "bytes": 4165724,
+      "tree_sha256": "00039576fdf262d2352ecf501c02737878738b0ff764d078d8dbf437cd5e913d"
     },
     {
       "name": "ksrf-case-triage",
@@ -70,8 +70,8 @@
     {
       "name": "ksrf-complaint-qa",
       "files": 8,
-      "bytes": 173979,
-      "tree_sha256": "a4f5e6a1aee80f278b1d30df439a1092cba3e67f3f63d4c051c2024c63af3d9d"
+      "bytes": 174659,
+      "tree_sha256": "37ab3288fb6bec68b96cd8ab11c6ef050e17fd5f9a2059b247f474b82d8b6ece"
     },
     {
       "name": "ksrf-court-request-motion",
@@ -82,8 +82,8 @@
     {
       "name": "ksrf-decision-execution",
       "files": 6,
-      "bytes": 97556,
-      "tree_sha256": "69c2230180260bb17f2b4db4bec4ff00df8c76088c606abf4f3673bdcc98581a"
+      "bytes": 102225,
+      "tree_sha256": "faa5923378b30d93c0f3b24a567f3b99bf54e01d2e548d607d124a8ec58eff87"
     },
     {
       "name": "ksrf-doctrine-research",
@@ -124,8 +124,8 @@
     {
       "name": "ksrf-rights-argument-builder",
       "files": 25,
-      "bytes": 406803,
-      "tree_sha256": "b3141ed1c2907702456ac7efd569a6da48014d57b3aa41c7fbc36c8935362f03"
+      "bytes": 407489,
+      "tree_sha256": "f72be00e6cc705c1fcee79f36fc59bb35b6b198403d994edbc6c245037359c8e"
     }
   ],
   "release_files_note": "Executable release surface excluding this self-referential manifest; clean HEAD == live main binds all remaining versioned files",

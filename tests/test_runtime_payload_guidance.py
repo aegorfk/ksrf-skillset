@@ -115,9 +115,9 @@ VERIFICATION_STATUSES = "candidate | verified | rejected | superseded"
 GUIDE_LINES = 190
 GUIDE_BYTES = 20_372
 GUIDE_SHA256 = "cbc562c0fb543735afce3a09fe9494e9ee8cd55c7fd2562030db7b62f1881ef9"
-SKILL_LINES = 162
-SKILL_BYTES = 30_308
-SKILL_SHA256 = "ed8f68d9b3ef5b5059a06d4dbf8ae708f157efd61a5753c3abf21daf2399c1aa"
+SKILL_LINES = 168
+SKILL_BYTES = 30_975
+SKILL_SHA256 = "53c255a98a6d7d9bf1551d24e58371a2f9126d4ed70e4af590407efcb2def4c6"
 
 
 class RuntimePayloadGuidanceTests(unittest.TestCase):

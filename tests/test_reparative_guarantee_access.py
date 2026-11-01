@@ -90,8 +90,9 @@ class ReparativeGuaranteeAccessTests(unittest.TestCase):
         suites = {
             "ksrf-explore-arguments": (13, 16),
             # Reviewed canonical updates 7e8f7ca, fc54fe6, 940c438 retain
-            # cases 1–42 and add source-free synthetic QA cases 43–45.
-            "ksrf-complaint-qa": (26, 45),
+            # cases 1–42 and add source-free synthetic QA cases 43–45;
+            # a100539 preserves those cases and adds source-free cases 46–47.
+            "ksrf-complaint-qa": (26, 47),
         }
         for skill, (first, last) in suites.items():
             payload = json.loads((REPO / "skills" / skill / "evals/evals.json").read_text())

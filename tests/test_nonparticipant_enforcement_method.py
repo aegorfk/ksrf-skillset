@@ -98,14 +98,15 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         # Reviewed canonical updates 7e8f7ca, fc54fe6, 940c438: cases 1–16
         # are unchanged; synthetic, source-free cases 17–19 add compensation,
         # conditional reopening and legislative-remedy execution boundaries.
+        # d943a8a preserves cases 1–19 and adds source-free case 20 on § 67.
         self.assertEqual(
             hashlib.sha256(source.read_bytes()).hexdigest(),
-            "4c6b525a22aa1e42d1ddae87e0b2a3e3cb1ef1a0d400158a000fa200627be0f8",
+            "7c9e92e0324c4c7acbe5fde661a4ad2f3cdf302a843a4f87a229e5324ab39911",
         )
         payload = json.loads(source.read_text())
         entries = {entry["id"]: entry for entry in payload["evals"]}
-        self.assertEqual(set(entries), set(range(1, 20)))
-        for number in (*range(4, 9), *range(14, 20)):
+        self.assertEqual(set(entries), set(range(1, 21)))
+        for number in (*range(4, 9), *range(14, 21)):
             with self.subTest(number=number):
                 self.assertEqual(entries[number]["files"], [])
                 self.assertGreaterEqual(len(entries[number]["expectations"]), 2)
@@ -113,7 +114,7 @@ class NonparticipantEnforcementMethodTests(unittest.TestCase):
         self.assertIn("Жалоба только подана", entries[6]["prompt"])
         self.assertIn("не представлены", entries[7]["prompt"])
         self.assertIn("двух частных лиц", entries[8]["prompt"])
-        for number in range(14, 20):
+        for number in range(14, 21):
             self.assertIn("Синтетический сценарий", entries[number]["prompt"])
 
 

@@ -705,7 +705,7 @@ class ProvenanceDocumentationTests(unittest.TestCase):
         readme = text("README.md")
         methodology = readme.index("## Методология как цифровой маршрут")
         case_start = readme.index("## С чего начать по своему делу")
-        installation = readme.index("## Установка на чистый ноутбук")
+        installation = readme.index("## Развертывание")
         self.assertLess(methodology, case_start)
         self.assertLess(case_start, installation)
 
