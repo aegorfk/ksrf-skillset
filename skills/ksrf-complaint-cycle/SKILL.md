@@ -73,6 +73,8 @@ description: "Скилл помогает заявителю без юридич
 
 Результат: `GO_TO_KSRF`, `FIX_FIRST`, `COURT_REQUEST_ROUTE`, `NO_GO_KSRF` либо `ABSTAIN_PENDING_RECORD`. Даже `GO_TO_KSRF` остаётся рекомендацией для юриста: `human_decision=pending`, `legal_assessment_automated=false`, `filing_authority=false` и `filing_performed=false`. При critical unknown сохраняй `filing_ready=false` в служебных данных; оформление судебного текста не является разрешением подписать или подать жалобу.
 
+Если после подачи или принятия обращения изменились обычное дело, исполнение, оспариваемая норма либо возможность восстановить право, открой [аудит последующих изменений](references/post-filing-change-and-mootness.md). Храни отдельные срезы на дату подачи, принятия и текущую дату; не выводи автоматически ни утрату предмета, ни сохранение производства. Отдельно пересчитай допустимость, сохраняющийся нормативный вопрос и индивидуальный способ восстановления.
+
 ### 5. Исследуй варианты и отказные аналоги
 
 Когда для выявления проблемы или поддержки довода полезны зарубежные акты, подключай [сравнительное исследование](../constitutional-comparative-research/SKILL.md) по его [агентному маршруту](../constitutional-comparative-research/references/agent-research-workflow.md). Агент использует доступный MCP, читает полные источники и закрывает пробелы официальным поиском; КС РФ, ВС РФ и HUDOC сохраняют собственные маршруты и юридические роли. Зарубежная база и её векторный индекс не являются обязательной предпосылкой подготовки российского рабочего проекта.
@@ -148,6 +150,7 @@ description: "Скилл помогает заявителю без юридич
 
 - `references/offline-practice-core.md` — автономный правовой baseline;
 - `references/strategic-complaint-design.md` — стратегия предмета/remedy/исполнения;
+- `references/post-filing-change-and-mootness.md` — изменение обычного дела после подачи или принятия, отсутствие автоматического mootness и пересборка remedy;
 - `references/practice-analysis-integration.md` — empirical claim gate;
 - `references/docx-first-page-layout.md` — макет первой страницы;
 - `references/science-support-pack.md` — роль доктрины/эмпирики;

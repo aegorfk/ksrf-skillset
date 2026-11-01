@@ -1,8 +1,8 @@
 {
   "schema_version": "1.2",
-  "generated_at": "2026-11-01T19:03:20Z",
+  "generated_at": "2026-11-01T19:04:55Z",
   "source": "~/.codex/skills canonical package allowlist",
-  "remote_base_commit": "58d475beeb18c2815d66c9f58d4f4aac3aed7e44",
+  "remote_base_commit": "769decf408cbb4f7b358d98fb0a86a1e595016f8",
   "exclusions": [
     ".DS_Store",
     ".git/",
@@ -27,9 +27,9 @@
   ],
   "digest_format": "sha256 over 4-byte big-endian relative path length + relative path + 8-byte big-endian content length + content, files sorted by POSIX relative path",
   "total_skills": 16,
-  "total_files": 311,
-  "total_bytes": 11214084,
-  "tree_sha256": "a1cde46e503a648221fd588d28885ba4a6e759575c5f8586a6c9f87009704f33",
+  "total_files": 312,
+  "total_bytes": 11233987,
+  "tree_sha256": "25a957d8f8a9c457d1efa977fd4c0219667d2ff3b0b611db4f3528df018963c3",
   "skills": [
     {
       "name": "constitutional-comparative-research",
@@ -40,14 +40,14 @@
     {
       "name": "ksrf-argument-patterns",
       "files": 41,
-      "bytes": 4137278,
-      "tree_sha256": "5b06b59a8c1762873aa2e5a868b3e17b3ea613874b5a2944a16c94abf9d1bb54"
+      "bytes": 4140756,
+      "tree_sha256": "43c637d7bb7340f6b28df3e00eb47ed22846163f08561fba5ad20a46d3252f14"
     },
     {
       "name": "ksrf-case-triage",
       "files": 5,
-      "bytes": 96189,
-      "tree_sha256": "bf85a716d51fbeb3169b2a3777b69429f55c2635e0b6dabb21bb56055c50ef3d"
+      "bytes": 97121,
+      "tree_sha256": "2f1c8973c599fbfa86510e57304332e628c82b58d2e280ebf440cbdf817b3a58"
     },
     {
       "name": "ksrf-cassation-judicial-meaning",
@@ -57,9 +57,9 @@
     },
     {
       "name": "ksrf-complaint-cycle",
-      "files": 108,
-      "bytes": 2616002,
-      "tree_sha256": "e71cee627b61deca9ff6ce994cac743a8bd0d372d8b24507536a1c2fb07708da"
+      "files": 109,
+      "bytes": 2627730,
+      "tree_sha256": "a3ab7998f1ee75d081e6b04f7091ab47f3edef63236c725a533407f61651bd7a"
     },
     {
       "name": "ksrf-complaint-facts-demands",
@@ -82,8 +82,8 @@
     {
       "name": "ksrf-decision-execution",
       "files": 6,
-      "bytes": 93791,
-      "tree_sha256": "748aaa6d5ba5bba826cdecdf22359ddd124d924b3ce4c029f3fb5e99489b8bc6"
+      "bytes": 97556,
+      "tree_sha256": "69c2230180260bb17f2b4db4bec4ff00df8c76088c606abf4f3673bdcc98581a"
     },
     {
       "name": "ksrf-doctrine-research",
