@@ -111,6 +111,7 @@ Pattern match становится опорой только после ручн
 
 ## Справочники
 
+- [Проверка работающего способа защиты](references/hearing-mechanism-checks.md) — срок обязательной процедуры, последствия старой записи, функции совмещённых ограничений, юридическая значимость до доказанности, отсылки в альтернативном порядке и выбор между пересмотром и новым обращением; с возражениями и пределами переноса.
 - `references/pattern-matrix.md` и `references/decision-index.md` — candidate map и акты для проверки.
 - `references/argument-techniques-from-decisions.md`, `references/hearing-derived-argument-patterns.md`, `references/hearing-constitutional-justifications.md`, `references/hearing-argument-techniques.md` — эвристики, вопросы и stress-tests, не обязательные схемы.
 - `references/external-ks-complaint-webinar-methods.md` — профессиональная методика из вебинара о жалобе в КС РФ: нормативный барьер, четыре дефекта, неединичность практики, ранняя фиксация нормы, ходатайство о запросе суда, ответ на возврат Секретариата и red-team системных последствий; не официальный источник права.

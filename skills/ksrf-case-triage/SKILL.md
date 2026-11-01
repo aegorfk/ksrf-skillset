@@ -70,6 +70,7 @@ description: "Скилл оценивает по судебному акту, н
 
 ## Справочники
 
+- [Проверка работающего способа защиты](../ksrf-argument-patterns/references/hearing-mechanism-checks.md) — срок обязательной процедуры, последствия старой записи, исключение обстоятельства из оценки и реальная доступность альтернативы; не заменяет проверку допустимости жалобы.
 - `../ksrf-complaint-cycle/references/offline-practice-core.md` — автономные hard gates, concrete-case, application, prior-decision и continuing-effect тесты.
 - `../ksrf-complaint-cycle/references/post-filing-change-and-mootness.md` — отдельный аудит событий после подачи или принятия обращения.
 - `../ksrf-complaint-cycle/references/uid-first-case-workflow.md` — получение полного доступного досье по UID и admissibility-first решение.

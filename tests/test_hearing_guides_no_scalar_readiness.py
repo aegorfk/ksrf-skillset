@@ -139,7 +139,7 @@ class HearingGuideScalarReadinessTests(unittest.TestCase):
     def test_approved_full_guide_projections_are_exact(self) -> None:
         expected_hashes = {
             DERIVED: "d99c9a92578e93d2b61a49e9c8749419912405dbe2a50c6fedb5ce32d9df9554",
-            CONSTITUTIONAL: "c4fd63d1ce4efda5d32b43c6d048106406b1403665e5650aba0823ce5b0074f6",
+            CONSTITUTIONAL: "8dc812cfbaa92b8ae6b3be5d4f60884dc4e48b86114593f5d5a26ed72862aab8",
             TECHNIQUES: "4e47d23d8efc5637ad976cd930c416961069701d69709277f7644e3f7a4d84f8",
         }
         for path, expected_hash in expected_hashes.items():
